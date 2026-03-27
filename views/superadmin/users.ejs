@@ -1,0 +1,303 @@
+<%- include('../partials/head', {title: 'All Users - SuperAdmin'}) %>
+<div class="app-layout">
+  <%- include('../partials/sidebar-superadmin') %>
+  <div class="main-content">
+    <header class="page-header">
+      <div class="flex items-center gap-3">
+        <button class="mobile-menu-btn" onclick="openSidebar()"><i class="bx bx-menu"></i></button>
+        <div><div class="page-title"><i class="bx bxs-group"></i> All Users</div><div class="page-subtitle">System-wide user management</div></div>
+      </div>
+      <div class="header-actions"></div>
+    </header>
+    <div class="page-body admin-employees-page">
+      <div class="employee-directory-shell">
+        <div class="admin-toolbar" style="margin-bottom:20px;">
+          <select id="f-company" class="form-control" style="width:200px" onchange="renderUsers()"><option value="">All Companies</option></select>
+          <select id="f-role" class="form-control" style="width:140px" onchange="renderUsers()">
+            <option value="">All Roles</option>
+            <option value="admin">Admin</option>
+            <option value="manager">Manager</option>
+            <option value="employee">Employee</option>
+          </select>
+          <div class="search-bar" style="width:240px;">
+            <span class="search-icon"><i class="bx bx-search"></i></span>
+            <input type="text" placeholder="Search users..." id="search-input" oninput="renderUsers()">
+          </div>
+          <button class="btn btn-primary" style="margin-left:auto;" onclick="openCreate()"><i class="bx bx-plus"></i> Add User</button>
+        </div>
+        <div id="users-grid" class="users-grid">
+          <div style="grid-column:1/-1;text-align:center;padding:60px;"><span class="spinner"></span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="user-modal">
+  <div class="modal">
+    <div class="modal-header"><span class="modal-title" id="u-modal-title">Add User</span><button class="modal-close" onclick="closeModal('user-modal')">Ã—</button></div>
+    <div class="modal-body">
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Name</label><input type="text" id="u-name" class="form-control"></div>
+        <div class="form-group"><label class="form-label">Email</label><input type="email" id="u-email" class="form-control"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Role</label>
+          <select id="u-role" class="form-control">
+            <option value="admin">Admin</option>
+            <option value="manager">Manager</option>
+            <option value="employee">Employee</option>
+          </select>
+        </div>
+        <div class="form-group"><label class="form-label">Company</label><select id="u-company" class="form-control"><option value="">Select company...</option></select></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Department</label><input type="text" id="u-dept" class="form-control"></div>
+        <div class="form-group"><label class="form-label">Phone</label><input type="text" id="u-phone" class="form-control"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Gender</label><select id="u-gender" class="form-control"><option value="unspecified">Select gender</option><option value="male">Male</option><option value="female">Female</option></select></div>
+        <div class="form-group"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Status</label><select id="u-status" class="form-control"><option value="active">Active</option><option value="inactive">Inactive</option></select></div>
+        <div class="form-group"><label class="form-label">Password <span style="color:var(--text-muted)">(default: Admin@123)</span></label><input type="password" id="u-pass" class="form-control" placeholder="Leave blank for default"></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('user-modal')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveUser()">Save</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="detail-modal">
+  <div class="modal modal-lg">
+    <div class="modal-header"><span class="modal-title" id="detail-title">User Details</span><button class="modal-close" onclick="closeModal('detail-modal')">Ã—</button></div>
+    <div class="modal-body" id="detail-body"></div>
+  </div>
+</div>
+
+<style>
+#user-modal .modal-close i,
+#detail-modal .modal-close i{font-size:18px;}
+</style>
+
+<script src="/js/api.js"></script>
+<script>
+let editId = null, allUsers = [], companies = [];
+
+document.addEventListener('DOMContentLoaded', function() {
+  var userClose = document.querySelector('#user-modal .modal-close');
+  var detailClose = document.querySelector('#detail-modal .modal-close');
+  if (userClose) userClose.innerHTML = '<i class="bx bx-x"></i>';
+  if (detailClose) detailClose.innerHTML = '<i class="bx bx-x"></i>';
+});
+
+function esc(value) {
+  return String(value == null ? '' : value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+async function init() {
+  try {
+    companies = await api('GET','/companies');
+    document.getElementById('f-company').innerHTML = '<option value="">All Companies</option>' + companies.map(c => '<option value="' + c.id + '">' + c.name + '</option>').join('');
+    document.getElementById('u-company').innerHTML = '<option value="">Select company...</option>' + companies.map(c => '<option value="' + c.id + '">' + c.name + '</option>').join('');
+    await loadUsers();
+  } catch(e) { toast(e.message,'error'); }
+}
+
+async function loadUsers() {
+  try {
+    allUsers = await api('GET','/users');
+    renderUsers();
+  } catch(e) { toast(e.message,'error'); }
+}
+
+function renderUsers() {
+  let filtered = allUsers.slice();
+  const fCo = document.getElementById('f-company').value;
+  const fRole = document.getElementById('f-role').value;
+  const q = (document.getElementById('search-input').value || '').toLowerCase();
+  if (fCo) filtered = filtered.filter(u => String(u.company?.id) === fCo || String(u.companyId) === fCo);
+  if (fRole) filtered = filtered.filter(u => u.role === fRole);
+  if (q) filtered = filtered.filter(u => [u.name, u.email, u.company?.name, u.department].filter(Boolean).some(v => String(v).toLowerCase().includes(q)));
+
+  const grid = document.getElementById('users-grid');
+  if (!filtered.length) {
+    grid.innerHTML = '<div style="grid-column:1/-1;" class="empty-state"><div class="empty-icon"><i class="bx bxs-group"></i></div><h3>No users found</h3></div>';
+    return;
+  }
+  grid.innerHTML = filtered.map(u => `
+    <div class="employee-showcase-card">
+      <div class="employee-showcase-top">
+        <div class="employee-showcase-status">${statusBadge(u.status)}</div>
+        <div class="employee-showcase-avatar">${userAvatar(u,54)}</div>
+        <div class="employee-showcase-name">${esc(u.name)}</div>
+        <div class="employee-showcase-role">${roleBadge(u.role)}</div>
+      </div>
+      <div class="employee-showcase-body">
+        <div class="employee-showcase-meta">
+          <div class="employee-showcase-item"><i class="bx bx-envelope"></i><span>${esc(u.email)}</span></div>
+          <div class="employee-showcase-item"><i class="bx bx-buildings"></i><span>${esc(u.company?.name || 'No company')}</span></div>
+          <div class="employee-showcase-item"><i class="bx bx-briefcase"></i><span>${esc(u.department || 'Not assigned')}</span></div>
+        </div>
+        <div class="employee-showcase-actions">
+          <button class="btn btn-ghost btn-sm" onclick="viewUser(${u.id})"><i class="bx bx-show"></i> View</button>
+          ${u.role === 'superadmin' ? '' : `<button class="btn btn-danger btn-sm" onclick="delUser(${u.id})"><i class="bx bx-trash"></i></button>`}
+          <button class="btn btn-ghost btn-sm" onclick="editUser(${u.id})"><i class="bx bx-edit"></i></button>
+        </div>
+      </div>
+    </div>
+  `).join('');
+}
+
+function openCreate() {
+  editId = null;
+  document.getElementById('u-modal-title').textContent = 'Add User';
+  ['u-name','u-email','u-pass','u-dept','u-phone'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('u-gender').value = 'unspecified';
+  document.getElementById('u-role').value = 'employee';
+  document.getElementById('u-company').value = '';
+  document.getElementById('u-status').value = 'active';
+  document.getElementById('u-status').disabled = false;
+  openModal('user-modal');
+}
+
+function editUser(id) {
+  var u = allUsers.find(function(x){ return x.id == id; });
+  if (!u) return;
+  editId = id;
+  document.getElementById('u-modal-title').textContent = 'Edit User - ' + u.name;
+  document.getElementById('u-name').value = u.name;
+  document.getElementById('u-email').value = u.email;
+  document.getElementById('u-role').value = u.role;
+  document.getElementById('u-company').value = u.company?.id || u.companyId || '';
+  document.getElementById('u-dept').value = u.department || '';
+  document.getElementById('u-phone').value = u.phone || '';
+  document.getElementById('u-gender').value = u.gender || 'unspecified';
+  document.getElementById('u-status').value = u.role === 'superadmin' ? 'active' : u.status;
+  document.getElementById('u-status').disabled = u.role === 'superadmin';
+  document.getElementById('u-pass').value = '';
+  openModal('user-modal');
+}
+
+async function saveUser() {
+  var currentUser = editId ? allUsers.find(function(x){ return x.id == editId; }) : null;
+  var body = {
+    name: document.getElementById('u-name').value,
+    email: document.getElementById('u-email').value,
+    role: document.getElementById('u-role').value,
+    companyId: document.getElementById('u-company').value,
+    department: document.getElementById('u-dept').value,
+    phone: document.getElementById('u-phone').value,
+    gender: document.getElementById('u-gender').value,
+    status: currentUser && currentUser.role === 'superadmin' ? 'active' : document.getElementById('u-status').value
+  };
+  var pass = document.getElementById('u-pass').value;
+  if (pass) body.password = pass;
+  if (!body.name || !body.email) return toast('Name and email are required', 'error');
+  try {
+    if (editId) await api('PUT', '/users/' + editId, body);
+    else await api('POST', '/users', body);
+    toast(editId ? 'User updated' : 'User created', 'success');
+    closeModal('user-modal');
+    await loadUsers();
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+async function delUser(id) {
+  if (!confirm('Delete this user?')) return;
+  try { await api('DELETE', '/users/' + id); toast('Deleted', 'success'); await loadUsers(); }
+  catch(e) { toast(e.message, 'error'); }
+}
+
+async function viewUser(id) {
+  var u = allUsers.find(function(x){ return x.id == id; });
+  if (!u) return;
+  document.getElementById('detail-title').textContent = u.name + ' - Details';
+  try {
+    var docsPromise = api('GET', '/documents?userId=' + id).catch(function(){ return []; });
+    var [docs, leaves, ts, salaries] = await Promise.all([
+      docsPromise,
+      api('GET', '/leaves'),
+      api('GET', '/timesheets'),
+      api('GET', '/salary')
+    ]);
+
+    leaves = leaves.filter(function(l){ return l.userId == id; });
+    ts = ts.filter(function(t){ return t.userId == id; });
+    salaries = salaries.filter(function(s){ return s.userId == id; });
+
+    var pendingLeaves = leaves.filter(function(l){ return l.status === 'pending'; });
+    var pendingTs = ts.filter(function(t){ return t.status === 'pending'; });
+
+    var html = '<div style="display:flex;align-items:center;gap:16px;margin-bottom:20px;">' +
+      '<div style="width:56px;height:56px;border-radius:50%;overflow:hidden;flex-shrink:0;">' + userAvatar(u, 56) + '</div>' +
+      '<div><div style="font-size:18px;font-weight:700;">' + esc(u.name) + '</div><div style="font-size:13px;color:var(--text-muted);">' + esc(u.email) + ' · ' + esc((u.department || '—')) + ' · ' + esc(u.role) + '</div></div>' +
+      '<div style="margin-left:auto;">' + statusBadge(u.status) + '</div>' +
+    '</div>';
+
+    html += '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px;">' +
+      '<div style="background:var(--accent-light);border-radius:12px;padding:12px;text-align:center;"><div style="font-size:20px;font-weight:800;">' + docs.length + '</div><div style="font-size:11px;color:var(--text-muted);">Documents</div></div>' +
+      '<div style="background:var(--warning-light);border-radius:12px;padding:12px;text-align:center;"><div style="font-size:20px;font-weight:800;">' + pendingLeaves.length + '</div><div style="font-size:11px;color:var(--text-muted);">Pending Leaves</div></div>' +
+      '<div style="background:var(--info-light);border-radius:12px;padding:12px;text-align:center;"><div style="font-size:20px;font-weight:800;">' + pendingTs.length + '</div><div style="font-size:11px;color:var(--text-muted);">Pending Timesheets</div></div>' +
+      '<div style="background:var(--success-light);border-radius:12px;padding:12px;text-align:center;"><div style="font-size:20px;font-weight:800;">' + salaries.length + '</div><div style="font-size:11px;color:var(--text-muted);">Salary Records</div></div>' +
+    '</div>';
+
+    if (pendingLeaves.length) {
+      html += '<div style="margin-bottom:16px;"><div style="font-weight:700;margin-bottom:8px;">Pending Leave Requests</div>';
+      html += '<div class="table-wrapper"><table><thead><tr><th>Type</th><th>From</th><th>To</th><th>Days</th><th>Actions</th></tr></thead><tbody>';
+      pendingLeaves.forEach(function(l){
+        html += '<tr><td style="text-transform:capitalize;">' + esc(l.type) + '</td><td>' + fmtDate(l.startDate) + '</td><td>' + fmtDate(l.endDate) + '</td><td>' + l.days + '</td>' +
+          '<td><button class="btn btn-success btn-sm" onclick="approveLeaveFromDetail(' + l.id + ')"><i class="bx bx-check"></i></button> ' +
+          '<button class="btn btn-danger btn-sm" onclick="rejectLeaveFromDetail(' + l.id + ')"><i class="bx bx-x"></i></button></td></tr>';
+      });
+      html += '</tbody></table></div></div>';
+    }
+
+    if (docs.length) {
+      html += '<div style="margin-bottom:16px;"><div style="font-weight:700;margin-bottom:8px;">Documents</div>';
+      html += '<div class="table-wrapper"><table><thead><tr><th>Title</th><th>Type</th><th>Actions</th></tr></thead><tbody>';
+      docs.forEach(function(d){
+        html += '<tr><td>' + esc(d.title) + '</td><td><span class="badge badge-draft">' + esc(d.type || 'other') + '</span></td>' +
+          '<td><button class="btn btn-ghost btn-sm" onclick="window.open(\'/api/documents/' + d.id + '/view?token=\'+getToken(),\'_blank\')"><i class="bx bx-show"></i></button> ' +
+          '<button class="btn btn-ghost btn-sm" onclick="window.open(\'/api/documents/' + d.id + '/download?token=\'+getToken(),\'_blank\')"><i class="bx bx-download"></i></button></td></tr>';
+      });
+      html += '</tbody></table></div></div>';
+    }
+
+    if (salaries.length) {
+      html += '<div><div style="font-weight:700;margin-bottom:8px;">Recent Salary</div>';
+      html += '<div class="table-wrapper"><table><thead><tr><th>Period</th><th>Net Salary</th><th>Status</th></tr></thead><tbody>';
+      salaries.slice(0,5).forEach(function(s){
+        var MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+        html += '<tr><td>' + MONTHS[s.month - 1] + ' ' + s.year + '</td><td><strong>' + fmtCurrency(s.netSalary) + '</strong></td><td>' + statusBadge(s.status) + '</td></tr>';
+      });
+      html += '</tbody></table></div></div>';
+    }
+
+    document.getElementById('detail-body').innerHTML = html;
+    openModal('detail-modal');
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+async function approveLeaveFromDetail(id) {
+  try { await api('PATCH', '/leaves/' + id + '/action', { action: 'approve' }); toast('Leave approved', 'success'); closeModal('detail-modal'); }
+  catch(e) { toast(e.message, 'error'); }
+}
+
+async function rejectLeaveFromDetail(id) {
+  var reason = prompt('Rejection reason (optional):');
+  try { await api('PATCH', '/leaves/' + id + '/action', { action: 'reject', rejectionReason: reason || '' }); toast('Leave rejected', 'success'); closeModal('detail-modal'); }
+  catch(e) { toast(e.message, 'error'); }
+}
+
+init();
+</script>
+</body></html>

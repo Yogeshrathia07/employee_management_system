@@ -1,0 +1,135 @@
+<%- include('partials/head', {title: 'Login'}) %>
+<div class="login-page">
+  <div class="login-shell">
+    <div class="login-right">
+      <div class="login-box">
+        <div class="login-logo">
+          <div class="login-logo-icon"><i class="bx bx-group"></i></div>
+          <span class="login-logo-text">EMS Platform</span>
+        </div>
+        <div class="login-title">Get Started</div>
+
+        <div id="login-error" class="alert alert-danger" style="display:none;"></div>
+
+        <div class="form-group">
+          <label class="form-label">Email</label>
+          <div class="input-group">
+            <span class="input-icon"><i class="bx bxs-envelope"></i></span>
+            <input type="email" id="email" class="form-control" placeholder="Enter your email" autofocus>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Password</label>
+          <div class="input-group">
+            <span class="input-icon"><i class="bx bxs-lock-alt"></i></span>
+            <input type="password" id="password" class="form-control" placeholder="Enter your password">
+          </div>
+        </div>
+
+        <button class="btn btn-primary" id="login-btn" onclick="doLogin()">
+          Sign In <i class="bx bx-right-arrow-alt"></i>
+        </button>
+
+        <div class="login-demo">
+          <h4>Demo Accounts</h4>
+          <div class="demo-account" onclick="fillDemo('superadmin@ems.com')">
+            <span class="demo-role">Super Admin</span>
+            <span class="demo-email">superadmin@ems.com</span>
+          </div>
+          <div class="demo-account" onclick="fillDemo('admin@demo.com')">
+            <span class="demo-role">Admin</span>
+            <span class="demo-email">admin@demo.com</span>
+          </div>
+          <div class="demo-account" onclick="fillDemo('manager@demo.com')">
+            <span class="demo-role">Manager</span>
+            <span class="demo-email">manager@demo.com</span>
+          </div>
+          <div class="demo-account" onclick="fillDemo('employee@demo.com')">
+            <span class="demo-role">Employee</span>
+            <span class="demo-email">employee@demo.com</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="login-left">
+      <div class="login-right-content">
+        <div class="login-hero-copy">
+          <div class="login-welcome">WELCOME TO</div>
+          <h1>DHPE Workspace</h1>
+          <div class="login-hero-heading">Fast, Efficient and Productive</div>
+          <p>Manage everything from one workspace.</p>
+        </div>
+        <div class="login-visual-card">
+          <div class="login-visual-frame" id="login-hero-visual"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="/js/api.js"></script>
+<script>
+function fillDemo(email) {
+  document.getElementById('email').value = email;
+  document.getElementById('password').value = 'EmsDemo@2026';
+  doLogin();
+}
+
+document.getElementById('password').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') doLogin();
+});
+
+async function doLogin() {
+  const email = document.getElementById('email').value.trim();
+  const password = document.getElementById('password').value;
+  const errEl = document.getElementById('login-error');
+  errEl.style.display = 'none';
+
+  if (!email || !password) { errEl.textContent = 'Please enter email and password'; errEl.style.display = ''; return; }
+
+  const btn = document.getElementById('login-btn');
+  btn.disabled = true; btn.innerHTML = '<span class="spinner" style="width:16px;height:16px;border-top-color:white;"></span> Signing in...';
+
+  try {
+    const data = await apiFetch('/api/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({ email, password }),
+    });
+    setAuth(data.token, data.user);
+    const role = data.user.role;
+    const paths = { superadmin: '/superadmin/dashboard', admin: '/admin/dashboard', manager: '/manager/dashboard', employee: '/employee/dashboard' };
+    window.location.href = paths[role] || '/employee/dashboard';
+  } catch (err) {
+    errEl.textContent = err.message;
+    errEl.style.display = '';
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = 'Sign In <i class="bx bx-right-arrow-alt"></i>';
+  }
+}
+
+// If already logged in, redirect
+(function() {
+  const user = getUser();
+  const token = getToken();
+  if (user && token) {
+    const paths = { superadmin: '/superadmin/dashboard', admin: '/admin/dashboard', manager: '/manager/dashboard', employee: '/employee/dashboard' };
+    window.location.href = paths[user.role] || '/employee/dashboard';
+  }
+})();
+
+(async function loadLoginHero() {
+  try {
+    const data = await fetch('/api/settings/login-hero').then(function(r){ return r.ok ? r.json() : { imageUrl: '' }; });
+    if (data && data.imageUrl) {
+      var hero = document.getElementById('login-hero-visual');
+      hero.style.backgroundImage = 'linear-gradient(180deg,rgba(255,255,255,0.10),rgba(255,255,255,0.02)), url("' + data.imageUrl + '")';
+      hero.style.backgroundPosition = data.position || 'center center';
+      hero.style.backgroundRepeat = 'no-repeat';
+      hero.style.backgroundSize = data.fit || 'contain';
+      hero.classList.add('has-login-image');
+    }
+  } catch (e) {}
+})();
+</script>
+</body></html>

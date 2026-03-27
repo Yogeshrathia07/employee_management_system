@@ -1,0 +1,140 @@
+<%- include('../partials/head', {title: 'Notifications'}) %>
+<div class="app-layout">
+  <%- include('../partials/sidebar-admin') %>
+  <div class="main-content">
+    <header class="page-header">
+      <div class="flex items-center gap-3">
+        <button class="mobile-menu-btn" onclick="openSidebar()"><i class="bx bx-menu"></i></button>
+        <div><div class="page-title"><i class="bx bxs-megaphone"></i> Notifications</div><div class="page-subtitle">Post announcements & files for all employees</div></div>
+      </div>
+      <div class="header-actions">
+        <button class="btn btn-primary" onclick="openModal('notif-modal')"><i class="bx bx-plus"></i> New Notification</button>
+      </div>
+    </header>
+    <div class="page-body">
+      <div class="stats-grid" style="grid-template-columns:repeat(3,1fr);">
+        <div class="stat-card"><div class="stat-icon green"><i class="bx bxs-check-circle"></i></div><div><div class="stat-value" id="s-active">0</div><div class="stat-label">Active</div></div></div>
+        <div class="stat-card"><div class="stat-icon orange"><i class="bx bxs-low-vision"></i></div><div><div class="stat-value" id="s-inactive">0</div><div class="stat-label">Inactive</div></div></div>
+        <div class="stat-card"><div class="stat-icon blue"><i class="bx bxs-file"></i></div><div><div class="stat-value" id="s-files">0</div><div class="stat-label">With Files</div></div></div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <div><div class="card-title">All Notifications</div><div class="card-subtitle">Visible to all employees in your company</div></div>
+        </div>
+        <div style="padding:0;">
+          <div class="table-wrapper">
+            <table>
+              <thead><tr><th>Title</th><th>Message</th><th>Type</th><th>File</th><th>Status</th><th>Created</th><th>Actions</th></tr></thead>
+              <tbody id="notif-tbody"><tr><td colspan="7" style="text-align:center;padding:40px"><span class="spinner"></span></td></tr></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Create Notification Modal -->
+<div class="modal-overlay" id="notif-modal">
+  <div class="modal">
+    <div class="modal-header"><span class="modal-title">New Notification</span><button class="modal-close" onclick="closeModal('notif-modal')">×</button></div>
+    <div class="modal-body">
+      <div class="form-group"><label class="form-label">Title</label><input type="text" id="n-title" class="form-control" placeholder="e.g. Holiday Announcement"></div>
+      <div class="form-group"><label class="form-label">Message</label><textarea id="n-message" class="form-control" rows="3" placeholder="Notification details..."></textarea></div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Type</label>
+          <select id="n-type" class="form-control">
+            <option value="info">Info</option>
+            <option value="warning">Warning</option>
+            <option value="success">Success</option>
+            <option value="urgent">Urgent</option>
+          </select>
+        </div>
+        <div class="form-group"><label class="form-label">Attach File (optional)</label><input type="file" id="n-file" class="form-control" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.xlsx,.csv,.txt"></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('notif-modal')">Cancel</button>
+      <button class="btn btn-primary" id="create-btn" onclick="createNotif()"><i class="bx bx-send"></i> Publish</button>
+    </div>
+  </div>
+</div>
+
+<script src="/js/api.js"></script>
+<script src="/js/sidebar-fix.js"></script>
+<script>
+let allNotifs = [];
+
+async function loadNotifs() {
+  try {
+    allNotifs = await api('GET', '/notifications');
+    document.getElementById('s-active').textContent = allNotifs.filter(n => n.status === 'active').length;
+    document.getElementById('s-inactive').textContent = allNotifs.filter(n => n.status === 'inactive').length;
+    document.getElementById('s-files').textContent = allNotifs.filter(n => n.filePath).length;
+
+    const tbody = document.getElementById('notif-tbody');
+    if (!allNotifs.length) {
+      tbody.innerHTML = '<tr><td colspan="7"><div class="empty-state"><div class="empty-icon"><i class="bx bxs-megaphone"></i></div><h3>No notifications</h3><p>Create your first notification for employees</p></div></td></tr>';
+      return;
+    }
+    tbody.innerHTML = allNotifs.map(n => `<tr>
+      <td><strong>${n.title}</strong></td>
+      <td style="max-width:200px;font-size:13px;color:var(--text-secondary)" class="truncate">${n.message || '—'}</td>
+      <td><span class="badge badge-${n.type === 'urgent' ? 'rejected' : n.type === 'warning' ? 'pending' : n.type === 'success' ? 'approved' : 'draft'}">${n.type}</span></td>
+      <td>${n.filePath ? '<i class="bx bxs-file" style="color:var(--accent);font-size:18px;"></i> <span style="font-size:12px;">'+n.fileName+'</span>' : '—'}</td>
+      <td>${statusBadge(n.status)}</td>
+      <td style="font-size:12px;color:var(--text-muted)">${fmtDate(n.createdAt)}</td>
+      <td style="white-space:nowrap;">
+        <button class="btn btn-ghost btn-sm" onclick="toggleNotif(${n.id})" title="${n.status === 'active' ? 'Deactivate' : 'Activate'}">
+          <i class="bx ${n.status === 'active' ? 'bx-hide' : 'bx-show'}"></i>
+        </button>
+        ${n.filePath ? `<button class="btn btn-ghost btn-sm" onclick="window.open('/api/notifications/${n.id}/download?token='+getToken(),'_blank')" title="Download"><i class="bx bx-download"></i></button>` : ''}
+        <button class="btn btn-danger btn-sm" onclick="deleteNotif(${n.id})" title="Delete"><i class="bx bx-trash"></i></button>
+      </td>
+    </tr>`).join('');
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+async function createNotif() {
+  const title = document.getElementById('n-title').value;
+  if (!title) return toast('Title is required', 'error');
+
+  const fd = new FormData();
+  fd.append('title', title);
+  fd.append('message', document.getElementById('n-message').value);
+  fd.append('type', document.getElementById('n-type').value);
+  const fileInput = document.getElementById('n-file');
+  if (fileInput.files.length) fd.append('file', fileInput.files[0]);
+
+  const btn = document.getElementById('create-btn');
+  btn.disabled = true; btn.innerHTML = '<span class="spinner" style="width:14px;height:14px"></span> Publishing...';
+  try {
+    const token = getToken();
+    const res = await fetch('/api/notifications', { method: 'POST', headers: { 'Authorization': 'Bearer ' + token }, body: fd });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.message || 'Failed');
+    toast('Notification published!', 'success');
+    closeModal('notif-modal');
+    document.getElementById('n-title').value = '';
+    document.getElementById('n-message').value = '';
+    fileInput.value = '';
+    loadNotifs();
+  } catch(e) { toast(e.message, 'error'); }
+  finally { btn.disabled = false; btn.innerHTML = '<i class="bx bx-send"></i> Publish'; }
+}
+
+async function toggleNotif(id) {
+  try { await api('PATCH', '/notifications/' + id + '/toggle'); toast('Toggled', 'success'); loadNotifs(); }
+  catch(e) { toast(e.message, 'error'); }
+}
+
+async function deleteNotif(id) {
+  if (!confirm('Delete this notification?')) return;
+  try { await api('DELETE', '/notifications/' + id); toast('Deleted', 'success'); loadNotifs(); }
+  catch(e) { toast(e.message, 'error'); }
+}
+
+loadNotifs();
+</script>
+</body></html>

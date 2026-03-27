@@ -1,0 +1,258 @@
+<%- include('../partials/head', {title: 'Documents - Admin'}) %>
+<div class="app-layout">
+  <%- include('../partials/sidebar-admin') %>
+  <div class="main-content">
+    <header class="page-header">
+      <div class="flex items-center gap-3">
+        <button class="mobile-menu-btn" onclick="openSidebar()"><i class="bx bx-menu"></i></button>
+        <div>
+          <div class="page-title">Documents</div>
+          <div class="page-subtitle">Employee-wise document dashboard with filters and quick review</div>
+        </div>
+      </div>
+      <div class="header-actions">
+        <span id="company-filter-container" style="display:none;"></span>
+      </div>
+    </header>
+    <div class="page-body admin-employees-page employee-shared-page">
+      <div class="employee-directory-shell">
+        <div class="admin-toolbar">
+          <select id="f-user" class="form-control" style="width:180px" onchange="renderDocs()">
+            <option value="">All Employees</option>
+          </select>
+          <select id="f-type" class="form-control" style="width:170px" onchange="renderDocs()">
+            <option value="">All Types</option>
+            <option value="offer_letter">Offer Letter</option>
+            <option value="joining_letter">Joining Letter</option>
+            <option value="payslip">Payslip</option>
+            <option value="id_proof">ID Proof</option>
+            <option value="address_proof">Address Proof</option>
+            <option value="certificate">Certificate</option>
+            <option value="other">Other</option>
+          </select>
+          <select id="f-status" class="form-control" style="width:160px" onchange="renderDocs()">
+            <option value="">All Status</option>
+            <option value="pending">Pending</option>
+            <option value="verified">Verified</option>
+            <option value="rejected">Rejected</option>
+          </select>
+          <div class="search-bar" style="width:260px;">
+            <span class="search-icon"><i class="bx bx-search"></i></span>
+            <input type="text" id="f-search" placeholder="Search employee or document..." oninput="renderDocs()">
+          </div>
+        </div>
+
+        <div id="docs-grid" class="docs-employee-grid">
+          <div style="grid-column:1/-1;display:flex;justify-content:center;padding:40px;"><span class="spinner"></span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="verify-modal">
+  <div class="modal">
+    <div class="modal-header"><span class="modal-title" id="verify-modal-title">Verify Document</span><button class="modal-close" onclick="closeModal('verify-modal')">x</button></div>
+    <div class="modal-body">
+      <input type="hidden" id="verify-doc-id">
+      <div style="margin-bottom:14px;font-size:13px;color:var(--text-secondary);" id="verify-doc-info"></div>
+      <div class="form-group mb-0">
+        <label class="form-label">Note <span class="text-muted">(optional)</span></label>
+        <textarea id="verify-note" class="form-control" rows="2" placeholder="Add a note if rejecting..."></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('verify-modal')">Cancel</button>
+      <button class="btn btn-danger" onclick="submitVerify('rejected')"><i class="bx bx-x"></i> Reject</button>
+      <button class="btn btn-primary" onclick="submitVerify('verified')"><i class="bx bx-check"></i> Verify</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="employee-docs-modal">
+  <div class="modal modal-lg">
+    <div class="modal-header"><span class="modal-title" id="employee-docs-title">Employee Documents</span><button class="modal-close" onclick="closeModal('employee-docs-modal')">x</button></div>
+    <div class="modal-body" id="employee-docs-body"></div>
+    <div class="modal-footer"><button class="btn btn-ghost" onclick="closeModal('employee-docs-modal')">Close</button></div>
+  </div>
+</div>
+
+<script src="/js/api.js"></script>
+<script src="/js/sidebar-fix.js"></script>
+<script src="/js/admin-company-filter.js"></script>
+<script>
+let allDocs = [];
+let allUsers = [];
+const TYPE_LABELS = {
+  aadhaar:'Aadhaar Card', pan_card:'PAN Card', passport:'Passport',
+  voter_id:'Voter ID', bank_passbook:'Bank Passbook', character_certificate:'Character Certificate',
+  medical_document:'Medical Document', experience_certificate:'Experience Certificate',
+  salary_slip_past:'Salary Slip', technical_certification:'Technical Certification',
+  degree_certificate:'Degree Certificate', marksheet:'Marksheet', driving_license:'Driving License',
+  offer_letter:'Offer Letter', joining_letter:'Joining Letter', payslip:'Payslip',
+  id_proof:'ID Proof', address_proof:'Address Proof', resume:'Resume', photo:'Photo', other:'Other'
+};
+const VCOLOR = { verified:'#22c55e', rejected:'#ef4444', pending:'#f59e0b' };
+const VBG = { verified:'#dcfce7', rejected:'#fee2e2', pending:'#fef3c7' };
+
+function fileSize(b) { return b<1024?b+' B':b<1048576?(b/1024).toFixed(1)+' KB':(b/1048576).toFixed(1)+' MB'; }
+function esc(value) {
+  return String(value == null ? '' : value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+async function loadUsers() {
+  try {
+    allUsers = await api('GET','/users');
+    const opts = allUsers
+      .filter(u => ['employee', 'manager'].includes(u.role))
+      .map(u => '<option value="'+u.id+'">'+u.name+' ('+u.role+')</option>')
+      .join('');
+    document.getElementById('f-user').innerHTML = '<option value="">All Employees</option>' + opts;
+  } catch(e) {}
+}
+
+async function loadDocs() {
+  try {
+    var cid = getSelectedCompanyId ? getSelectedCompanyId() : null;
+    var durl = '/documents';
+    if (cid) durl += '?companyId=' + cid;
+    allDocs = await api('GET', durl);
+    renderDocs();
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+function renderDocs() {
+  const fUser = document.getElementById('f-user').value;
+  const fType = document.getElementById('f-type').value;
+  const fStatus = document.getElementById('f-status').value;
+  const search = (document.getElementById('f-search').value || '').trim().toLowerCase();
+  let docs = allDocs.slice();
+
+  if (fUser) docs = docs.filter(d => String(d.userId) === String(fUser));
+  if (fType) docs = docs.filter(d => d.type === fType);
+  if (fStatus) docs = docs.filter(d => (d.verificationStatus || 'pending') === fStatus);
+  if (search) {
+    docs = docs.filter(d => [d.title, d.fileName, d.type, d.user?.name, d.user?.email, d.user?.employeeCode]
+      .filter(Boolean)
+      .some(v => String(v).toLowerCase().includes(search)));
+  }
+
+  const users = (fUser ? allUsers.filter(u => String(u.id) === String(fUser)) : allUsers)
+    .filter(u => ['employee', 'manager'].includes(u.role))
+    .filter(u => !search || [u.name, u.email, u.employeeCode, u.department, u.role].filter(Boolean).some(v => String(v).toLowerCase().includes(search)) || docs.some(d => d.userId == u.id));
+
+  const grid = document.getElementById('docs-grid');
+  if (!users.length) {
+    grid.innerHTML = '<div style="grid-column:1/-1;"><div class="empty-state"><div class="empty-icon"><i class="bx bxs-file-doc"></i></div><h3>No documents found</h3></div></div>';
+    return;
+  }
+
+  grid.innerHTML = users.map(u => {
+    const userDocs = docs.filter(d => d.userId == u.id);
+    const verifiedCount = userDocs.filter(d => (d.verificationStatus || 'pending') === 'verified').length;
+    const pendingCount = userDocs.filter(d => (d.verificationStatus || 'pending') === 'pending').length;
+    const rejectedCount = userDocs.filter(d => (d.verificationStatus || 'pending') === 'rejected').length;
+    return `
+      <div class="employee-doc-card">
+        <div class="employee-doc-top">
+          <div class="employee-doc-head">
+            <div class="employee-doc-avatar">${userAvatar(u, 52)}</div>
+            <div class="employee-doc-ident">
+              <div class="employee-doc-name">${esc(u.name)}</div>
+              <div class="employee-doc-sub">${esc((u.department || 'Not assigned') + ' • ' + (u.employeeCode || u.role))}</div>
+            </div>
+          </div>
+          <div class="employee-doc-count">${userDocs.length} uploaded</div>
+        </div>
+        <div class="employee-doc-stats">
+          <div class="employee-doc-stat"><strong>${verifiedCount}</strong><span>Verified</span></div>
+          <div class="employee-doc-stat"><strong>${pendingCount}</strong><span>Pending</span></div>
+          <div class="employee-doc-stat"><strong>${rejectedCount}</strong><span>Rejected</span></div>
+        </div>
+        <div class="employee-doc-footer">
+          <button class="btn btn-ghost btn-sm" onclick="openEmployeeDocsModal(${u.id})"><i class="bx bx-folder-open"></i> Show All Documents</button>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function openEmployeeDocsModal(userId) {
+  var user = allUsers.find(function(u){ return u.id == userId; });
+  var userDocs = allDocs.filter(function(d){ return d.userId == userId; });
+  document.getElementById('employee-docs-title').textContent = (user ? user.name : 'Employee') + ' Documents';
+  document.getElementById('employee-docs-body').innerHTML = userDocs.length ? userDocs.map(function(d){
+    var status = d.verificationStatus || 'pending';
+    var safeTitle = (d.title || '').replace(/'/g, "\\'");
+    return '<div class="employee-doc-item" style="margin-bottom:10px;">'+
+      '<div class="employee-doc-main">'+
+        '<div class="employee-doc-title-row">'+
+          '<div class="employee-doc-title">'+esc(d.title || 'Untitled document')+'</div>'+
+          '<span class="employee-doc-badge" style="background:'+(VBG[status] || '#fef3c7')+';color:'+(VCOLOR[status] || '#f59e0b')+';">'+status+'</span>'+
+        '</div>'+
+        '<div class="employee-doc-meta">'+esc(TYPE_LABELS[d.type] || d.type || 'Other')+' • '+fileSize(d.fileSize || 0)+' • '+fmtDate(d.createdAt)+'</div>'+
+      '</div>'+
+      '<div class="employee-doc-actions">'+
+        '<button class="btn btn-ghost btn-sm" onclick="viewDoc('+d.id+',\''+safeTitle+'\')" title="View"><i class="bx bx-show"></i></button>'+
+        '<button class="btn btn-ghost btn-sm" onclick="openVerifyById('+d.id+')" title="Verify"><i class="bx bx-check-shield"></i></button>'+
+        '<button class="btn btn-ghost btn-sm" onclick="downloadDoc('+d.id+')" title="Download"><i class="bx bx-download"></i></button>'+
+        '<button class="btn btn-danger btn-sm" onclick="deleteDoc('+d.id+')" title="Delete"><i class="bx bx-trash"></i></button>'+
+      '</div>'+
+    '</div>';
+  }).join('') : '<div class="employee-doc-empty">No uploaded documents for this employee.</div>';
+  openModal('employee-docs-modal');
+}
+
+function viewDoc(id, title) {
+  var w = window.open('', '_blank');
+  w.document.write('<html><head><title>' + (title||'Document') + '</title></head><body style="margin:0;background:#1e293b;"><iframe src="/api/documents/' + id + '/view?token=' + getToken() + '" style="width:100%;height:100vh;border:none;"></iframe></body></html>');
+}
+
+function openVerifyById(id) {
+  var d = allDocs.find(x => x.id === id);
+  if (!d) return toast('Document not found','error');
+  closeModal('employee-docs-modal');
+  document.getElementById('verify-doc-id').value = d.id;
+  document.getElementById('verify-modal-title').textContent = 'Verify: ' + d.title;
+  document.getElementById('verify-doc-info').innerHTML =
+    'Employee: <strong>' + (d.user ? d.user.name : '-') + '</strong> &nbsp;|&nbsp; Type: ' +
+    (TYPE_LABELS[d.type] || d.type) + ' &nbsp;|&nbsp; Current: <strong style="color:' +
+    (VCOLOR[d.verificationStatus || 'pending'] || 'gray') + '">' + (d.verificationStatus || 'pending') + '</strong>';
+  document.getElementById('verify-note').value = '';
+  openModal('verify-modal');
+}
+
+async function submitVerify(status) {
+  const id = document.getElementById('verify-doc-id').value;
+  const note = document.getElementById('verify-note').value;
+  if (!id) return toast('No document selected','error');
+  try {
+    await api('PATCH', '/documents/' + id + '/verify', { status, note });
+    toast('Document ' + status + '!', status === 'verified' ? 'success' : 'error');
+    closeModal('verify-modal');
+    loadDocs();
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+function downloadDoc(id) { window.open('/api/documents/' + id + '/download?token=' + getToken(), '_blank'); }
+
+async function deleteDoc(id) {
+  if (!confirm('Delete this document?')) return;
+  try {
+    await api('DELETE', '/documents/' + id);
+    toast('Deleted', 'success');
+    loadDocs();
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+function reloadPageData() { loadDocs(); }
+loadUsers();
+if (typeof initCompanyFilter !== 'undefined') initCompanyFilter();
+loadDocs();
+</script>
+</body></html>

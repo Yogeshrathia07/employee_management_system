@@ -1,0 +1,159 @@
+<%- include('../partials/head', {title: 'Recycle Bin'}) %>
+<div class="app-layout">
+  <%- include('../partials/sidebar-admin') %>
+  <div class="main-content">
+    <header class="page-header">
+      <div class="flex items-center gap-3">
+        <button class="mobile-menu-btn" onclick="openSidebar()"><i class="bx bx-menu"></i></button>
+        <div><div class="page-title"><i class="bx bxs-trash"></i> Recycle Bin</div><div class="page-subtitle">Deleted items are kept for 30 days and can be restored if needed.</div></div>
+      </div>
+    </header>
+    <div class="page-body">
+      <div class="stats-grid" style="grid-template-columns:repeat(4,1fr);">
+        <div class="stat-card"><div class="stat-icon blue"><i class="bx bxs-group"></i></div><div><div class="stat-value" id="s-users">0</div><div class="stat-label">Users</div></div></div>
+        <div class="stat-card"><div class="stat-icon orange"><i class="bx bxs-calendar-check"></i></div><div><div class="stat-value" id="s-leaves">0</div><div class="stat-label">Leaves</div></div></div>
+        <div class="stat-card"><div class="stat-icon teal"><i class="bx bxs-time-five"></i></div><div><div class="stat-value" id="s-timesheets">0</div><div class="stat-label">Timesheets</div></div></div>
+        <div class="stat-card"><div class="stat-icon green"><i class="bx bxs-wallet"></i></div><div><div class="stat-value" id="s-salary">0</div><div class="stat-label">Salary</div></div></div>
+      </div>
+
+      <div style="display:flex;gap:12px;margin-bottom:20px;flex-wrap:wrap;align-items:center;">
+        <select id="f-type" class="form-control" style="width:180px" onchange="loadBin()">
+          <option value="">All Types</option>
+          <option value="user">Users</option>
+          <option value="leave">Leaves</option>
+          <option value="timesheet">Timesheets</option>
+          <option value="salary">Salary</option>
+          <option value="document">Documents</option>
+          <option value="notification">Notifications</option>
+          <option value="company">Companies</option>
+        </select>
+        <span id="company-filter-wrap" style="display:none;"></span>
+        <button class="btn btn-danger" onclick="emptyBin()"><i class="bx bx-trash"></i> Empty Bin</button>
+      </div>
+
+      <div class="card">
+        <div class="card-body" style="padding:0;">
+          <div class="table-wrapper">
+            <table>
+              <thead><tr><th>Type</th><th>Item</th><th>Company</th><th>Deleted By</th><th>Deleted On</th><th>Expires</th><th>Actions</th></tr></thead>
+              <tbody id="bin-tbody"><tr><td colspan="7" style="text-align:center;padding:40px"><span class="spinner"></span></td></tr></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="/js/api.js"></script>
+<script src="/js/admin-company-filter.js"></script>
+<script>
+var allItems = [];
+var recycleCompanies = [];
+
+var TYPE_ICONS = {
+  user: 'bxs-group', leave: 'bxs-calendar-check', timesheet: 'bxs-time-five',
+  salary: 'bxs-wallet', document: 'bxs-file-doc', notification: 'bxs-megaphone', company: 'bxs-buildings'
+};
+var TYPE_COLORS = {
+  user: 'blue', leave: 'orange', timesheet: 'teal',
+  salary: 'green', document: 'purple', notification: 'pink', company: 'red'
+};
+
+function daysLeft(expiresAt) {
+  var diff = Math.ceil((new Date(expiresAt) - new Date()) / (1000*60*60*24));
+  return diff > 0 ? diff + ' days' : 'Expiring soon';
+}
+
+function getRecycleCompanyId() {
+  var user = getUser();
+  if (user?.role !== 'superadmin') return '';
+  var sel = document.getElementById('rb-company-filter');
+  return sel ? sel.value : '';
+}
+
+async function loadRecycleCompanies() {
+  if (getUser()?.role !== 'superadmin') return;
+  try {
+    recycleCompanies = await api('GET', '/companies');
+    var wrap = document.getElementById('company-filter-wrap');
+    if (wrap) {
+      wrap.innerHTML = '<select id="rb-company-filter" class="form-control" style="width:200px" onchange="loadBin()">' +
+        '<option value="">All Companies</option>' +
+        recycleCompanies.map(function(c){ return '<option value="' + c.id + '">' + c.name + '</option>'; }).join('') +
+      '</select>';
+      wrap.style.display = '';
+    }
+  } catch(e) {}
+}
+
+async function loadBin() {
+  try {
+    var typeFilter = document.getElementById('f-type').value;
+    var params = [];
+    if (typeFilter) params.push('type=' + encodeURIComponent(typeFilter));
+    var companyId = getRecycleCompanyId();
+    if (companyId) params.push('companyId=' + encodeURIComponent(companyId));
+    var url = '/recycle-bin' + (params.length ? '?' + params.join('&') : '');
+    allItems = await api('GET', url);
+
+    document.getElementById('s-users').textContent = allItems.filter(function(i){return i.itemType==='user';}).length;
+    document.getElementById('s-leaves').textContent = allItems.filter(function(i){return i.itemType==='leave';}).length;
+    document.getElementById('s-timesheets').textContent = allItems.filter(function(i){return i.itemType==='timesheet';}).length;
+    document.getElementById('s-salary').textContent = allItems.filter(function(i){return i.itemType==='salary';}).length;
+
+    var companyMap = {};
+    recycleCompanies.forEach(function(c){ companyMap[String(c.id)] = c.name; });
+
+    var tbody = document.getElementById('bin-tbody');
+    if (!allItems.length) {
+      tbody.innerHTML = '<tr><td colspan="7"><div class="empty-state"><div class="empty-icon"><i class="bx bxs-trash"></i></div><h3>Recycle bin is empty</h3><p>Deleted items will appear here for 30 days</p></div></td></tr>';
+      return;
+    }
+    tbody.innerHTML = allItems.map(function(item) {
+      return '<tr>' +
+        '<td><span class="badge badge-' + (TYPE_COLORS[item.itemType]||'draft') + '" style="background:var(--' + (TYPE_COLORS[item.itemType]||'accent') + '-light);color:var(--' + (TYPE_COLORS[item.itemType]||'accent') + ');"><i class="bx ' + (TYPE_ICONS[item.itemType]||'bxs-file') + '"></i> ' + item.itemType + '</span></td>' +
+        '<td><strong>' + item.itemTitle + '</strong></td>' +
+        '<td style="font-size:13px">' + (companyMap[String(item.companyId)] || (item.companyId ? ('Company #' + item.companyId) : '—')) + '</td>' +
+        '<td style="font-size:13px">' + (item.deletedByName || '—') + '</td>' +
+        '<td style="font-size:12px;color:var(--text-muted)">' + fmtDate(item.createdAt) + '</td>' +
+        '<td style="font-size:12px;color:var(--warning);">' + daysLeft(item.expiresAt) + '</td>' +
+        '<td style="white-space:nowrap;">' +
+          '<button class="btn btn-success btn-sm" onclick="restoreItem(' + item.id + ')" title="Restore"><i class="bx bx-revision"></i> Restore</button> ' +
+          '<button class="btn btn-danger btn-sm" onclick="permDelete(' + item.id + ')" title="Permanently Delete"><i class="bx bx-trash"></i></button>' +
+        '</td>' +
+      '</tr>';
+    }).join('');
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+async function restoreItem(id) {
+  if (!confirm('Restore this item?')) return;
+  try {
+    var res = await api('POST', '/recycle-bin/' + id + '/restore');
+    toast(res.message || 'Restored!', 'success');
+    loadBin();
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+async function permDelete(id) {
+  if (!confirm('Permanently delete? This cannot be undone.')) return;
+  try {
+    await api('DELETE', '/recycle-bin/' + id);
+    toast('Permanently deleted', 'success');
+    loadBin();
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+async function emptyBin() {
+  if (!confirm('Empty the entire recycle bin? All items will be permanently lost.')) return;
+  try {
+    await api('DELETE', '/recycle-bin');
+    toast('Recycle bin emptied', 'success');
+    loadBin();
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+loadRecycleCompanies().then(loadBin);
+</script>
+</body></html>

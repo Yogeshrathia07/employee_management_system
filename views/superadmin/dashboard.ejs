@@ -1,0 +1,270 @@
+<%- include('../partials/head', {title: 'Super Admin Dashboard'}) %>
+<div class="app-layout">
+  <%- include('../partials/sidebar-superadmin') %>
+  <div class="main-content">
+    <header class="page-header">
+      <div class="flex items-center gap-3">
+        <button class="mobile-menu-btn" onclick="openSidebar()"><i class="bx bx-menu"></i></button>
+        <div>
+          <div class="page-title">Super Admin Dashboard</div>
+          <div class="page-subtitle">System-wide overview and controls</div>
+        </div>
+      </div>
+      <div class="header-actions"></div>
+    </header>
+    <div class="page-body admin-employees-page employee-shared-page">
+      <div class="employee-directory-shell">
+        <div class="employee-overview-grid employee-dashboard-grid">
+          <button type="button" class="employee-overview-card employee-overview-nav" onclick="openModal('login-hero-modal')" style="text-align:left;font-family:inherit;">
+            <div class="employee-overview-head">
+              <div class="employee-overview-icon blue"><i class="bx bx-image-add"></i></div>
+              <div>
+                <div class="employee-overview-label">Login Image</div>
+                <div class="employee-overview-value" id="s-login-image">Set</div>
+              </div>
+            </div>
+            <div class="employee-overview-link">Update Login Image</div>
+          </button>
+
+          <a href="/superadmin/companies" class="employee-overview-card employee-overview-nav">
+            <div class="employee-overview-head">
+              <div class="employee-overview-icon purple"><i class="bx bxs-buildings"></i></div>
+              <div>
+                <div class="employee-overview-label">Companies</div>
+                <div class="employee-overview-value" id="s-companies">-</div>
+              </div>
+            </div>
+            <div class="employee-overview-link">Open Companies</div>
+          </a>
+
+          <a href="/superadmin/users" class="employee-overview-card employee-overview-nav">
+            <div class="employee-overview-head">
+              <div class="employee-overview-icon blue"><i class="bx bxs-group"></i></div>
+              <div>
+                <div class="employee-overview-label">All Users</div>
+                <div class="employee-overview-value" id="s-users">-</div>
+              </div>
+            </div>
+            <div class="employee-overview-link">Open Users</div>
+          </a>
+
+          <a href="/admin/leaves" class="employee-overview-card employee-overview-nav highlight-orange">
+            <div class="employee-overview-head">
+              <div class="employee-overview-icon orange"><i class="bx bxs-calendar-check"></i></div>
+              <div>
+                <div class="employee-overview-label">All Leaves</div>
+                <div class="employee-overview-value" id="s-pending-leaves">-</div>
+              </div>
+            </div>
+            <div class="employee-overview-link emphasis">Review Leaves</div>
+          </a>
+
+          <a href="/admin/timesheets" class="employee-overview-card employee-overview-nav highlight-orange">
+            <div class="employee-overview-head">
+              <div class="employee-overview-icon teal"><i class="bx bxs-time-five"></i></div>
+              <div>
+                <div class="employee-overview-label">All Timesheets</div>
+                <div class="employee-overview-value" id="s-pending-ts">-</div>
+              </div>
+            </div>
+            <div class="employee-overview-link">Review Timesheets</div>
+          </a>
+
+          <a href="/admin/salary" class="employee-overview-card employee-overview-nav highlight-purple">
+            <div class="employee-overview-head">
+              <div class="employee-overview-icon purple"><i class="bx bxs-wallet"></i></div>
+              <div>
+                <div class="employee-overview-label">All Payroll</div>
+                <div class="employee-overview-value" id="s-payslips-paid">-</div>
+              </div>
+            </div>
+            <div class="employee-overview-link">Open Payroll</div>
+          </a>
+
+          <a href="/admin/documents" class="employee-overview-card employee-overview-nav">
+            <div class="employee-overview-head">
+              <div class="employee-overview-icon teal"><i class="bx bxs-file-doc"></i></div>
+              <div>
+                <div class="employee-overview-label">All Documents</div>
+                <div class="employee-overview-value" id="s-docs">-</div>
+              </div>
+            </div>
+            <div class="employee-overview-link">Open Documents</div>
+          </a>
+
+          <a href="/superadmin/policies" class="employee-overview-card employee-overview-nav">
+            <div class="employee-overview-head">
+              <div class="employee-overview-icon blue"><i class="bx bxs-book-content"></i></div>
+              <div>
+                <div class="employee-overview-label">Company Policies</div>
+                <div class="employee-overview-value">Read</div>
+              </div>
+            </div>
+            <div class="employee-overview-link">Open Policies</div>
+          </a>
+
+          <a href="/superadmin/recycle-bin" class="employee-overview-card employee-overview-nav">
+            <div class="employee-overview-head">
+              <div class="employee-overview-icon orange"><i class="bx bxs-trash"></i></div>
+              <div>
+                <div class="employee-overview-label">Recycle Bin</div>
+                <div class="employee-overview-value" id="s-payslips-pending">-</div>
+              </div>
+            </div>
+            <div class="employee-overview-link">Open Recycle Bin</div>
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="login-hero-modal">
+  <div class="modal">
+    <div class="modal-header"><span class="modal-title">Login Page Image</span><button class="modal-close" onclick="closeModal('login-hero-modal')"><i class="bx bx-x"></i></button></div>
+    <div class="modal-body">
+      <div class="company-logo-panel" style="margin-bottom:0;">
+        <div class="company-logo-preview-wrap" style="width:120px;height:120px;border-radius:24px;">
+          <img id="login-hero-preview" class="company-logo-preview" alt="Login page preview">
+        </div>
+        <div class="company-logo-copy">
+          <div class="company-logo-title">Login Hero Image</div>
+          <div class="company-logo-subtitle">Upload the image shown on the left side of the login page. It will be saved in the database-backed app settings.</div>
+          <label class="btn btn-ghost btn-sm company-logo-upload">
+            <i class="bx bx-upload"></i> Choose Image
+            <input type="file" id="login-hero-file" accept=".jpg,.jpeg,.png,.webp" hidden>
+          </label>
+        </div>
+      </div>
+      <div class="form-row" style="margin-top:18px;">
+        <div class="form-group">
+          <label class="form-label">Image Fit</label>
+          <select id="login-hero-fit" class="form-control">
+            <option value="contain">Contain</option>
+            <option value="cover">Cover</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Image Position</label>
+          <select id="login-hero-position" class="form-control">
+            <option value="center center">Center</option>
+            <option value="top center">Top</option>
+            <option value="bottom center">Bottom</option>
+            <option value="center left">Left</option>
+            <option value="center right">Right</option>
+          </select>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('login-hero-modal')">Cancel</button>
+      <button class="btn btn-primary" id="save-login-hero-btn" onclick="saveLoginHero()"><i class="bx bx-save"></i> Save Image</button>
+    </div>
+  </div>
+</div>
+
+<script src="/js/api.js"></script>
+<script>
+var loginHeroUrl = '';
+var loginHeroFit = 'contain';
+var loginHeroPosition = 'center center';
+var loginHeroFallback = 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="220" height="220" viewBox="0 0 220 220"><defs><linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#eef3ff"/><stop offset="100%" stop-color="#cfe0ff"/></linearGradient></defs><rect width="220" height="220" rx="42" fill="url(#g)"/><circle cx="110" cy="78" r="30" fill="#ffffff" opacity="0.92"/><rect x="48" y="126" width="124" height="20" rx="10" fill="#5b6abf" opacity="0.2"/><rect x="64" y="156" width="92" height="14" rx="7" fill="#5b6abf" opacity="0.14"/></svg>');
+
+function applyLoginHeroPreview(src) {
+  var preview = document.getElementById('login-hero-preview');
+  preview.src = src || loginHeroFallback;
+  preview.style.objectFit = loginHeroFit;
+  preview.style.objectPosition = loginHeroPosition;
+}
+
+async function loadDashboard() {
+  try {
+    const [stats, users, leaves, ts, salaries, docs, loginHero] = await Promise.all([
+      api('GET', '/companies/stats'),
+      api('GET', '/users'),
+      api('GET', '/leaves'),
+      api('GET', '/timesheets'),
+      api('GET', '/salary'),
+      api('GET', '/documents'),
+      api('GET', '/settings/login-hero')
+    ]);
+
+    const pendingLeaves = leaves.filter(function(l) { return l.status === 'pending'; }).length;
+    const pendingTs = ts.filter(function(t) { return t.status === 'pending'; }).length;
+    const paidSalaries = salaries.filter(function(s) { return s.status === 'paid'; }).length;
+    const pendingSalaries = salaries.filter(function(s) { return s.status !== 'paid'; }).length;
+
+    document.getElementById('s-companies').textContent = stats.length;
+    document.getElementById('s-users').textContent = users.length;
+    document.getElementById('s-pending-leaves').textContent = pendingLeaves;
+    document.getElementById('s-pending-ts').textContent = pendingTs;
+    document.getElementById('s-payslips-paid').textContent = paidSalaries;
+    document.getElementById('s-docs').textContent = docs.length;
+    document.getElementById('s-payslips-pending').textContent = pendingSalaries;
+    document.getElementById('s-login-image').textContent = loginHero.imageUrl ? 'Saved' : 'Default';
+    loginHeroUrl = loginHero.imageUrl || '';
+    loginHeroFit = loginHero.fit || 'contain';
+    loginHeroPosition = loginHero.position || 'center center';
+    document.getElementById('login-hero-fit').value = loginHeroFit;
+    document.getElementById('login-hero-position').value = loginHeroPosition;
+    applyLoginHeroPreview(loginHeroUrl);
+  } catch (e) {
+    toast(e.message, 'error');
+  }
+}
+
+document.getElementById('login-hero-fit').addEventListener('change', function() {
+  loginHeroFit = this.value;
+  applyLoginHeroPreview(document.getElementById('login-hero-preview').src);
+});
+
+document.getElementById('login-hero-position').addEventListener('change', function() {
+  loginHeroPosition = this.value;
+  applyLoginHeroPreview(document.getElementById('login-hero-preview').src);
+});
+
+document.getElementById('login-hero-file').addEventListener('change', function(e) {
+  var file = e.target.files[0];
+  if (!file) return;
+  var reader = new FileReader();
+  reader.onload = function(evt) {
+    applyLoginHeroPreview(evt.target.result);
+  };
+  reader.readAsDataURL(file);
+});
+
+async function saveLoginHero() {
+  var file = document.getElementById('login-hero-file').files[0];
+  if (!file && !loginHeroUrl) return toast('Please choose an image first', 'error');
+  var fd = new FormData();
+  if (file) fd.append('image', file);
+  fd.append('fit', document.getElementById('login-hero-fit').value);
+  fd.append('position', document.getElementById('login-hero-position').value);
+  var btn = document.getElementById('save-login-hero-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner" style="width:14px;height:14px"></span> Saving...';
+  try {
+    var res = await fetch('/api/settings/login-hero', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer ' + getToken() },
+      body: fd
+    });
+    var data = await res.json();
+    if (!res.ok) throw new Error(data.message || 'Upload failed');
+    toast('Login image updated', 'success');
+    loginHeroFit = data.fit || loginHeroFit;
+    loginHeroPosition = data.position || loginHeroPosition;
+    document.getElementById('login-hero-file').value = '';
+    closeModal('login-hero-modal');
+    loadDashboard();
+  } catch (e) {
+    toast(e.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="bx bx-save"></i> Save Image';
+  }
+}
+
+loadDashboard();
+</script>
+</body></html>

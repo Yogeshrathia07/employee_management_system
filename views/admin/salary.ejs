@@ -1,0 +1,395 @@
+<%- include('../partials/head', {title: 'Payroll — Admin'}) %>
+<div class="app-layout">
+  <%- include('../partials/sidebar-admin') %>
+  <div class="main-content">
+    <header class="page-header">
+      <div class="flex items-center gap-3">
+        <button class="mobile-menu-btn" onclick="openSidebar()"><i class="bx bx-menu"></i></button>
+        <div>
+          <div class="page-title">Payroll</div>
+          <div class="page-subtitle">Generate salaries from timesheets, finalize and pay</div>
+        </div>
+      </div>
+      <div class="header-actions"></div>
+    </header>
+    <div class="page-body admin-employees-page">
+      <div class="employee-directory-shell">
+      <!-- Page actions bar -->
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:20px;">
+        <span id="company-filter-container" style="display:none;"></span>
+      </div>
+      <!-- Stats -->
+      <div class="stats-grid" style="grid-template-columns:repeat(4,1fr);">
+        <div class="stat-card"><div class="stat-icon" style="background:#f3f4f6;color:#111"><i class="bx bxs-group"></i></div><div><div class="stat-value" id="s-total">0</div><div class="stat-label">Total Records</div></div></div>
+        <div class="stat-card"><div class="stat-icon" style="background:#f3f4f6;color:#111"><i class="bx bxs-edit"></i></div><div><div class="stat-value" id="s-draft">0</div><div class="stat-label">Drafts</div></div></div>
+        <div class="stat-card"><div class="stat-icon" style="background:#f3f4f6;color:#111"><i class="bx bxs-check-circle"></i></div><div><div class="stat-value" id="s-finalized">0</div><div class="stat-label">Finalized</div></div></div>
+        <div class="stat-card"><div class="stat-icon" style="background:#f3f4f6;color:#111"><i class="bx bxs-wallet"></i></div><div><div class="stat-value" id="s-paid">0</div><div class="stat-label">Paid</div></div></div>
+      </div>
+
+      <!-- Filters -->
+      <div class="admin-toolbar" style="margin-bottom:20px;">
+        <select id="f-month" class="form-control" style="width:140px" onchange="loadSalaries()">
+          <option value="">All Months</option>
+        </select>
+        <input type="number" id="f-year" class="form-control" style="width:100px" placeholder="Year" onchange="loadSalaries()">
+        <select id="f-status" class="form-control" style="width:130px" onchange="loadSalaries()">
+          <option value="">All Status</option>
+          <option value="draft">Draft</option>
+          <option value="finalized">Finalized</option>
+          <option value="paid">Paid</option>
+        </select>
+        <button class="btn btn-ghost" onclick="exportCSV()"><i class="bx bx-download"></i> Export CSV</button>
+        <button class="btn btn-ghost" onclick="openModal('gen-modal')"><i class="bx bx-plus"></i> Single Generate</button>
+        <button class="btn btn-primary" onclick="openModal('bulk-modal')"><i class="bx bxs-magic-wand"></i> Generate All</button>
+      </div>
+
+      <div id="salary-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px;">
+        <div style="grid-column:1/-1;display:flex;justify-content:center;padding:40px;"><span class="spinner"></span></div>
+      </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Bulk Generate Modal -->
+<div class="modal-overlay" id="bulk-modal">
+  <div class="modal" style="max-width:440px">
+    <div class="modal-header"><span class="modal-title">Generate Salaries for All Employees</span><button class="modal-close" onclick="closeModal('bulk-modal')">×</button></div>
+    <div class="modal-body">
+      <p style="font-size:13px;color:var(--text-muted);margin-bottom:16px;">This will auto-fetch approved timesheet hours for every active employee/manager in your company and create salary records.</p>
+      <div class="form-group" id="b-company-wrap" style="display:none;">
+        <label class="form-label">Company</label>
+        <select id="b-company" class="form-control" onchange="syncPayrollCompanySelection(this.value)">
+          <option value="">Select company...</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Month</label><select id="b-month" class="form-control"></select></div>
+        <div class="form-group"><label class="form-label">Year</label><input type="number" id="b-year" class="form-control"></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('bulk-modal')">Cancel</button>
+      <button class="btn btn-primary" id="bulk-btn" onclick="bulkGenerate()"><i class="bx bxs-magic-wand"></i> Generate</button>
+    </div>
+  </div>
+</div>
+
+<!-- Single Generate Modal -->
+<div class="modal-overlay" id="gen-modal">
+  <div class="modal">
+    <div class="modal-header"><span class="modal-title">Generate Salary — Single Employee</span><button class="modal-close" onclick="closeModal('gen-modal')">×</button></div>
+    <div class="modal-body">
+      <div class="form-group" id="g-company-wrap" style="display:none;">
+        <label class="form-label">Company</label>
+        <select id="g-company" class="form-control" onchange="syncPayrollCompanySelection(this.value); loadUsers();">
+          <option value="">Select company...</option>
+        </select>
+      </div>
+      <div class="form-group"><label class="form-label">Employee</label><select id="g-user" class="form-control"><option value="">Select employee...</option></select></div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Month</label><select id="g-month" class="form-control"></select></div>
+        <div class="form-group"><label class="form-label">Year</label><input type="number" id="g-year" class="form-control"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Base Salary</label><input type="number" id="g-base" class="form-control" min="0"></div>
+        <div class="form-group"><label class="form-label">Expected Hours</label><input type="number" id="g-exphrs" class="form-control" placeholder="Auto"></div>
+      </div>
+      <div class="form-row" style="grid-template-columns:1fr 1fr 1fr">
+        <div class="form-group"><label class="form-label">Allowances</label><input type="number" id="g-allow" class="form-control" value="0" min="0"></div>
+        <div class="form-group"><label class="form-label">Deductions</label><input type="number" id="g-ded" class="form-control" value="0" min="0"></div>
+        <div class="form-group"><label class="form-label">Overtime (hrs)</label><input type="number" id="g-ot" class="form-control" value="0" min="0"></div>
+      </div>
+      <div class="form-group"><label class="form-label">Notes</label><textarea id="g-notes" class="form-control" rows="2"></textarea></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('gen-modal')">Cancel</button>
+      <button class="btn btn-primary" onclick="genSingle()">Generate</button>
+    </div>
+  </div>
+</div>
+
+<!-- Edit Modal -->
+<div class="modal-overlay" id="edit-modal">
+  <div class="modal">
+    <div class="modal-header"><span class="modal-title" id="edit-title">Edit Salary</span><button class="modal-close" onclick="closeModal('edit-modal')">×</button></div>
+    <div class="modal-body">
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Base Salary</label><input type="number" id="e-base" class="form-control"></div>
+        <div class="form-group"><label class="form-label">Expected Hours</label><input type="number" id="e-exphrs" class="form-control"></div>
+      </div>
+      <div class="form-row" style="grid-template-columns:1fr 1fr 1fr">
+        <div class="form-group"><label class="form-label">Allowances</label><input type="number" id="e-allow" class="form-control"></div>
+        <div class="form-group"><label class="form-label">Deductions</label><input type="number" id="e-ded" class="form-control"></div>
+        <div class="form-group"><label class="form-label">Overtime (hrs)</label><input type="number" id="e-ot" class="form-control"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Status</label>
+          <select id="e-status" class="form-control"><option value="draft">Draft</option><option value="finalized">Finalized</option></select>
+        </div>
+        <div class="form-group"><label class="form-label">Notes</label><input type="text" id="e-notes" class="form-control"></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('edit-modal')">Cancel</button>
+      <button class="btn btn-primary" onclick="updateSalary()">Update</button>
+    </div>
+  </div>
+</div>
+
+<script src="/js/api.js"></script>
+<script src="/js/sidebar-fix.js"></script>
+<script src="/js/admin-company-filter.js"></script>
+<script>
+const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+let allSalaries = [];
+let editSalId = null;
+
+function isSuperPayrollView() {
+  return getUser()?.role === 'superadmin';
+}
+
+function syncPayrollCompanySelection(companyId) {
+  if (!isSuperPayrollView()) return;
+  const value = companyId || '';
+  const topSelect = document.getElementById('company-filter');
+  const bulkSelect = document.getElementById('b-company');
+  const singleSelect = document.getElementById('g-company');
+  if (topSelect && String(topSelect.value || '') !== String(value)) topSelect.value = value;
+  if (bulkSelect && String(bulkSelect.value || '') !== String(value)) bulkSelect.value = value;
+  if (singleSelect && String(singleSelect.value || '') !== String(value)) singleSelect.value = value;
+}
+
+function getPayrollSelectedCompanyId() {
+  if (!isSuperPayrollView()) return '';
+  const bulkModal = document.getElementById('bulk-modal');
+  const singleModal = document.getElementById('gen-modal');
+  if (bulkModal && bulkModal.classList.contains('show')) return document.getElementById('b-company')?.value || '';
+  if (singleModal && singleModal.classList.contains('show')) return document.getElementById('g-company')?.value || '';
+  return getSelectedCompanyId();
+}
+
+function setupPayrollCompanySelectors() {
+  if (!isSuperPayrollView()) return;
+  const options = '<option value="">Select company...</option>' + (_allCompanies || []).map(c => `<option value="${c.id}">${c.name}</option>`).join('');
+  const bulkWrap = document.getElementById('b-company-wrap');
+  const singleWrap = document.getElementById('g-company-wrap');
+  const bulkSel = document.getElementById('b-company');
+  const singleSel = document.getElementById('g-company');
+  if (bulkWrap && bulkSel) {
+    bulkWrap.style.display = '';
+    bulkSel.innerHTML = options;
+  }
+  if (singleWrap && singleSel) {
+    singleWrap.style.display = '';
+    singleSel.innerHTML = options;
+  }
+  syncPayrollCompanySelection(getSelectedCompanyId());
+}
+
+// Populate month selects
+['f-month','g-month','b-month'].forEach(id => {
+  const el = document.getElementById(id);
+  const isFilter = id === 'f-month';
+  el.innerHTML = (isFilter ? '<option value="">All Months</option>' : '') +
+    MONTHS.map((m,i) => `<option value="${i+1}" ${!isFilter && i+1===new Date().getMonth()+1?'selected':''}>${m}</option>`).join('');
+});
+document.getElementById('g-year').value = new Date().getFullYear();
+document.getElementById('b-year').value = new Date().getFullYear();
+
+function fmt(n) { return fmtCurrency(n); }
+
+// Load employees for single generate
+async function loadUsers() {
+  try {
+    const companyId = getPayrollSelectedCompanyId();
+    const users = await api('GET','/users');
+    const filteredUsers = users.filter(u => {
+      const roleOk = u.role === 'employee' || u.role === 'manager';
+      if (!roleOk) return false;
+      if (!companyId) return true;
+      return String(u.companyId || '') === String(companyId);
+    });
+    const sel = document.getElementById('g-user');
+    sel.innerHTML = '<option value="">Select employee...</option>' + filteredUsers.map(u =>
+      `<option value="${u.id}" data-salary="${u.baseSalary||0}">${u.name} (${u.role})</option>`
+    ).join('');
+    sel.onchange = function() {
+      const opt = this.options[this.selectedIndex];
+      if (opt.dataset.salary) document.getElementById('g-base').value = opt.dataset.salary;
+    };
+  } catch(e) {}
+}
+
+async function loadSalaries() {
+  try {
+    let params = [];
+    const month = document.getElementById('f-month').value;
+    const year = document.getElementById('f-year').value;
+    const status = document.getElementById('f-status').value;
+    if (month) params.push('month='+month);
+    if (year) params.push('year='+year);
+    var cid=getSelectedCompanyId();if(cid)params.push('companyId='+cid);
+    let salaries = await api('GET','/salary'+(params.length?'?'+params.join('&'):''));
+    allSalaries = salaries;
+    if (status) salaries = salaries.filter(s => s.status === status);
+
+    // Stats
+    document.getElementById('s-total').textContent = allSalaries.length;
+    document.getElementById('s-draft').textContent = allSalaries.filter(s=>s.status==='draft').length;
+    document.getElementById('s-finalized').textContent = allSalaries.filter(s=>s.status==='finalized').length;
+    document.getElementById('s-paid').textContent = allSalaries.filter(s=>s.status==='paid').length;
+
+    const grid = document.getElementById('salary-grid');
+    if (!salaries.length) { grid.innerHTML = '<div style="grid-column:1/-1;"><div class="empty-state"><div class="empty-icon"><i class="bx bxs-wallet"></i></div><p>No salary records found</p></div></div>'; return; }
+
+    grid.innerHTML = salaries.map(s => {
+      const sc = s.status==='paid'?'#22c55e':s.status==='finalized'?'#3b82f6':'#f59e0b';
+      const sb = s.status==='paid'?'#dcfce7':s.status==='finalized'?'#dbeafe':'#fef3c7';
+      return `<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:18px;display:flex;flex-direction:column;gap:12px;transition:box-shadow 0.2s;" onmouseover="this.style.boxShadow='var(--shadow-lg)'" onmouseout="this.style.boxShadow=''">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
+          <div style="min-width:0;">
+            <div style="font-weight:700;font-size:14px;color:var(--text-primary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${s.user?.name||'—'}</div>
+            <div style="font-size:11px;color:var(--text-muted);margin-top:2px;text-transform:capitalize;">${s.user?.department||s.user?.role||''}</div>
+          </div>
+          <span style="font-size:11px;font-weight:700;background:${sb};color:${sc};border-radius:20px;padding:3px 10px;flex-shrink:0;text-transform:capitalize;">${s.status}</span>
+        </div>
+        <div style="text-align:center;background:linear-gradient(135deg,var(--accent),#7c3aed);border-radius:12px;padding:16px;">
+          <div style="font-size:11px;color:rgba(255,255,255,0.7);margin-bottom:4px;">${MONTHS[s.month-1]} ${s.year} · Net Salary</div>
+          <div style="font-size:28px;font-weight:900;color:white;">${fmt(s.netSalary)}</div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+          <div style="background:var(--bg-input);border-radius:8px;padding:10px;">
+            <div style="font-size:10px;color:var(--text-muted);">Base</div>
+            <div style="font-size:13px;font-weight:700;">${fmt(s.baseSalary)}</div>
+          </div>
+          <div style="background:var(--bg-input);border-radius:8px;padding:10px;">
+            <div style="font-size:10px;color:var(--text-muted);">Gross</div>
+            <div style="font-size:13px;font-weight:700;">${fmt(s.grossSalary)}</div>
+          </div>
+          <div style="background:var(--bg-input);border-radius:8px;padding:10px;">
+            <div style="font-size:10px;color:var(--text-muted);">Deductions</div>
+            <div style="font-size:13px;font-weight:700;color:var(--danger);">-${fmt(s.deductions+(s.absentDeduction||0))}</div>
+          </div>
+          <div style="background:var(--bg-input);border-radius:8px;padding:10px;">
+            <div style="font-size:10px;color:var(--text-muted);">Hours</div>
+            <div style="font-size:13px;font-weight:700;">${s.actualHours}/${s.expectedHours}h</div>
+          </div>
+        </div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;">
+          <button class="btn btn-ghost btn-sm" onclick="viewPayslip(${s.id})" title="View Payslip" style="flex:1;justify-content:center;"><i class="bx bx-show"></i> View</button>
+          <button class="btn btn-ghost btn-sm" onclick="downloadPayslip(${s.id})" title="Download Payslip"><i class="bx bx-download"></i></button>
+          ${s.status!=='paid'?`<button class="btn btn-ghost btn-sm" onclick="openEdit(${s.id})" title="Edit"><i class="bx bx-edit"></i></button>`:''}
+          ${s.status==='finalized'?`<button class="btn btn-success btn-sm" onclick="pay(${s.id})" title="Mark Paid"><i class="bx bxs-wallet"></i> Pay</button>`:''}
+          ${s.status!=='paid'?`<button class="btn btn-danger btn-sm" onclick="delSal(${s.id})" title="Delete"><i class="bx bx-trash"></i></button>`:''}
+        </div>
+      </div>`;
+    }).join('');
+  } catch(e) { toast(e.message,'error'); }
+}
+
+// Bulk generate
+async function bulkGenerate() {
+  const month = document.getElementById('b-month').value;
+  const year = document.getElementById('b-year').value;
+  if (!month || !year) return toast('Select month and year','error');
+  const companyId = getPayrollSelectedCompanyId();
+  if (getUser()?.role === 'superadmin' && !companyId) return toast('Select a company first','error');
+  const btn = document.getElementById('bulk-btn');
+  btn.disabled = true; btn.innerHTML = '<span class="spinner" style="width:16px;height:16px"></span> Generating...';
+  try {
+    const res = await api('POST','/salary/generate-bulk',{month,year,companyId});
+    toast(res.message,'success');
+    closeModal('bulk-modal'); function reloadPageData(){loadSalaries();}
+loadSalaries();
+  } catch(e) { toast(e.message,'error'); }
+  finally { btn.disabled = false; btn.innerHTML = '<i class="bx bxs-magic-wand"></i> Generate'; }
+}
+
+// Single generate
+async function genSingle() {
+  const companyId = getPayrollSelectedCompanyId();
+  if (getUser()?.role === 'superadmin' && !companyId) return toast('Select a company first','error');
+  const body = {
+    userId: document.getElementById('g-user').value,
+    month: document.getElementById('g-month').value,
+    year: document.getElementById('g-year').value,
+    companyId,
+    baseSalary: parseFloat(document.getElementById('g-base').value)||0,
+    expectedHours: parseFloat(document.getElementById('g-exphrs').value)||0,
+    allowances: parseFloat(document.getElementById('g-allow').value)||0,
+    deductions: parseFloat(document.getElementById('g-ded').value)||0,
+    overtime: parseFloat(document.getElementById('g-ot').value)||0,
+    notes: document.getElementById('g-notes').value,
+  };
+  if (!body.userId) return toast('Select an employee','error');
+  try { await api('POST','/salary',body); toast('Salary generated!','success'); closeModal('gen-modal'); loadSalaries(); }
+  catch(e) { toast(e.message,'error'); }
+}
+
+// Edit
+function openEdit(id) {
+  const s = allSalaries.find(x => x.id === id);
+  if (!s) return;
+  editSalId = id;
+  document.getElementById('edit-title').textContent = 'Edit — ' + (s.user?.name||'') + ' — ' + MONTHS[s.month-1] + ' ' + s.year;
+  document.getElementById('e-base').value = s.baseSalary;
+  document.getElementById('e-exphrs').value = s.expectedHours;
+  document.getElementById('e-allow').value = s.allowances;
+  document.getElementById('e-ded').value = s.deductions;
+  document.getElementById('e-ot').value = s.overtime;
+  document.getElementById('e-status').value = s.status;
+  document.getElementById('e-notes').value = s.notes||'';
+  openModal('edit-modal');
+}
+
+async function updateSalary() {
+  const body = {
+    baseSalary: parseFloat(document.getElementById('e-base').value)||0,
+    expectedHours: parseFloat(document.getElementById('e-exphrs').value)||160,
+    allowances: parseFloat(document.getElementById('e-allow').value)||0,
+    deductions: parseFloat(document.getElementById('e-ded').value)||0,
+    overtime: parseFloat(document.getElementById('e-ot').value)||0,
+    status: document.getElementById('e-status').value,
+    notes: document.getElementById('e-notes').value,
+  };
+  try { await api('PUT','/salary/'+editSalId,body); toast('Updated','success'); closeModal('edit-modal'); loadSalaries(); }
+  catch(e) { toast(e.message,'error'); }
+}
+
+async function pay(id) {
+  if (!confirm('Mark this salary as paid? This cannot be undone.')) return;
+  try { await api('PATCH','/salary/'+id+'/pay'); toast('Salary marked as paid!','success'); loadSalaries(); }
+  catch(e) { toast(e.message,'error'); }
+}
+
+async function delSal(id) {
+  if (!confirm('Delete this salary record?')) return;
+  try { await api('DELETE','/salary/'+id); toast('Deleted','success'); loadSalaries(); }
+  catch(e) { toast(e.message,'error'); }
+}
+
+function viewPayslip(id) {
+  const token = getToken();
+  window.open('/api/salary/'+id+'/payslip?token='+token+'&mode=view', '_blank');
+}
+
+function downloadPayslip(id) {
+  const token = getToken();
+  window.open('/api/salary/'+id+'/payslip?token='+token+'&mode=download', '_blank');
+}
+
+function exportCSV() {
+  const token = getToken();
+  const month = document.getElementById('f-month').value;
+  const year = document.getElementById('f-year').value;
+  let url = '/api/salary/export/csv?token='+token;
+  if (month) url += '&month='+month;
+  if (year) url += '&year='+year;
+  window.open(url, '_blank');
+}
+
+function reloadPageData(){setupPayrollCompanySelectors(); loadSalaries(); loadUsers();}
+initCompanyFilter().then(function(){ setupPayrollCompanySelectors(); loadUsers(); loadSalaries(); });
+</script>
+</body></html>

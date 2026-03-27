@@ -1,0 +1,159 @@
+<%- include('../partials/head', {title: 'Leave Calendar'}) %>
+<div class="app-layout">
+  <%- include('../partials/sidebar-manager') %>
+  <div class="main-content">
+    <header class="page-header">
+      <div class="flex items-center gap-3">
+        <button class="mobile-menu-btn" onclick="openSidebar()"><i class="bx bx-menu"></i></button>
+        <div>
+          <div class="page-title">Team Leave Calendar</div>
+          <div class="page-subtitle">View all team members' leave schedule</div>
+        </div>
+      </div>
+      <div class="header-actions">
+      </div>
+    </header>
+    <div class="page-body">
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:16px;">
+        <div style="display:flex;gap:16px;flex-wrap:wrap;">
+          <div style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--text-secondary);">
+            <span style="width:12px;height:12px;border-radius:3px;background:#22c55e;display:inline-block;"></span> Approved
+          </div>
+          <div style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--text-secondary);">
+            <span style="width:12px;height:12px;border-radius:3px;background:#f59e0b;display:inline-block;"></span> Pending
+          </div>
+          <div style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--text-secondary);">
+            <span style="width:12px;height:12px;border-radius:3px;background:#ef4444;display:inline-block;"></span> Rejected
+          </div>
+        </div>
+        <a href="/manager/leaves" class="btn btn-ghost btn-sm"><i class="bx bx-list-ul"></i> List View</a>
+      </div>
+      <div class="card" style="padding:0;overflow:hidden;">
+        <div id="leave-calendar" style="padding:20px;"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Leave Detail Popup -->
+<div id="leave-popup" style="display:none;position:fixed;z-index:9999;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.35);backdrop-filter:blur(2px);align-items:center;justify-content:center;">
+  <div style="background:var(--bg-card);border-radius:var(--radius);box-shadow:var(--shadow-lg);width:100%;max-width:400px;margin:16px;overflow:hidden;">
+    <div style="padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;">
+      <span style="font-weight:700;font-size:16px;color:var(--text-primary);">Leave Details</span>
+      <button onclick="closeLeavePopup()" style="width:32px;height:32px;border-radius:50%;border:1px solid var(--border);background:#fff;cursor:pointer;font-size:18px;color:var(--text-muted);display:flex;align-items:center;justify-content:center;">×</button>
+    </div>
+    <div id="leave-popup-body" style="padding:20px;"></div>
+  </div>
+</div>
+
+<!-- Day Leaves Popup -->
+<div id="day-popup" style="display:none;position:fixed;z-index:9999;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.35);backdrop-filter:blur(2px);align-items:center;justify-content:center;">
+  <div style="background:var(--bg-card);border-radius:var(--radius);box-shadow:var(--shadow-lg);width:100%;max-width:480px;margin:16px;overflow:hidden;max-height:80vh;display:flex;flex-direction:column;">
+    <div style="padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;">
+      <span style="font-weight:700;font-size:16px;color:var(--text-primary);" id="day-popup-title">Leaves on this day</span>
+      <button onclick="closeDayPopup()" style="width:32px;height:32px;border-radius:50%;border:1px solid var(--border);background:#fff;cursor:pointer;font-size:18px;color:var(--text-muted);display:flex;align-items:center;justify-content:center;">×</button>
+    </div>
+    <div id="day-popup-body" style="padding:16px;overflow-y:auto;"></div>
+  </div>
+</div>
+
+<link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.css" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.js"></script>
+<script src="/js/api.js"></script>
+<script>
+function closeLeavePopup() { document.getElementById('leave-popup').style.display='none'; }
+function closeDayPopup() { document.getElementById('day-popup').style.display='none'; }
+document.getElementById('leave-popup').addEventListener('click', function(e){ if(e.target===this) closeLeavePopup(); });
+document.getElementById('day-popup').addEventListener('click', function(e){ if(e.target===this) closeDayPopup(); });
+
+document.addEventListener('DOMContentLoaded', async () => {
+  let allLeaves = [];
+  let events = [];
+  try {
+    allLeaves = await api('GET', '/leaves');
+    events = allLeaves.map(l => ({
+      title: (l.user ? l.user.name : 'Employee') + ' — ' + l.type,
+      start: l.startDate.split('T')[0],
+      end: (() => { const d = new Date(l.endDate); d.setDate(d.getDate()+1); return d.toISOString().split('T')[0]; })(),
+      color: l.status === 'approved' ? '#22c55e' : l.status === 'rejected' ? '#ef4444' : '#f59e0b',
+      textColor: '#fff',
+      extendedProps: { status: l.status, reason: l.reason, days: l.days, name: l.user?.name, type: l.type,
+        start: l.startDate.split('T')[0], end: l.endDate.split('T')[0] }
+    }));
+  } catch(e) { console.error(e); }
+
+  const cal = new FullCalendar.Calendar(document.getElementById('leave-calendar'), {
+    initialView: 'dayGridMonth',
+    headerToolbar: { left: 'prev,next today', center: 'title', right: 'dayGridMonth,dayGridWeek,listMonth' },
+    events,
+    eventClick: info => {
+      const p = info.event.extendedProps;
+      const statusColor = p.status==='approved'?'#22c55e':p.status==='rejected'?'#ef4444':'#f59e0b';
+      const statusBg = p.status==='approved'?'#dcfce7':p.status==='rejected'?'#fee2e2':'#fef3c7';
+      document.getElementById('leave-popup-body').innerHTML = `
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;">
+          <div style="width:44px;height:44px;border-radius:50%;background:linear-gradient(135deg,var(--accent),#7c3aed);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:15px;color:white;flex-shrink:0;">
+            ${(p.name||'E').split(' ').map(x=>x[0]).join('').substring(0,2).toUpperCase()}
+          </div>
+          <div>
+            <div style="font-weight:700;font-size:15px;">${p.name||'Employee'}</div>
+            <span style="font-size:12px;font-weight:600;background:${statusBg};color:${statusColor};border-radius:20px;padding:2px 10px;display:inline-block;margin-top:3px;text-transform:capitalize;">${p.status}</span>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;">
+          <div style="background:var(--bg-input);border-radius:10px;padding:12px;">
+            <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px;">Leave Type</div>
+            <div style="font-weight:700;font-size:14px;text-transform:capitalize;">${p.type||'—'}</div>
+          </div>
+          <div style="background:var(--bg-input);border-radius:10px;padding:12px;">
+            <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px;">Duration</div>
+            <div style="font-weight:700;font-size:14px;">${p.days} day${p.days!==1?'s':''}</div>
+          </div>
+          <div style="background:var(--bg-input);border-radius:10px;padding:12px;">
+            <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px;">From</div>
+            <div style="font-weight:600;font-size:13px;">${p.start||'—'}</div>
+          </div>
+          <div style="background:var(--bg-input);border-radius:10px;padding:12px;">
+            <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px;">To</div>
+            <div style="font-weight:600;font-size:13px;">${p.end||'—'}</div>
+          </div>
+        </div>
+        ${p.reason?`<div style="background:var(--bg-input);border-radius:10px;padding:12px;"><div style="font-size:11px;color:var(--text-muted);margin-bottom:4px;">Reason</div><div style="font-size:13px;color:var(--text-secondary);">${p.reason}</div></div>`:''}
+      `;
+      document.getElementById('leave-popup').style.display = 'flex';
+    },
+    moreLinkClick: info => {
+      const dateStr = info.date.toISOString().split('T')[0];
+      const dayLeaves = allLeaves.filter(l => {
+        const s = l.startDate.split('T')[0]; const e = l.endDate.split('T')[0];
+        return dateStr >= s && dateStr <= e;
+      });
+      document.getElementById('day-popup-title').textContent = 'Leaves on ' + info.date.toLocaleDateString('en-US',{month:'short',day:'numeric'});
+      document.getElementById('day-popup-body').innerHTML = dayLeaves.map(l => {
+        const sc = l.status==='approved'?'#22c55e':l.status==='rejected'?'#ef4444':'#f59e0b';
+        const sb = l.status==='approved'?'#dcfce7':l.status==='rejected'?'#fee2e2':'#fef3c7';
+        return `<div style="display:flex;align-items:center;gap:12px;padding:12px;border-radius:10px;background:var(--bg-input);margin-bottom:8px;">
+          <div style="width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,var(--accent),#7c3aed);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;color:white;flex-shrink:0;">
+            ${(l.user?.name||'E').split(' ').map(x=>x[0]).join('').substring(0,2).toUpperCase()}
+          </div>
+          <div style="flex:1;min-width:0;">
+            <div style="font-weight:600;font-size:13px;">${l.user?.name||'Employee'}</div>
+            <div style="font-size:11px;color:var(--text-muted);text-transform:capitalize;">${l.type} · ${l.days} day${l.days!==1?'s':''}</div>
+          </div>
+          <span style="font-size:11px;font-weight:600;background:${sb};color:${sc};border-radius:20px;padding:2px 8px;text-transform:capitalize;flex-shrink:0;">${l.status}</span>
+        </div>`;
+      }).join('');
+      document.getElementById('day-popup').style.display = 'flex';
+      return 'stop';
+    },
+    dayMaxEvents: 3,
+    height: 'auto',
+  });
+  cal.render();
+
+  const style = document.createElement('style');
+  style.textContent = '.fc{color:var(--text-primary)}.fc-theme-standard td,.fc-theme-standard th{border-color:var(--border)}.fc-col-header-cell,.fc-daygrid-day{background:var(--bg-card)}.fc-today-button,.fc-button{background:var(--accent)!important;border-color:var(--accent)!important}.fc-day-today{background:rgba(91,106,191,.12)!important}.fc-toolbar-title{color:var(--text-primary);font-weight:700}.fc-event{cursor:pointer;border-radius:4px!important}.fc-more-link{color:var(--accent)!important;font-weight:600;}';
+  document.head.appendChild(style);
+});
+</script>
+</body></html>

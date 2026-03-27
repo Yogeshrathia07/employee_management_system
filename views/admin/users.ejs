@@ -1,0 +1,343 @@
+<%- include('../partials/head', {title: 'Employees'}) %>
+<div class="app-layout">
+  <%- include('../partials/sidebar-admin') %>
+  <div class="main-content">
+    <header class="page-header">
+      <div class="flex items-center gap-3">
+        <button class="mobile-menu-btn" onclick="openSidebar()"><i class="bx bx-menu"></i></button>
+        <div><div class="page-title">Employees</div><div class="page-subtitle">Manage your team members</div></div>
+      </div>
+      <div class="header-actions"></div>
+    </header>
+    <div class="page-body admin-employees-page">
+      <div class="employee-directory-shell">
+      <div class="stats-grid" style="grid-template-columns:repeat(4,1fr);">
+        <div class="stat-card"><div class="stat-icon blue"><i class="bx bxs-group"></i></div><div><div class="stat-value" id="s-total">—</div><div class="stat-label">Total Staff</div></div></div>
+        <div class="stat-card"><div class="stat-icon purple"><i class="bx bxs-user-badge"></i></div><div><div class="stat-value" id="s-mgrs">—</div><div class="stat-label">Managers</div></div></div>
+        <div class="stat-card"><div class="stat-icon green"><i class="bx bxs-check-circle"></i></div><div><div class="stat-value" id="s-active">—</div><div class="stat-label">Active</div></div></div>
+        <div class="stat-card"><div class="stat-icon red"><i class="bx bxs-x-circle"></i></div><div><div class="stat-value" id="s-inactive">—</div><div class="stat-label">Inactive</div></div></div>
+      </div>
+
+      <!-- Controls bar -->
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:16px;">
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+          <div class="search-bar" style="width:220px;">
+            <span class="search-icon"><i class="bx bx-search"></i></span>
+            <input type="text" placeholder="Search by name..." id="search-input" oninput="filterUsers()">
+          </div>
+          <div class="toggle-group mb-0">
+            <button class="toggle-btn active" onclick="setRoleFilter('all',this)">All</button>
+            <button class="toggle-btn" onclick="setRoleFilter('employee',this)">Employees</button>
+            <button class="toggle-btn" onclick="setRoleFilter('manager',this)">Managers</button>
+          </div>
+        </div>
+        <button class="btn btn-primary" onclick="openCreateModal()"><i class="bx bx-plus"></i> Add Employee</button>
+      </div>
+
+      <!-- Employee card grid -->
+      <div id="users-grid" class="users-grid">
+        <div style="grid-column:1/-1;text-align:center;padding:60px;"><span class="spinner"></span></div>
+      </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Add/Edit User Modal -->
+<div class="modal-overlay" id="user-modal">
+  <div class="modal">
+    <div class="modal-header"><span class="modal-title" id="modal-title">Add Employee</span><button class="modal-close" onclick="closeModal('user-modal')">×</button></div>
+    <div class="modal-body">
+      <!-- Employee photo shown when editing -->
+      <div id="edit-photo-area" style="display:none;text-align:center;margin-bottom:16px;">
+        <div id="edit-user-avatar" style="width:64px;height:64px;border-radius:50%;margin:0 auto 8px;overflow:hidden;background:linear-gradient(135deg,var(--accent),#7c3aed);display:flex;align-items:center;justify-content:center;font-size:24px;font-weight:700;color:white;"></div>
+        <div id="edit-user-label" style="font-size:12px;color:var(--text-muted);"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Full Name</label><input type="text" id="u-name" class="form-control" placeholder="John Doe"></div>
+        <div class="form-group"><label class="form-label">Email</label><input type="email" id="u-email" class="form-control" placeholder="john@company.com"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Role</label>
+          <select id="u-role" class="form-control" onchange="toggleManagerField()"><option value="employee">Employee</option><option value="manager">Manager</option></select>
+        </div>
+        <div class="form-group"><label class="form-label">Department</label><input type="text" id="u-dept" class="form-control" placeholder="Engineering"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Phone</label><input type="text" id="u-phone" class="form-control" placeholder="+91 98765 43210"></div>
+        <div class="form-group"><label class="form-label">Base Salary (₹)</label><input type="number" id="u-salary" class="form-control" min="0"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Gender</label><select id="u-gender" class="form-control"><option value="unspecified">Select gender</option><option value="male">Male</option><option value="female">Female</option></select></div>
+        <div class="form-group"></div>
+      </div>
+      <div class="form-group" id="manager-field">
+        <label class="form-label">Assign Manager</label>
+        <select id="u-manager" class="form-control"><option value="">— No Manager —</option></select>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Password <span class="text-muted">(default: Admin@123)</span></label><input type="password" id="u-pass" class="form-control" placeholder="Leave blank for default"></div>
+        <div class="form-group"><label class="form-label">Status</label>
+          <select id="u-status" class="form-control"><option value="active">Active</option><option value="inactive">Inactive</option></select>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('user-modal')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveUser()">Save Employee</button>
+    </div>
+  </div>
+</div>
+
+<!-- Employee Detail Modal -->
+<div class="modal-overlay" id="detail-modal">
+  <div class="modal modal-lg">
+    <div class="modal-header"><span class="modal-title" id="detail-title">Employee Details</span><button class="modal-close" onclick="closeModal('detail-modal')">×</button></div>
+    <div class="modal-body" id="detail-body"></div>
+  </div>
+</div>
+
+<script src="/js/api.js"></script>
+<script src="/js/sidebar-fix.js"></script>
+<script>
+var editId = null, managers = [], allUsers = [], roleFilter = 'all', searchQ = '';
+
+function toggleManagerField() {
+  document.getElementById('manager-field').style.display = document.getElementById('u-role').value === 'employee' ? '' : 'none';
+}
+
+function setRoleFilter(role, btn) {
+  roleFilter = role;
+  document.querySelectorAll('.toggle-group .toggle-btn').forEach(function(b){b.classList.remove('active');});
+  btn.classList.add('active');
+  renderUsers();
+}
+
+function filterUsers() {
+  searchQ = document.getElementById('search-input').value.toLowerCase();
+  renderUsers();
+}
+
+function esc(value) {
+  return String(value == null ? '' : value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function renderUsers() {
+  var data = allUsers.slice();
+  if (roleFilter !== 'all') data = data.filter(function(u){return u.role===roleFilter;});
+  if (searchQ) data = data.filter(function(u){return u.name.toLowerCase().includes(searchQ)||u.email.toLowerCase().includes(searchQ);});
+
+  document.getElementById('s-total').textContent = allUsers.length;
+  document.getElementById('s-mgrs').textContent = allUsers.filter(function(u){return u.role==='manager';}).length;
+  document.getElementById('s-active').textContent = allUsers.filter(function(u){return u.status==='active';}).length;
+  document.getElementById('s-inactive').textContent = allUsers.filter(function(u){return u.status==='inactive';}).length;
+
+  var grid = document.getElementById('users-grid');
+  if (!data.length) {
+    grid.innerHTML = '<div style="grid-column:1/-1;" class="empty-state"><div class="empty-icon"><i class="bx bxs-group"></i></div><h3>No employees found</h3></div>';
+    return;
+  }
+  grid.innerHTML = data.map(function(u){
+    return '<div class="employee-showcase-card">'+
+      '<div class="employee-showcase-top">'+
+        '<div class="employee-showcase-status">'+statusBadge(u.status)+'</div>'+
+        '<div class="employee-showcase-avatar">'+userAvatar(u,54)+'</div>'+
+        '<div class="employee-showcase-name">'+esc(u.name)+'</div>'+
+        '<div class="employee-showcase-role">'+roleBadge(u.role)+'</div>'+
+      '</div>'+
+      '<div class="employee-showcase-body">'+
+        '<div class="employee-showcase-meta">'+
+          '<div class="employee-showcase-item"><i class="bx bx-envelope"></i><span>'+esc(u.email)+'</span></div>'+
+          '<div class="employee-showcase-item"><i class="bx bx-briefcase"></i><span>'+esc(u.department || 'Not assigned')+'</span></div>'+
+          '<div class="employee-showcase-item"><i class="bx bx-id-card"></i><span>'+esc((u.manager && u.manager.name) || 'No manager assigned')+'</span></div>'+
+        '</div>'+
+        '<div class="employee-showcase-actions">'+
+          '<button class="btn btn-ghost btn-sm" onclick="viewEmployee('+u.id+')" title="View Details"><i class="bx bx-show"></i> View</button>'+
+          '<button class="btn btn-ghost btn-sm" onclick="editUser('+u.id+')" title="Edit"><i class="bx bx-edit"></i></button>'+
+          '<button class="btn btn-danger btn-sm" onclick="deleteUser('+u.id+')" title="Delete"><i class="bx bx-trash"></i></button>'+
+        '</div>'+
+      '</div>'+
+    '</div>';
+  }).join('');
+}
+
+async function loadUsers() {
+  try {
+    allUsers = await api('GET','/users');
+    managers = allUsers.filter(function(u){return u.role==='manager';});
+    document.getElementById('u-manager').innerHTML = '<option value="">— No Manager —</option>' + managers.map(function(m){return '<option value="'+m.id+'">'+m.name+'</option>';}).join('');
+    renderUsers();
+  } catch(e) { toast(e.message,'error'); }
+}
+
+function openCreateModal() {
+  editId = null;
+  document.getElementById('modal-title').textContent = 'Add Employee';
+  document.getElementById('edit-photo-area').style.display = 'none';
+  ['u-name','u-email','u-dept','u-phone','u-pass'].forEach(function(id){document.getElementById(id).value='';});
+  document.getElementById('u-role').value = 'employee';
+  document.getElementById('u-gender').value = 'unspecified';
+  document.getElementById('u-salary').value = '';
+  document.getElementById('u-status').value = 'active';
+  document.getElementById('u-manager').value = '';
+  toggleManagerField();
+  openModal('user-modal');
+}
+
+function editUser(id) {
+  var u = allUsers.find(function(x){return x.id == id;});
+  if (!u) return;
+  editId = id;
+  document.getElementById('modal-title').textContent = 'Edit — ' + u.name;
+  
+  // Show photo
+  var photoArea = document.getElementById('edit-photo-area');
+  var avatarEl = document.getElementById('edit-user-avatar');
+  photoArea.style.display = '';
+  if (u.profilePhoto) {
+    avatarEl.innerHTML = '<img src="/api/users/'+u.id+'/photo" style="width:100%;height:100%;object-fit:cover;">';
+  } else {
+    avatarEl.innerHTML = u.name.charAt(0);
+  }
+  document.getElementById('edit-user-label').textContent = u.name + ' · ' + u.role;
+  
+  document.getElementById('u-name').value = u.name;
+  document.getElementById('u-email').value = u.email;
+  document.getElementById('u-role').value = u.role;
+  document.getElementById('u-dept').value = u.department||'';
+  document.getElementById('u-phone').value = u.phone||'';
+  document.getElementById('u-gender').value = u.gender||'unspecified';
+  document.getElementById('u-salary').value = u.baseSalary||'';
+  document.getElementById('u-status').value = u.status;
+  document.getElementById('u-manager').value = u.manager?.id || '';
+  document.getElementById('u-pass').value = '';
+  toggleManagerField();
+  openModal('user-modal');
+}
+
+async function saveUser() {
+  var body = {
+    name: document.getElementById('u-name').value,
+    email: document.getElementById('u-email').value,
+    role: document.getElementById('u-role').value,
+    department: document.getElementById('u-dept').value,
+    phone: document.getElementById('u-phone').value,
+    gender: document.getElementById('u-gender').value,
+    baseSalary: parseFloat(document.getElementById('u-salary').value)||0,
+    status: document.getElementById('u-status').value,
+    managerId: document.getElementById('u-manager').value||null,
+  };
+  var pass = document.getElementById('u-pass').value;
+  if (pass) body.password = pass;
+  if (!body.name || !body.email) return toast('Name and email required', 'error');
+  try {
+    if (editId) await api('PUT','/users/'+editId, body);
+    else await api('POST','/users', body);
+    toast(editId?'Employee updated!':'Employee added!','success');
+    closeModal('user-modal');
+    await loadUsers();
+  } catch(e) { toast(e.message,'error'); }
+}
+
+async function deleteUser(id) {
+  if (!confirm('Delete this employee?')) return;
+  try { await api('DELETE','/users/'+id); toast('Deleted','success'); await loadUsers(); }
+  catch(e) { toast(e.message,'error'); }
+}
+
+// View employee detail — shows documents, pending leaves, timesheets, salary, etc.
+async function viewEmployee(id) {
+  var u = allUsers.find(function(x){return x.id == id;});
+  if (!u) return;
+  document.getElementById('detail-title').textContent = u.name + ' — Details';
+
+  // Load related data
+  try {
+    var [docs, leaves, ts, salaries] = await Promise.all([
+      api('GET','/documents?userId='+id),
+      api('GET','/leaves'),
+      api('GET','/timesheets'),
+      api('GET','/salary'),
+    ]);
+
+    // Filter for this user
+    leaves = leaves.filter(function(l){return l.userId==id;});
+    ts = ts.filter(function(t){return t.userId==id;});
+    salaries = salaries.filter(function(s){return s.userId==id;});
+
+    var pendingLeaves = leaves.filter(function(l){return l.status==='pending';});
+    var pendingTs = ts.filter(function(t){return t.status==='pending';});
+
+    var html = '<div style="display:flex;align-items:center;gap:16px;margin-bottom:20px;">'+
+      '<div style="width:56px;height:56px;border-radius:50%;overflow:hidden;flex-shrink:0;">'+userAvatar(u,56)+'</div>'+
+      '<div><div style="font-size:18px;font-weight:700;">'+u.name+'</div><div style="font-size:13px;color:var(--text-muted);">'+u.email+' · '+(u.department||'—')+' · '+u.role+'</div></div>'+
+      '<div style="margin-left:auto;">'+statusBadge(u.status)+'</div>'+
+    '</div>';
+
+    // Stats row
+    html += '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px;">'+
+      '<div style="background:var(--accent-light);border-radius:12px;padding:12px;text-align:center;"><div style="font-size:20px;font-weight:800;">'+docs.length+'</div><div style="font-size:11px;color:var(--text-muted);">Documents</div></div>'+
+      '<div style="background:var(--warning-light);border-radius:12px;padding:12px;text-align:center;"><div style="font-size:20px;font-weight:800;">'+pendingLeaves.length+'</div><div style="font-size:11px;color:var(--text-muted);">Pending Leaves</div></div>'+
+      '<div style="background:var(--info-light);border-radius:12px;padding:12px;text-align:center;"><div style="font-size:20px;font-weight:800;">'+pendingTs.length+'</div><div style="font-size:11px;color:var(--text-muted);">Pending Timesheets</div></div>'+
+      '<div style="background:var(--success-light);border-radius:12px;padding:12px;text-align:center;"><div style="font-size:20px;font-weight:800;">'+salaries.length+'</div><div style="font-size:11px;color:var(--text-muted);">Salary Records</div></div>'+
+    '</div>';
+
+    // Pending leaves with approve/reject
+    if (pendingLeaves.length) {
+      html += '<div style="margin-bottom:16px;"><div style="font-weight:700;margin-bottom:8px;">Pending Leave Requests</div>';
+      html += '<div class="table-wrapper"><table><thead><tr><th>Type</th><th>From</th><th>To</th><th>Days</th><th>Actions</th></tr></thead><tbody>';
+      pendingLeaves.forEach(function(l){
+        html += '<tr><td style="text-transform:capitalize;">'+l.type+'</td><td>'+fmtDate(l.startDate)+'</td><td>'+fmtDate(l.endDate)+'</td><td>'+l.days+'</td>'+
+          '<td><button class="btn btn-success btn-sm" onclick="approveLeaveFromDetail('+l.id+')"><i class="bx bx-check"></i></button> '+
+          '<button class="btn btn-danger btn-sm" onclick="rejectLeaveFromDetail('+l.id+')"><i class="bx bx-x"></i></button></td></tr>';
+      });
+      html += '</tbody></table></div></div>';
+    }
+
+    // Documents
+    if (docs.length) {
+      html += '<div style="margin-bottom:16px;"><div style="font-weight:700;margin-bottom:8px;">Documents</div>';
+      html += '<div class="table-wrapper"><table><thead><tr><th>Title</th><th>Type</th><th>Actions</th></tr></thead><tbody>';
+      docs.forEach(function(d){
+        html += '<tr><td>'+d.title+'</td><td><span class="badge badge-draft">'+(d.type||'other')+'</span></td>'+
+          '<td><button class="btn btn-ghost btn-sm" onclick="window.open(\'/api/documents/'+d.id+'/view?token=\'+getToken(),\'_blank\')"><i class="bx bx-show"></i></button> '+
+          '<button class="btn btn-ghost btn-sm" onclick="window.open(\'/api/documents/'+d.id+'/download?token=\'+getToken(),\'_blank\')"><i class="bx bx-download"></i></button></td></tr>';
+      });
+      html += '</tbody></table></div></div>';
+    }
+
+    // Recent salary
+    if (salaries.length) {
+      html += '<div><div style="font-weight:700;margin-bottom:8px;">Recent Salary</div>';
+      html += '<div class="table-wrapper"><table><thead><tr><th>Period</th><th>Net Salary</th><th>Status</th></tr></thead><tbody>';
+      salaries.slice(0,5).forEach(function(s){
+        var MONTHS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+        html += '<tr><td>'+MONTHS[s.month-1]+' '+s.year+'</td><td><strong>'+fmtCurrency(s.netSalary)+'</strong></td><td>'+statusBadge(s.status)+'</td></tr>';
+      });
+      html += '</tbody></table></div></div>';
+    }
+
+    document.getElementById('detail-body').innerHTML = html;
+    openModal('detail-modal');
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+async function approveLeaveFromDetail(id) {
+  try { await api('PATCH','/leaves/'+id+'/action',{action:'approve'}); toast('Leave approved','success'); closeModal('detail-modal'); }
+  catch(e) { toast(e.message,'error'); }
+}
+
+async function rejectLeaveFromDetail(id) {
+  var reason = prompt('Rejection reason (optional):');
+  try { await api('PATCH','/leaves/'+id+'/action',{action:'reject',rejectionReason:reason||''}); toast('Leave rejected','success'); closeModal('detail-modal'); }
+  catch(e) { toast(e.message,'error'); }
+}
+
+loadUsers();
+</script>
+</body></html>

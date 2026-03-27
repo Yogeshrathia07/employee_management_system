@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#5b6abf">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <title><%= typeof title !== 'undefined' ? title + ' — EMS' : 'EMS Platform' %></title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;0,9..40,800;0,9..40,900;1,9..40,400&display=swap" rel="stylesheet">
+  <link href="https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="/css/style.css">
+  <script>
+    function checkTableScroll(){document.querySelectorAll('.table-wrapper').forEach(function(w){w.scrollWidth>w.clientWidth+2?w.classList.add('has-scroll'):w.classList.remove('has-scroll')})}
+    window.addEventListener('DOMContentLoaded',function(){
+      checkTableScroll();setTimeout(checkTableScroll,500);setTimeout(checkTableScroll,1500);
+      var path = window.location.pathname;
+      var isDashboardPage = path.endsWith('/dashboard') || path === '/' || path === '/login';
+      var pageHeader = document.querySelector('.page-header');
+
+      if (!path.includes('/login') && pageHeader) {
+        var storedUser = null;
+        try { storedUser = JSON.parse(localStorage.getItem('ems_user') || 'null'); } catch(e) {}
+
+        // ── Inject navbar-brand (company logo) as first child of page-header ──
+        var existingBrand = pageHeader.querySelector('.navbar-brand');
+        if (!existingBrand) {
+          var brand = document.createElement('div');
+          brand.className = 'navbar-brand';
+          brand.id = 'navbar-brand';
+          var companyName = 'EMS Platform';
+          var companyLogo = null;
+          if (storedUser && storedUser.company) {
+            if (typeof storedUser.company === 'object') {
+              companyName = storedUser.company.name || companyName;
+              companyLogo = storedUser.company.id && (storedUser.company.logoUrl || storedUser.company.logo)
+                ? '/api/companies/' + storedUser.company.id + '/logo'
+                : null;
+            } else if (typeof storedUser.company === 'string') {
+              companyName = storedUser.company;
+            }
+          }
+          brand.innerHTML =
+            '<div class="navbar-brand-logo" id="navbar-logo-wrap">' +
+              (companyLogo
+                ? '<img src="' + companyLogo + '" alt="Logo" onerror="this.parentElement.innerHTML=\'<i class=\\\'bx bx-buildings\\\'></i>\'">'
+                : '<i class="bx bx-buildings"></i>') +
+            '</div>' +
+            '<span class="navbar-brand-name" id="navbar-company-name">' + companyName + '</span>';
+          pageHeader.insertBefore(brand, pageHeader.firstChild);
+        }
+
+        // ── Wrap existing title area in .navbar-center ──
+        var titleArea = pageHeader.querySelector('.flex.items-center');
+        if (titleArea && !pageHeader.querySelector('.navbar-center')) {
+          var navCenter = document.createElement('div');
+          navCenter.className = 'navbar-center';
+          pageHeader.insertBefore(navCenter, titleArea);
+          navCenter.appendChild(titleArea);
+        }
+
+        // ── Auto-inject back button on all non-dashboard pages ──
+        if (!isDashboardPage && !document.querySelector('.btn-back')) {
+          var btn = document.createElement('button');
+          btn.className = 'btn-back';
+          btn.innerHTML = '<i class="bx bx-arrow-back"></i>';
+          btn.title = 'Back to Dashboard';
+          btn.onclick = function(){
+            var role = storedUser ? storedUser.role : null;
+            window.location.href = role ? '/' + role + '/dashboard' : '/';
+          };
+          var insertContainer = document.querySelector('.navbar-center .flex.items-center') || document.querySelector('.navbar-center') || pageHeader;
+          var refNode = insertContainer.querySelector('.mobile-menu-btn') || insertContainer.firstChild;
+          insertContainer.insertBefore(btn, refNode);
+        }
+
+        // ── Inject logout + bell + avatar into header-actions ──
+        var headerActions = pageHeader.querySelector('.header-actions');
+        if (headerActions && storedUser) {
+          var name      = storedUser.name || 'User';
+          var firstName = name.split(' ')[0];
+          var role      = storedUser.role || '';
+          var uid       = storedUser.id;
+          var profileHref = '/' + role + '/profile';
+          var photoSrc    = '/api/users/' + uid + '/photo';
+          var initials    = name.split(' ').map(function(p){return p.charAt(0);}).join('').substring(0,2).toUpperCase();
+
+          if (!headerActions.querySelector('.header-logout-btn')) {
+            var logoutBtn = document.createElement('button');
+            logoutBtn.className = 'header-logout-btn';
+            logoutBtn.type = 'button';
+            logoutBtn.title = 'Logout';
+            logoutBtn.innerHTML = '<i class="bx bx-log-out"></i><span>Logout</span>';
+            logoutBtn.onclick = function(){
+              if (typeof logout === 'function') {
+                logout();
+              } else {
+                localStorage.removeItem('ems_token');
+                localStorage.removeItem('ems_user');
+                window.location.href = '/login';
+              }
+            };
+            headerActions.appendChild(logoutBtn);
+          }
+
+          // Bell icon button
+          var bellBtn = document.createElement('button');
+          bellBtn.className = 'header-icon-btn';
+          bellBtn.title = 'Notifications';
+          bellBtn.style.position = 'relative';
+          bellBtn.innerHTML = '<i class="bx bx-bell"></i>';
+          bellBtn.onclick = function(){
+            window.location.href = role === 'admin' ? '/admin/notifications' : '/' + role + '/notifications-view';
+          };
+          headerActions.appendChild(bellBtn);
+
+          // Fetch unread notification count and show badge
+          var _tok = localStorage.getItem('ems_token');
+          if (_tok) {
+            fetch('/api/notifications', { headers: { 'Authorization': 'Bearer ' + _tok } })
+              .then(function(r){ return r.ok ? r.json() : []; })
+              .then(function(notifs){
+                if (!Array.isArray(notifs)) return;
+                var unread = notifs.filter(function(n){
+                  return n.status === 'active' && !n.isRead;
+                }).length;
+                if (unread === 0) {
+                  unread = notifs.filter(function(n){ return n.status === 'active'; }).length;
+                }
+                if (unread > 0) {
+                  var badge = document.createElement('span');
+                  badge.style.cssText = 'position:absolute;top:-4px;right:-4px;min-width:17px;height:17px;background:var(--danger);border-radius:9px;border:2px solid #fff;font-size:9px;font-weight:700;color:#fff;display:flex;align-items:center;justify-content:center;padding:0 3px;pointer-events:none;line-height:1;';
+                  badge.textContent = unread > 99 ? '99+' : String(unread);
+                  bellBtn.appendChild(badge);
+                }
+              }).catch(function(){});
+          }
+
+          // Circular avatar
+          var avatarLink = document.createElement('a');
+          avatarLink.href  = profileHref;
+          avatarLink.title = name + ' — My Profile';
+          avatarLink.style.cssText = 'width:40px;height:40px;border-radius:50%;overflow:hidden;background:linear-gradient(135deg,#5b6abf,#7c3aed);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px;color:white;flex-shrink:0;text-decoration:none;cursor:pointer;border:2px solid #fff;box-shadow:0 0 0 2px rgba(91,106,191,0.25);position:relative;transition:box-shadow 0.2s,transform 0.15s;';
+          avatarLink.onmouseover = function(){ this.style.boxShadow='0 0 0 3px rgba(91,106,191,0.45)'; this.style.transform='scale(1.06)'; };
+          avatarLink.onmouseout  = function(){ this.style.boxShadow='0 0 0 2px rgba(91,106,191,0.25)'; this.style.transform=''; };
+          avatarLink.innerHTML =
+            '<span id="nav-av-init" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px;color:white;pointer-events:none;">' + initials + '</span>' +
+            '<img src="' + photoSrc + '" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block;" onload="this.previousElementSibling.style.display=\'none\'" onerror="this.style.display=\'none\'">';
+          headerActions.appendChild(avatarLink);
+
+          // Welcome greeting on dashboard pages
+          if (isDashboardPage) {
+            var titleEl = document.querySelector('.page-title');
+            var subEl   = document.querySelector('.page-subtitle');
+            if (titleEl) titleEl.textContent = 'Welcome, ' + firstName + '!';
+            if (subEl) {
+              var h = new Date().getHours();
+              subEl.textContent = (h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening') + ' \u2014 Have a productive day ahead';
+            }
+          }
+        }
+
+        // ── Also update sidebar company name/logo to match ──
+        if (storedUser && storedUser.company) {
+          var sidebarName = document.getElementById('sidebar-company-name');
+          var sidebarLogo = document.getElementById('sidebar-company-logo');
+          var cn = typeof storedUser.company === 'object' ? storedUser.company.name : storedUser.company;
+          var cl = typeof storedUser.company === 'object' ? (storedUser.company.logoUrl || storedUser.company.logo) : null;
+          if (sidebarName && cn) sidebarName.textContent = cn;
+          if (sidebarLogo && cl) {
+            var iconEl = document.getElementById('sidebar-logo-icon');
+            if (iconEl) iconEl.style.display = 'none';
+            var logoImg = document.createElement('img');
+            logoImg.src = cl;
+            logoImg.style.cssText = 'width:100%;height:100%;object-fit:cover;';
+            logoImg.onerror = function(){ this.remove(); if(iconEl) iconEl.style.display=''; };
+            sidebarLogo.appendChild(logoImg);
+          }
+        }
+      }
+    });
+    window.addEventListener('resize',checkTableScroll);
+    function openSidebar(){document.getElementById('sidebar').classList.add('open');document.getElementById('sidebarOverlay').classList.add('show');document.body.style.overflow='hidden'}
+    function closeSidebar(){document.getElementById('sidebar').classList.remove('open');document.getElementById('sidebarOverlay').classList.remove('show');document.body.style.overflow=''}
+  </script>
+</head>
+<body style="background:var(--bg-main);color:var(--text-primary);font-family:'DM Sans',sans-serif;">
+<div id="toast-container"></div>
+<div class="sidebar-overlay" id="sidebarOverlay" onclick="closeSidebar()"></div>

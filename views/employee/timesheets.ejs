@@ -1,0 +1,215 @@
+<%- include('../partials/head', {title: 'My Timesheets'}) %>
+<div class="app-layout">
+  <%- include('../partials/sidebar-employee') %>
+  <div class="main-content">
+    <header class="page-header">
+      <div class="flex items-center gap-3">
+        <button class="mobile-menu-btn" onclick="openSidebar()"><i class="bx bx-menu"></i></button>
+        <div><div class="page-title">Timesheets</div><div class="page-subtitle">Log and track your work hours</div></div>
+      </div>
+      <div class="header-actions"></div>
+    </header>
+    <div class="page-body admin-employees-page employee-shared-page">
+      <div class="employee-directory-shell">
+      <div class="admin-toolbar" style="margin-bottom:20px;justify-content:flex-end;">
+        <button class="btn employee-cta-btn" onclick="openNewTs()"><i class="bx bx-plus"></i> New Timesheet</button>
+      </div>
+      <div class="stats-grid" style="grid-template-columns:repeat(3,1fr);">
+        <div class="stat-card"><div class="stat-icon blue"><i class="bx bxs-time-five"></i></div><div><div class="stat-value" id="total-hours">0h</div><div class="stat-label">Approved Hours</div></div></div>
+        <div class="stat-card"><div class="stat-icon green"><i class="bx bxs-check-circle"></i></div><div><div class="stat-value" id="approved-sheets">0</div><div class="stat-label">Approved</div></div></div>
+        <div class="stat-card"><div class="stat-icon orange"><i class="bx bxs-hourglass"></i></div><div><div class="stat-value" id="pending-sheets">0</div><div class="stat-label">Pending</div></div></div>
+      </div>
+
+      <div style="margin-bottom:8px;"><div class="card-title" style="padding:0 4px;">My Timesheets</div><div class="card-subtitle" style="padding:0 4px;">Your submitted work hours</div></div>
+      <div id="ts-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px;">
+        <div style="grid-column:1/-1;display:flex;justify-content:center;padding:40px;"><span class="spinner"></span></div>
+      </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Timesheet Modal -->
+<div class="modal-overlay" id="ts-modal">
+  <div class="modal modal-lg">
+    <div class="modal-header"><span class="modal-title" id="ts-modal-title">Log Work Hours</span><button class="modal-close" onclick="closeModal('ts-modal')">×</button></div>
+    <div class="modal-body">
+      <p style="font-size:13px;color:var(--text-muted);margin-bottom:16px;">Select days and enter hours. Only current and previous week allowed.</p>
+      <div class="form-group"><label class="form-label">Week</label>
+        <div class="toggle-group">
+          <button class="toggle-btn active" id="toggle-curr" onclick="setWeek('current')">Current Week</button>
+          <button class="toggle-btn" id="toggle-prev" onclick="setWeek('previous')">Previous Week</button>
+        </div>
+      </div>
+      <div class="form-group"><label class="form-label">Select Days</label><div id="day-picker" class="day-picker-grid"></div></div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Hours per day</label><input type="number" id="ts-hours" class="form-control" min="0.5" max="24" step="0.5" value="8" oninput="updateSummary()"></div>
+        <div class="form-group"><label class="form-label">Work Type</label>
+          <select id="ts-worktype" class="form-control"><option value="work">Work</option><option value="leave">Leave</option><option value="holiday">Holiday</option><option value="half-day">Half Day</option></select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Project</label><input type="text" id="ts-project" class="form-control" placeholder="Project name"></div>
+        <div class="form-group"><label class="form-label">Task</label><input type="text" id="ts-desc" class="form-control" placeholder="What did you work on?"></div>
+      </div>
+      <div class="form-group"><label class="form-label">Notes</label><textarea id="ts-notes" class="form-control" rows="2"></textarea></div>
+      <div class="ts-summary">
+        <span><strong id="sum-days">0</strong> days</span>
+        <span style="color:var(--text-muted)">×</span>
+        <span><strong id="sum-hrs">8</strong>h each</span>
+        <span style="color:var(--text-muted)">=</span>
+        <span class="ts-summary-total"><strong id="sum-total">0</strong>h total</span>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('ts-modal')">Cancel</button>
+      <button class="btn btn-primary" id="ts-submit-btn" onclick="submitTimesheet()">Submit Timesheet</button>
+    </div>
+  </div>
+</div>
+
+<script src="/js/api.js"></script>
+<script>
+var DAYNAMES=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+var selectedDates = new Set();
+var activeWeek = 'current';
+var editingTsId = null; // If editing an existing timesheet
+var allTimesheets = [];
+
+function getMondayOf(date){var d=new Date(date);var day=d.getDay();d.setDate(d.getDate()-day+(day===0?-6:1));d.setHours(0,0,0,0);return d;}
+function getWeekDates(which){var today=new Date();today.setHours(0,0,0,0);var monday=getMondayOf(today);if(which==='previous')monday.setDate(monday.getDate()-7);var dates=[];for(var i=0;i<7;i++){var d=new Date(monday);d.setDate(d.getDate()+i);dates.push(d);}return dates;}
+function fmtISO(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+function fmtShort(d){return d.toLocaleDateString('en-US',{day:'2-digit',month:'short'});}
+
+function setWeek(which){activeWeek=which;selectedDates.clear();
+  document.getElementById('toggle-curr').classList.toggle('active',which==='current');
+  document.getElementById('toggle-prev').classList.toggle('active',which==='previous');
+  buildDayPicker();updateSummary();}
+
+function buildDayPicker(){
+  var dates=getWeekDates(activeWeek);var today=new Date();today.setHours(0,0,0,0);
+  document.getElementById('day-picker').innerHTML=dates.map(function(d,i){
+    var iso=fmtISO(d),isFuture=d>today,isSelected=selectedDates.has(iso);
+    return '<button type="button" class="day-chip'+(isSelected?' selected':'')+(isFuture?' disabled':'')+'" data-date="'+iso+'" onclick="toggleDay(this)"'+(isFuture?' disabled':'')+'><span class="day-chip-name">'+DAYNAMES[i]+'</span><span class="day-chip-date">'+fmtShort(d)+'</span></button>';
+  }).join('');
+}
+
+function toggleDay(btn){var date=btn.dataset.date;if(selectedDates.has(date)){selectedDates.delete(date);btn.classList.remove('selected');}else{selectedDates.add(date);btn.classList.add('selected');}updateSummary();}
+function updateSummary(){var hrs=parseFloat(document.getElementById('ts-hours').value)||0;document.getElementById('sum-days').textContent=selectedDates.size;document.getElementById('sum-hrs').textContent=hrs;document.getElementById('sum-total').textContent=(selectedDates.size*hrs).toFixed(1);}
+
+function openNewTs(){
+  editingTsId=null;
+  document.getElementById('ts-modal-title').textContent='Log Work Hours';
+  document.getElementById('ts-submit-btn').textContent='Submit Timesheet';
+  selectedDates.clear();activeWeek='current';
+  document.getElementById('toggle-curr').classList.add('active');
+  document.getElementById('toggle-prev').classList.remove('active');
+  document.getElementById('ts-hours').value=8;
+  document.getElementById('ts-worktype').value='work';
+  document.getElementById('ts-project').value='';
+  document.getElementById('ts-desc').value='';
+  document.getElementById('ts-notes').value='';
+  buildDayPicker();updateSummary();openModal('ts-modal');
+}
+
+function openEditTs(id){
+  var t=allTimesheets.find(function(x){return x.id===id;});
+  if(!t)return;
+  editingTsId=id;
+  document.getElementById('ts-modal-title').textContent='Edit Timesheet (will reset to pending)';
+  document.getElementById('ts-submit-btn').textContent='Update & Resubmit';
+  selectedDates.clear();
+  var entries=t.entries||[];
+  // Auto-select days from existing entries
+  if(entries.length){
+    var firstEntry=new Date(entries[0].date);
+    var monday=getMondayOf(firstEntry);
+    var thisMon=getMondayOf(new Date());
+    var prevMon=new Date(thisMon);prevMon.setDate(prevMon.getDate()-7);
+    if(monday.getTime()===thisMon.getTime()) activeWeek='current';
+    else activeWeek='previous';
+    document.getElementById('toggle-curr').classList.toggle('active',activeWeek==='current');
+    document.getElementById('toggle-prev').classList.toggle('active',activeWeek==='previous');
+    entries.forEach(function(e){selectedDates.add(e.date);});
+    document.getElementById('ts-hours').value=entries[0].hours||8;
+    document.getElementById('ts-worktype').value=entries[0].workType||'work';
+    document.getElementById('ts-project').value=entries[0].project||'';
+    document.getElementById('ts-desc').value=entries[0].description||'';
+  }
+  document.getElementById('ts-notes').value=t.notes||'';
+  buildDayPicker();updateSummary();openModal('ts-modal');
+}
+
+async function loadTimesheets(){
+  try{
+    var ts=await api('GET','/timesheets');
+    allTimesheets=ts;
+    document.getElementById('total-hours').textContent=ts.filter(function(t){return t.status==='approved';}).reduce(function(s,t){return s+t.totalHours;},0).toFixed(1)+'h';
+    document.getElementById('approved-sheets').textContent=ts.filter(function(t){return t.status==='approved';}).length;
+    document.getElementById('pending-sheets').textContent=ts.filter(function(t){return t.status==='pending';}).length;
+    var grid=document.getElementById('ts-grid');
+    if(!ts.length){grid.innerHTML='<div style="grid-column:1/-1;"><div class="empty-state"><div class="empty-icon"><i class="bx bxs-time-five"></i></div><h3>No timesheets yet</h3></div></div>';return;}
+    grid.innerHTML=ts.map(function(t){
+      var entries=t.entries||[];
+      var canEdit=(t.status==='pending'||t.status==='rejected');
+      var sc=t.status==='approved'?'#22c55e':t.status==='rejected'?'#ef4444':'#f59e0b';
+      var sb=t.status==='approved'?'#dcfce7':t.status==='rejected'?'#fee2e2':'#fef3c7';
+      return '<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:18px;display:flex;flex-direction:column;gap:12px;transition:box-shadow 0.2s;" onmouseover="this.style.boxShadow=\'var(--shadow-lg)\'" onmouseout="this.style.boxShadow=\'\'">'+
+        '<div style="display:flex;align-items:center;justify-content:space-between;">'+
+          '<div style="font-size:13px;font-weight:600;color:var(--text-primary);"><i class="bx bx-calendar" style="color:var(--accent)"></i> '+fmtDate(t.weekStart)+' – '+fmtDate(t.weekEnd)+'</div>'+
+          '<span style="font-size:11px;font-weight:700;background:'+sb+';color:'+sc+';border-radius:20px;padding:3px 10px;text-transform:capitalize;">'+t.status+'</span>'+
+        '</div>'+
+        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">'+
+          '<div style="background:var(--bg-input);border-radius:10px;padding:12px;text-align:center;">'+
+            '<div style="font-size:22px;font-weight:900;color:var(--accent);">'+t.totalHours+'h</div>'+
+            '<div style="font-size:11px;color:var(--text-muted);">Total Hours</div>'+
+          '</div>'+
+          '<div style="background:var(--bg-input);border-radius:10px;padding:12px;text-align:center;">'+
+            '<div style="font-size:22px;font-weight:900;color:var(--text-primary);">'+entries.length+'</div>'+
+            '<div style="font-size:11px;color:var(--text-muted);">Entries</div>'+
+          '</div>'+
+        '</div>'+
+        (t.approver?'<div style="font-size:12px;color:var(--text-muted);"><i class="bx bx-check-circle" style="color:#22c55e"></i> Approved by <strong>'+t.approver.name+'</strong></div>':'')+''+
+        '<div style="font-size:11px;color:var(--text-muted);">Submitted '+fmtDate(t.createdAt)+'</div>'+
+        '<div style="display:flex;gap:6px;">'+
+          (canEdit?'<button class="btn btn-ghost btn-sm" onclick="openEditTs('+t.id+')" style="flex:1;justify-content:center;"><i class="bx bx-edit"></i> Edit</button>':'')+
+          (t.status==='pending'?'<button class="btn btn-danger btn-sm" onclick="deleteTs('+t.id+')"><i class="bx bx-trash"></i></button>':'')+
+        '</div>'+
+      '</div>';
+    }).join('');
+  }catch(e){toast(e.message,'error');}
+}
+
+async function submitTimesheet(){
+  if(!selectedDates.size)return toast('Select at least one day','error');
+  var hrs=parseFloat(document.getElementById('ts-hours').value)||0;
+  if(hrs<=0)return toast('Enter valid hours','error');
+  var workType=document.getElementById('ts-worktype').value;
+  var project=document.getElementById('ts-project').value;
+  var description=document.getElementById('ts-desc').value;
+  var notes=document.getElementById('ts-notes').value;
+  var sorted=[...selectedDates].sort();
+  var entries=sorted.map(function(d){return{date:d,hours:hrs,workType:workType,project:project,description:description};});
+
+  try{
+    if(editingTsId){
+      // Update existing
+      await api('PUT','/timesheets/'+editingTsId,{entries:entries,notes:notes});
+      toast('Timesheet updated & resubmitted for approval!','success');
+    }else{
+      await api('POST','/timesheets',{weekStart:sorted[0],weekEnd:sorted[sorted.length-1],entries:entries,notes:notes});
+      toast('Timesheet submitted!','success');
+    }
+    closeModal('ts-modal');loadTimesheets();
+  }catch(e){toast(e.message,'error');}
+}
+
+async function deleteTs(id){
+  if(!confirm('Delete this timesheet?'))return;
+  try{await api('DELETE','/timesheets/'+id);toast('Deleted','success');loadTimesheets();}
+  catch(e){toast(e.message,'error');}
+}
+
+loadTimesheets();
+</script>
+</body></html>

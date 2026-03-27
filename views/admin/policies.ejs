@@ -1,0 +1,85 @@
+<%- include('../partials/head', {title: 'Company Policy'}) %>
+<div class="app-layout">
+  <%- include('../partials/sidebar-admin') %>
+  <div class="main-content">
+    <header class="page-header">
+      <div class="flex items-center gap-3">
+        <button class="mobile-menu-btn" onclick="openSidebar()"><i class="bx bx-menu"></i></button>
+        <div>
+          <div class="page-title">Company Policy</div>
+          <div class="page-subtitle">Company guidelines for your organization</div>
+        </div>
+      </div>
+    </header>
+    <div class="page-body">
+      <div id="policies-grid" style="display:grid;gap:20px;max-width:980px;">
+        <div style="text-align:center;padding:60px;"><span class="spinner"></span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="view-policy-modal">
+  <div class="modal" style="max-width:760px;">
+    <div class="modal-header"><span class="modal-title" id="view-policy-title">Policy</span><button class="modal-close" onclick="closeModal('view-policy-modal')">×</button></div>
+    <div class="modal-body">
+      <div id="view-policy-content" style="white-space:pre-wrap;line-height:1.9;font-size:15px;color:var(--text-secondary);"></div>
+      <div id="view-policy-file" style="margin-top:18px;"></div>
+    </div>
+  </div>
+</div>
+
+<script src="/js/api.js"></script>
+<script>
+async function loadPolicies() {
+  try {
+    const policies = await api('GET', '/policies');
+    const grid = document.getElementById('policies-grid');
+    if (!policies.length) {
+      grid.innerHTML = '<div style="text-align:center;padding:60px;color:var(--text-muted);"><i class="bx bxs-book-content" style="font-size:48px;opacity:0.3;"></i><p style="margin-top:12px;">No policies published yet</p></div>';
+      return;
+    }
+    grid.innerHTML = policies.map(function(p) {
+      return `<section style="background:#fff;border:1px solid var(--border);border-radius:22px;padding:24px 26px;box-shadow:var(--shadow);">
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:18px;flex-wrap:wrap;">
+          <div style="display:flex;align-items:flex-start;gap:14px;min-width:0;">
+            <div style="width:48px;height:48px;background:var(--accent-light);border-radius:14px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+              <i class="bx bxs-book-content" style="color:var(--accent);font-size:22px;"></i>
+            </div>
+            <div style="min-width:0;">
+              <div style="font-weight:800;font-size:24px;color:var(--text-primary);line-height:1.2;">${p.title}</div>
+              <div style="font-size:13px;color:var(--text-muted);margin-top:8px;">${new Date(p.createdAt).toLocaleDateString()} · By ${p.creator?.name || 'Admin'}</div>
+            </div>
+          </div>
+          <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+            <button class="btn btn-ghost" onclick='viewPolicy(${JSON.stringify(p).replace(/"/g,"&quot;")})'><i class="bx bx-show"></i> View Policy</button>
+            ${p.fileUrl ? `<button class="btn btn-ghost" onclick="openPolicyPdf('${p.id}')"><i class="bx bx-file"></i> View PDF</button><button class="btn btn-primary" onclick="downloadPolicyPdf('${p.id}')"><i class="bx bx-download"></i> Download PDF</button>` : ''}
+          </div>
+        </div>
+        <div style="margin-top:22px;padding-top:18px;border-top:1px solid var(--border);font-size:15px;line-height:1.9;color:var(--text-secondary);white-space:pre-wrap;">${p.content || 'No content provided.'}</div>
+      </section>`;
+    }).join('');
+  } catch(e) { toast(e.message,'error'); }
+}
+
+function viewPolicy(p) {
+  document.getElementById('view-policy-title').textContent = p.title;
+  document.getElementById('view-policy-content').textContent = p.content || 'No content provided.';
+  document.getElementById('view-policy-file').innerHTML = p.fileUrl
+    ? `<div style="display:flex;gap:10px;flex-wrap:wrap;"><button class="btn btn-ghost" onclick="openPolicyPdf('${p.id}')"><i class="bx bx-show"></i> Open PDF in New Window</button><button class="btn btn-primary" onclick="downloadPolicyPdf('${p.id}')"><i class="bx bx-download"></i> Download PDF</button></div>` : '';
+  openModal('view-policy-modal');
+}
+
+function openPolicyPdf(id) {
+  var token = getToken();
+  window.open('/api/policies/' + id + '/view?token=' + encodeURIComponent(token), '_blank');
+}
+
+function downloadPolicyPdf(id) {
+  var token = getToken();
+  window.open('/api/policies/' + id + '/download?token=' + encodeURIComponent(token), '_blank');
+}
+
+loadPolicies();
+</script>
+</body></html>

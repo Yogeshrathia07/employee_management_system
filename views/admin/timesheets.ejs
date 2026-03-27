@@ -1,0 +1,118 @@
+<%- include('../partials/head', {title: 'Timesheets'}) %>
+<div class="app-layout">
+  <%- include('../partials/sidebar-admin') %>
+  <div class="main-content">
+    <header class="page-header">
+      <div class="flex items-center gap-3">
+        <button class="mobile-menu-btn" onclick="openSidebar()"><i class="bx bx-menu"></i></button>
+        <div>
+          <div class="page-title">All Timesheets</div>
+          <div class="page-subtitle">Review and manage all timesheet submissions</div>
+        </div>
+      </div>
+      <div class="header-actions"></div>
+    </header>
+    <div class="page-body admin-employees-page">
+      <div class="employee-directory-shell">
+      <div class="admin-toolbar" style="margin-bottom:20px;">
+        <span id="company-filter-container" style="display:none;"></span>
+        <select id="filter-status" class="form-control" style="width:140px" onchange="reloadPageData()">
+          <option value="">All Status</option><option value="pending">Pending</option><option value="approved">Approved</option><option value="rejected">Rejected</option>
+        </select>
+      </div>
+      <div id="ts-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px;">
+        <div style="grid-column:1/-1;display:flex;justify-content:center;padding:40px;"><span class="spinner"></span></div>
+      </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="detail-modal">
+  <div class="modal" style="max-width:700px">
+    <div class="modal-header"><span class="modal-title" id="detail-title">Details</span><button class="modal-close" onclick="closeModal('detail-modal')">×</button></div>
+    <div class="modal-body" id="detail-body"></div>
+  </div>
+</div>
+<div class="modal-overlay" id="reject-modal">
+  <div class="modal" style="max-width:400px">
+    <div class="modal-header"><span class="modal-title">Reject</span><button class="modal-close" onclick="closeModal('reject-modal')">×</button></div>
+    <div class="modal-body"><div class="form-group"><label class="form-label">Reason</label><textarea id="reject-reason" class="form-control" rows="3"></textarea></div></div>
+    <div class="modal-footer"><button class="btn btn-ghost" onclick="closeModal('reject-modal')">Cancel</button><button class="btn btn-danger" onclick="confirmReject()">Reject</button></div>
+  </div>
+</div>
+
+<script src="/js/api.js"></script>
+<script src="/js/sidebar-fix.js"></script>
+<script src="/js/admin-company-filter.js"></script>
+<script>
+var allTs=[],rejectId=null;
+async function reloadPageData(){await loadTs();}
+async function loadTs(){
+  try{
+    var url='/timesheets';var cid=getSelectedCompanyId();if(cid)url+='?companyId='+cid;
+    allTs=await api('GET',url);
+    var f=document.getElementById('filter-status').value;
+    var ts=f?allTs.filter(function(t){return t.status===f;}):allTs;
+    var grid=document.getElementById('ts-grid');
+    if(!ts.length){
+      grid.innerHTML='<div style="grid-column:1/-1;"><div class="empty-state"><div class="empty-icon"><i class="bx bxs-time-five"></i></div><p>No timesheets found</p></div></div>';
+      return;
+    }
+    grid.innerHTML=ts.map(function(t){
+      var e=t.entries||[];
+      var sc=t.status==='approved'?'#22c55e':t.status==='rejected'?'#ef4444':'#f59e0b';
+      var sb=t.status==='approved'?'#dcfce7':t.status==='rejected'?'#fee2e2':'#fef3c7';
+      return '<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:18px;display:flex;flex-direction:column;gap:12px;transition:box-shadow 0.2s;" onmouseover="this.style.boxShadow=\'var(--shadow-lg)\'" onmouseout="this.style.boxShadow=\'\'">'+
+        '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">'+
+          '<div style="display:flex;align-items:center;gap:10px;min-width:0;">'+
+            userAvatar(t.user,38)+
+            '<div style="min-width:0;"><div style="font-weight:700;font-size:14px;color:var(--text-primary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+(t.user?.name||'—')+'</div>'+
+            '<div style="font-size:11px;color:var(--text-muted);text-transform:capitalize;margin-top:2px;">'+(t.user?.role||'employee')+'</div></div>'+
+          '</div>'+
+          '<span style="font-size:11px;font-weight:700;background:'+sb+';color:'+sc+';border-radius:20px;padding:3px 10px;flex-shrink:0;text-transform:capitalize;">'+t.status+'</span>'+
+        '</div>'+
+        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">'+
+          '<div style="background:var(--bg-input);border-radius:10px;padding:12px;text-align:center;">'+
+            '<div style="font-size:22px;font-weight:900;color:var(--accent);">'+t.totalHours+'h</div>'+
+            '<div style="font-size:11px;color:var(--text-muted);">Total Hours</div>'+
+          '</div>'+
+          '<div style="background:var(--bg-input);border-radius:10px;padding:12px;text-align:center;">'+
+            '<div style="font-size:22px;font-weight:900;color:var(--text-primary);">'+e.length+'</div>'+
+            '<div style="font-size:11px;color:var(--text-muted);">Entries</div>'+
+          '</div>'+
+        '</div>'+
+        '<div style="font-size:12px;color:var(--text-muted);display:flex;align-items:center;gap:5px;">'+
+          '<i class="bx bx-calendar"></i> '+fmtDate(t.weekStart)+' – '+fmtDate(t.weekEnd)+
+        '</div>'+
+        '<div style="display:flex;gap:6px;margin-top:4px;">'+
+          '<button class="btn btn-ghost btn-sm" onclick="showDetail('+t.id+')" style="flex:1;justify-content:center;"><i class="bx bx-show"></i> View</button>'+
+          (t.status==='pending'?
+            '<button class="btn btn-success btn-sm" onclick="actTs('+t.id+',\'approve\')" title="Approve"><i class="bx bx-check"></i></button>'+
+            '<button class="btn btn-danger btn-sm" onclick="openReject('+t.id+')" title="Reject"><i class="bx bx-x"></i></button>':'')+
+        '</div>'+
+      '</div>';
+    }).join('');
+  }catch(e){toast(e.message,'error');}
+}
+async function actTs(id,action){try{await api('PATCH','/timesheets/'+id+'/action',{action:action});toast('Timesheet '+action+'d','success');loadTs();}catch(e){toast(e.message,'error');}}
+function openReject(id){rejectId=id;document.getElementById('reject-reason').value='';openModal('reject-modal');}
+async function confirmReject(){try{await api('PATCH','/timesheets/'+rejectId+'/action',{action:'reject',rejectionReason:document.getElementById('reject-reason').value});toast('Rejected','success');closeModal('reject-modal');loadTs();}catch(e){toast(e.message,'error');}}
+function showDetail(id){
+  var t=allTs.find(function(x){return x.id===id;});
+  if(!t)return;
+  var e=t.entries||[];
+  document.getElementById('detail-title').textContent=(t.user?.name||'?')+' — '+fmtDate(t.weekStart);
+  document.getElementById('detail-body').innerHTML=
+    '<div style="display:flex;gap:12px;margin-bottom:16px;align-items:center">'+statusBadge(t.status)+
+    '<span style="font-size:13px;color:var(--text-muted)">Total: <strong>'+t.totalHours+'h</strong></span>'+
+    (t.approver?'<span style="font-size:13px;color:var(--text-muted)">By: <strong>'+t.approver.name+'</strong></span>':'')+'</div>'+
+    '<div class="table-wrapper"><table><thead><tr><th>Date</th><th>Hours</th><th>Type</th><th>Project</th><th>Desc</th></tr></thead><tbody>'+
+    e.map(function(x){return'<tr><td>'+fmtDate(x.date)+'</td><td>'+x.hours+'h</td><td style="text-transform:capitalize">'+(x.workType||'—')+'</td><td>'+(x.project||'—')+'</td><td style="font-size:13px">'+(x.description||'—')+'</td></tr>';}).join('')+
+    '</tbody></table></div>'+
+    (t.notes?'<p style="margin-top:12px;font-size:13px;color:var(--text-muted)"><strong>Notes:</strong> '+t.notes+'</p>':'');
+  openModal('detail-modal');
+}
+initCompanyFilter().then(reloadPageData);
+</script>
+</body></html>

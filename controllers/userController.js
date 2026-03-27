@@ -1,0 +1,279 @@
+const { Op } = require('sequelize');
+const { User, Company, Document } = require('../models');
+const bcrypt = require('bcryptjs');
+const fs   = require('fs');
+const path = require('path');
+
+exports.getUsers = async (req, res) => {
+  try {
+    const where = {};
+    if (req.user.role === 'admin') {
+      where.companyId = req.user.companyId;
+      where.role = { [Op.in]: ['employee', 'manager'] };
+    } else if (req.user.role === 'manager') {
+      where.managerId = req.user.id;
+    } else if (req.user.role === 'superadmin') {
+      if (req.query.companyId) where.companyId = req.query.companyId;
+    }
+
+    const users = await User.findAll({
+      where,
+      attributes: { exclude: ['password'] },
+      include: [
+        { model: Company, as: 'company', attributes: ['id', 'name'] },
+        { model: User, as: 'manager', attributes: ['id', 'name'] },
+      ],
+    });
+    res.json(users);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+exports.createUser = async (req, res) => {
+  try {
+    const { name, email, password, role, companyId, managerId, baseSalary, department, phone, position, gender } = req.body;
+    if (!name || !email) return res.status(400).json({ message: 'Name and email are required' });
+
+    const exists = await User.findOne({ where: { email } });
+    if (exists) return res.status(400).json({ message: 'Email already exists' });
+
+    const finalRole = role || 'employee';
+    const userData = {
+      name, email,
+      password: password || 'Password@123',
+      role: finalRole,
+      department: department || '',
+      phone: phone || '',
+      position: position || '',
+      gender: gender || 'unspecified',
+      // New employees start as pending_docs; they must upload mandatory docs before activation
+      verificationStatus: ['employee','manager'].includes(finalRole) ? 'pending_docs' : null,
+      // Keep status active so admin can still manage them; login check blocks on verificationStatus
+      status: 'active',
+    };
+    if (req.user.role === 'admin') {
+      userData.companyId = req.user.companyId;
+      if (managerId) userData.managerId = managerId;
+      if (baseSalary) userData.baseSalary = baseSalary;
+    } else if (req.user.role === 'superadmin') {
+      userData.companyId = companyId;
+      if (baseSalary) userData.baseSalary = baseSalary;
+      if (managerId) userData.managerId = managerId;
+    }
+
+    const user = await User.create(userData);
+    const plain = user.toJSON();
+    delete plain.password;
+    res.status(201).json(plain);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+exports.updateUser = async (req, res) => {
+  try {
+    const { name, email, role, companyId, managerId, baseSalary, status, department, phone, password, position, gender } = req.body;
+    const user = await User.findByPk(req.params.id);
+    if (!user) return res.status(404).json({ message: 'User not found' });
+
+    if (user.role === 'superadmin' && status && status !== 'active') {
+      return res.status(400).json({ message: 'Superadmin cannot be deactivated' });
+    }
+
+    if (name)                     user.name       = name;
+    if (email)                    user.email      = email;
+    if (department !== undefined) user.department = department;
+    if (phone !== undefined)      user.phone      = phone;
+    if (position !== undefined)   user.position   = position;
+    if (gender !== undefined)     user.gender     = gender || 'unspecified';
+    if (status)                   user.status     = user.role === 'superadmin' ? 'active' : status;
+    if (baseSalary !== undefined) user.baseSalary = baseSalary;
+    if (password) {
+      if (password.length < 6) return res.status(400).json({ message: 'Password must be at least 6 characters' });
+      user.password = password;
+    }
+
+    if (req.user.role === 'superadmin') {
+      if (role)                        user.role      = role;
+      if (companyId)                   user.companyId = companyId;
+      if (managerId !== undefined)     user.managerId = managerId || null;
+    }
+    if (req.user.role === 'admin') {
+      if (role && ['employee', 'manager'].includes(role)) user.role = role;
+      if (managerId !== undefined) user.managerId = managerId || null;
+    }
+
+    await user.save();
+    const plain = user.toJSON();
+    delete plain.password;
+    res.json(plain);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+// PATCH /users/:id/verify — admin/manager approves employee after doc review
+exports.verifyEmployee = async (req, res) => {
+  try {
+    const user = await User.findByPk(req.params.id);
+    if (!user) return res.status(404).json({ message: 'User not found' });
+
+    const { action, note } = req.body; // action: 'approve' | 'reject'
+    if (action === 'approve') {
+      user.verificationStatus = 'verified';
+      user.status = 'active';
+    } else if (action === 'reject') {
+      user.verificationStatus = 'pending_docs';
+      // Keep active so employee can log in and re-upload documents
+      user.status = 'active';
+    } else {
+      return res.status(400).json({ message: 'action must be approve or reject' });
+    }
+    await user.save();
+    const plain = user.toJSON(); delete plain.password;
+    res.json(plain);
+  } catch (err) { res.status(500).json({ message: err.message }); }
+};
+
+exports.deleteUser = async (req, res) => {
+  try {
+    const user = await User.findByPk(req.params.id);
+    if (!user) return res.status(404).json({ message: 'User not found' });
+    if (user.role === 'superadmin') return res.status(400).json({ message: 'Superadmin cannot be deleted' });
+    
+    // Move to recycle bin
+    const { moveToRecycleBin } = require('./recycleBinController');
+    await moveToRecycleBin('user', user.id, req.user, user.toJSON(), user.name + ' (' + user.email + ')');
+    
+    await user.destroy();
+    res.json({ message: 'User deleted (moved to recycle bin for 30 days)' });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+exports.getMe = async (req, res) => {
+  try {
+    const user = await User.findByPk(req.user.id, {
+      attributes: { exclude: ['password'] },
+      include: [
+        { model: Company, as: 'company', attributes: ['id', 'name', 'logoUrl'] },
+        { model: User, as: 'manager', attributes: ['id', 'name'] },
+      ],
+    });
+    res.json(user);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+// PUT /users/me/profile — employee updates own profile (limited fields)
+exports.updateMyProfile = async (req, res) => {
+  try {
+    const user = await User.findByPk(req.user.id);
+    if (!user) return res.status(404).json({ message: 'User not found' });
+
+    const { name, phone, profilePhoto, gender } = req.body;
+    if (name) user.name = name;
+    if (phone !== undefined) user.phone = phone;
+    if (profilePhoto !== undefined) user.profilePhoto = profilePhoto;
+    if (gender !== undefined) user.gender = gender || 'unspecified';
+
+    await user.save();
+    const plain = user.toJSON();
+    delete plain.password;
+    res.json(plain);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+// POST /users/change-password — employee changes own password
+exports.changeOwnPassword = async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+    if (!currentPassword || !newPassword) return res.status(400).json({ message: 'Current and new password are required' });
+    if (newPassword.length < 6) return res.status(400).json({ message: 'New password must be at least 6 characters' });
+
+    const user = await User.findByPk(req.user.id);
+    const match = await user.comparePassword(currentPassword);
+    if (!match) return res.status(400).json({ message: 'Current password is incorrect' });
+
+    user.password = newPassword;
+    await user.save();
+    res.json({ message: 'Password changed successfully' });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+// POST /users/:id/reset-password — admin/superadmin resets any user's password
+exports.resetPassword = async (req, res) => {
+  try {
+    const { newPassword } = req.body;
+    if (!newPassword) return res.status(400).json({ message: 'New password is required' });
+    if (newPassword.length < 6) return res.status(400).json({ message: 'Password must be at least 6 characters' });
+
+    const user = await User.findByPk(req.params.id);
+    if (!user) return res.status(404).json({ message: 'User not found' });
+
+    user.password = newPassword;
+    await user.save();
+    res.json({ message: 'Password reset successfully' });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+// GET /users/:id/details — admin/superadmin view full employee details
+exports.getUserDetails = async (req, res) => {
+  try {
+    const user = await User.findByPk(req.params.id, {
+      attributes: { exclude: ['password'] },
+      include: [
+        { model: Company, as: 'company', attributes: ['id', 'name'] },
+        { model: User, as: 'manager', attributes: ['id', 'name'] },
+      ],
+    });
+    if (!user) return res.status(404).json({ message: 'User not found' });
+    res.json(user);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+// POST /users/me/photo — upload profile photo
+exports.uploadPhoto = async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ message: 'No file uploaded' });
+    const user = await User.findByPk(req.user.id);
+    if (!user) return res.status(404).json({ message: 'User not found' });
+
+    // Delete old photo file if exists
+    if (user.profilePhoto) {
+      const oldPath = path.join(__dirname, '..', 'uploads', 'photos', user.profilePhoto);
+      if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
+    }
+
+    user.profilePhoto = req.file.filename;
+    await user.save();
+    res.json({ message: 'Photo uploaded', profilePhoto: req.file.filename });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+// GET /users/:id/photo — serve profile photo
+exports.getPhoto = async (req, res) => {
+  try {
+
+    const user = await User.findByPk(req.params.id, { attributes: ['profilePhoto'] });
+    if (!user || !user.profilePhoto) return res.status(404).json({ message: 'No photo' });
+    const filePath = path.join(__dirname, '..', 'uploads', 'photos', user.profilePhoto);
+    if (!fs.existsSync(filePath)) return res.status(404).json({ message: 'File not found' });
+    res.sendFile(filePath);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};

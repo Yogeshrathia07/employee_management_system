@@ -1,0 +1,130 @@
+<%- include('../partials/head', {title: 'Leave Calendar'}) %>
+<link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.css" rel="stylesheet">
+<div class="app-layout">
+  <%- include('../partials/sidebar-employee') %>
+  <div class="main-content">
+    <header class="page-header">
+      <div class="flex items-center gap-3">
+        <button class="mobile-menu-btn" onclick="openSidebar()"><i class="bx bx-menu"></i></button>
+        <div>
+          <div class="page-title">Leave Calendar</div>
+          <div class="page-subtitle">Visual overview of your leave schedule</div>
+        </div>
+      </div>
+      <div class="header-actions">
+      </div>
+    </header>
+    <div class="page-body">
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:16px;">
+        <div style="display:flex;gap:16px;flex-wrap:wrap;">
+          <div style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--text-secondary);">
+            <span style="width:12px;height:12px;border-radius:3px;background:#22c55e;display:inline-block;"></span> Approved
+          </div>
+          <div style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--text-secondary);">
+            <span style="width:12px;height:12px;border-radius:3px;background:#f59e0b;display:inline-block;"></span> Pending
+          </div>
+          <div style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--text-secondary);">
+            <span style="width:12px;height:12px;border-radius:3px;background:#ef4444;display:inline-block;"></span> Rejected
+          </div>
+        </div>
+        <a href="/employee/leaves" class="btn btn-ghost btn-sm"><i class="bx bx-list-ul"></i> List View</a>
+      </div>
+      <div class="card" style="padding:0;overflow:hidden;">
+        <div id="leave-calendar" style="padding:20px;"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Leave Detail Popup -->
+<div id="leave-popup" style="display:none;position:fixed;z-index:9999;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.35);backdrop-filter:blur(2px);align-items:center;justify-content:center;">
+  <div style="background:var(--bg-card);border-radius:var(--radius);box-shadow:var(--shadow-lg);width:100%;max-width:380px;margin:16px;overflow:hidden;">
+    <div style="padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;">
+      <span style="font-weight:700;font-size:16px;">Leave Details</span>
+      <button onclick="closeLeavePopup()" style="width:32px;height:32px;border-radius:50%;border:1px solid var(--border);background:#fff;cursor:pointer;font-size:18px;color:var(--text-muted);display:flex;align-items:center;justify-content:center;">×</button>
+    </div>
+    <div id="leave-popup-body" style="padding:20px;"></div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.js"></script>
+<script src="/js/api.js"></script>
+<script>
+function closeLeavePopup() { document.getElementById('leave-popup').style.display='none'; }
+document.getElementById('leave-popup').addEventListener('click', function(e){ if(e.target===this) closeLeavePopup(); });
+
+document.addEventListener('DOMContentLoaded', async () => {
+  let events = [];
+  try {
+    const leaves = await api('GET', '/leaves');
+    events = leaves.map(l => ({
+      title: l.type.charAt(0).toUpperCase() + l.type.slice(1) + ' Leave',
+      start: l.startDate.split('T')[0],
+      end: (() => {
+        const d = new Date(l.endDate); d.setDate(d.getDate() + 1);
+        return d.toISOString().split('T')[0];
+      })(),
+      color: l.status === 'approved' ? '#22c55e' : l.status === 'rejected' ? '#ef4444' : '#f59e0b',
+      textColor: '#fff',
+      extendedProps: { status: l.status, reason: l.reason, days: l.days, type: l.type,
+        start: l.startDate.split('T')[0], end: l.endDate.split('T')[0] }
+    }));
+  } catch(e) { console.error(e); }
+
+  const calEl = document.getElementById('leave-calendar');
+  const cal = new FullCalendar.Calendar(calEl, {
+    initialView: 'dayGridMonth',
+    headerToolbar: { left: 'prev,next today', center: 'title', right: 'dayGridMonth,dayGridWeek' },
+    events,
+    eventClick: info => {
+      const p = info.event.extendedProps;
+      const statusColor = p.status==='approved'?'#22c55e':p.status==='rejected'?'#ef4444':'#f59e0b';
+      const statusBg = p.status==='approved'?'#dcfce7':p.status==='rejected'?'#fee2e2':'#fef3c7';
+      document.getElementById('leave-popup-body').innerHTML = `
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;">
+          <div style="background:var(--bg-input);border-radius:10px;padding:12px;">
+            <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px;">Leave Type</div>
+            <div style="font-weight:700;font-size:14px;text-transform:capitalize;">${p.type||info.event.title}</div>
+          </div>
+          <div style="background:var(--bg-input);border-radius:10px;padding:12px;">
+            <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px;">Duration</div>
+            <div style="font-weight:700;font-size:14px;">${p.days} day${p.days!==1?'s':''}</div>
+          </div>
+          <div style="background:var(--bg-input);border-radius:10px;padding:12px;">
+            <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px;">From</div>
+            <div style="font-weight:600;font-size:13px;">${p.start||'—'}</div>
+          </div>
+          <div style="background:var(--bg-input);border-radius:10px;padding:12px;">
+            <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px;">To</div>
+            <div style="font-weight:600;font-size:13px;">${p.end||'—'}</div>
+          </div>
+        </div>
+        <div style="text-align:center;margin-bottom:14px;">
+          <span style="font-size:13px;font-weight:700;background:${statusBg};color:${statusColor};border-radius:20px;padding:5px 16px;text-transform:capitalize;">${p.status}</span>
+        </div>
+        ${p.reason?`<div style="background:var(--bg-input);border-radius:10px;padding:12px;"><div style="font-size:11px;color:var(--text-muted);margin-bottom:4px;">Reason</div><div style="font-size:13px;color:var(--text-secondary);">${p.reason}</div></div>`:''}
+      `;
+      document.getElementById('leave-popup').style.display = 'flex';
+    },
+    height: 'auto',
+    themeSystem: 'standard',
+  });
+  cal.render();
+
+  const style = document.createElement('style');
+  style.textContent = `
+    .fc { color: var(--text-primary); }
+    .fc-theme-standard td, .fc-theme-standard th { border-color: var(--border); }
+    .fc-theme-standard .fc-scrollgrid { border-color: var(--border); }
+    .fc-col-header-cell { background: var(--bg-card); }
+    .fc-daygrid-day { background: var(--bg-card); }
+    .fc-today-button, .fc-button { background: var(--accent) !important; border-color: var(--accent) !important; }
+    .fc-day-today { background: rgba(91,106,191,0.12) !important; }
+    .fc-toolbar-title { color: var(--text-primary); font-weight: 700; }
+    .fc-event { cursor: pointer; border-radius: 4px !important; }
+    .fc-event:hover { opacity: 0.85; }
+  `;
+  document.head.appendChild(style);
+});
+</script>
+</body></html>

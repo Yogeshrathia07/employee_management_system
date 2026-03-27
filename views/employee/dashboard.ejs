@@ -1,0 +1,166 @@
+<%- include('../partials/head', {title: 'Dashboard'}) %>
+<div class="app-layout">
+  <%- include('../partials/sidebar-employee') %>
+  <div class="main-content">
+    <header class="page-header">
+      <div class="flex items-center gap-3">
+        <button class="mobile-menu-btn" onclick="openSidebar()"><i class="bx bx-menu"></i></button>
+        <div>
+          <div class="page-title" id="welcome-title">Hello!</div>
+          <div class="page-subtitle" id="welcome-date"></div>
+        </div>
+      </div>
+      <div class="header-actions"></div>
+    </header>
+    <div class="page-body admin-employees-page employee-shared-page">
+      <div class="employee-directory-shell employee-dashboard-shell">
+        <div id="notif-area"></div>
+
+        <div class="employee-overview-grid employee-dashboard-grid" id="main-grid">
+          <a href="/employee/profile" class="employee-overview-card employee-overview-nav">
+            <div class="employee-overview-head">
+              <div class="employee-overview-icon purple"><i class="bx bxs-user-circle"></i></div>
+              <div>
+                <div class="employee-overview-label">Profile</div>
+                <div class="employee-overview-value" id="profile-name-short">-</div>
+              </div>
+            </div>
+            <div class="employee-overview-link">Open Profile</div>
+          </a>
+
+          <a href="/employee/tasks" class="employee-overview-card employee-overview-nav">
+            <div class="employee-overview-head">
+              <div class="employee-overview-icon orange"><i class="bx bxs-check-square"></i></div>
+              <div>
+                <div class="employee-overview-label">My Tasks</div>
+                <div class="employee-overview-value" id="task-total-count">0</div>
+              </div>
+            </div>
+            <div class="employee-overview-link">Open My Tasks</div>
+          </a>
+
+          <a href="/employee/leaves" class="employee-overview-card employee-overview-nav">
+            <div class="employee-overview-head">
+              <div class="employee-overview-icon green"><i class="bx bxs-calendar-check"></i></div>
+              <div>
+                <div class="employee-overview-label">Request Leave</div>
+                <div class="employee-overview-value" id="leave-total-count">0</div>
+              </div>
+            </div>
+            <div class="employee-overview-link">Open Leave Requests</div>
+          </a>
+
+          <a href="/employee/leave-calendar" class="employee-overview-card employee-overview-nav">
+            <div class="employee-overview-head">
+              <div class="employee-overview-icon blue"><i class="bx bxs-calendar"></i></div>
+              <div>
+                <div class="employee-overview-label">Leave Calendar</div>
+                <div class="employee-overview-value" id="stat-leaves-approved">0</div>
+              </div>
+            </div>
+            <div class="employee-overview-link">Open Leave Calendar</div>
+          </a>
+
+          <a href="/employee/timesheets" class="employee-overview-card employee-overview-nav highlight-orange">
+            <div class="employee-overview-head">
+              <div class="employee-overview-icon orange"><i class="bx bxs-time-five"></i></div>
+              <div>
+                <div class="employee-overview-label">Timesheets</div>
+                <div class="employee-overview-value" id="timesheet-total-count">0</div>
+              </div>
+            </div>
+            <div class="employee-overview-link emphasis">Open Timesheets</div>
+          </a>
+
+          <a href="/employee/documents" class="employee-overview-card employee-overview-nav">
+            <div class="employee-overview-head">
+              <div class="employee-overview-icon teal"><i class="bx bxs-file-doc"></i></div>
+              <div>
+                <div class="employee-overview-label">Documents</div>
+                <div class="employee-overview-value" id="documents-total-count">0</div>
+              </div>
+            </div>
+            <div class="employee-overview-link">Open Documents</div>
+          </a>
+
+          <a href="/employee/profile" class="employee-overview-card employee-overview-nav highlight-purple">
+            <div class="employee-overview-head">
+              <div class="employee-overview-icon purple"><i class="bx bxs-wallet"></i></div>
+              <div>
+                <div class="employee-overview-label">Payroll This Month</div>
+                <div class="employee-overview-value" id="stat-salary">-</div>
+              </div>
+            </div>
+            <div class="employee-overview-link">View Payroll</div>
+          </a>
+
+          <a href="/employee/policies" class="employee-overview-card employee-overview-nav">
+            <div class="employee-overview-head">
+              <div class="employee-overview-icon blue"><i class="bx bxs-book-content"></i></div>
+              <div>
+                <div class="employee-overview-label">Company Policy</div>
+                <div class="employee-overview-value">Read</div>
+              </div>
+            </div>
+            <div class="employee-overview-link">Open Policies</div>
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="/js/api.js"></script>
+<script>
+const dateStr = new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+document.getElementById('welcome-date').textContent = dateStr;
+
+async function loadDashboard() {
+  try {
+    const user = getUser();
+    if (user) {
+      document.getElementById('welcome-title').textContent = 'Hello, ' + user.name.split(' ')[0] + '!';
+      document.getElementById('profile-name-short').textContent = user.name.split(' ')[0];
+    }
+
+    const [leaves, timesheets, salaries, docs, notifs, tasks] = await Promise.all([
+      api('GET', '/leaves'),
+      api('GET', '/timesheets'),
+      api('GET', '/salary'),
+      api('GET', '/documents'),
+      api('GET', '/notifications'),
+      api('GET', '/tasks').catch(function(){ return []; })
+    ]);
+
+    const activeNotifs = (notifs || []).filter(function(n){ return n.status === 'active'; });
+    if (activeNotifs.length) {
+      document.getElementById('notif-area').innerHTML = activeNotifs.map(function(n){
+        return '<div class="notif-banner">' +
+          '<div class="notif-banner-icon"><i class="bx bxs-megaphone"></i></div>' +
+          '<div class="notif-banner-content">' +
+            '<div class="notif-banner-title">' + n.title + '</div>' +
+            '<div class="notif-banner-msg">' + (n.message || '') + '</div>' +
+          '</div>' +
+          (n.filePath ? '<div class="notif-banner-actions"><button class="notif-banner-btn" onclick="window.open(\'/api/notifications/' + n.id + '/download?token=\'+getToken(),\'_blank\')"><i class="bx bx-download"></i> Download</button></div>' : '') +
+        '</div>';
+      }).join('');
+    }
+
+    const leavesApproved = leaves.filter(function(l){ return l.status === 'approved'; }).length;
+    const now = new Date();
+    const thisMo = salaries.find(function(s){ return s.month === now.getMonth() + 1 && s.year === now.getFullYear(); });
+
+    document.getElementById('task-total-count').textContent = (tasks || []).length;
+    document.getElementById('leave-total-count').textContent = leaves.length;
+    document.getElementById('stat-leaves-approved').textContent = leavesApproved;
+    document.getElementById('timesheet-total-count').textContent = timesheets.length;
+    document.getElementById('documents-total-count').textContent = (docs || []).length;
+    document.getElementById('stat-salary').textContent = thisMo ? fmtCurrency(thisMo.netSalary) : '-';
+  } catch(e) {
+    toast(e.message, 'error');
+  }
+}
+
+loadDashboard();
+</script>
+</body></html>

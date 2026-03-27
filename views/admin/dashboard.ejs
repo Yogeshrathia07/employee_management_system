@@ -1,0 +1,155 @@
+<%- include('../partials/head', {title: 'Admin Dashboard'}) %>
+<div class="app-layout">
+  <%- include('../partials/sidebar-admin') %>
+  <div class="main-content">
+    <header class="page-header">
+      <div class="flex items-center gap-3">
+        <button class="mobile-menu-btn" onclick="openSidebar()"><i class="bx bx-menu"></i></button>
+        <div>
+          <div class="page-title">Admin Dashboard</div>
+          <div class="page-subtitle" id="header-date"></div>
+        </div>
+      </div>
+      <div class="header-actions"></div>
+    </header>
+    <div class="page-body admin-employees-page employee-shared-page">
+      <div class="employee-directory-shell">
+        <div class="employee-overview-grid employee-dashboard-grid">
+          <a href="/admin/users" class="employee-overview-card employee-overview-nav">
+            <div class="employee-overview-head">
+              <div class="employee-overview-icon blue"><i class="bx bxs-group"></i></div>
+              <div>
+                <div class="employee-overview-label">Employees</div>
+                <div class="employee-overview-value" id="s-employees">-</div>
+              </div>
+            </div>
+            <div class="employee-overview-link">Manage Employees</div>
+          </a>
+
+          <a href="/admin/users" class="employee-overview-card employee-overview-nav">
+            <div class="employee-overview-head">
+              <div class="employee-overview-icon purple"><i class="bx bxs-user-badge"></i></div>
+              <div>
+                <div class="employee-overview-label">Managers</div>
+                <div class="employee-overview-value" id="s-managers">-</div>
+              </div>
+            </div>
+            <div class="employee-overview-link">View All Users</div>
+          </a>
+
+          <a href="/admin/leaves" class="employee-overview-card employee-overview-nav highlight-orange">
+            <div class="employee-overview-head">
+              <div class="employee-overview-icon orange"><i class="bx bxs-plane-alt"></i></div>
+              <div>
+                <div class="employee-overview-label">Leave Management</div>
+                <div class="employee-overview-value" id="s-leaves">-</div>
+              </div>
+            </div>
+            <div class="employee-overview-link emphasis">Review Leaves</div>
+          </a>
+
+          <a href="/admin/leave-calendar" class="employee-overview-card employee-overview-nav">
+            <div class="employee-overview-head">
+              <div class="employee-overview-icon green"><i class="bx bxs-calendar"></i></div>
+              <div>
+                <div class="employee-overview-label">Leave Calendar</div>
+                <div class="employee-overview-value" id="s-approved-leaves">-</div>
+              </div>
+            </div>
+            <div class="employee-overview-link">Open Leave Calendar</div>
+          </a>
+
+          <a href="/admin/timesheets" class="employee-overview-card employee-overview-nav highlight-orange">
+            <div class="employee-overview-head">
+              <div class="employee-overview-icon teal"><i class="bx bxs-time-five"></i></div>
+              <div>
+                <div class="employee-overview-label">Timesheets</div>
+                <div class="employee-overview-value" id="s-ts">-</div>
+              </div>
+            </div>
+            <div class="employee-overview-link">Review Timesheets</div>
+          </a>
+
+          <a href="/admin/salary" class="employee-overview-card employee-overview-nav highlight-purple">
+            <div class="employee-overview-head">
+              <div class="employee-overview-icon purple"><i class="bx bxs-wallet"></i></div>
+              <div>
+                <div class="employee-overview-label">Payroll</div>
+                <div class="employee-overview-value" id="s-salary">-</div>
+              </div>
+            </div>
+            <div class="employee-overview-link">Manage Payroll</div>
+          </a>
+
+          <a href="/admin/documents" class="employee-overview-card employee-overview-nav">
+            <div class="employee-overview-head">
+              <div class="employee-overview-icon teal"><i class="bx bxs-file-doc"></i></div>
+              <div>
+                <div class="employee-overview-label">Documents</div>
+                <div class="employee-overview-value" id="s-docs">-</div>
+              </div>
+            </div>
+            <div class="employee-overview-link">Manage Documents</div>
+          </a>
+
+          <a href="/admin/policies" class="employee-overview-card employee-overview-nav">
+            <div class="employee-overview-head">
+              <div class="employee-overview-icon blue"><i class="bx bxs-book-content"></i></div>
+              <div>
+                <div class="employee-overview-label">Company Policy</div>
+                <div class="employee-overview-value">Read</div>
+              </div>
+            </div>
+            <div class="employee-overview-link">Open Policies</div>
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="/js/api.js"></script>
+<script src="/js/sidebar-fix.js"></script>
+<script>
+document.getElementById('header-date').textContent = new Date().toLocaleDateString('en-US', {
+  weekday: 'long',
+  year: 'numeric',
+  month: 'long',
+  day: 'numeric'
+});
+
+async function loadDashboard() {
+  try {
+    const [users, leaves, ts, salaries, docs] = await Promise.all([
+      api('GET', '/users'),
+      api('GET', '/leaves'),
+      api('GET', '/timesheets'),
+      api('GET', '/salary'),
+      api('GET', '/documents')
+    ]);
+
+    const employees = users.filter(function(u) { return u.role === 'employee'; }).length;
+    const managers = users.filter(function(u) { return u.role === 'manager'; }).length;
+    const pendingLeaves = leaves.filter(function(l) { return l.status === 'pending'; }).length;
+    const approvedLeaves = leaves.filter(function(l) { return l.status === 'approved'; }).length;
+    const pendingTimesheets = ts.filter(function(t) { return t.status === 'pending'; }).length;
+    const now = new Date();
+    const monthlyPayroll = salaries.filter(function(s) {
+      return s.month === now.getMonth() + 1 && s.year === now.getFullYear();
+    }).length;
+
+    document.getElementById('s-employees').textContent = employees;
+    document.getElementById('s-managers').textContent = managers;
+    document.getElementById('s-leaves').textContent = pendingLeaves;
+    document.getElementById('s-approved-leaves').textContent = approvedLeaves;
+    document.getElementById('s-ts').textContent = pendingTimesheets;
+    document.getElementById('s-salary').textContent = monthlyPayroll;
+    document.getElementById('s-docs').textContent = docs.length;
+  } catch (e) {
+    toast(e.message, 'error');
+  }
+}
+
+loadDashboard();
+</script>
+</body></html>

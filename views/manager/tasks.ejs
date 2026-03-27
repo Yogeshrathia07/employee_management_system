@@ -1,0 +1,271 @@
+<%- include('../partials/head', {title: 'Task Management'}) %>
+<div class="app-layout">
+  <%- include('../partials/sidebar-manager') %>
+  <div class="main-content">
+    <header class="page-header">
+      <div class="flex items-center gap-3">
+        <button class="mobile-menu-btn" onclick="openSidebar()"><i class="bx bx-menu"></i></button>
+        <div>
+          <div class="page-title">Task Management</div>
+          <div class="page-subtitle">Assign and track work for your team</div>
+        </div>
+      </div>
+      <div class="header-actions">
+        <button class="btn btn-primary" onclick="openNewTask()"><i class="bx bx-plus"></i> Assign Task</button>
+      </div>
+    </header>
+    <div class="page-body">
+      <!-- Stats -->
+      <div class="stats-grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:20px;">
+        <div class="stat-card"><div class="stat-icon blue"><i class="bx bxs-check-square"></i></div><div><div class="stat-value" id="stat-total">0</div><div class="stat-label">Total</div></div></div>
+        <div class="stat-card"><div class="stat-icon orange"><i class="bx bxs-time"></i></div><div><div class="stat-value" id="stat-todo">0</div><div class="stat-label">To Do</div></div></div>
+        <div class="stat-card"><div class="stat-icon purple"><i class="bx bxs-cog"></i></div><div><div class="stat-value" id="stat-progress">0</div><div class="stat-label">In Progress</div></div></div>
+        <div class="stat-card"><div class="stat-icon green"><i class="bx bxs-check-circle"></i></div><div><div class="stat-value" id="stat-done">0</div><div class="stat-label">Done</div></div></div>
+      </div>
+
+      <!-- Pending Approvals Banner -->
+      <div id="approvals-banner" style="display:none;margin-bottom:16px;padding:14px 18px;background:rgba(245,158,11,0.1);border:1.5px solid rgba(245,158,11,0.4);border-radius:12px;display:flex;align-items:center;gap:10px;">
+        <i class="bx bxs-bell" style="font-size:20px;color:#f59e0b;"></i>
+        <span style="font-size:14px;font-weight:600;color:#f59e0b;" id="approvals-text"></span>
+        <button class="btn btn-ghost btn-sm" style="margin-left:auto;" onclick="filter('pending_approval')">View Pending</button>
+      </div>
+
+      <div class="card" style="padding:0;">
+        <div class="card-header">
+          <div><div class="card-title">Assigned Tasks</div></div>
+          <div class="toggle-group mb-0">
+            <button class="toggle-btn active" id="f-all"              onclick="filter('all')">All</button>
+            <button class="toggle-btn"        id="f-todo"             onclick="filter('todo')">To Do</button>
+            <button class="toggle-btn"        id="f-in_progress"      onclick="filter('in_progress')">In Progress</button>
+            <button class="toggle-btn"        id="f-pending_approval" onclick="filter('pending_approval')" style="position:relative;">
+              ⏳ Approvals <span id="approval-badge" style="display:none;background:#ef4444;color:white;border-radius:50%;width:16px;height:16px;font-size:10px;font-weight:700;position:absolute;top:-4px;right:-4px;display:flex;align-items:center;justify-content:center;"></span>
+            </button>
+            <button class="toggle-btn"        id="f-done"             onclick="filter('done')">Done</button>
+            <button class="toggle-btn"        id="f-refused"          onclick="filter('refused')" style="color:#ef4444;">Refused</button>
+          </div>
+        </div>
+        <div style="padding:0;">
+          <div class="table-wrapper">
+            <table>
+              <thead><tr>
+                <th>Task</th><th>Assigned To</th><th>Priority</th><th>Due Date</th>
+                <th>Status</th><th>Approval</th><th>Actions</th>
+              </tr></thead>
+              <tbody id="tasks-tbody">
+                <tr><td colspan="7" style="text-align:center;padding:40px;"><span class="spinner"></span></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Assign / Edit Task Modal -->
+<div class="modal-overlay" id="task-modal">
+  <div class="modal">
+    <div class="modal-header"><span class="modal-title" id="task-modal-title">Assign New Task</span><button class="modal-close" onclick="closeModal('task-modal')">×</button></div>
+    <div class="modal-body">
+      <input type="hidden" id="task-id">
+      <div class="form-group">
+        <label class="form-label">Assign To *</label>
+        <select id="task-assignee" class="form-control"></select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Task Title *</label>
+        <input type="text" id="task-title" class="form-control" placeholder="e.g. Update API documentation">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Description</label>
+        <textarea id="task-desc" class="form-control" rows="3" placeholder="Describe the task in detail..."></textarea>
+      </div>
+      <div class="form-row">
+        <div class="form-group mb-0">
+          <label class="form-label">Priority</label>
+          <select id="task-priority" class="form-control">
+            <option value="low">Low</option>
+            <option value="medium" selected>Medium</option>
+            <option value="high">High</option>
+          </select>
+        </div>
+        <div class="form-group mb-0">
+          <label class="form-label">Due Date</label>
+          <input type="date" id="task-due" class="form-control">
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('task-modal')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveTask()">Assign Task</button>
+    </div>
+  </div>
+</div>
+
+<script src="/js/api.js"></script>
+<script>
+let allTasks = [];
+let myTeam   = [];
+let currentFilter = 'all';
+
+const PRIORITY_COLOR = { low:'#22c55e', medium:'#f59e0b', high:'#ef4444' };
+const STATUS_LABEL   = { todo:'To Do', in_progress:'In Progress', done:'Done' };
+
+function filter(f) {
+  currentFilter = f;
+  ['all','todo','in_progress','done','pending_approval','refused'].forEach(x => {
+    var el = document.getElementById('f-'+x);
+    if (el) el.classList.toggle('active', x===f);
+  });
+  render();
+}
+
+function render() {
+  let tasks = allTasks;
+  if (currentFilter === 'pending_approval') {
+    tasks = allTasks.filter(t => t.approvalStatus === 'pending_approval');
+  } else if (currentFilter === 'refused') {
+    tasks = allTasks.filter(t => t.approvalStatus === 'refused');
+  } else if (currentFilter !== 'all') {
+    tasks = allTasks.filter(t => t.status === currentFilter);
+  }
+
+  document.getElementById('stat-total').textContent    = allTasks.length;
+  document.getElementById('stat-todo').textContent     = allTasks.filter(t=>t.status==='todo').length;
+  document.getElementById('stat-progress').textContent = allTasks.filter(t=>t.status==='in_progress').length;
+  document.getElementById('stat-done').textContent     = allTasks.filter(t=>t.status==='done').length;
+
+  var pendingCount = allTasks.filter(t => t.approvalStatus === 'pending_approval').length;
+  var banner = document.getElementById('approvals-banner');
+  var badge  = document.getElementById('approval-badge');
+  if (pendingCount > 0) {
+    banner.style.display = 'flex';
+    document.getElementById('approvals-text').textContent = pendingCount + ' task(s) awaiting your completion approval';
+    if (badge) { badge.style.display = 'flex'; badge.textContent = pendingCount; }
+  } else {
+    banner.style.display = 'none';
+    if (badge) badge.style.display = 'none';
+  }
+
+  const tbody = document.getElementById('tasks-tbody');
+  if (!tasks.length) {
+    tbody.innerHTML = '<tr><td colspan="7"><div class="empty-state"><div class="empty-icon"><i class="bx bxs-check-square"></i></div><h3>No tasks</h3><p>Click "Assign Task" to create one</p></div></td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = tasks.map(function(t) {
+    var approvalCell = '';
+    if (t.approvalStatus === 'pending_approval') {
+      approvalCell = '<span style="color:#f59e0b;font-weight:600;font-size:12px;"><i class="bx bxs-time"></i> Pending</span>' +
+        '<br><button class="btn btn-primary btn-sm" style="margin-top:4px;" onclick="approveCompletion(' + t.id + ')"><i class="bx bx-check-double"></i> Approve</button>';
+    } else if (t.approvalStatus === 'approved') {
+      approvalCell = '<span style="color:#22c55e;font-weight:600;font-size:12px;"><i class="bx bxs-check-circle"></i> Approved</span>';
+    } else if (t.approvalStatus === 'refused') {
+      approvalCell = '<span style="color:#ef4444;font-weight:600;font-size:12px;"><i class="bx bx-x-circle"></i> Refused</span>' +
+        (t.refusalReason ? '<br><span style="font-size:11px;color:var(--text-muted);">' + t.refusalReason + '</span>' : '');
+    } else {
+      approvalCell = '<span style="font-size:12px;color:var(--text-muted);">—</span>';
+    }
+
+    var safeT = JSON.stringify(t).replace(/"/g,'&quot;');
+
+    return '<tr>' +
+      '<td><div style="font-weight:600;">' + t.title + '</div>' +
+        (t.description ? '<div style="font-size:12px;color:var(--text-muted);">' + t.description.slice(0,60) + (t.description.length>60?'…':'') + '</div>' : '') +
+      '</td>' +
+      '<td><div style="font-weight:500;">' + (t.assignee ? t.assignee.name : '—') + '</div>' +
+        '<div style="font-size:11px;color:var(--text-muted);">' + (t.assignee ? (t.assignee.employeeCode||'') + ' · ' + (t.assignee.department||'') : '') + '</div>' +
+      '</td>' +
+      '<td><span style="color:' + PRIORITY_COLOR[t.priority] + ';font-weight:600;text-transform:capitalize;">' + t.priority + '</span></td>' +
+      '<td>' + (t.dueDate ? new Date(t.dueDate).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'}) : '—') + '</td>' +
+      '<td><span class="badge badge-' + (t.status==='done'?'success':t.status==='in_progress'?'warning':'ghost') + '">' + STATUS_LABEL[t.status] + '</span></td>' +
+      '<td>' + approvalCell + '</td>' +
+      '<td><div style="display:flex;gap:6px;">' +
+        '<button class="btn btn-ghost btn-sm" onclick="editTask(' + safeT + ')" title="Edit"><i class="bx bx-edit"></i></button>' +
+        '<button class="btn btn-danger btn-sm" onclick="deleteTask(' + t.id + ')" title="Delete"><i class="bx bx-trash"></i></button>' +
+      '</div></td>' +
+    '</tr>';
+  }).join('');
+}
+
+function openNewTask() {
+  document.getElementById('task-id').value    = '';
+  document.getElementById('task-title').value = '';
+  document.getElementById('task-desc').value  = '';
+  document.getElementById('task-priority').value = 'medium';
+  document.getElementById('task-due').value   = '';
+  document.getElementById('task-assignee').value = '';
+  document.getElementById('task-modal-title').textContent = 'Assign New Task';
+  openModal('task-modal');
+}
+
+function editTask(t) {
+  document.getElementById('task-id').value       = t.id;
+  document.getElementById('task-title').value    = t.title;
+  document.getElementById('task-desc').value     = t.description || '';
+  document.getElementById('task-priority').value = t.priority;
+  document.getElementById('task-due').value      = t.dueDate || '';
+  document.getElementById('task-assignee').value = t.assignedTo;
+  document.getElementById('task-modal-title').textContent = 'Edit Task';
+  openModal('task-modal');
+}
+
+async function saveTask() {
+  const id         = document.getElementById('task-id').value;
+  const title      = document.getElementById('task-title').value.trim();
+  const assignedTo = document.getElementById('task-assignee').value;
+  if (!title || !assignedTo) return toast('Title and assignee are required', 'error');
+  const payload = {
+    title,
+    description: document.getElementById('task-desc').value,
+    assignedTo,
+    priority: document.getElementById('task-priority').value,
+    dueDate:  document.getElementById('task-due').value || null,
+  };
+  try {
+    if (id) await api('PUT',  '/tasks/'+id, payload);
+    else    await api('POST', '/tasks',      payload);
+    toast('Task saved!', 'success');
+    closeModal('task-modal');
+    loadTasks();
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+async function approveCompletion(id) {
+  if (!confirm('Approve this task as completed?')) return;
+  try {
+    await api('PATCH', '/tasks/'+id+'/approve-completion', {});
+    toast('Task approved as completed!', 'success');
+    loadTasks();
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+async function deleteTask(id) {
+  if (!confirm('Delete this task? This cannot be undone.')) return;
+  try {
+    await api('DELETE', '/tasks/'+id);
+    toast('Task deleted', 'success');
+    loadTasks();
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+async function loadTeam() {
+  try {
+    myTeam = await api('GET', '/users');
+    const sel = document.getElementById('task-assignee');
+    sel.innerHTML = '<option value="">Select employee...</option>' +
+      myTeam.map(u => '<option value="' + u.id + '">' + u.name + ' (' + (u.employeeCode||u.email) + ')</option>').join('');
+  } catch(e) {}
+}
+
+async function loadTasks() {
+  try {
+    allTasks = await api('GET', '/tasks');
+    render();
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+loadTeam();
+loadTasks();
+</script>
+</body></html>

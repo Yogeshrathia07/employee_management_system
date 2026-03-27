@@ -1,0 +1,335 @@
+<%- include('../partials/head', {title: 'My Documents'}) %>
+<div class="app-layout">
+  <%- include('../partials/sidebar-employee') %>
+  <div class="main-content">
+    <header class="page-header">
+      <div class="flex items-center gap-3">
+        <button class="mobile-menu-btn" onclick="openSidebar()"><i class="bx bx-menu"></i></button>
+        <div><div class="page-title">Documents</div><div class="page-subtitle">Upload and manage your documents</div></div>
+      </div>
+      <div class="header-actions"></div>
+    </header>
+    <div class="page-body admin-employees-page employee-shared-page">
+      <div class="employee-directory-shell">
+        <div class="document-library-head">
+          <div class="document-library-main">
+            <button class="btn employee-cta-btn document-library-upload" onclick="openModal('upload-modal')"><i class="bx bx-upload"></i> Upload Document</button>
+            <div class="document-library-copy">
+              <div class="card-title" style="padding:0;">Document Library</div>
+            </div>
+          </div>
+          <span id="mandatory-progress" class="badge badge-ghost document-library-progress">0/7 Mandatory Complete</span>
+        </div>
+
+        <div id="doc-slots" class="personal-doc-grid">
+          <div style="grid-column:1/-1;display:flex;justify-content:center;padding:40px;"><span class="spinner"></span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="upload-modal">
+  <div class="modal">
+    <div class="modal-header"><span class="modal-title">Upload Document</span><button class="modal-close" onclick="closeModal('upload-modal')">X</button></div>
+    <div class="modal-body">
+      <div class="form-group"><label class="form-label">Document Title</label><input type="text" id="doc-title" class="form-control" placeholder="e.g. Aadhaar Card Front"></div>
+      <div class="form-group">
+        <label class="form-label">Document Type</label>
+        <select id="doc-type" class="form-control" onchange="toggleDegreeLabel()">
+          <optgroup label="Mandatory - Identity">
+            <option value="aadhaar">Aadhaar Card *</option>
+            <option value="pan_card">PAN Card *</option>
+            <option value="passport">Passport *</option>
+            <option value="voter_id">Voter ID *</option>
+          </optgroup>
+          <optgroup label="Mandatory - Other">
+            <option value="bank_passbook">Bank Passbook (last page) *</option>
+            <option value="character_certificate">Character / Criminal Certificate *</option>
+            <option value="medical_document">Past Medical Documents *</option>
+          </optgroup>
+          <optgroup label="Employment">
+            <option value="experience_certificate">Experience Certificate</option>
+            <option value="salary_slip_past">Previous Salary Slip</option>
+            <option value="technical_certification">Technical Certification</option>
+          </optgroup>
+          <optgroup label="Education">
+            <option value="degree_certificate">Degree Certificate</option>
+            <option value="marksheet">Marksheet</option>
+          </optgroup>
+          <optgroup label="General">
+            <option value="driving_license">Driving License</option>
+            <option value="resume">Resume / CV</option>
+            <option value="photo">Passport Photo</option>
+            <option value="other">Other</option>
+          </optgroup>
+        </select>
+      </div>
+      <div class="form-group" id="degree-label-grp" style="display:none;">
+        <label class="form-label">Degree Name</label>
+        <input type="text" id="doc-degree-label" class="form-control" placeholder="e.g. B.Tech, M.Sc, MBA">
+      </div>
+      <div class="form-group">
+        <label class="form-label">File</label>
+        <input type="file" id="doc-file" class="form-control" accept=".pdf">
+        <p style="font-size:11px;color:var(--text-muted);margin-top:4px;">Max 10MB. PDF files only.</p>
+      </div>
+      <div class="form-group"><label class="form-label">Notes <span class="text-muted">(optional)</span></label><textarea id="doc-notes" class="form-control" rows="2"></textarea></div>
+      <div style="background:rgba(91,106,191,0.08);border:1px solid rgba(91,106,191,0.25);border-radius:var(--radius-sm);padding:14px;margin-top:4px;">
+        <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;font-size:13px;">
+          <input type="checkbox" id="doc-consent" style="margin-top:2px;accent-color:var(--accent);width:15px;height:15px;flex-shrink:0;">
+          <span style="color:var(--text-secondary);line-height:1.5;">I certify that the document I am uploading is <strong style="color:var(--text-primary);">genuine and authentic</strong>. I understand that submitting false or forged documents is a serious offence and may result in immediate termination.</span>
+        </label>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('upload-modal')">Cancel</button>
+      <button class="btn btn-primary" id="upload-btn" onclick="uploadDoc()"><i class="bx bx-upload"></i> Upload</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="view-modal">
+  <div class="modal modal-lg">
+    <div class="modal-header"><span class="modal-title" id="view-title">Document</span><button class="modal-close" onclick="closeModal('view-modal')">X</button></div>
+    <div class="modal-body" style="padding:0;"><iframe id="view-frame" style="width:100%;height:70vh;border:none;"></iframe></div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="doc-type-modal">
+  <div class="modal modal-lg">
+    <div class="modal-header"><span class="modal-title" id="doc-type-title">Documents</span><button class="modal-close" onclick="closeModal('doc-type-modal')">X</button></div>
+    <div class="modal-body" id="doc-type-body"></div>
+    <div class="modal-footer"><button class="btn btn-ghost" onclick="closeModal('doc-type-modal')">Close</button></div>
+  </div>
+</div>
+
+<script src="/js/api.js"></script>
+<script>
+var allDocs = [];
+
+var TYPE_LABELS = {
+  aadhaar:'Aadhaar Card', pan_card:'PAN Card', passport:'Passport', driving_license:'Driving License',
+  voter_id:'Voter ID', bank_passbook:'Bank Passbook', degree_certificate:'Degree Certificate',
+  marksheet:'Marksheet', experience_letter:'Experience Letter', offer_letter:'Offer Letter',
+  joining_letter:'Joining Letter', payslip:'Payslip', address_proof:'Address Proof',
+  experience_certificate:'Experience Certificate', salary_slip_past:'Previous Salary Slip',
+  technical_certification:'Technical Certification', character_certificate:'Character Certificate',
+  medical_document:'Medical Document', photo:'Photo', resume:'Resume', other:'Other'
+};
+
+var MANDATORY_TYPES = [
+  { type:'aadhaar', label:'Aadhaar Card', icon:'bxs-id-card' },
+  { type:'pan_card', label:'PAN Card', icon:'bxs-id-card' },
+  { type:'voter_id', label:'Voter ID', icon:'bxs-id-card' },
+  { type:'passport', label:'Passport', icon:'bxs-plane-alt' },
+  { type:'bank_passbook', label:'Bank Passbook (last page)', icon:'bxs-bank' },
+  { type:'character_certificate', label:'Character Certificate', icon:'bxs-badge-check' },
+  { type:'medical_document', label:'Past Medical Documents', icon:'bxs-heart' }
+];
+
+var TYPE_ICONS = {
+  aadhaar:'bxs-id-card', pan_card:'bxs-id-card', passport:'bxs-plane-alt', driving_license:'bxs-car',
+  voter_id:'bxs-id-card', bank_passbook:'bxs-bank', degree_certificate:'bxs-graduation',
+  marksheet:'bxs-book-content', experience_letter:'bxs-briefcase', resume:'bxs-file',
+  photo:'bxs-camera', other:'bxs-file', technical_certification:'bxs-badge-check',
+  character_certificate:'bxs-badge-check', medical_document:'bxs-heart'
+};
+
+var DOC_SLOTS = [
+  { type:'aadhaar', label:'Aadhaar Card', icon:'bxs-id-card', color:'blue', max:1 },
+  { type:'pan_card', label:'PAN Card', icon:'bxs-id-card', color:'purple', max:1 },
+  { type:'voter_id', label:'Voter ID', icon:'bxs-id-card', color:'blue', max:1 },
+  { type:'passport', label:'Passport', icon:'bxs-plane-alt', color:'orange', max:1 },
+  { type:'bank_passbook', label:'Bank Passbook', icon:'bxs-bank', color:'teal', max:1 },
+  { type:'character_certificate', label:'Character Certificate', icon:'bxs-badge-check', color:'green', max:1 },
+  { type:'medical_document', label:'Past Medical Documents', icon:'bxs-heart', color:'pink', max:1 }
+];
+
+function toggleDegreeLabel() {
+  document.getElementById('degree-label-grp').style.display = document.getElementById('doc-type').value === 'degree_certificate' ? '' : 'none';
+}
+
+function fileSize(b) {
+  return b < 1024 ? b + ' B' : b < 1048576 ? (b / 1024).toFixed(1) + ' KB' : (b / 1048576).toFixed(1) + ' MB';
+}
+
+function renderMandatoryProgress() {
+  var types = allDocs.map(function(d) { return d.type; });
+  var done = MANDATORY_TYPES.filter(function(m) { return types.includes(m.type); }).length;
+  var progress = document.getElementById('mandatory-progress');
+  progress.textContent = done + '/' + MANDATORY_TYPES.length + ' Mandatory Complete';
+  progress.className = 'badge badge-' + (done === MANDATORY_TYPES.length ? 'success' : 'ghost');
+}
+
+function renderSlots() {
+  var extraTypes = [];
+  allDocs.forEach(function(d) {
+    if (!DOC_SLOTS.some(function(s) { return s.type === d.type; }) && !extraTypes.some(function(s) { return s.type === d.type; })) {
+      extraTypes.push({
+        type: d.type,
+        label: TYPE_LABELS[d.type] || d.type,
+        icon: TYPE_ICONS[d.type] || 'bxs-file',
+        color: 'blue',
+        max: 10
+      });
+    }
+  });
+
+  var slots = DOC_SLOTS.concat(extraTypes);
+  var grid = document.getElementById('doc-slots');
+
+  if (!slots.length) {
+    grid.innerHTML = '<div style="grid-column:1/-1;"><div class="empty-state"><div class="empty-icon"><i class="bx bxs-file-doc"></i></div><h3>No documents yet</h3><p>Upload your first document using the button above</p></div></div>';
+    return;
+  }
+
+  grid.innerHTML = slots.map(function(slot) {
+    var docs = allDocs.filter(function(d) { return d.type === slot.type; });
+    var count = docs.length;
+    var full = count >= slot.max;
+    var latest = docs.length ? docs.slice().sort(function(a, b) { return new Date(b.createdAt) - new Date(a.createdAt); })[0] : null;
+    var latestStatus = latest ? (latest.verificationStatus || 'pending') : 'not_uploaded';
+    var statusText = latestStatus === 'not_uploaded' ? 'Not uploaded' : latestStatus.charAt(0).toUpperCase() + latestStatus.slice(1);
+    var statusClass = latestStatus === 'not_uploaded' ? 'ghost' : latestStatus;
+
+    return '<div class="personal-doc-card">' +
+      '<div class="personal-doc-head">' +
+        '<div class="personal-doc-head-main">' +
+          '<div class="stat-icon ' + slot.color + ' personal-doc-icon"><i class="bx ' + slot.icon + '"></i></div>' +
+          '<div class="personal-doc-head-copy"><div class="personal-doc-title">' + slot.label + '</div><div class="personal-doc-sub">' + count + '/' + slot.max + ' uploaded</div></div>' +
+        '</div>' +
+        (full ? '<span class="badge badge-approved">Complete</span>' : '') +
+      '</div>' +
+      '<div class="personal-doc-summary">' +
+        '<div class="personal-doc-summary-item"><span>Status</span><strong class="status-' + statusClass + '">' + statusText + '</strong></div>' +
+        '<div class="personal-doc-summary-item"><span>Last Upload</span><strong>' + (latest ? fmtDate(latest.createdAt) : '-') + '</strong></div>' +
+        '<div class="personal-doc-summary-item"><span>Total Files</span><strong>' + count + '</strong></div>' +
+      '</div>' +
+      (docs.length ? '<div class="personal-doc-preview">' +
+        '<div class="personal-doc-preview-row"><span>Files Uploaded</span><strong>' + count + '</strong></div>' +
+        '<div class="personal-doc-preview-row personal-doc-preview-row-button"><button class="btn btn-ghost btn-sm" onclick="openDocTypeModal(\'' + slot.type + '\')"><i class="bx bx-show"></i> View</button></div>' +
+      '</div>' : '<div class="personal-doc-empty"><div>No files uploaded yet.</div><button class="btn btn-ghost btn-sm" onclick="openUploadFor(\'' + slot.type + '\')"><i class="bx bx-plus"></i> Add</button></div>') +
+    '</div>';
+  }).join('');
+}
+
+function openDocTypeModal(type) {
+  var docs = allDocs.filter(function(d) { return d.type === type; });
+  var label = TYPE_LABELS[type] || type;
+  document.getElementById('doc-type-title').textContent = label + ' Documents';
+  if (!docs.length) {
+    document.getElementById('doc-type-body').innerHTML = '<div class="personal-doc-empty">No uploaded files yet.</div>';
+    openModal('doc-type-modal');
+    return;
+  }
+
+  document.getElementById('doc-type-body').innerHTML = '<div class="personal-doc-list modal-doc-list">' + docs.map(function(d) {
+    var lbl = d.degreeLabel ? ' (' + d.degreeLabel + ')' : '';
+    var vs = d.verificationStatus || 'pending';
+    var vc = vs === 'verified' ? '#22c55e' : vs === 'rejected' ? '#ef4444' : '#f59e0b';
+    var vb = vs === 'verified' ? '#dcfce7' : vs === 'rejected' ? '#fee2e2' : '#fef3c7';
+    return '<div class="personal-doc-item">' +
+      '<div class="personal-doc-item-top">' +
+        '<div class="personal-doc-item-title">' + d.title + lbl + '</div>' +
+        '<span class="employee-doc-badge" style="background:' + vb + ';color:' + vc + ';">' + vs + '</span>' +
+      '</div>' +
+      '<div class="personal-doc-detail-grid">' +
+        '<div class="personal-doc-detail"><span>Type</span><strong>' + (TYPE_LABELS[d.type] || d.type) + '</strong></div>' +
+        '<div class="personal-doc-detail"><span>Size</span><strong>' + fileSize(d.fileSize || 0) + '</strong></div>' +
+        '<div class="personal-doc-detail"><span>Date</span><strong>' + fmtDate(d.createdAt) + '</strong></div>' +
+      '</div>' +
+      (d.notes ? '<div class="personal-doc-note"><strong>Notes:</strong> ' + d.notes + '</div>' : '') +
+      (d.verificationNote && vs === 'rejected' ? '<div class="personal-doc-reject"><strong>Rejection Note:</strong> ' + d.verificationNote + '</div>' : '') +
+      '<div class="personal-doc-actions">' +
+        '<button class="btn btn-ghost btn-sm" onclick="viewDoc(' + d.id + ',\'' + d.title.replace(/'/g, "\\'") + '\')"><i class="bx bx-show"></i> View</button>' +
+        '<button class="btn btn-ghost btn-sm" onclick="downloadDoc(' + d.id + ')"><i class="bx bx-download"></i> Download</button>' +
+        '<button class="btn btn-danger btn-sm" onclick="deleteDoc(' + d.id + ')"><i class="bx bx-trash"></i> Delete</button>' +
+      '</div>' +
+    '</div>';
+  }).join('') + '</div>';
+  openModal('doc-type-modal');
+}
+
+function openUploadFor(type) {
+  document.getElementById('doc-type').value = type;
+  document.getElementById('doc-title').value = TYPE_LABELS[type] || '';
+  toggleDegreeLabel();
+  openModal('upload-modal');
+}
+
+function viewDocById(id) {
+  var d = allDocs.find(function(x) { return x.id === id || String(x.id) === String(id); });
+  if (d) viewDoc(d.id, d.title);
+}
+
+async function loadDocs() {
+  try {
+    allDocs = await api('GET', '/documents');
+    renderMandatoryProgress();
+    renderSlots();
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+function viewDoc(id, title) {
+  closeModal('doc-type-modal');
+  document.getElementById('view-title').textContent = title || 'Document';
+  document.getElementById('view-frame').src = '/api/documents/' + id + '/view?token=' + getToken();
+  openModal('view-modal');
+}
+
+async function uploadDoc() {
+  var fileInput = document.getElementById('doc-file');
+  if (!fileInput.files.length) return toast('Select a file', 'error');
+  var title = document.getElementById('doc-title').value;
+  if (!title) return toast('Enter a title', 'error');
+  var consent = document.getElementById('doc-consent').checked;
+  if (!consent) return toast('You must certify the document is genuine before uploading.', 'error');
+
+  var fd = new FormData();
+  fd.append('file', fileInput.files[0]);
+  fd.append('title', title);
+  fd.append('type', document.getElementById('doc-type').value);
+  fd.append('notes', document.getElementById('doc-notes').value);
+  fd.append('genuineConsent', 'true');
+  var degLbl = document.getElementById('doc-degree-label').value;
+  if (degLbl) fd.append('degreeLabel', degLbl);
+
+  var btn = document.getElementById('upload-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner" style="width:14px;height:14px"></span> Uploading...';
+  try {
+    var token = getToken();
+    var res = await fetch('/api/documents', { method:'POST', headers:{ 'Authorization':'Bearer ' + token }, body:fd });
+    var data = await res.json();
+    if (!res.ok) throw new Error(data.message || 'Upload failed');
+    toast('Document uploaded!', 'success');
+    closeModal('upload-modal');
+    document.getElementById('doc-title').value = '';
+    document.getElementById('doc-notes').value = '';
+    document.getElementById('doc-degree-label').value = '';
+    document.getElementById('doc-consent').checked = false;
+    fileInput.value = '';
+    loadDocs();
+  } catch(e) {
+    toast(e.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="bx bx-upload"></i> Upload';
+  }
+}
+
+function downloadDoc(id) { window.open('/api/documents/' + id + '/download?token=' + getToken(), '_blank'); }
+
+async function deleteDoc(id) {
+  if (!confirm('Delete this document?')) return;
+  try {
+    await api('DELETE', '/documents/' + id);
+    toast('Deleted', 'success');
+    loadDocs();
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+loadDocs();
+</script>
+</body></html>

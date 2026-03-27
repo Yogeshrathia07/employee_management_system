@@ -1,0 +1,124 @@
+<%- include('../partials/head', {title: 'Notifications'}) %>
+<div class="app-layout">
+  <%- include('../partials/sidebar-employee') %>
+  <div class="main-content">
+    <header class="page-header">
+      <div class="flex items-center gap-3">
+        <button class="mobile-menu-btn" onclick="openSidebar()"><i class="bx bx-menu"></i></button>
+        <div>
+          <div class="page-title"><i class="bx bxs-bell"></i> Notifications</div>
+          <div class="page-subtitle">Announcements from your organisation</div>
+        </div>
+      </div>
+      <div class="header-actions"></div>
+    </header>
+    <div class="page-body">
+      <div class="stats-grid" style="grid-template-columns:repeat(3,1fr);">
+        <div class="stat-card"><div class="stat-icon green"><i class="bx bxs-check-circle"></i></div><div><div class="stat-value" id="s-active">0</div><div class="stat-label">Active</div></div></div>
+        <div class="stat-card"><div class="stat-icon blue"><i class="bx bxs-file"></i></div><div><div class="stat-value" id="s-files">0</div><div class="stat-label">With Attachments</div></div></div>
+        <div class="stat-card"><div class="stat-icon orange"><i class="bx bxs-info-circle"></i></div><div><div class="stat-value" id="s-urgent">0</div><div class="stat-label">Urgent</div></div></div>
+      </div>
+
+      <!-- Filter toggle -->
+      <div class="toggle-group mb-4" style="margin-bottom:20px;">
+        <button class="toggle-btn active" onclick="filterNotifs('all')" id="f-all">All</button>
+        <button class="toggle-btn" onclick="filterNotifs('active')" id="f-active">Active</button>
+        <button class="toggle-btn" onclick="filterNotifs('inactive')" id="f-inactive">Inactive</button>
+      </div>
+
+      <!-- Notification Cards -->
+      <div id="notif-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px;">
+        <div style="grid-column:1/-1;text-align:center;padding:60px 20px;">
+          <span class="spinner"></span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="/js/api.js"></script>
+<script>
+let allNotifs = [];
+let currentFilter = 'all';
+
+const typeConfig = {
+  urgent:  { bg:'linear-gradient(135deg,#ef4444,#f97316)', icon:'bxs-error', label:'Urgent' },
+  warning: { bg:'linear-gradient(135deg,#f59e0b,#fb923c)', icon:'bxs-error-alt', label:'Warning' },
+  success: { bg:'linear-gradient(135deg,#22c55e,#14b8a6)', icon:'bxs-check-circle', label:'Success' },
+  info:    { bg:'linear-gradient(135deg,#5b6abf,#7c3aed)', icon:'bxs-megaphone', label:'Info' },
+};
+
+function filterNotifs(f) {
+  currentFilter = f;
+  ['all','active','inactive'].forEach(id => document.getElementById('f-'+id).classList.toggle('active', id===f));
+  renderNotifs();
+}
+
+function renderNotifs() {
+  const grid = document.getElementById('notif-grid');
+  const list = currentFilter === 'all' ? allNotifs
+    : allNotifs.filter(n => n.status === currentFilter);
+
+  if (!list.length) {
+    grid.innerHTML = '<div style="grid-column:1/-1;" class="empty-state"><div class="empty-icon"><i class="bx bxs-bell-off"></i></div><h3>No notifications</h3><p>Nothing here yet</p></div>';
+    return;
+  }
+
+  grid.innerHTML = list.map(n => {
+    const cfg = typeConfig[n.type] || typeConfig.info;
+    const isActive = n.status === 'active';
+    return `
+    <div style="background:#fff;border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow);transition:var(--transition);${isActive?'':'opacity:0.65;'}">
+      <!-- Card Header -->
+      <div style="background:${cfg.bg};padding:18px 20px;display:flex;align-items:flex-start;justify-content:space-between;gap:12px;">
+        <div style="display:flex;align-items:center;gap:12px;">
+          <div style="width:42px;height:42px;background:rgba(255,255,255,0.2);border-radius:12px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+            <i class="bx ${cfg.icon}" style="font-size:20px;color:white;"></i>
+          </div>
+          <div>
+            <div style="font-size:15px;font-weight:700;color:white;line-height:1.3;">${n.title}</div>
+            <div style="font-size:11px;color:rgba(255,255,255,0.75);margin-top:2px;text-transform:capitalize;">${cfg.label}</div>
+          </div>
+        </div>
+        <span style="flex-shrink:0;padding:3px 10px;border-radius:20px;font-size:10px;font-weight:700;background:${isActive?'rgba(255,255,255,0.25)':'rgba(0,0,0,0.18)'};color:white;border:1px solid rgba(255,255,255,0.3);white-space:nowrap;">${isActive?'● Active':'○ Inactive'}</span>
+      </div>
+      <!-- Card Body -->
+      <div style="padding:16px 20px;">
+        ${n.message ? `<p style="font-size:13px;color:var(--text-secondary);margin-bottom:12px;line-height:1.55;">${n.message}</p>` : ''}
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+          <span style="font-size:11px;color:var(--text-muted);display:flex;align-items:center;gap:4px;">
+            <i class="bx bxs-calendar" style="color:var(--accent);font-size:13px;"></i> ${fmtDate(n.createdAt)}
+          </span>
+          ${n.filePath ? `
+          <button class="btn btn-ghost btn-sm" onclick="window.open('/api/notifications/${n.id}/download?token='+getToken(),'_blank')" title="Download attachment">
+            <i class="bx bx-download"></i> Download
+          </button>` : ''}
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function loadNotifs() {
+  try {
+    allNotifs = await api('GET', '/notifications');
+    document.getElementById('s-active').textContent   = allNotifs.filter(n => n.status === 'active').length;
+    document.getElementById('s-files').textContent    = allNotifs.filter(n => n.filePath).length;
+    document.getElementById('s-urgent').textContent   = allNotifs.filter(n => n.type === 'urgent').length;
+
+    // Mark all active notifications as read (clears the bell badge)
+    const token = getToken();
+    allNotifs.filter(n => n.status === 'active').forEach(n => {
+      fetch('/api/notifications/' + n.id + '/read', {
+        method: 'PATCH',
+        headers: { 'Authorization': 'Bearer ' + token }
+      }).catch(function(){});
+    });
+
+    renderNotifs();
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+loadNotifs();
+</script>
+</body></html>

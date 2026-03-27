@@ -1,0 +1,186 @@
+<%- include('../partials/head', {title: 'My Tasks'}) %>
+<div class="app-layout">
+  <%- include('../partials/sidebar-employee') %>
+  <div class="main-content">
+    <header class="page-header">
+      <div class="flex items-center gap-3">
+        <button class="mobile-menu-btn" onclick="openSidebar()"><i class="bx bx-menu"></i></button>
+        <div>
+          <div class="page-title">My Tasks</div>
+          <div class="page-subtitle">Tasks assigned to you by your manager</div>
+        </div>
+      </div>
+      <div class="header-actions"></div>
+    </header>
+    <div class="page-body admin-employees-page employee-shared-page">
+      <div class="employee-directory-shell">
+        <div class="admin-toolbar" style="margin-bottom:20px;">
+          <div class="toggle-group mb-0">
+            <button class="toggle-btn active" id="f-all" onclick="filter('all')">All</button>
+            <button class="toggle-btn" id="f-todo" onclick="filter('todo')">To Do</button>
+            <button class="toggle-btn" id="f-in_progress" onclick="filter('in_progress')">In Progress</button>
+            <button class="toggle-btn" id="f-done" onclick="filter('done')">Done</button>
+          </div>
+        </div>
+        <div id="tasks-grid" class="leave-card-grid task-review-grid">
+          <div style="text-align:center;padding:60px;grid-column:1/-1;"><span class="spinner"></span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="refuse-modal">
+  <div class="modal" style="max-width:460px;">
+    <div class="modal-header">
+      <span class="modal-title">Refuse Task</span>
+      <button class="modal-close" onclick="closeModal('refuse-modal')">x</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="refuse-task-id">
+      <div style="background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.25);border-radius:10px;padding:12px 14px;margin-bottom:16px;font-size:13px;color:#ef4444;">
+        <i class="bx bx-error" style="margin-right:6px;"></i>
+        You are about to refuse this task. Please provide a clear reason.
+      </div>
+      <div class="form-group mb-0">
+        <label class="form-label">Reason for Refusal <span style="color:var(--danger)">*</span></label>
+        <textarea id="refuse-reason" class="form-control" rows="3" placeholder="e.g. Outside my skill set, resource conflict, unclear requirements..."></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('refuse-modal')">Cancel</button>
+      <button class="btn btn-danger" onclick="submitRefuse()"><i class="bx bx-x-circle"></i> Refuse Task</button>
+    </div>
+  </div>
+</div>
+
+<script src="/js/api.js"></script>
+<script>
+let allTasks = [];
+let currentFilter = 'all';
+
+const PRIORITY_COLOR = { low:'#22c55e', medium:'#f59e0b', high:'#ef4444' };
+const PRIORITY_BG = { low:'rgba(34,197,94,0.1)', medium:'rgba(245,158,11,0.1)', high:'rgba(239,68,68,0.1)' };
+const STATUS_LABEL = { todo:'To Do', in_progress:'In Progress', done:'Done' };
+const STATUS_ICON = { todo:'bx-circle', in_progress:'bx-loader-alt', done:'bxs-check-circle' };
+
+function filter(f) {
+  currentFilter = f;
+  ['all','todo','in_progress','done'].forEach(function(x) {
+    document.getElementById('f-' + x).classList.toggle('active', x === f);
+  });
+  render();
+}
+
+function getApprovalBadge(t) {
+  if (t.approvalStatus === 'pending_approval') {
+    return '<div class="task-approval-box pending"><i class="bx bxs-time"></i>Completion request sent - awaiting manager approval</div>';
+  }
+  if (t.approvalStatus === 'approved') {
+    return '<div class="task-approval-box approved"><i class="bx bxs-check-circle"></i>Manager approved - task completed!</div>';
+  }
+  if (t.approvalStatus === 'refused') {
+    return '<div class="task-approval-box rejected"><i class="bx bx-x-circle"></i><strong>Task refused:</strong> ' + (t.refusalReason || '-') + '</div>';
+  }
+  return '';
+}
+
+function getActionButtons(t) {
+  if (t.approvalStatus === 'refused') {
+    return '<span class="btn btn-danger btn-sm" style="pointer-events:none;"><i class="bx bx-x-circle"></i> Refused</span>';
+  }
+  if (t.approvalStatus === 'pending_approval') {
+    return '<span class="btn btn-ghost btn-sm" style="pointer-events:none;"><i class="bx bxs-time"></i> Awaiting Approval</span>';
+  }
+  if (t.approvalStatus === 'approved' || t.status === 'done') {
+    return '<span class="btn btn-success btn-sm" style="pointer-events:none;"><i class="bx bxs-check-circle"></i> Completed</span>';
+  }
+
+  var btns = '';
+  if (t.status === 'todo') {
+    btns += '<button class="btn btn-ghost btn-sm" onclick="startTask(' + t.id + ')"><i class="bx bx-play"></i> Start</button>';
+  }
+  if (t.status === 'in_progress') {
+    btns += '<button class="btn btn-primary btn-sm" onclick="requestCompletion(' + t.id + ')"><i class="bx bx-check-double"></i> Request Completion</button>';
+  }
+  btns += '<button class="btn btn-danger btn-sm" onclick="openRefuse(' + t.id + ')" title="Refuse this task"><i class="bx bx-x"></i> Refuse</button>';
+  return btns;
+}
+
+function render() {
+  const tasks = currentFilter === 'all' ? allTasks : allTasks.filter(function(t) { return t.status === currentFilter; });
+  const grid = document.getElementById('tasks-grid');
+  if (!tasks.length) {
+    grid.innerHTML = '<div style="text-align:center;grid-column:1/-1;padding:80px 20px;color:var(--text-muted);"><i class="bx bxs-check-square" style="font-size:56px;opacity:0.25;"></i><p style="margin-top:14px;font-size:15px;">No tasks found</p></div>';
+    return;
+  }
+
+  grid.innerHTML = tasks.map(function(t) {
+    var isOverdue = t.dueDate && new Date(t.dueDate) < new Date() && t.status !== 'done';
+    var dueTxt = t.dueDate ? new Date(t.dueDate).toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric' }) : '';
+    var dot = t.status === 'done' ? '#22c55e' : t.status === 'in_progress' ? '#f59e0b' : 'var(--text-muted)';
+
+    return '<div class="leave-review-card task-review-card task-priority-' + t.priority + '">' +
+      '<div class="leave-review-top">' +
+        '<div class="leave-review-title-row">' +
+          '<div class="leave-review-icon"><i class="bx bx-task"></i></div>' +
+          '<div><div class="leave-review-title">' + t.title + '</div><div class="leave-review-days">' + STATUS_LABEL[t.status] + '</div></div>' +
+        '</div>' +
+        '<span class="task-priority-pill" style="background:' + PRIORITY_BG[t.priority] + ';color:' + PRIORITY_COLOR[t.priority] + ';">' + t.priority + '</span>' +
+      '</div>' +
+      '<div class="leave-review-body">' +
+        (t.description ? '<div class="leave-review-note">' + t.description + '</div>' : '') +
+        '<div class="leave-review-meta"><i class="bx ' + STATUS_ICON[t.status] + '" style="color:' + dot + ';"></i>' + STATUS_LABEL[t.status] + '</div>' +
+        (t.dueDate ? '<div class="leave-review-by"><i class="bx bx-calendar"></i> Due ' + dueTxt + (isOverdue ? ' <span style="color:#ef4444;font-weight:700;">Overdue</span>' : '') + '</div>' : '') +
+        '<div class="leave-review-by"><i class="bx bx-user"></i> ' + (t.assigner ? t.assigner.name : 'Manager') + '</div>' +
+        (getApprovalBadge(t) ? '<div class="task-approval-wrap">' + getApprovalBadge(t) + '</div>' : '') +
+        '<div class="leave-review-actions">' + getActionButtons(t) + '</div>' +
+      '</div>' +
+    '</div>';
+  }).join('');
+}
+
+async function startTask(id) {
+  try {
+    await api('PATCH', '/tasks/' + id + '/status', { status: 'in_progress' });
+    toast('Task started!', 'success');
+    loadTasks();
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+async function requestCompletion(id) {
+  try {
+    await api('PATCH', '/tasks/' + id + '/request-completion', {});
+    toast('Completion request sent to manager!', 'success');
+    loadTasks();
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+function openRefuse(id) {
+  document.getElementById('refuse-task-id').value = id;
+  document.getElementById('refuse-reason').value = '';
+  openModal('refuse-modal');
+}
+
+async function submitRefuse() {
+  const id = document.getElementById('refuse-task-id').value;
+  const reason = document.getElementById('refuse-reason').value.trim();
+  if (!reason) return toast('Please enter a reason for refusing', 'error');
+  try {
+    await api('PATCH', '/tasks/' + id + '/refuse', { reason: reason });
+    toast('Task refused. Your manager has been notified.', 'info');
+    closeModal('refuse-modal');
+    loadTasks();
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+async function loadTasks() {
+  try {
+    allTasks = await api('GET', '/tasks');
+    render();
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+loadTasks();
+</script>
+</body></html>

@@ -1,0 +1,269 @@
+<%- include('../partials/head', {title: 'Timesheets'}) %>
+<div class="app-layout">
+  <%- include('../partials/sidebar-manager') %>
+  <div class="main-content">
+    <header class="page-header">
+      <div class="flex items-center gap-3">
+        <button class="mobile-menu-btn" onclick="openSidebar()"><i class="bx bx-menu"></i></button>
+        <div>
+          <div class="page-title">Timesheets</div>
+          <div class="page-subtitle">Review team timesheets and manage your own</div>
+        </div>
+      </div>
+      <div class="header-actions">
+        <button class="btn btn-primary" onclick="openNewTs()"><i class="bx bx-plus"></i> My Timesheet</button>
+      </div>
+    </header>
+    <div class="page-body">
+      <div class="tabs">
+        <button class="tab-btn active" onclick="switchTab('team')"><i class="bx bxs-group"></i> Team</button>
+        <button class="tab-btn" onclick="switchTab('own')"><i class="bx bxs-user-circle"></i> Mine</button>
+      </div>
+      <div id="ts-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px;">
+        <div style="grid-column:1/-1;display:flex;justify-content:center;padding:40px;"><span class="spinner"></span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- New Timesheet Modal -->
+<div class="modal-overlay" id="ts-modal">
+  <div class="modal modal-lg">
+    <div class="modal-header"><span class="modal-title">Log Work Hours</span><button class="modal-close" onclick="closeModal('ts-modal')">×</button></div>
+    <div class="modal-body">
+      <p style="font-size:13px;color:var(--text-muted);margin-bottom:16px;">Select one or more days. Hours entered will apply to all selected days. Only current and previous week allowed.</p>
+
+      <div class="form-group">
+        <label class="form-label">Week</label>
+        <div class="toggle-group">
+          <button class="toggle-btn active" id="toggle-curr" onclick="setWeek('current')">Current Week</button>
+          <button class="toggle-btn" id="toggle-prev" onclick="setWeek('previous')">Previous Week</button>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Select Days</label>
+        <div id="day-picker" class="day-picker-grid"></div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Hours per day</label><input type="number" id="ts-hours" class="form-control" min="0.5" max="24" step="0.5" value="8" oninput="updateSummary()"></div>
+        <div class="form-group"><label class="form-label">Work Type</label>
+          <select id="ts-worktype" class="form-control"><option value="work">Work</option><option value="leave">Leave</option><option value="holiday">Holiday</option><option value="half-day">Half Day</option></select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Project</label><input type="text" id="ts-project" class="form-control" placeholder="Project name"></div>
+        <div class="form-group"><label class="form-label">Task Description</label><input type="text" id="ts-desc" class="form-control" placeholder="What did you work on?"></div>
+      </div>
+      <div class="form-group"><label class="form-label">Notes</label><textarea id="ts-notes" class="form-control" rows="2" placeholder="Additional notes..."></textarea></div>
+
+      <div class="ts-summary">
+        <span><strong id="sum-days">0</strong> days</span>
+        <span style="color:var(--text-muted)">×</span>
+        <span><strong id="sum-hrs">8</strong>h each</span>
+        <span style="color:var(--text-muted)">=</span>
+        <span class="ts-summary-total"><strong id="sum-total">0</strong>h total</span>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('ts-modal')">Cancel</button>
+      <button class="btn btn-primary" onclick="submitTs()">Submit</button>
+    </div>
+  </div>
+</div>
+
+<!-- Reject Modal -->
+<div class="modal-overlay" id="reject-modal">
+  <div class="modal" style="max-width:400px">
+    <div class="modal-header"><span class="modal-title">Reject Timesheet</span><button class="modal-close" onclick="closeModal('reject-modal')">×</button></div>
+    <div class="modal-body">
+      <div class="form-group"><label class="form-label">Reason for Rejection</label><textarea id="reject-reason" class="form-control" rows="3" placeholder="Optional reason..."></textarea></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('reject-modal')">Cancel</button>
+      <button class="btn btn-danger" onclick="confirmReject()">Reject</button>
+    </div>
+  </div>
+</div>
+
+<script src="/js/api.js"></script>
+<script>
+let currentTab = 'team';
+let rejectId = null;
+
+/* ── Day Picker Logic (shared pattern) ── */
+const DAYNAMES = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+let selectedDates = new Set();
+let activeWeek = 'current';
+
+function getMondayOf(date) {
+  const d = new Date(date); const day = d.getDay();
+  d.setDate(d.getDate() - day + (day === 0 ? -6 : 1));
+  d.setHours(0,0,0,0); return d;
+}
+function getWeekDates(which) {
+  const today = new Date(); today.setHours(0,0,0,0);
+  let monday = getMondayOf(today);
+  if (which === 'previous') monday.setDate(monday.getDate() - 7);
+  const dates = [];
+  for (let i = 0; i < 7; i++) { const d = new Date(monday); d.setDate(d.getDate() + i); dates.push(d); }
+  return dates;
+}
+function fmtISO(d) { return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+function fmtShort(d) { return d.toLocaleDateString('en-US',{day:'2-digit',month:'short'}); }
+
+function setWeek(which) {
+  activeWeek = which; selectedDates.clear();
+  document.getElementById('toggle-curr').classList.toggle('active', which==='current');
+  document.getElementById('toggle-prev').classList.toggle('active', which==='previous');
+  buildDayPicker(); updateSummary();
+}
+function buildDayPicker() {
+  const dates = getWeekDates(activeWeek);
+  const today = new Date(); today.setHours(0,0,0,0);
+  document.getElementById('day-picker').innerHTML = dates.map((d,i) => {
+    const iso = fmtISO(d), isFuture = d > today, isSelected = selectedDates.has(iso);
+    return `<button type="button" class="day-chip${isSelected?' selected':''}${isFuture?' disabled':''}" data-date="${iso}" onclick="toggleDay(this)" ${isFuture?'disabled':''}>
+      <span class="day-chip-name">${DAYNAMES[i]}</span>
+      <span class="day-chip-date">${fmtShort(d)}</span>
+    </button>`;
+  }).join('');
+}
+function toggleDay(btn) {
+  const date = btn.dataset.date;
+  if (selectedDates.has(date)) { selectedDates.delete(date); btn.classList.remove('selected'); }
+  else { selectedDates.add(date); btn.classList.add('selected'); }
+  updateSummary();
+}
+function updateSummary() {
+  const hrs = parseFloat(document.getElementById('ts-hours').value)||0;
+  document.getElementById('sum-days').textContent = selectedDates.size;
+  document.getElementById('sum-hrs').textContent = hrs;
+  document.getElementById('sum-total').textContent = (selectedDates.size * hrs).toFixed(1);
+}
+function openNewTs() {
+  selectedDates.clear(); activeWeek = 'current';
+  document.getElementById('toggle-curr').classList.add('active');
+  document.getElementById('toggle-prev').classList.remove('active');
+  document.getElementById('ts-hours').value = 8;
+  document.getElementById('ts-worktype').value = 'work';
+  document.getElementById('ts-project').value = '';
+  document.getElementById('ts-desc').value = '';
+  document.getElementById('ts-notes').value = '';
+  buildDayPicker(); updateSummary(); openModal('ts-modal');
+}
+
+/* ── Tab switching ── */
+function switchTab(tab) {
+  currentTab = tab;
+  document.querySelectorAll('.tab-btn').forEach((b,i) => b.classList.toggle('active',(i===0)===(tab==='team')));
+  loadTs();
+}
+
+/* ── Load timesheets ── */
+async function loadTs() {
+  try {
+    const scope = currentTab === 'team' ? '?scope=team' : '?scope=own';
+    const ts = await api('GET','/timesheets'+scope);
+    const grid = document.getElementById('ts-grid');
+    if (!ts.length) {
+      grid.innerHTML = '<div style="grid-column:1/-1;"><div class="empty-state"><div class="empty-icon"><i class="bx bxs-time-five"></i></div><p>' + (currentTab==='team'?'No team timesheets':'No timesheets') + '</p></div></div>';
+      return;
+    }
+    if (currentTab === 'team') {
+      grid.innerHTML = ts.map(t => {
+        const e=(t.entries||[]).length;
+        const sc=t.status==='approved'?'#22c55e':t.status==='rejected'?'#ef4444':'#f59e0b';
+        const sb=t.status==='approved'?'#dcfce7':t.status==='rejected'?'#fee2e2':'#fef3c7';
+        return `<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:18px;display:flex;flex-direction:column;gap:12px;transition:box-shadow 0.2s;" onmouseover="this.style.boxShadow='var(--shadow-lg)'" onmouseout="this.style.boxShadow=''">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
+            <div style="display:flex;align-items:center;gap:10px;min-width:0;">
+              ${userAvatar(t.user,36)}
+              <div style="min-width:0;"><div style="font-weight:700;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${t.user?.name||'—'}</div></div>
+            </div>
+            <span style="font-size:11px;font-weight:700;background:${sb};color:${sc};border-radius:20px;padding:3px 10px;flex-shrink:0;text-transform:capitalize;">${t.status}</span>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+            <div style="background:var(--bg-input);border-radius:10px;padding:12px;text-align:center;">
+              <div style="font-size:22px;font-weight:900;color:var(--accent);">${t.totalHours}h</div>
+              <div style="font-size:11px;color:var(--text-muted);">Hours</div>
+            </div>
+            <div style="background:var(--bg-input);border-radius:10px;padding:12px;text-align:center;">
+              <div style="font-size:22px;font-weight:900;color:var(--text-primary);">${e}</div>
+              <div style="font-size:11px;color:var(--text-muted);">Entries</div>
+            </div>
+          </div>
+          <div style="font-size:12px;color:var(--text-muted);"><i class="bx bx-calendar"></i> ${fmtDate(t.weekStart)} – ${fmtDate(t.weekEnd)}</div>
+          ${t.status==='pending'?`<div style="display:flex;gap:6px;">
+            <button class="btn btn-success btn-sm" onclick="actTs(${t.id},'approve')" style="flex:1;justify-content:center;"><i class="bx bx-check"></i> Approve</button>
+            <button class="btn btn-danger btn-sm" onclick="openReject(${t.id})"><i class="bx bx-x"></i></button>
+          </div>`:''}
+        </div>`;
+      }).join('');
+    } else {
+      grid.innerHTML = ts.map(t => {
+        const sc=t.status==='approved'?'#22c55e':t.status==='rejected'?'#ef4444':'#f59e0b';
+        const sb=t.status==='approved'?'#dcfce7':t.status==='rejected'?'#fee2e2':'#fef3c7';
+        return `<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:18px;display:flex;flex-direction:column;gap:12px;transition:box-shadow 0.2s;" onmouseover="this.style.boxShadow='var(--shadow-lg)'" onmouseout="this.style.boxShadow=''">
+          <div style="display:flex;align-items:center;justify-content:space-between;">
+            <div style="font-size:13px;font-weight:600;"><i class="bx bx-calendar" style="color:var(--accent)"></i> ${fmtDate(t.weekStart)} – ${fmtDate(t.weekEnd)}</div>
+            <span style="font-size:11px;font-weight:700;background:${sb};color:${sc};border-radius:20px;padding:3px 10px;text-transform:capitalize;">${t.status}</span>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+            <div style="background:var(--bg-input);border-radius:10px;padding:12px;text-align:center;">
+              <div style="font-size:22px;font-weight:900;color:var(--accent);">${t.totalHours}h</div>
+              <div style="font-size:11px;color:var(--text-muted);">Hours</div>
+            </div>
+            <div style="background:var(--bg-input);border-radius:10px;padding:12px;text-align:center;">
+              <div style="font-size:22px;font-weight:900;color:var(--text-primary);">${(t.entries||[]).length}</div>
+              <div style="font-size:11px;color:var(--text-muted);">Entries</div>
+            </div>
+          </div>
+          ${t.approver?`<div style="font-size:12px;color:var(--text-muted);"><i class="bx bx-check-circle" style="color:#22c55e"></i> Approved by <strong>${t.approver.name}</strong></div>`:''}
+          ${t.status==='pending'?`<button class="btn btn-danger btn-sm" onclick="delTs(${t.id})" style="align-self:flex-start;"><i class="bx bx-trash"></i> Delete</button>`:''}
+        </div>`;
+      }).join('');
+    }
+  } catch(e) { toast(e.message,'error'); }
+}
+
+/* ── Approve / Reject ── */
+async function actTs(id, action) {
+  try { await api('PATCH','/timesheets/'+id+'/action',{action}); toast('Timesheet '+action+'d','success'); loadTs(); }
+  catch(e) { toast(e.message,'error'); }
+}
+
+function openReject(id) { rejectId = id; document.getElementById('reject-reason').value = ''; openModal('reject-modal'); }
+async function confirmReject() {
+  const reason = document.getElementById('reject-reason').value;
+  try { await api('PATCH','/timesheets/'+rejectId+'/action',{action:'reject',rejectionReason:reason}); toast('Timesheet rejected','success'); closeModal('reject-modal'); loadTs(); }
+  catch(e) { toast(e.message,'error'); }
+}
+
+/* ── Submit own timesheet ── */
+async function submitTs() {
+  if (!selectedDates.size) return toast('Select at least one day','error');
+  const hrs = parseFloat(document.getElementById('ts-hours').value)||0;
+  if (hrs <= 0) return toast('Enter valid hours','error');
+  const workType = document.getElementById('ts-worktype').value;
+  const project = document.getElementById('ts-project').value;
+  const description = document.getElementById('ts-desc').value;
+  const notes = document.getElementById('ts-notes').value;
+  const sorted = [...selectedDates].sort();
+  const entries = sorted.map(d => ({date:d, hours:hrs, workType, project, description}));
+  try {
+    await api('POST','/timesheets',{weekStart:sorted[0], weekEnd:sorted[sorted.length-1], entries, notes});
+    toast('Timesheet submitted!','success'); closeModal('ts-modal'); loadTs();
+  } catch(e) { toast(e.message,'error'); }
+}
+
+async function delTs(id) {
+  if (!confirm('Delete this timesheet?')) return;
+  try { await api('DELETE','/timesheets/'+id); toast('Deleted','success'); loadTs(); }
+  catch(e) { toast(e.message,'error'); }
+}
+
+loadTs();
+</script>
+</body></html>

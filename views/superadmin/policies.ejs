@@ -1,0 +1,189 @@
+<%- include('../partials/head', {title: 'Company Policy'}) %>
+<div class="app-layout">
+  <%- include('../partials/sidebar-superadmin') %>
+  <div class="main-content">
+    <header class="page-header">
+      <div class="flex items-center gap-3">
+        <button class="mobile-menu-btn" onclick="openSidebar()"><i class="bx bx-menu"></i></button>
+        <div>
+          <div class="page-title">Company Policies</div>
+          <div class="page-subtitle">Manage policies for each company</div>
+        </div>
+      </div>
+    </header>
+    <div class="page-body">
+      <div class="card" style="padding:0;">
+        <div class="card-header">
+          <div><div class="card-title">All Policies</div></div>
+          <div style="display:flex;gap:10px;align-items:center;">
+            <select id="company-filter" class="form-control" style="width:200px;" onchange="loadPolicies()">
+              <option value="">All Companies</option>
+            </select>
+            <button class="btn btn-primary" onclick="openModal('policy-modal')"><i class="bx bx-plus"></i> Add Policy</button>
+          </div>
+        </div>
+        <div style="padding:0;">
+          <div class="table-wrapper">
+            <table>
+              <thead><tr><th>Title</th><th>Company</th><th>Content</th><th>Status</th><th>Created By</th><th>Date</th><th>Actions</th></tr></thead>
+              <tbody id="policies-tbody"><tr><td colspan="7" style="text-align:center;padding:40px;"><span class="spinner"></span></td></tr></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Policy Modal -->
+<div class="modal-overlay" id="policy-modal">
+  <div class="modal" style="max-width:560px;">
+    <div class="modal-header"><span class="modal-title" id="policy-modal-title">Add Company Policy</span><button class="modal-close" onclick="closeModal('policy-modal')">×</button></div>
+    <div class="modal-body">
+      <input type="hidden" id="policy-id">
+      <div class="form-group">
+        <label class="form-label">Company *</label>
+        <select id="policy-company" class="form-control"></select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Policy Title *</label>
+        <input type="text" id="policy-title" class="form-control" placeholder="e.g. Remote Work Policy">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Policy Content</label>
+        <textarea id="policy-content" class="form-control" rows="6" placeholder="Describe the policy details..."></textarea>
+      </div>
+      <div class="form-group mb-0">
+        <label class="form-label">Attach PDF <span class="text-muted">(optional)</span></label>
+        <input type="file" id="policy-file" class="form-control" accept=".pdf">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('policy-modal')">Cancel</button>
+      <button class="btn btn-primary" onclick="savePolicy()">Save Policy</button>
+    </div>
+  </div>
+</div>
+
+<!-- View Policy Modal -->
+<div class="modal-overlay" id="view-policy-modal">
+  <div class="modal" style="max-width:600px;">
+    <div class="modal-header"><span class="modal-title" id="view-policy-title">Policy</span><button class="modal-close" onclick="closeModal('view-policy-modal')">×</button></div>
+    <div class="modal-body">
+      <div id="view-policy-company" style="font-size:12px;color:var(--text-muted);margin-bottom:8px;"></div>
+      <div id="view-policy-content" style="white-space:pre-wrap;line-height:1.7;color:var(--text-secondary);"></div>
+      <div id="view-policy-file" style="margin-top:12px;"></div>
+    </div>
+  </div>
+</div>
+
+<script src="/js/api.js"></script>
+<script>
+let companies = [];
+
+async function loadCompanies() {
+  try {
+    companies = await api('GET', '/companies');
+    const sel = document.getElementById('company-filter');
+    const pSel = document.getElementById('policy-company');
+    companies.forEach(c => {
+      sel.innerHTML  += `<option value="${c.id}">${c.name}</option>`;
+      pSel.innerHTML += `<option value="${c.id}">${c.name}</option>`;
+    });
+  } catch(e) {}
+}
+
+async function loadPolicies() {
+  try {
+    const companyId = document.getElementById('company-filter').value;
+    const url = '/policies' + (companyId ? '?companyId='+companyId : '');
+    const policies = await api('GET', url);
+    const tbody = document.getElementById('policies-tbody');
+    if (!policies.length) {
+      tbody.innerHTML = '<tr><td colspan="7"><div class="empty-state"><div class="empty-icon"><i class="bx bxs-book-content"></i></div><h3>No policies</h3><p>Add your first company policy</p></div></td></tr>';
+      return;
+    }
+    tbody.innerHTML = policies.map(p => `<tr>
+      <td><strong>${p.title}</strong></td>
+      <td>${p.company?.name||'—'}</td>
+      <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-secondary);">${p.content||'—'}</td>
+      <td><span class="badge badge-${p.isActive?'success':'ghost'}">${p.isActive?'Active':'Inactive'}</span></td>
+      <td>${p.creator?.name||'—'}</td>
+      <td class="text-sm text-muted">${new Date(p.createdAt).toLocaleDateString()}</td>
+      <td>
+        <div style="display:flex;gap:6px;">
+          <button class="btn btn-ghost btn-sm" onclick='viewPolicy(${JSON.stringify(p).replace(/"/g,"&quot;")})'><i class="bx bx-show"></i></button>
+          <button class="btn btn-ghost btn-sm" onclick='editPolicy(${JSON.stringify(p).replace(/"/g,"&quot;")})'><i class="bx bx-edit"></i></button>
+          <button class="btn btn-danger btn-sm" onclick="deletePolicy('${p.id}')"><i class="bx bx-trash"></i></button>
+        </div>
+      </td>
+    </tr>`).join('');
+  } catch(e) { toast(e.message,'error'); }
+}
+
+function viewPolicy(p) {
+  document.getElementById('view-policy-title').textContent = p.title;
+  document.getElementById('view-policy-company').textContent = p.company?.name || '';
+  document.getElementById('view-policy-content').textContent = p.content || 'No content.';
+  document.getElementById('view-policy-file').innerHTML = p.fileUrl
+    ? `<div style="display:flex;gap:10px;flex-wrap:wrap;"><button class="btn btn-ghost btn-sm" onclick="openPolicyPdf('${p.id}')"><i class="bx bx-show"></i> View PDF</button><button class="btn btn-primary btn-sm" onclick="downloadPolicyPdf('${p.id}')"><i class="bx bx-download"></i> Download PDF</button></div>` : '';
+  openModal('view-policy-modal');
+}
+
+function openPolicyPdf(id) {
+  const token = getToken() || '';
+  window.open('/api/policies/' + id + '/view?token=' + encodeURIComponent(token), '_blank');
+}
+
+function downloadPolicyPdf(id) {
+  const token = getToken() || '';
+  window.open('/api/policies/' + id + '/download?token=' + encodeURIComponent(token), '_blank');
+}
+
+function editPolicy(p) {
+  document.getElementById('policy-id').value       = p.id;
+  document.getElementById('policy-title').value    = p.title;
+  document.getElementById('policy-content').value  = p.content||'';
+  document.getElementById('policy-company').value  = p.companyId;
+  document.getElementById('policy-modal-title').textContent = 'Edit Policy';
+  openModal('policy-modal');
+}
+
+async function savePolicy() {
+  const id      = document.getElementById('policy-id').value;
+  const title   = document.getElementById('policy-title').value.trim();
+  const content = document.getElementById('policy-content').value;
+  const companyId = document.getElementById('policy-company').value;
+  const file    = document.getElementById('policy-file').files[0];
+  if (!title || !companyId) return toast('Title and company required','error');
+
+  const fd = new FormData();
+  fd.append('title', title);
+  fd.append('content', content);
+  fd.append('companyId', companyId);
+  if (file) fd.append('file', file);
+
+  try {
+    const token = getToken() || '';
+    const method = id ? 'PUT' : 'POST';
+    const url    = '/api/policies' + (id ? '/'+id : '');
+    const res    = await fetch(url, { method, headers: { Authorization: 'Bearer '+token }, body: fd });
+    const data   = await res.json();
+    if (!res.ok) throw new Error(data.message);
+    toast('Policy saved!','success');
+    closeModal('policy-modal');
+    document.getElementById('policy-id').value = '';
+    document.getElementById('policy-modal-title').textContent = 'Add Company Policy';
+    loadPolicies();
+  } catch(e) { toast(e.message,'error'); }
+}
+
+async function deletePolicy(id) {
+  if (!confirm('Delete this policy?')) return;
+  try { await api('DELETE','/policies/'+id); toast('Deleted','success'); loadPolicies(); }
+  catch(e) { toast(e.message,'error'); }
+}
+
+loadCompanies().then(() => loadPolicies());
+</script>
+</body></html>

@@ -1,0 +1,239 @@
+<%- include('../partials/head', {title: 'Request Leave'}) %>
+<div class="app-layout">
+  <%- include('../partials/sidebar-employee') %>
+  <div class="main-content">
+    <header class="page-header">
+      <div class="flex items-center gap-3">
+        <button class="mobile-menu-btn" onclick="openSidebar()"><i class="bx bx-menu"></i></button>
+        <div>
+          <div class="page-title">Request Leave</div>
+          <div class="page-subtitle">Submit and track your leave requests</div>
+        </div>
+      </div>
+      <div class="header-actions"></div>
+    </header>
+    <div class="page-body admin-employees-page employee-shared-page">
+      <div class="employee-directory-shell">
+        <div class="stats-grid" style="grid-template-columns:repeat(5,1fr);">
+          <div class="stat-card"><div class="stat-icon green"><i class="bx bxs-check-circle"></i></div><div><div class="stat-value" id="bal-earned">15</div><div class="stat-label">Earned Leave</div></div></div>
+          <div class="stat-card"><div class="stat-icon red"><i class="bx bxs-thermometer"></i></div><div><div class="stat-value" id="bal-sick">10</div><div class="stat-label">Sick Leave</div></div></div>
+          <div class="stat-card"><div class="stat-icon blue"><i class="bx bxs-briefcase"></i></div><div><div class="stat-value" id="bal-casual">6</div><div class="stat-label">Casual Leave</div></div></div>
+          <div class="stat-card"><div class="stat-icon orange"><i class="bx bxs-hourglass"></i></div><div><div class="stat-value" id="stat-pending">0</div><div class="stat-label">Pending</div></div></div>
+          <div class="stat-card"><div class="stat-icon purple"><i class="bx bxs-calendar"></i></div><div><div class="stat-value" id="stat-used">0</div><div class="stat-label">Days Used</div></div></div>
+        </div>
+
+        <div class="leave-toolbar">
+          <div style="font-size:15px;font-weight:700;color:var(--text-primary);">Leave Requests <span id="leaves-count" style="font-size:13px;font-weight:500;color:var(--text-muted);"></span></div>
+          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+            <button class="btn btn-primary" onclick="openModal('leave-modal')"><i class="bx bx-plus"></i> Apply Leave</button>
+          </div>
+        </div>
+
+        <div style="display:flex;align-items:center;justify-content:flex-start;flex-wrap:wrap;gap:12px;margin-bottom:16px;">
+          <div class="toggle-group mb-0">
+            <button class="toggle-btn active" id="f-all" onclick="filterLeaves('all')">All</button>
+            <button class="toggle-btn" id="f-pending" onclick="filterLeaves('pending')">Pending</button>
+            <button class="toggle-btn" id="f-approved" onclick="filterLeaves('approved')">Approved</button>
+            <button class="toggle-btn" id="f-rejected" onclick="filterLeaves('rejected')">Rejected</button>
+          </div>
+        </div>
+
+        <div id="leaves-grid" class="leave-card-grid">
+          <div style="grid-column:1/-1;text-align:center;padding:60px;"><span class="spinner"></span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="leave-modal">
+  <div class="modal">
+    <div class="modal-header"><span class="modal-title">Apply for Leave</span><button class="modal-close" onclick="closeModal('leave-modal')">x</button></div>
+    <div class="modal-body">
+      <div class="toggle-group">
+        <button class="toggle-btn active" id="toggle-single" onclick="toggleMode('single')">Single Day</button>
+        <button class="toggle-btn" id="toggle-range" onclick="toggleMode('range')">Date Range</button>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Leave Type</label>
+        <select id="leave-type" class="form-control"></select>
+      </div>
+      <div id="date-error" class="alert alert-danger" style="display:none;"></div>
+      <div class="form-row">
+        <div class="form-group mb-0">
+          <label class="form-label">Start Date</label>
+          <input type="date" id="leave-start" class="form-control" onchange="validateDates()">
+        </div>
+        <div class="form-group mb-0" id="end-date-group" style="display:none;">
+          <label class="form-label">End Date</label>
+          <input type="date" id="leave-end" class="form-control" onchange="validateDates()">
+        </div>
+      </div>
+      <div class="form-group mt-3">
+        <label class="form-label">Reason <span class="text-muted">(optional)</span></label>
+        <textarea id="leave-reason" class="form-control" rows="3" placeholder="Briefly describe the reason..."></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('leave-modal')">Cancel</button>
+      <button class="btn btn-primary" onclick="submitLeave()">Submit Request</button>
+    </div>
+  </div>
+</div>
+
+<script src="/js/api.js"></script>
+<script>
+let singleMode = true;
+let allLeaves = [];
+let currentFilter = 'all';
+let currentUserGender = 'unspecified';
+
+const todayISO = new Date().toISOString().split('T')[0];
+document.getElementById('leave-start').min = todayISO;
+document.getElementById('leave-end').min = todayISO;
+
+const leaveConfig = {
+  earned:   { tone:'indigo', icon:'bxs-calendar-check', label:'Earned Leave' },
+  casual:   { tone:'teal', icon:'bxs-briefcase', label:'Casual Leave' },
+  sick:     { tone:'orange', icon:'bxs-thermometer', label:'Sick Leave' },
+  maternity:{ tone:'pink', icon:'bxs-baby-carriage', label:'Maternity Leave' },
+  paternity:{ tone:'blue', icon:'bxs-user-voice', label:'Paternity Leave' },
+  unpaid:   { tone:'slate', icon:'bxs-calendar-x', label:'Unpaid Leave' },
+  other:    { tone:'indigo', icon:'bxs-calendar', label:'Other Leave' }
+};
+
+function renderLeaveOptions() {
+  var options = [
+    { value: 'earned', label: 'Earned Leave' },
+    { value: 'casual', label: 'Casual Leave' },
+    { value: 'sick', label: 'Sick Leave' }
+  ];
+
+  if (currentUserGender === 'female') options.push({ value: 'maternity', label: 'Maternity Leave' });
+  if (currentUserGender === 'male') options.push({ value: 'paternity', label: 'Paternity Leave' });
+
+  options.push({ value: 'unpaid', label: 'Unpaid Leave' });
+  options.push({ value: 'other', label: 'Other' });
+
+  document.getElementById('leave-type').innerHTML = options.map(function(opt) {
+    return '<option value="' + opt.value + '">' + opt.label + '</option>';
+  }).join('');
+}
+
+function validateDates() {
+  const start = document.getElementById('leave-start').value;
+  const end = document.getElementById('leave-end').value;
+  const startInput = document.getElementById('leave-start');
+  const endInput = document.getElementById('leave-end');
+  const errEl = document.getElementById('date-error');
+  errEl.style.display = 'none';
+
+  if (start && new Date(start) < new Date(todayISO)) {
+    startInput.style.borderColor = 'var(--danger)';
+    errEl.textContent = 'Start date cannot be in the past';
+    errEl.style.display = '';
+    return false;
+  } else { startInput.style.borderColor = ''; }
+
+  if (start) endInput.min = start;
+  if (!singleMode && end && start && end < start) {
+    endInput.style.borderColor = 'var(--danger)';
+    errEl.textContent = 'End date must be after start date';
+    errEl.style.display = '';
+    return false;
+  } else { endInput.style.borderColor = ''; }
+  return true;
+}
+
+function toggleMode(mode) {
+  singleMode = mode === 'single';
+  document.getElementById('toggle-single').classList.toggle('active', singleMode);
+  document.getElementById('toggle-range').classList.toggle('active', !singleMode);
+  document.getElementById('end-date-group').style.display = singleMode ? 'none' : '';
+}
+
+function filterLeaves(filter) {
+  currentFilter = filter;
+  ['all','pending','approved','rejected'].forEach(function(f) {
+    document.getElementById('f-' + f).classList.toggle('active', f === filter);
+  });
+  renderLeaves();
+}
+
+function renderLeaves() {
+  const filtered = currentFilter === 'all' ? allLeaves : allLeaves.filter(function(l) { return l.status === currentFilter; });
+  const grid = document.getElementById('leaves-grid');
+  const countEl = document.getElementById('leaves-count');
+  if (countEl) countEl.textContent = '(' + filtered.length + ')';
+
+  if (!filtered.length) {
+    grid.innerHTML = '<div style="grid-column:1/-1;" class="empty-state"><div class="empty-icon"><i class="bx bxs-calendar-check"></i></div><h3>No ' + (currentFilter === 'all' ? '' : currentFilter) + ' leaves</h3><p>' + (currentFilter === 'all' ? 'Click "Apply Leave" to submit your first request' : 'No records for this filter') + '</p></div>';
+    return;
+  }
+
+  grid.innerHTML = filtered.map(function(l) {
+    const cfg = leaveConfig[l.type] || leaveConfig.other;
+    return '<div class="leave-review-card leave-tone-' + cfg.tone + '">' +
+      '<div class="leave-review-top">' +
+        '<div class="leave-review-title-row">' +
+          '<div class="leave-review-icon"><i class="bx ' + cfg.icon + '"></i></div>' +
+          '<div><div class="leave-review-title">' + cfg.label + '</div><div class="leave-review-days">' + l.days + ' day' + (l.days !== 1 ? 's' : '') + '</div></div>' +
+        '</div>' +
+        '<span class="leave-status-pill status-' + l.status + '">' + l.status + '</span>' +
+      '</div>' +
+      '<div class="leave-review-body">' +
+        '<div class="leave-review-meta"><i class="bx bxs-calendar"></i><span>' + fmtDate(l.startDate) + '</span><i class="bx bx-right-arrow-alt"></i><span>' + fmtDate(l.endDate) + '</span></div>' +
+        (l.reason ? '<div class="leave-review-note">' + l.reason + '</div>' : '') +
+        '<div class="leave-review-by"><i class="bx bx-time-five"></i> Applied ' + fmtDate(l.createdAt) + '</div>' +
+        (l.approver ? '<div class="leave-review-by"><i class="bx bxs-user-check"></i> ' + l.approver.name + '</div>' : '') +
+        '<div class="leave-review-actions">' +
+          (l.status === 'pending' ? '<button class="btn btn-danger btn-sm" onclick="deleteLeave(\'' + l.id + '\')" title="Cancel request"><i class="bx bx-trash"></i> Cancel</button>' : '<span class="btn btn-ghost btn-sm" style="pointer-events:none;">No Actions</span>') +
+        '</div>' +
+      '</div>' +
+    '</div>';
+  }).join('');
+}
+
+async function loadLeaves() {
+  try {
+    var me = await api('GET', '/users/me');
+    currentUserGender = (me && me.gender) ? me.gender : 'unspecified';
+    renderLeaveOptions();
+    const leaves = await api('GET', '/leaves');
+    allLeaves = leaves;
+    document.getElementById('stat-pending').textContent = leaves.filter(function(l) { return l.status === 'pending'; }).length;
+    document.getElementById('stat-used').textContent = leaves.filter(function(l) { return l.status === 'approved'; }).reduce(function(s, l) { return s + l.days; }, 0);
+    renderLeaves();
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+async function submitLeave() {
+  if (!validateDates()) return;
+  const type = document.getElementById('leave-type').value;
+  const start = document.getElementById('leave-start').value;
+  const end = singleMode ? start : document.getElementById('leave-end').value;
+  const reason = document.getElementById('leave-reason').value;
+  if (!start) return toast('Please select a start date', 'error');
+  if (!singleMode && !end) return toast('Please select an end date', 'error');
+  if (type === 'other' && !reason.trim()) return toast('Please enter a reason for Other leave', 'error');
+
+  try {
+    await api('POST', '/leaves', { type: type, startDate: start, endDate: end, reason: reason });
+    toast('Leave request submitted!', 'success');
+    closeModal('leave-modal');
+    loadLeaves();
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+async function deleteLeave(id) {
+  if (!confirm('Delete this leave request?')) return;
+  try {
+    await api('DELETE', '/leaves/' + id);
+    toast('Leave deleted', 'success');
+    loadLeaves();
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+loadLeaves();
+</script>
+</body></html>

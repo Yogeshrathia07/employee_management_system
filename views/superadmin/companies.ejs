@@ -1,0 +1,258 @@
+<%- include('../partials/head', {title: 'Companies'}) %>
+<div class="app-layout">
+  <%- include('../partials/sidebar-superadmin') %>
+  <div class="main-content">
+    <header class="page-header">
+      <div class="flex items-center gap-3">
+        <button class="mobile-menu-btn" onclick="openSidebar()"><i class="bx bx-menu"></i></button>
+        <div><div class="page-title"><i class="bx bxs-building"></i> Companies</div><div class="page-subtitle">Manage all registered companies</div></div>
+      </div>
+      <div class="header-actions"></div>
+    </header>
+    <div class="page-body admin-employees-page">
+      <div class="employee-directory-shell">
+        <div class="admin-toolbar" style="margin-bottom:20px;">
+          <div class="search-bar" style="width:260px;">
+            <span class="search-icon"><i class="bx bx-search"></i></span>
+            <input type="text" id="company-search" placeholder="Search company..." oninput="renderCompanies()">
+          </div>
+          <select id="company-status" class="form-control" style="width:150px" onchange="renderCompanies()">
+            <option value="">All Status</option>
+            <option value="active">Active</option>
+            <option value="inactive">Inactive</option>
+          </select>
+          <button class="btn btn-primary" style="margin-left:auto;" onclick="openCreate()"><i class="bx bx-plus"></i> Add Company</button>
+        </div>
+        <div id="company-grid" class="users-grid">
+          <div style="grid-column:1/-1;text-align:center;padding:60px;"><span class="spinner"></span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="co-modal">
+  <div class="modal">
+    <div class="modal-header"><span class="modal-title" id="co-modal-title">Add Company</span><button class="modal-close" onclick="closeModal('co-modal')"><i class="bx bx-x"></i></button></div>
+    <div class="modal-body">
+      <div class="company-logo-panel">
+        <div class="company-logo-preview-wrap">
+          <img id="company-logo-preview" class="company-logo-preview" alt="Company logo preview">
+        </div>
+        <div class="company-logo-copy">
+          <div class="company-logo-title">Company Logo</div>
+          <div class="company-logo-subtitle">Upload a logo for this company. If none is uploaded, a default image will be used automatically.</div>
+          <label class="btn btn-ghost btn-sm company-logo-upload">
+            <i class="bx bx-upload"></i> Upload Logo
+            <input type="file" id="c-logo" accept=".jpg,.jpeg,.png,.webp" hidden>
+          </label>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Company Name</label><input type="text" id="c-name" class="form-control"></div>
+        <div class="form-group"><label class="form-label">Email</label><input type="email" id="c-email" class="form-control"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Phone</label><input type="text" id="c-phone" class="form-control"></div>
+        <div class="form-group"><label class="form-label">Industry</label><input type="text" id="c-industry" class="form-control"></div>
+      </div>
+      <div class="form-group"><label class="form-label">Address</label><textarea id="c-address" class="form-control" rows="2"></textarea></div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">PAN No.</label><input type="text" id="c-pan" class="form-control"></div>
+        <div class="form-group"><label class="form-label">GST No.</label><input type="text" id="c-gst" class="form-control"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Status</label><select id="c-status" class="form-control"><option value="active">Active</option><option value="inactive">Inactive</option></select></div>
+        <div class="form-group"><label class="form-label">Authorized Signatory</label><input type="text" id="c-signatory" class="form-control"></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('co-modal')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveCompany()">Save</button>
+    </div>
+  </div>
+</div>
+
+<script src="/js/api.js"></script>
+<script>
+let editId = null, allCompanies = [];
+let currentLogoCompany = null;
+
+function esc(value) {
+  return String(value == null ? '' : value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function companyDefaultLogo(name) {
+  const label = ((name || 'Company').trim().charAt(0).toUpperCase() || 'C');
+  return 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(
+    '<svg xmlns="http://www.w3.org/2000/svg" width="180" height="180" viewBox="0 0 180 180">' +
+      '<defs><linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#eef3ff"/><stop offset="100%" stop-color="#dbe6ff"/></linearGradient></defs>' +
+      '<rect width="180" height="180" rx="36" fill="url(#g)"/>' +
+      '<rect x="52" y="50" width="76" height="82" rx="14" fill="#5b6abf" opacity="0.14"/>' +
+      '<path d="M67 121V72c0-4.4 3.6-8 8-8h30c4.4 0 8 3.6 8 8v49" fill="none" stroke="#5b6abf" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>' +
+      '<path d="M58 122h64" stroke="#5b6abf" stroke-width="8" stroke-linecap="round"/>' +
+      '<path d="M81 83h1M99 83h1M81 98h1M99 98h1" stroke="#5b6abf" stroke-width="8" stroke-linecap="round"/>' +
+      '<circle cx="132" cy="48" r="22" fill="#ffffff" opacity="0.96"/>' +
+      '<text x="132" y="56" text-anchor="middle" font-family="Arial, sans-serif" font-size="24" font-weight="700" fill="#42539e">' + label + '</text>' +
+    '</svg>'
+  );
+}
+
+function companyLogoSrc(company) {
+  if (company && company.id && company.logoUrl) return '/api/companies/' + company.id + '/logo';
+  return companyDefaultLogo(company && company.name);
+}
+
+function setCompanyLogoPreview(company) {
+  currentLogoCompany = company || null;
+  document.getElementById('company-logo-preview').src = companyLogoSrc(company || { name: document.getElementById('c-name').value || 'Company' });
+}
+
+async function uploadCompanyLogo(companyId) {
+  const input = document.getElementById('c-logo');
+  const file = input.files[0];
+  if (!file) return;
+
+  const fd = new FormData();
+  fd.append('logo', file);
+  const res = await fetch('/api/companies/' + companyId + '/logo', {
+    method: 'POST',
+    headers: { Authorization: 'Bearer ' + getToken() },
+    body: fd
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || 'Logo upload failed');
+  input.value = '';
+}
+
+async function loadCompanies() {
+  try {
+    allCompanies = await api('GET','/companies');
+    renderCompanies();
+  } catch(e) { toast(e.message,'error'); }
+}
+
+function renderCompanies() {
+  const q = (document.getElementById('company-search').value || '').toLowerCase();
+  const status = document.getElementById('company-status').value;
+  let data = allCompanies.slice();
+  if (status) data = data.filter(c => c.status === status);
+  if (q) data = data.filter(c => [c.name, c.email, c.phone, c.industry].filter(Boolean).some(v => String(v).toLowerCase().includes(q)));
+  const grid = document.getElementById('company-grid');
+  if (!data.length) {
+    grid.innerHTML = '<div style="grid-column:1/-1;" class="empty-state"><div class="empty-icon"><i class="bx bxs-building"></i></div><h3>No companies found</h3></div>';
+    return;
+  }
+  grid.innerHTML = data.map(c => `
+    <div class="employee-showcase-card">
+      <div class="employee-showcase-top">
+        <div class="employee-showcase-status">${statusBadge(c.status)}</div>
+        <div class="employee-showcase-avatar" style="display:flex;align-items:center;justify-content:center;background:#fff;">
+          <img src="${companyLogoSrc(c)}" alt="${esc(c.name)} logo" style="width:100%;height:100%;object-fit:cover;" onerror="this.src='${companyDefaultLogo('Company').replace(/'/g, "\\'")}'">
+        </div>
+        <div class="employee-showcase-name">${esc(c.name)}</div>
+        <div class="employee-showcase-role"><span class="badge badge-admin">${esc(c.industry || 'Company')}</span></div>
+      </div>
+      <div class="employee-showcase-body">
+        <div class="employee-showcase-meta">
+          <div class="employee-showcase-item"><i class="bx bx-envelope"></i><span>${esc(c.email)}</span></div>
+          <div class="employee-showcase-item"><i class="bx bx-phone"></i><span>${esc(c.phone || 'No phone')}</span></div>
+          <div class="employee-showcase-item"><i class="bx bx-calendar"></i><span>${esc(fmtDate(c.createdAt))}</span></div>
+        </div>
+        <div class="employee-showcase-actions">
+          <button class="btn btn-ghost btn-sm" onclick="editCompany(${c.id})"><i class="bx bx-edit"></i> Edit</button>
+          <button class="btn btn-danger btn-sm" onclick="deleteCo(${c.id})"><i class="bx bx-trash"></i></button>
+          <button class="btn btn-ghost btn-sm" onclick="editCompany(${c.id})"><i class="bx bx-show"></i></button>
+        </div>
+      </div>
+    </div>
+  `).join('');
+}
+
+function openCreate() {
+  editId = null;
+  currentLogoCompany = null;
+  document.getElementById('co-modal-title').textContent = 'Add Company';
+  ['c-name','c-email','c-phone','c-industry','c-address','c-signatory','c-pan','c-gst'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('c-status').value = 'active';
+  document.getElementById('c-logo').value = '';
+  setCompanyLogoPreview({ name: 'Company' });
+  openModal('co-modal');
+}
+
+async function editCompany(id) {
+  const c = allCompanies.find(x => x.id == id);
+  if (!c) return toast('Company not found','error');
+  editId = id;
+  document.getElementById('co-modal-title').textContent = 'Edit Company';
+  document.getElementById('c-name').value = c.name;
+  document.getElementById('c-email').value = c.email;
+  document.getElementById('c-phone').value = c.phone || '';
+  document.getElementById('c-industry').value = c.industry || '';
+  document.getElementById('c-address').value = c.address || '';
+  document.getElementById('c-status').value = c.status;
+  document.getElementById('c-signatory').value = c.authorizedSignatory || '';
+  document.getElementById('c-pan').value = c.panNo || '';
+  document.getElementById('c-gst').value = c.gstNo || '';
+  document.getElementById('c-logo').value = '';
+  setCompanyLogoPreview(c);
+  openModal('co-modal');
+}
+
+async function saveCompany() {
+  const body = {
+    name: document.getElementById('c-name').value,
+    email: document.getElementById('c-email').value,
+    phone: document.getElementById('c-phone').value,
+    industry: document.getElementById('c-industry').value,
+    address: document.getElementById('c-address').value,
+    status: document.getElementById('c-status').value,
+    panNo: document.getElementById('c-pan').value || '',
+    gstNo: document.getElementById('c-gst').value || '',
+    authorizedSignatory: document.getElementById('c-signatory').value
+  };
+  if (!body.name || !body.email) return toast('Name and email required','error');
+  try {
+    let company;
+    if (editId) company = await api('PUT', '/companies/' + editId, body);
+    else company = await api('POST', '/companies', body);
+    await uploadCompanyLogo(company.id);
+    toast(editId ? 'Company updated' : 'Company created', 'success');
+    closeModal('co-modal');
+    loadCompanies();
+  } catch(e) { toast(e.message,'error'); }
+}
+
+async function deleteCo(id) {
+  if (!confirm('Delete this company?')) return;
+  try { await api('DELETE', '/companies/' + id); toast('Deleted', 'success'); loadCompanies(); }
+  catch(e) { toast(e.message,'error'); }
+}
+
+document.getElementById('c-logo').addEventListener('change', function(e) {
+  const file = e.target.files[0];
+  if (!file) {
+    setCompanyLogoPreview(currentLogoCompany || { name: document.getElementById('c-name').value || 'Company' });
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = function(evt) {
+    document.getElementById('company-logo-preview').src = evt.target.result;
+  };
+  reader.readAsDataURL(file);
+});
+
+document.getElementById('c-name').addEventListener('input', function() {
+  if (document.getElementById('c-logo').files[0]) return;
+  if (currentLogoCompany && currentLogoCompany.logoUrl) return;
+  setCompanyLogoPreview({ name: this.value || 'Company' });
+});
+
+loadCompanies();
+</script>
+</body></html>
