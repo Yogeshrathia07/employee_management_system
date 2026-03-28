@@ -32,7 +32,10 @@ exports.getUsers = async (req, res) => {
 
 exports.createUser = async (req, res) => {
   try {
-    const { name, email, password, role, companyId, managerId, baseSalary, department, phone, position, gender } = req.body;
+    const { name, email, password, role, companyId, managerId, baseSalary,
+            basicSalary, hra, conveyance, medicalExpenses, specialAllowance, bonus, ta,
+            pfApplicable, allowedLeavePerMonth,
+            department, phone, position, gender } = req.body;
     if (!name || !email) return res.status(400).json({ message: 'Name and email are required' });
 
     const exists = await User.findOne({ where: { email } });
@@ -47,18 +50,31 @@ exports.createUser = async (req, res) => {
       phone: phone || '',
       position: position || '',
       gender: gender || 'unspecified',
-      // New employees must complete document upload and wait for verification before normal access.
       verificationStatus: finalRole === 'employee' ? 'pending_docs' : null,
-      // Keep status active so admin can still manage them; login check blocks on verificationStatus
       status: 'active',
     };
+    // Salary structure components
+    const comp = {
+      basicSalary:      parseFloat(basicSalary)      || 0,
+      hra:              parseFloat(hra)              || 0,
+      conveyance:       parseFloat(conveyance)       || 0,
+      medicalExpenses:  parseFloat(medicalExpenses)  || 0,
+      specialAllowance: parseFloat(specialAllowance) || 0,
+      bonus:            parseFloat(bonus)            || 0,
+      ta:               parseFloat(ta)               || 0,
+    };
+    Object.assign(userData, comp);
+    // CTC = sum of all components
+    userData.baseSalary = comp.basicSalary + comp.hra + comp.conveyance
+      + comp.medicalExpenses + comp.specialAllowance + comp.bonus + comp.ta;
+    if (pfApplicable !== undefined)         userData.pfApplicable         = pfApplicable;
+    if (allowedLeavePerMonth !== undefined) userData.allowedLeavePerMonth = allowedLeavePerMonth;
+
     if (req.user.role === 'admin') {
       userData.companyId = req.user.companyId;
       if (managerId) userData.managerId = managerId;
-      if (baseSalary) userData.baseSalary = baseSalary;
     } else if (req.user.role === 'superadmin') {
       userData.companyId = companyId;
-      if (baseSalary) userData.baseSalary = baseSalary;
       if (managerId) userData.managerId = managerId;
     }
 
@@ -73,7 +89,10 @@ exports.createUser = async (req, res) => {
 
 exports.updateUser = async (req, res) => {
   try {
-    const { name, email, role, companyId, managerId, baseSalary, status, department, phone, password, position, gender } = req.body;
+    const { name, email, role, companyId, managerId, baseSalary,
+            basicSalary, hra, conveyance, medicalExpenses, specialAllowance, bonus, ta,
+            pfApplicable, allowedLeavePerMonth,
+            status, department, phone, password, position, gender } = req.body;
     const user = await User.findByPk(req.params.id);
     if (!user) return res.status(404).json({ message: 'User not found' });
     const nextRole = role || user.role;
@@ -89,7 +108,19 @@ exports.updateUser = async (req, res) => {
     if (position !== undefined)   user.position   = position;
     if (gender !== undefined)     user.gender     = gender || 'unspecified';
     if (status)                   user.status     = user.role === 'superadmin' ? 'active' : status;
-    if (baseSalary !== undefined) user.baseSalary = baseSalary;
+    // Update salary structure components and recalculate CTC
+    const compFields = { basicSalary, hra, conveyance, medicalExpenses, specialAllowance, bonus, ta };
+    let anyComp = false;
+    Object.entries(compFields).forEach(([k, v]) => {
+      if (v !== undefined) { user[k] = parseFloat(v) || 0; anyComp = true; }
+    });
+    if (anyComp) {
+      // Recalculate CTC as sum of all components
+      user.baseSalary = (user.basicSalary || 0) + (user.hra || 0) + (user.conveyance || 0)
+        + (user.medicalExpenses || 0) + (user.specialAllowance || 0) + (user.bonus || 0) + (user.ta || 0);
+    }
+    if (pfApplicable !== undefined)         user.pfApplicable         = pfApplicable;
+    if (allowedLeavePerMonth !== undefined) user.allowedLeavePerMonth = allowedLeavePerMonth;
     if (password) {
       if (password.length < 6) return res.status(400).json({ message: 'Password must be at least 6 characters' });
       user.password = password;

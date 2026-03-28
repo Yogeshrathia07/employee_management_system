@@ -99,6 +99,7 @@ router.delete('/timesheets/:id',       auth, tsCtrl.deleteTimesheet);
 const salaryCtrl = require('../controllers/salaryController');
 router.get('/salary',                    auth, salaryCtrl.getSalaries);
 router.get('/salary/export/csv',         auth, requireRole('admin', 'superadmin'), salaryCtrl.exportCSV);
+router.get('/salary/preview',            auth, requireRole('admin', 'superadmin'), salaryCtrl.getSalaryPreview);
 router.get('/salary/:id/payslip',        auth, salaryCtrl.generatePayslip);
 router.post('/salary',                   auth, requireRole('admin', 'superadmin'), salaryCtrl.createSalary);
 router.post('/salary/generate-bulk',     auth, requireRole('admin', 'superadmin'), salaryCtrl.generateBulk);

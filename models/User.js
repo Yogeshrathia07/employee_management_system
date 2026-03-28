@@ -9,7 +9,17 @@ const User = sequelize.define('User', {
   role:          { type: DataTypes.STRING(20), defaultValue: 'employee' },
   companyId:     { type: DataTypes.INTEGER, allowNull: true },
   managerId:     { type: DataTypes.INTEGER, allowNull: true },
-  baseSalary:    { type: DataTypes.FLOAT, defaultValue: 0 },
+  baseSalary:    { type: DataTypes.FLOAT, defaultValue: 0 },  // CTC (monthly)
+  // Salary structure components (DHPE style)
+  basicSalary:      { type: DataTypes.FLOAT, defaultValue: 0 },
+  hra:              { type: DataTypes.FLOAT, defaultValue: 0 },
+  conveyance:       { type: DataTypes.FLOAT, defaultValue: 0 },
+  medicalExpenses:  { type: DataTypes.FLOAT, defaultValue: 0 },
+  specialAllowance: { type: DataTypes.FLOAT, defaultValue: 0 },
+  bonus:            { type: DataTypes.FLOAT, defaultValue: 0 },
+  ta:               { type: DataTypes.FLOAT, defaultValue: 0 },
+  pfApplicable:         { type: DataTypes.BOOLEAN, defaultValue: true },
+  allowedLeavePerMonth: { type: DataTypes.INTEGER, defaultValue: 2 },
   status:        { type: DataTypes.STRING(20), defaultValue: 'active' },
   // Verification workflow for employees
   verificationStatus: { type: DataTypes.STRING(20), allowNull: true, defaultValue: null },

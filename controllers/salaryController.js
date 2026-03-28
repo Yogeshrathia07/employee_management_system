@@ -1,59 +1,109 @@
 const { Op } = require('sequelize');
-const { Salary, Timesheet, User, Company } = require('../models');
+const { Salary, Timesheet, Leave, User, Company } = require('../models');
 
-// ─── Helper: get actual hours from approved timesheets ───
+// ─── Helper: actual hours from approved timesheets ────────────────────────────
 async function getActualHours(userId, month, year) {
   const monthStart = new Date(year, month - 1, 1);
-  const monthEnd = new Date(year, month, 0, 23, 59, 59);
+  const monthEnd   = new Date(year, month, 0, 23, 59, 59);
 
-  // Find any timesheet whose date range OVERLAPS with the target month
-  // A timesheet overlaps if weekStart <= monthEnd AND weekEnd >= monthStart
   const timesheets = await Timesheet.findAll({
     where: {
       userId,
       status: 'approved',
       weekStart: { [Op.lte]: monthEnd },
-      weekEnd: { [Op.gte]: monthStart },
+      weekEnd:   { [Op.gte]: monthStart },
     },
   });
 
-  let totalHours = 0;
-  let presentDays = 0;
-
+  let totalHours = 0, presentDays = 0;
   timesheets.forEach(ts => {
     let entries = ts.entries || [];
-    // MySQL JSON columns may return a string — parse if needed
-    if (typeof entries === 'string') {
-      try { entries = JSON.parse(entries); } catch(e) { entries = []; }
-    }
+    if (typeof entries === 'string') { try { entries = JSON.parse(entries); } catch(e) { entries = []; } }
     if (!Array.isArray(entries)) entries = [];
-    // Only count entries whose date falls within the target month
     entries.forEach(e => {
-      const entryDate = new Date(e.date);
-      if (entryDate >= monthStart && entryDate <= monthEnd) {
+      const d = new Date(e.date);
+      if (d >= monthStart && d <= monthEnd) {
         totalHours += Number(e.hours) || 0;
-        if (e.workType === 'work' || e.workType === 'half-day') {
-          presentDays++;
-        }
+        if (e.workType === 'work' || e.workType === 'half-day') presentDays++;
       }
     });
   });
-
   return { totalHours, presentDays };
 }
 
-// ─── Helper: count working days in a month (Mon-Fri) ───
+// ─── Helper: working days (Mon–Fri) in month ─────────────────────────────────
 function getWorkingDays(month, year) {
   let count = 0;
-  const daysInMonth = new Date(year, month, 0).getDate();
-  for (let d = 1; d <= daysInMonth; d++) {
+  const days = new Date(year, month, 0).getDate();
+  for (let d = 1; d <= days; d++) {
     const day = new Date(year, month - 1, d).getDay();
     if (day !== 0 && day !== 6) count++;
   }
   return count;
 }
 
-// ─── GET /salary ───
+// ─── Helper: approved leave days in month ────────────────────────────────────
+async function getLeaveTaken(userId, month, year) {
+  const monthStart = new Date(year, month - 1, 1);
+  const monthEnd   = new Date(year, month, 0, 23, 59, 59);
+
+  const leaves = await Leave.findAll({
+    where: {
+      userId,
+      status: 'approved',
+      startDate: { [Op.lte]: monthEnd },
+      endDate:   { [Op.gte]: monthStart },
+    },
+  });
+
+  let total = 0;
+  leaves.forEach(l => {
+    const start = new Date(Math.max(new Date(l.startDate), monthStart));
+    const end   = new Date(Math.min(new Date(l.endDate),   monthEnd));
+    const days  = Math.round((end - start) / (1000 * 60 * 60 * 24)) + 1;
+    total += Math.max(0, days);
+  });
+  return total;
+}
+
+// ─── GET /salary/preview — fetch defaults before generation ──────────────────
+exports.getSalaryPreview = async (req, res) => {
+  try {
+    const { userId, month, year } = req.query;
+    if (!userId || !month || !year) {
+      return res.status(400).json({ message: 'userId, month, year are required' });
+    }
+
+    const user = await User.findByPk(userId);
+    if (!user) return res.status(404).json({ message: 'Employee not found' });
+
+    const [{ totalHours, presentDays }, leaveTaken] = await Promise.all([
+      getActualHours(Number(userId), Number(month), Number(year)),
+      getLeaveTaken(Number(userId), Number(month), Number(year)),
+    ]);
+
+    res.json({
+      // Attendance
+      leaveTaken,
+      actualHours: totalHours,
+      presentDays,
+      // Salary structure from profile
+      baseSalary:       user.baseSalary        || 0,
+      basicSalary:      user.basicSalary       || 0,
+      hra:              user.hra               || 0,
+      conveyance:       user.conveyance        || 0,
+      medicalExpenses:  user.medicalExpenses   || 0,
+      specialAllowance: user.specialAllowance  || 0,
+      bonus:            user.bonus             || 0,
+      ta:               user.ta                || 0,
+      allowedLeave:     user.allowedLeavePerMonth || 2,
+    });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+// ─── GET /salary ─────────────────────────────────────────────────────────────
 exports.getSalaries = async (req, res) => {
   try {
     const { role, id, companyId } = req.user;
@@ -65,13 +115,12 @@ exports.getSalaries = async (req, res) => {
       const companyUsers = await User.findAll({ where: { companyId }, attributes: ['id'] });
       where.userId = { [Op.in]: companyUsers.map(u => u.id) };
     }
-    // superadmin sees all — can filter by companyId
     if (req.user.role === 'superadmin' && req.query.companyId) {
       where.companyId = req.query.companyId;
     }
 
     if (req.query.month) where.month = Number(req.query.month);
-    if (req.query.year) where.year = Number(req.query.year);
+    if (req.query.year)  where.year  = Number(req.query.year);
 
     const salaries = await Salary.findAll({
       where,
@@ -84,10 +133,10 @@ exports.getSalaries = async (req, res) => {
   }
 };
 
-// ─── POST /salary — single employee ───
+// ─── POST /salary — single employee ──────────────────────────────────────────
 exports.createSalary = async (req, res) => {
   try {
-    const { userId, month, year, baseSalary, expectedHours, allowances, deductions, overtime, notes, companyId: requestedCompanyId } = req.body;
+    const { userId, month, year, companyId: requestedCompanyId } = req.body;
     if (!userId) return res.status(400).json({ message: 'Employee is required' });
     if (!month || month < 1 || month > 12) return res.status(400).json({ message: 'Valid month (1-12) is required' });
     if (!year || year < 2000 || year > 2100) return res.status(400).json({ message: 'Valid year is required' });
@@ -95,8 +144,6 @@ exports.createSalary = async (req, res) => {
     const exists = await Salary.findOne({ where: { userId, month, year } });
     if (exists) return res.status(400).json({ message: 'Salary record already exists for this month/year' });
 
-    const { totalHours, presentDays } = await getActualHours(userId, month, year);
-    const workingDays = getWorkingDays(month, year);
     const user = await User.findByPk(userId);
     if (!user) return res.status(404).json({ message: 'Employee not found' });
 
@@ -105,27 +152,49 @@ exports.createSalary = async (req, res) => {
       targetCompanyId = Number(requestedCompanyId || user.companyId || 0) || null;
       if (!targetCompanyId) return res.status(400).json({ message: 'Select a company first' });
     }
-
     if (req.user.role !== 'superadmin' && req.user.companyId && user.companyId !== req.user.companyId) {
       return res.status(403).json({ message: 'You can only generate payroll for your own company' });
     }
+
+    const { totalHours, presentDays } = await getActualHours(userId, Number(month), Number(year));
+    const workingDays   = getWorkingDays(Number(month), Number(year));
+    const leaveTakenAuto = await getLeaveTaken(userId, Number(month), Number(year));
+
+    // Use request value if provided, else fall back to user's salary structure
+    const p = (field, userField) =>
+      req.body[field] !== undefined ? parseFloat(req.body[field]) || 0 : (user[userField || field] || 0);
 
     const salary = await Salary.create({
       userId,
       companyId: targetCompanyId,
       month: Number(month),
-      year: Number(year),
-      baseSalary: baseSalary || user.baseSalary || 0,
-      expectedHours: expectedHours || workingDays * 8,
-      actualHours: totalHours,
-      allowances: allowances || 0,
-      deductions: deductions || 0,
-      overtime: overtime || 0,
-      notes,
+      year:  Number(year),
+      // CTC & attendance
+      baseSalary:   p('baseSalary',  'baseSalary'),
+      leaveTaken:   req.body.leaveTaken !== undefined ? parseFloat(req.body.leaveTaken) || 0 : leaveTakenAuto,
+      allowedLeave: p('allowedLeave', 'allowedLeavePerMonth'),
+      // Earnings
+      basicSalary:      p('basicSalary',      'basicSalary'),
+      hra:              p('hra',              'hra'),
+      conveyance:       p('conveyance',       'conveyance'),
+      medicalExpenses:  p('medicalExpenses',  'medicalExpenses'),
+      specialAllowance: p('specialAllowance', 'specialAllowance'),
+      bonus:            p('bonus',            'bonus'),
+      ta:               p('ta',               'ta'),
+      // Deductions
+      pfContribution:  p('pfContribution'),
+      professionTax:   p('professionTax'),
+      tds:             p('tds'),
+      salaryAdvance:   p('salaryAdvance'),
+      // Hours
+      expectedHours: parseFloat(req.body.expectedHours) || workingDays * 8,
+      actualHours:   totalHours,
+      // Days
       totalWorkDays: workingDays,
       presentDays,
       absentDays: Math.max(0, workingDays - presentDays),
-      generatedBy: req.user.id,
+      notes:        req.body.notes || '',
+      generatedBy:  req.user.id,
     });
 
     const populated = await Salary.findByPk(salary.id, {
@@ -137,10 +206,10 @@ exports.createSalary = async (req, res) => {
   }
 };
 
-// ─── POST /salary/generate-bulk — auto-generate for all employees in company ───
+// ─── POST /salary/generate-bulk ───────────────────────────────────────────────
 exports.generateBulk = async (req, res) => {
   try {
-    const { month, year, expectedHours, companyId: requestedCompanyId } = req.body;
+    const { month, year, companyId: requestedCompanyId } = req.body;
     if (!month || !year) return res.status(400).json({ message: 'Month and year are required' });
     if (month < 1 || month > 12) return res.status(400).json({ message: 'Valid month (1-12) is required' });
     if (year < 2000 || year > 2100) return res.status(400).json({ message: 'Valid year is required' });
@@ -148,35 +217,44 @@ exports.generateBulk = async (req, res) => {
     const companyId = req.user.role === 'superadmin'
       ? Number(requestedCompanyId || 0)
       : req.user.companyId;
-
     if (!companyId) return res.status(400).json({ message: 'Select a company before generating payroll' });
 
     const users = await User.findAll({
       where: { companyId, status: 'active', role: { [Op.in]: ['employee', 'manager'] } },
     });
 
-    const workingDays = getWorkingDays(month, year);
-    const expHrs = expectedHours || workingDays * 8;
+    const workingDays = getWorkingDays(Number(month), Number(year));
     let created = 0, skipped = 0;
 
     for (const user of users) {
       const exists = await Salary.findOne({ where: { userId: user.id, month: Number(month), year: Number(year) } });
       if (exists) { skipped++; continue; }
 
-      const { totalHours, presentDays } = await getActualHours(user.id, month, year);
+      const { totalHours, presentDays } = await getActualHours(user.id, Number(month), Number(year));
+      const leaveTakenAuto = await getLeaveTaken(user.id, Number(month), Number(year));
 
       await Salary.create({
-        userId: user.id,
+        userId:    user.id,
         companyId,
-        month: Number(month),
-        year: Number(year),
-        baseSalary: user.baseSalary || 0,
-        expectedHours: expHrs,
-        actualHours: totalHours,
-        allowances: 0,
-        deductions: 0,
-        overtime: 0,
-        totalWorkDays: workingDays,
+        month:     Number(month),
+        year:      Number(year),
+        baseSalary:       user.baseSalary        || 0,
+        leaveTaken:       leaveTakenAuto,
+        allowedLeave:     user.allowedLeavePerMonth || 2,
+        basicSalary:      user.basicSalary       || 0,
+        hra:              user.hra                || 0,
+        conveyance:       user.conveyance         || 0,
+        medicalExpenses:  user.medicalExpenses    || 0,
+        specialAllowance: user.specialAllowance   || 0,
+        bonus:            user.bonus              || 0,
+        ta:               user.ta                 || 0,
+        pfContribution:   0,
+        professionTax:    0,
+        tds:              0,
+        salaryAdvance:    0,
+        expectedHours:    workingDays * 8,
+        actualHours:      totalHours,
+        totalWorkDays:    workingDays,
         presentDays,
         absentDays: Math.max(0, workingDays - presentDays),
         generatedBy: req.user.id,
@@ -190,17 +268,21 @@ exports.generateBulk = async (req, res) => {
   }
 };
 
-// ─── PUT /salary/:id ───
+// ─── PUT /salary/:id ──────────────────────────────────────────────────────────
 exports.updateSalary = async (req, res) => {
   try {
     const salary = await Salary.findByPk(req.params.id);
     if (!salary) return res.status(404).json({ message: 'Salary not found' });
     if (salary.status === 'paid') return res.status(400).json({ message: 'Cannot edit paid salary' });
 
-    const fields = ['baseSalary', 'expectedHours', 'allowances', 'deductions', 'overtime', 'notes', 'status'];
-    fields.forEach(f => { if (req.body[f] !== undefined) salary[f] = req.body[f]; });
+    const editableFields = [
+      'baseSalary', 'leaveTaken', 'allowedLeave',
+      'basicSalary', 'hra', 'conveyance', 'medicalExpenses', 'specialAllowance', 'bonus', 'ta',
+      'pfContribution', 'professionTax', 'tds', 'salaryAdvance',
+      'expectedHours', 'notes', 'status',
+    ];
+    editableFields.forEach(f => { if (req.body[f] !== undefined) salary[f] = req.body[f]; });
 
-    // Track who finalized
     if (req.body.status === 'finalized' && salary.changed('status')) {
       salary.finalizedBy = req.user.id;
       salary.finalizedAt = new Date();
@@ -217,7 +299,7 @@ exports.updateSalary = async (req, res) => {
   }
 };
 
-// ─── PATCH /salary/:id/pay ───
+// ─── PATCH /salary/:id/pay ────────────────────────────────────────────────────
 exports.paySalary = async (req, res) => {
   try {
     const salary = await Salary.findByPk(req.params.id);
@@ -226,7 +308,6 @@ exports.paySalary = async (req, res) => {
     salary.status = 'paid';
     salary.paidAt = new Date();
     await salary.save();
-
     const populated = await Salary.findByPk(salary.id, {
       include: [{ model: User, as: 'user', attributes: ['id', 'name', 'email', 'role'] }],
     });
@@ -236,7 +317,7 @@ exports.paySalary = async (req, res) => {
   }
 };
 
-// ─── DELETE /salary/:id ───
+// ─── DELETE /salary/:id ───────────────────────────────────────────────────────
 exports.deleteSalary = async (req, res) => {
   try {
     const salary = await Salary.findByPk(req.params.id);
@@ -251,20 +332,14 @@ exports.deleteSalary = async (req, res) => {
   }
 };
 
-// ─── GET /salary/export/csv ───
+// ─── GET /salary/export/csv ───────────────────────────────────────────────────
 exports.exportCSV = async (req, res) => {
   try {
     const { month, year } = req.query;
     const where = {};
-
-    // Superadmin sees all, admin sees own company
-    if (req.user.role === 'admin') {
-      where.companyId = req.user.companyId;
-    }
-    // superadmin: no companyId filter — exports everything
-
+    if (req.user.role === 'admin') where.companyId = req.user.companyId;
     if (month) where.month = Number(month);
-    if (year) where.year = Number(year);
+    if (year)  where.year  = Number(year);
 
     const salaries = await Salary.findAll({
       where,
@@ -273,7 +348,9 @@ exports.exportCSV = async (req, res) => {
     });
 
     const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-    let csv = 'Employee,Email,Department,Role,Period,Base Salary,Allowances,Overtime Pay,Gross Salary,Deductions,Absent Deduction,Net Salary,Expected Hours,Actual Hours,Status,Paid On\n';
+    let csv = 'Employee,Email,Department,Role,Period,CTC,Leave Taken,' +
+      'Basic Salary,DA,HRA,Conveyance,Medical,Special,Bonus,TA,Gross Salary,' +
+      'PF,Profession Tax,TDS,Salary Advance,Total Deductions,Net Salary,Status,Paid On\n';
 
     salaries.forEach(s => {
       csv += [
@@ -281,41 +358,48 @@ exports.exportCSV = async (req, res) => {
         s.user?.email || '',
         s.user?.department || '',
         s.user?.role || '',
-        `${MONTHS[s.month-1]} ${s.year}`,
+        `${MONTHS[s.month - 1]} ${s.year}`,
         s.baseSalary,
-        s.allowances,
-        s.overtimePay,
+        s.leaveTaken,
+        s.basicSalary,
+        s.da,
+        s.hra,
+        s.conveyanceWorking,
+        s.medicalWorking,
+        s.specialAllowance,
+        s.bonus,
+        s.ta,
         s.grossSalary,
+        s.pfContribution,
+        s.professionTax,
+        s.tds,
+        s.salaryAdvance,
         s.deductions,
-        s.absentDeduction,
         s.netSalary,
-        s.expectedHours,
-        s.actualHours,
         s.status,
         s.paidAt ? new Date(s.paidAt).toLocaleDateString() : '',
       ].join(',') + '\n';
     });
 
     res.setHeader('Content-Type', 'text/csv');
-    res.setHeader('Content-Disposition', `attachment; filename=salaries_${month||'all'}_${year||'all'}.csv`);
+    res.setHeader('Content-Disposition', `attachment; filename=salaries_${month || 'all'}_${year || 'all'}.csv`);
     res.send(csv);
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
 };
 
-// ─── GET /salary/:id/payslip — generate PDF payslip ───
+// ─── GET /salary/:id/payslip ──────────────────────────────────────────────────
 exports.generatePayslip = async (req, res) => {
   try {
     const salary = await Salary.findByPk(req.params.id, {
       include: [
-        { model: User, as: 'user', attributes: ['id', 'name', 'email', 'role', 'department', 'phone'] },
+        { model: User,    as: 'user',    attributes: ['id', 'name', 'email', 'role', 'department', 'phone', 'employeeCode'] },
         { model: Company, as: 'company' },
       ],
     });
     if (!salary) return res.status(404).json({ message: 'Salary not found' });
 
-    // Check permission: employee can only see own, admin/superadmin can see all
     const actor = req.user;
     if (actor.role === 'employee' || actor.role === 'manager') {
       if (salary.userId !== actor.id) return res.status(403).json({ message: 'Access denied' });
@@ -324,151 +408,159 @@ exports.generatePayslip = async (req, res) => {
     const PDFDocument = require('pdfkit');
     const doc = new PDFDocument({ size: 'A4', margin: 50 });
 
-    // If ?mode=view, show inline; otherwise download
     const mode = req.query.mode || 'download';
     res.setHeader('Content-Type', 'application/pdf');
-    if (mode === 'view') {
-      res.setHeader('Content-Disposition', `inline; filename=payslip_${salary.user?.name?.replace(/\s+/g,'_')}_${salary.month}_${salary.year}.pdf`);
-    } else {
-      res.setHeader('Content-Disposition', `attachment; filename=payslip_${salary.user?.name?.replace(/\s+/g,'_')}_${salary.month}_${salary.year}.pdf`);
-    }
+    const fname = `payslip_${salary.user?.name?.replace(/\s+/g, '_')}_${salary.month}_${salary.year}.pdf`;
+    res.setHeader('Content-Disposition', `${mode === 'view' ? 'inline' : 'attachment'}; filename=${fname}`);
     doc.pipe(res);
 
     const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
     const company = salary.company || {};
-    const user = salary.user || {};
-    const pageW = 595.28;
-    const marginL = 50;
-    const contentW = pageW - 100;
+    const user    = salary.user    || {};
+    const pageW   = 595.28;
+    const mL      = 50;
+    const cW      = pageW - 100;
 
-    // ─── Header ───
-    doc.fontSize(18).font('Helvetica-Bold').text(company.name || 'Company', marginL, 50, { width: contentW, align: 'center' });
-    doc.fontSize(9).font('Helvetica').fillColor('#666666')
-      .text(company.address || '', marginL, 72, { width: contentW, align: 'center' })
-      .text([company.phone, company.email].filter(Boolean).join('  |  '), { width: contentW, align: 'center' });
+    const black  = '#000000';
+    const muted  = '#555555';
+    const red    = '#dc2626';
+    const green  = '#16a34a';
+    const gray   = '#f3f4f6';
 
-    // Divider
-    doc.moveTo(marginL, 100).lineTo(pageW - 50, 100).strokeColor('#cccccc').lineWidth(1).stroke();
+    // ── Header ─────────────────────────────────────────────────────────
+    doc.fontSize(16).font('Helvetica-Bold').fillColor(black)
+       .text(company.name || 'Company', mL, 50, { width: cW, align: 'center' });
+    doc.fontSize(8).font('Helvetica').fillColor(muted)
+       .text(company.address || '', mL, 70, { width: cW, align: 'center' })
+       .text([company.phone, company.email].filter(Boolean).join('  |  '), { width: cW, align: 'center' });
 
-    // Title
-    doc.fontSize(13).font('Helvetica-Bold').fillColor('#000000')
-      .text('SALARY SLIP', marginL, 112, { width: contentW, align: 'center' });
-    doc.fontSize(10).font('Helvetica').fillColor('#555555')
-      .text(`For the month of ${MONTHS[salary.month-1]} ${salary.year}`, marginL, 128, { width: contentW, align: 'center' });
+    doc.moveTo(mL, 98).lineTo(pageW - 50, 98).strokeColor('#cccccc').lineWidth(1).stroke();
+    doc.fontSize(12).font('Helvetica-Bold').fillColor(black)
+       .text('SALARY SLIP', mL, 108, { width: cW, align: 'center' });
+    doc.fontSize(9).font('Helvetica').fillColor(muted)
+       .text(`For the month of ${MONTHS[salary.month - 1]} ${salary.year}`, mL, 124, { width: cW, align: 'center' });
 
-    // ─── Employee Details ───
-    const detY = 155;
-    doc.fontSize(9).font('Helvetica-Bold').fillColor('#000000');
+    // ── Employee info ───────────────────────────────────────────────────
+    const detY = 148;
+    const c1 = mL, c2 = mL + 110, c3 = 320, c4 = 430;
 
-    const col1 = marginL;
-    const col2 = marginL + 120;
-    const col3 = 320;
-    const col4 = 440;
-
-    const labelColor = '#555555';
-    const valueColor = '#000000';
-
-    function row(y, l1, v1, l2, v2) {
-      doc.font('Helvetica').fontSize(9).fillColor(labelColor).text(l1, col1, y);
-      doc.font('Helvetica-Bold').fillColor(valueColor).text(v1, col2, y);
+    function infoRow(y, l1, v1, l2, v2) {
+      doc.font('Helvetica').fontSize(8).fillColor(muted).text(l1, c1, y);
+      doc.font('Helvetica-Bold').fillColor(black).text(String(v1 || '—'), c2, y);
       if (l2) {
-        doc.font('Helvetica').fillColor(labelColor).text(l2, col3, y);
-        doc.font('Helvetica-Bold').fillColor(valueColor).text(v2 || '', col4, y);
+        doc.font('Helvetica').fillColor(muted).text(l2, c3, y);
+        doc.font('Helvetica-Bold').fillColor(black).text(String(v2 || '—'), c4, y);
       }
     }
 
-    row(detY, 'Employee Name:', user.name || '—', 'Employee ID:', `EMP-${String(user.id).padStart(4, '0')}`);
-    row(detY + 16, 'Department:', user.department || '—', 'Designation:', user.role || '—');
-    row(detY + 32, 'Email:', user.email || '—', 'Phone:', user.phone || '—');
+    infoRow(detY,      'Employee Name:', user.name,          'Employee Code:', user.employeeCode || `EMP-${String(user.id).padStart(4,'0')}`);
+    infoRow(detY + 14, 'Department:',   user.department,    'Designation:',   user.role);
+    infoRow(detY + 28, 'Email:',        user.email,         'Phone:',         user.phone);
+    infoRow(detY + 42, 'Month:',        `${MONTHS[salary.month-1]} ${salary.year}`, 'CTC:', cur(salary.baseSalary));
 
-    // Divider
-    doc.moveTo(marginL, detY + 55).lineTo(pageW - 50, detY + 55).strokeColor('#eeeeee').stroke();
+    doc.moveTo(mL, detY + 60).lineTo(pageW - 50, detY + 60).strokeColor('#eeeeee').stroke();
 
-    // ─── Earnings & Deductions table ───
-    const tableY = detY + 70;
-    const halfW = contentW / 2 - 5;
+    // ── Attendance row ──────────────────────────────────────────────────
+    const attY = detY + 68;
+    const calDays = new Date(salary.year, salary.month, 0).getDate();
+    const workedDays = Math.max(0, calDays - (salary.leaveTaken || 0));
 
-    // Earnings header
-    doc.rect(col1, tableY, halfW, 22).fillColor('#f3f4f6').fill();
-    doc.fontSize(10).font('Helvetica-Bold').fillColor('#000000')
-      .text('Earnings', col1 + 10, tableY + 6);
-
-    // Deductions header
-    doc.rect(col1 + halfW + 10, tableY, halfW, 22).fillColor('#f3f4f6').fill();
-    doc.fontSize(10).font('Helvetica-Bold').fillColor('#000000')
-      .text('Deductions', col1 + halfW + 20, tableY + 6);
-
-    function earningRow(y, label, amount) {
-      doc.fontSize(9).font('Helvetica').fillColor(labelColor).text(label, col1 + 10, y);
-      doc.font('Helvetica-Bold').fillColor(valueColor).text(currency(amount), col1 + halfW - 80, y, { width: 70, align: 'right' });
+    function attBox(x, label, val) {
+      doc.rect(x, attY, 110, 32).fillColor(gray).fill();
+      doc.fontSize(7).font('Helvetica').fillColor(muted).text(label, x + 6, attY + 5);
+      doc.fontSize(12).font('Helvetica-Bold').fillColor(black).text(String(val), x + 6, attY + 16);
     }
 
-    function deductionRow(y, label, amount) {
-      doc.fontSize(9).font('Helvetica').fillColor(labelColor).text(label, col1 + halfW + 20, y);
-      doc.font('Helvetica-Bold').fillColor('#dc2626').text(currency(amount), col1 + contentW - 80, y, { width: 70, align: 'right' });
+    attBox(mL,         'Total Days',   calDays);
+    attBox(mL + 118,   'Leave Taken',  salary.leaveTaken || 0);
+    attBox(mL + 236,   'Worked Days',  workedDays);
+    attBox(mL + 354,   'Present Days', salary.presentDays || 0);
+
+    // ── Earnings & Deductions ───────────────────────────────────────────
+    const tableY = attY + 46;
+    const halfW  = (cW - 10) / 2;
+
+    // Headers
+    doc.rect(mL,              tableY, halfW, 20).fillColor('#111111').fill();
+    doc.rect(mL + halfW + 10, tableY, halfW, 20).fillColor('#111111').fill();
+    doc.fontSize(9).font('Helvetica-Bold').fillColor('#ffffff')
+       .text('EARNINGS',   mL + 10,              tableY + 5)
+       .text('DEDUCTIONS', mL + halfW + 20,      tableY + 5);
+
+    const earnings = [
+      ['Basic Salary',      salary.basicSalary      || 0],
+      ['Dearness Allow. (DA)', salary.da             || 0],
+      ['House Rent Allow. (HRA)', salary.hra          || 0],
+      ['Conveyance',        salary.conveyanceWorking || 0],
+      ['Medical Expenses',  salary.medicalWorking    || 0],
+      ['Special Allowance', salary.specialAllowance  || 0],
+      ['Bonus',             salary.bonus             || 0],
+      ['Travel Allow. (TA)',salary.ta                || 0],
+    ];
+
+    const deductions = [
+      ['PF Contribution',   salary.pfContribution || 0],
+      ['Profession Tax',    salary.professionTax  || 0],
+      ['TDS',               salary.tds            || 0],
+      ['Salary Advance',    salary.salaryAdvance  || 0],
+    ];
+
+    const maxRows = Math.max(earnings.length, deductions.length);
+    const rowH = 18;
+
+    for (let i = 0; i < maxRows; i++) {
+      const y = tableY + 20 + i * rowH;
+      const bg = i % 2 === 0 ? '#ffffff' : '#f9fafb';
+
+      doc.rect(mL,              y, halfW, rowH).fillColor(bg).fill();
+      doc.rect(mL + halfW + 10, y, halfW, rowH).fillColor(bg).fill();
+
+      if (earnings[i]) {
+        doc.fontSize(8).font('Helvetica').fillColor(muted).text(earnings[i][0], mL + 8, y + 5);
+        doc.font('Helvetica-Bold').fillColor(black).text(cur(earnings[i][1]), mL + halfW - 80, y + 5, { width: 72, align: 'right' });
+      }
+      if (deductions[i]) {
+        doc.fontSize(8).font('Helvetica').fillColor(muted).text(deductions[i][0], mL + halfW + 18, y + 5);
+        doc.font('Helvetica-Bold').fillColor(red).text(cur(deductions[i][1]), mL + cW - 80, y + 5, { width: 72, align: 'right' });
+      }
     }
 
-    const rY = tableY + 30;
-    earningRow(rY, 'Basic Salary', salary.baseSalary);
-    earningRow(rY + 18, 'Allowances', salary.allowances);
-    earningRow(rY + 36, 'Overtime Pay', salary.overtimePay);
+    // Totals row
+    const totY = tableY + 20 + maxRows * rowH;
+    doc.rect(mL,              totY, halfW, 22).fillColor('#e5e7eb').fill();
+    doc.rect(mL + halfW + 10, totY, halfW, 22).fillColor('#fde8e8').fill();
+    doc.fontSize(9).font('Helvetica-Bold').fillColor(black)
+       .text('Gross Salary', mL + 8, totY + 6)
+       .text(cur(salary.grossSalary), mL + halfW - 80, totY + 6, { width: 72, align: 'right' });
+    doc.fillColor(red)
+       .text('Total Deductions', mL + halfW + 18, totY + 6)
+       .text(cur(salary.deductions), mL + cW - 80, totY + 6, { width: 72, align: 'right' });
 
-    // Earnings total
-    doc.moveTo(col1, rY + 58).lineTo(col1 + halfW, rY + 58).strokeColor('#dddddd').stroke();
-    doc.fontSize(9).font('Helvetica-Bold').fillColor('#000000')
-      .text('Gross Earnings', col1 + 10, rY + 64)
-      .text(currency(salary.grossSalary), col1 + halfW - 80, rY + 64, { width: 70, align: 'right' });
+    // ── Net Pay ─────────────────────────────────────────────────────────
+    const netY = totY + 30;
+    doc.rect(mL, netY, cW, 38).fillColor('#111111').fill();
+    doc.fontSize(13).font('Helvetica-Bold').fillColor('#ffffff')
+       .text('NET PAY', mL + 16, netY + 11)
+       .text(cur(salary.netSalary), mL + cW - 170, netY + 11, { width: 154, align: 'right' });
 
-    deductionRow(rY, 'Other Deductions', salary.deductions);
-    deductionRow(rY + 18, 'Absent Deduction', salary.absentDeduction);
+    // ── Footer ─────────────────────────────────────────────────────────
+    const footY = netY + 60;
+    doc.moveTo(mL, footY).lineTo(pageW - 50, footY).strokeColor('#cccccc').stroke();
 
-    // Deductions total
-    doc.moveTo(col1 + halfW + 10, rY + 58).lineTo(col1 + contentW, rY + 58).strokeColor('#dddddd').stroke();
-    doc.fontSize(9).font('Helvetica-Bold').fillColor('#dc2626')
-      .text('Total Deductions', col1 + halfW + 20, rY + 64)
-      .text(currency(salary.deductions + salary.absentDeduction), col1 + contentW - 80, rY + 64, { width: 70, align: 'right' });
-
-    // ─── Net Pay Box ───
-    const netY = rY + 95;
-    doc.rect(col1, netY, contentW, 36).fillColor('#111111').fill();
-    doc.fontSize(12).font('Helvetica-Bold').fillColor('#ffffff')
-      .text('NET PAY', col1 + 20, netY + 10)
-      .text(currency(salary.netSalary), col1 + contentW - 170, netY + 10, { width: 150, align: 'right' });
-
-    // ─── Attendance Summary ───
-    const attY = netY + 55;
-    doc.fontSize(10).font('Helvetica-Bold').fillColor('#000000').text('Attendance Summary', col1, attY);
-    doc.moveTo(col1, attY + 15).lineTo(col1 + 200, attY + 15).strokeColor('#eeeeee').stroke();
-
-    const aY = attY + 22;
-    doc.fontSize(9).font('Helvetica').fillColor(labelColor);
-    doc.text('Working Days:', col1, aY); doc.font('Helvetica-Bold').fillColor(valueColor).text(String(salary.totalWorkDays), col1 + 100, aY);
-    doc.font('Helvetica').fillColor(labelColor).text('Present Days:', col1, aY + 16); doc.font('Helvetica-Bold').fillColor(valueColor).text(String(salary.presentDays), col1 + 100, aY + 16);
-    doc.font('Helvetica').fillColor(labelColor).text('Absent Days:', col1, aY + 32); doc.font('Helvetica-Bold').fillColor('#dc2626').text(String(salary.absentDays), col1 + 100, aY + 32);
-    doc.font('Helvetica').fillColor(labelColor).text('Expected Hours:', col3, aY); doc.font('Helvetica-Bold').fillColor(valueColor).text(String(salary.expectedHours) + 'h', col4, aY);
-    doc.font('Helvetica').fillColor(labelColor).text('Actual Hours:', col3, aY + 16); doc.font('Helvetica-Bold').fillColor(valueColor).text(String(salary.actualHours) + 'h', col4, aY + 16);
-    doc.font('Helvetica').fillColor(labelColor).text('Overtime Hours:', col3, aY + 32); doc.font('Helvetica-Bold').fillColor(valueColor).text(String(salary.overtime) + 'h', col4, aY + 32);
-
-    // ─── Footer ───
-    const footY = 680;
-    doc.moveTo(marginL, footY).lineTo(pageW - 50, footY).strokeColor('#cccccc').stroke();
-
-    // Authorized signatory
-    doc.fontSize(9).font('Helvetica').fillColor(labelColor)
-      .text('Authorized Signatory', pageW - 200, footY + 15, { width: 150, align: 'center' });
     if (company.authorizedSignatory) {
-      doc.font('Helvetica-Bold').fillColor(valueColor)
-        .text(company.authorizedSignatory, pageW - 200, footY + 30, { width: 150, align: 'center' });
+      doc.fontSize(8).font('Helvetica').fillColor(muted)
+         .text('Authorized by', pageW - 200, footY + 12, { width: 150, align: 'center' });
+      doc.fontSize(9).font('Helvetica-Bold').fillColor(black)
+         .text(company.authorizedSignatory, pageW - 200, footY + 24, { width: 150, align: 'center' });
     }
 
-    // Generated date
-    doc.fontSize(8).font('Helvetica').fillColor('#999999')
-      .text(`Generated on ${new Date().toLocaleDateString('en-US', { day: '2-digit', month: 'long', year: 'numeric' })}`, marginL, footY + 15);
-    doc.text('This is a computer-generated document.', marginL, footY + 28);
+    doc.fontSize(7).font('Helvetica').fillColor('#999999')
+       .text(`Generated on ${new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'long', year: 'numeric' })}`, mL, footY + 12)
+       .text('This is a computer-generated document.', mL, footY + 23);
 
     if (salary.notes) {
-      doc.fontSize(8).font('Helvetica').fillColor(labelColor)
-        .text(`Note: ${salary.notes}`, marginL, footY + 45, { width: contentW });
+      doc.fontSize(8).font('Helvetica').fillColor(muted)
+         .text(`Note: ${salary.notes}`, mL, footY + 38, { width: cW });
     }
 
     doc.end();
@@ -477,7 +569,6 @@ exports.generatePayslip = async (req, res) => {
   }
 };
 
-function currency(n) {
+function cur(n) {
   return 'Rs. ' + Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
-

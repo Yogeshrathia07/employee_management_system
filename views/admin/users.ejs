@@ -65,12 +65,47 @@
       </div>
       <div class="form-row">
         <div class="form-group"><label class="form-label">Phone</label><input type="text" id="u-phone" class="form-control" placeholder="+91 98765 43210"></div>
-        <div class="form-group"><label class="form-label">Base Salary (₹)</label><input type="number" id="u-salary" class="form-control" min="0"></div>
+        <div class="form-group">
+          <label class="form-label">CTC / Base Salary (₹/month)</label>
+          <input type="number" id="u-salary" class="form-control" readonly style="background:var(--bg-input);cursor:not-allowed;color:var(--text-muted);" placeholder="Auto from components" value="0">
+          <div style="font-size:11px;color:var(--text-muted);margin-top:3px;">Auto-calculated from salary components below</div>
+        </div>
       </div>
       <div class="form-row">
         <div class="form-group"><label class="form-label">Gender</label><select id="u-gender" class="form-control"><option value="unspecified">Select gender</option><option value="male">Male</option><option value="female">Female</option></select></div>
         <div class="form-group"></div>
       </div>
+
+      <!-- Salary Structure -->
+      <div style="margin:8px 0 12px;border:1px solid var(--border);border-radius:8px;overflow:hidden;">
+        <div style="padding:10px 14px;background:var(--bg-input);cursor:pointer;font-size:13px;font-weight:600;display:flex;justify-content:space-between;align-items:center;" onclick="toggleSalarySection()">
+          <span><i class="bx bx-money" style="margin-right:6px;"></i>Salary Structure Components</span>
+          <span id="sal-toggle-icon" style="font-size:11px;color:var(--text-muted);">▼ Expand</span>
+        </div>
+        <div id="sal-section" style="display:none;padding:14px;">
+          <div class="form-row" style="grid-template-columns:1fr 1fr 1fr">
+            <div class="form-group"><label class="form-label">Basic Salary</label><input type="number" id="u-basic" class="form-control" min="0" value="0" oninput="calcUserCTC()"></div>
+            <div class="form-group"><label class="form-label">HRA</label><input type="number" id="u-hra" class="form-control" min="0" value="0" oninput="calcUserCTC()"></div>
+            <div class="form-group"><label class="form-label">Conveyance</label><input type="number" id="u-conv" class="form-control" min="0" value="0" oninput="calcUserCTC()"></div>
+          </div>
+          <div class="form-row" style="grid-template-columns:1fr 1fr 1fr">
+            <div class="form-group"><label class="form-label">Medical Expenses</label><input type="number" id="u-med" class="form-control" min="0" value="0" oninput="calcUserCTC()"></div>
+            <div class="form-group"><label class="form-label">Special Allowance</label><input type="number" id="u-special" class="form-control" min="0" value="0" oninput="calcUserCTC()"></div>
+            <div class="form-group"><label class="form-label">Bonus</label><input type="number" id="u-bonus" class="form-control" min="0" value="0" oninput="calcUserCTC()"></div>
+          </div>
+          <div class="form-row">
+            <div class="form-group"><label class="form-label">Travel Allow. (TA)</label><input type="number" id="u-ta" class="form-control" min="0" value="0" oninput="calcUserCTC()"></div>
+            <div class="form-group"><label class="form-label">Allowed Leave/Month</label><input type="number" id="u-leave-pm" class="form-control" min="0" value="2"></div>
+          </div>
+          <div class="form-row">
+            <div class="form-group"><label class="form-label">PF Applicable</label>
+              <select id="u-pf" class="form-control"><option value="true">Yes</option><option value="false">No</option></select>
+            </div>
+            <div class="form-group"></div>
+          </div>
+        </div>
+      </div>
+
       <div class="form-group" id="manager-field">
         <label class="form-label">Assign Manager</label>
         <select id="u-manager" class="form-control"><option value="">— No Manager —</option></select>
@@ -104,6 +139,53 @@ var editId = null, managers = [], allUsers = [], roleFilter = 'all', searchQ = '
 
 function toggleManagerField() {
   document.getElementById('manager-field').style.display = document.getElementById('u-role').value === 'employee' ? '' : 'none';
+}
+
+function calcUserCTC() {
+  var total = ['u-basic','u-hra','u-conv','u-med','u-special','u-bonus','u-ta']
+    .reduce(function(sum, id){ return sum + (parseFloat(document.getElementById(id).value) || 0); }, 0);
+  document.getElementById('u-salary').value = total;
+}
+
+function toggleSalarySection() {
+  var sec  = document.getElementById('sal-section');
+  var icon = document.getElementById('sal-toggle-icon');
+  if (sec.style.display === 'none') {
+    sec.style.display = '';
+    icon.textContent  = '▲ Collapse';
+  } else {
+    sec.style.display = 'none';
+    icon.textContent  = '▼ Expand';
+  }
+}
+
+function resetSalaryFields() {
+  ['u-basic','u-hra','u-conv','u-med','u-special','u-bonus','u-ta'].forEach(function(id){
+    document.getElementById(id).value = 0;
+  });
+  document.getElementById('u-leave-pm').value = 2;
+  document.getElementById('u-pf').value = 'true';
+  document.getElementById('sal-section').style.display = 'none';
+  document.getElementById('sal-toggle-icon').textContent = '▼ Expand';
+}
+
+function fillSalaryFields(u) {
+  document.getElementById('u-basic').value   = u.basicSalary       || 0;
+  document.getElementById('u-hra').value     = u.hra                || 0;
+  document.getElementById('u-conv').value    = u.conveyance         || 0;
+  document.getElementById('u-med').value     = u.medicalExpenses    || 0;
+  document.getElementById('u-special').value = u.specialAllowance   || 0;
+  document.getElementById('u-bonus').value   = u.bonus              || 0;
+  document.getElementById('u-ta').value      = u.ta                 || 0;
+  document.getElementById('u-leave-pm').value = u.allowedLeavePerMonth || 2;
+  document.getElementById('u-pf').value      = u.pfApplicable === false ? 'false' : 'true';
+  calcUserCTC();
+  // Auto-expand if any value is set
+  var hasValues = [u.basicSalary,u.hra,u.conveyance,u.medicalExpenses,u.specialAllowance,u.bonus,u.ta].some(function(v){return v > 0;});
+  if (hasValues) {
+    document.getElementById('sal-section').style.display = '';
+    document.getElementById('sal-toggle-icon').textContent = '▲ Collapse';
+  }
 }
 
 function setRoleFilter(role, btn) {
@@ -185,6 +267,7 @@ function openCreateModal() {
   document.getElementById('u-salary').value = '';
   document.getElementById('u-status').value = 'active';
   document.getElementById('u-manager').value = '';
+  resetSalaryFields();
   toggleManagerField();
   openModal('user-modal');
 }
@@ -216,21 +299,32 @@ function editUser(id) {
   document.getElementById('u-status').value = u.status;
   document.getElementById('u-manager').value = u.manager?.id || '';
   document.getElementById('u-pass').value = '';
+  fillSalaryFields(u);
   toggleManagerField();
   openModal('user-modal');
 }
 
 async function saveUser() {
   var body = {
-    name: document.getElementById('u-name').value,
-    email: document.getElementById('u-email').value,
-    role: document.getElementById('u-role').value,
-    department: document.getElementById('u-dept').value,
-    phone: document.getElementById('u-phone').value,
-    gender: document.getElementById('u-gender').value,
-    baseSalary: parseFloat(document.getElementById('u-salary').value)||0,
-    status: document.getElementById('u-status').value,
-    managerId: document.getElementById('u-manager').value||null,
+    name:             document.getElementById('u-name').value,
+    email:            document.getElementById('u-email').value,
+    role:             document.getElementById('u-role').value,
+    department:       document.getElementById('u-dept').value,
+    phone:            document.getElementById('u-phone').value,
+    gender:           document.getElementById('u-gender').value,
+    baseSalary:       parseFloat(document.getElementById('u-salary').value)    || 0,
+    status:           document.getElementById('u-status').value,
+    managerId:        document.getElementById('u-manager').value               || null,
+    // Salary structure components
+    basicSalary:      parseFloat(document.getElementById('u-basic').value)     || 0,
+    hra:              parseFloat(document.getElementById('u-hra').value)       || 0,
+    conveyance:       parseFloat(document.getElementById('u-conv').value)      || 0,
+    medicalExpenses:  parseFloat(document.getElementById('u-med').value)       || 0,
+    specialAllowance: parseFloat(document.getElementById('u-special').value)   || 0,
+    bonus:            parseFloat(document.getElementById('u-bonus').value)     || 0,
+    ta:               parseFloat(document.getElementById('u-ta').value)        || 0,
+    pfApplicable:     document.getElementById('u-pf').value === 'true',
+    allowedLeavePerMonth: parseInt(document.getElementById('u-leave-pm').value) || 2,
   };
   var pass = document.getElementById('u-pass').value;
   if (pass) body.password = pass;
