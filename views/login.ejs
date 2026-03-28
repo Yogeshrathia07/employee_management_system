@@ -96,9 +96,7 @@ async function doLogin() {
       body: JSON.stringify({ email, password }),
     });
     setAuth(data.token, data.user);
-    const role = data.user.role;
-    const paths = { superadmin: '/superadmin/dashboard', admin: '/admin/dashboard', manager: '/manager/dashboard', employee: '/employee/dashboard' };
-    window.location.href = paths[role] || '/employee/dashboard';
+    window.location.href = getRoleHomePath(data.user);
   } catch (err) {
     errEl.textContent = err.message;
     errEl.style.display = '';
@@ -113,8 +111,7 @@ async function doLogin() {
   const user = getUser();
   const token = getToken();
   if (user && token) {
-    const paths = { superadmin: '/superadmin/dashboard', admin: '/admin/dashboard', manager: '/manager/dashboard', employee: '/employee/dashboard' };
-    window.location.href = paths[user.role] || '/employee/dashboard';
+    window.location.href = getRoleHomePath(user);
   }
 })();
 

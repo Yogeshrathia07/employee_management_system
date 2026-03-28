@@ -14,13 +14,6 @@ exports.login = async (req, res) => {
       await user.save();
     }
     if (user.status === 'inactive') return res.status(403).json({ message: 'Account is inactive. Contact your administrator.' });
-    // Block employees/managers who have not yet completed document verification
-    if (['employee', 'manager'].includes(user.role) && user.verificationStatus === 'pending_docs') {
-      return res.status(403).json({ message: 'Your account is pending document verification. Please upload your required documents and await admin approval.' });
-    }
-    if (['employee', 'manager'].includes(user.role) && user.verificationStatus === 'docs_submitted') {
-      return res.status(403).json({ message: 'Your documents are under review. You will be notified once your account is approved.' });
-    }
 
     const match = await user.comparePassword(password);
     if (!match) return res.status(401).json({ message: 'Invalid credentials' });

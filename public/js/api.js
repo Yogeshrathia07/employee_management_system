@@ -52,6 +52,26 @@ function updateCompanyBrand(user) {
   }
 }
 
+function needsDocumentVerificationLock(user) {
+  return !!(user && user.role === 'employee' && ['pending_docs', 'docs_submitted'].includes(user.verificationStatus));
+}
+
+function getDocumentLockPath(user) {
+  if (!needsDocumentVerificationLock(user)) return '';
+  return '/employee/documents';
+}
+
+function getRoleHomePath(user) {
+  if (!user) return '/login';
+  var paths = {
+    superadmin: '/superadmin/dashboard',
+    admin: '/admin/dashboard',
+    manager: '/manager/dashboard',
+    employee: '/employee/dashboard'
+  };
+  return getDocumentLockPath(user) || paths[user.role] || '/employee/dashboard';
+}
+
 async function refreshStoredUser() {
   var token = getToken();
   var storedUser = getUser();
@@ -60,17 +80,24 @@ async function refreshStoredUser() {
   try {
     var freshUser = await api('GET', '/users/me');
     if (!freshUser) return;
-    setAuth(token, {
+    var mergedUser = {
       ...storedUser,
       ...freshUser,
       company: freshUser.company || storedUser.company
-    });
-    updateCompanyBrand({
-      ...storedUser,
-      ...freshUser,
-      company: freshUser.company || storedUser.company
-    });
+    };
+    setAuth(token, mergedUser);
+    updateCompanyBrand(mergedUser);
+    enforceVerificationRedirect(mergedUser);
   } catch (e) {}
+}
+
+function enforceVerificationRedirect(user) {
+  var lockPath = getDocumentLockPath(user);
+  if (!lockPath) return;
+  var currentPath = window.location.pathname;
+  if (currentPath !== lockPath && currentPath !== '/login') {
+    window.location.replace(lockPath);
+  }
 }
 
 // ─── API Fetch Wrapper ───
@@ -240,6 +267,8 @@ async function apiFetch(url, opts = {}) {
     }
     return;
   }
+
+  enforceVerificationRedirect(user);
 
   // Set company name in sidebar
   var companyNameEl = document.getElementById('sidebar-company-name');

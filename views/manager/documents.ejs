@@ -1,18 +1,16 @@
-<%- include('../partials/head', {title: 'Documents - Admin'}) %>
+<%- include('../partials/head', {title: 'Team Documents'}) %>
 <div class="app-layout">
-  <%- include('../partials/sidebar-admin') %>
+  <%- include('../partials/sidebar-manager') %>
   <div class="main-content">
     <header class="page-header">
       <div class="flex items-center gap-3">
         <button class="mobile-menu-btn" onclick="openSidebar()"><i class="bx bx-menu"></i></button>
         <div>
-          <div class="page-title">Documents</div>
+          <div class="page-title">Team Documents</div>
           <div class="page-subtitle">Employee-wise document dashboard with filters and quick review</div>
         </div>
       </div>
-      <div class="header-actions">
-        <span id="company-filter-container" style="display:none;"></span>
-      </div>
+      <div class="header-actions"></div>
     </header>
     <div class="page-body admin-employees-page employee-shared-page">
       <div class="employee-directory-shell">
@@ -78,8 +76,6 @@
 </div>
 
 <script src="/js/api.js"></script>
-<script src="/js/sidebar-fix.js"></script>
-<script src="/js/admin-company-filter.js"></script>
 <script>
 let allDocs = [];
 let allUsers = [];
@@ -118,13 +114,7 @@ async function loadUsers() {
 
 async function loadDocs() {
   try {
-    var user = getUser();
-    var cid = getSelectedCompanyId ? getSelectedCompanyId() : null;
-    var params = [];
-    if (user && user.role === 'manager') params.push('scope=team');
-    if (cid) params.push('companyId=' + encodeURIComponent(cid));
-    var durl = '/documents' + (params.length ? '?' + params.join('&') : '');
-    allDocs = await api('GET', durl);
+    allDocs = await api('GET', '/documents?scope=team');
     renderDocs();
   } catch(e) { toast(e.message, 'error'); }
 }
@@ -204,7 +194,6 @@ function openEmployeeDocsModal(userId) {
         '<button class="btn btn-ghost btn-sm" onclick="viewDoc('+d.id+',\''+safeTitle+'\')" title="View"><i class="bx bx-show"></i></button>'+
         '<button class="btn btn-ghost btn-sm" onclick="openVerifyById('+d.id+')" title="Verify"><i class="bx bx-check-shield"></i></button>'+
         '<button class="btn btn-ghost btn-sm" onclick="downloadDoc('+d.id+')" title="Download"><i class="bx bx-download"></i></button>'+
-        '<button class="btn btn-danger btn-sm" onclick="deleteDoc('+d.id+')" title="Delete"><i class="bx bx-trash"></i></button>'+
       '</div>'+
     '</div>';
   }).join('') : '<div class="employee-doc-empty">No uploaded documents for this employee.</div>';
@@ -244,18 +233,7 @@ async function submitVerify(status) {
 
 function downloadDoc(id) { window.open('/api/documents/' + id + '/download?token=' + getToken(), '_blank'); }
 
-async function deleteDoc(id) {
-  if (!confirm('Delete this document?')) return;
-  try {
-    await api('DELETE', '/documents/' + id);
-    toast('Deleted', 'success');
-    loadDocs();
-  } catch(e) { toast(e.message, 'error'); }
-}
-
-function reloadPageData() { loadDocs(); }
 loadUsers();
-if (typeof initCompanyFilter !== 'undefined') initCompanyFilter();
 loadDocs();
 </script>
 </body></html>

@@ -51,7 +51,7 @@ app.get('/manager/timesheets',      (req, res) => res.render('manager/timesheets
 app.get('/manager/tasks',           (req, res) => res.render('manager/tasks',          { title: 'Assign Tasks' }));
 app.get('/manager/policies',             (req, res) => res.render('manager/policies',          { title: 'Company Policy' }));
 app.get('/manager/notifications-view',   (req, res) => res.render('employee/notifications',      { title: 'Notifications' }));
-app.get('/manager/documents',       (req, res) => res.render('admin/documents',        { title: 'Team Documents' }));
+app.get('/manager/documents',       (req, res) => res.render('manager/documents',      { title: 'Team Documents' }));
 
 // Admin pages
 app.get('/admin/dashboard',     (req, res) => res.render('admin/dashboard',     { title: 'Dashboard' }));

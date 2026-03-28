@@ -21,6 +21,8 @@
           <span id="mandatory-progress" class="badge badge-ghost document-library-progress">0/7 Mandatory Complete</span>
         </div>
 
+        <div id="doc-verification-notice" class="employee-doc-lock-banner" style="display:none;"></div>
+
         <div id="doc-slots" class="personal-doc-grid">
           <div style="grid-column:1/-1;display:flex;justify-content:center;padding:40px;"><span class="spinner"></span></div>
         </div>
@@ -146,6 +148,41 @@ var DOC_SLOTS = [
   { type:'medical_document', label:'Past Medical Documents', icon:'bxs-heart', color:'pink', max:1 }
 ];
 
+function renderVerificationNotice() {
+  var user = getUser();
+  var el = document.getElementById('doc-verification-notice');
+  if (!el || !user || user.role !== 'employee') return;
+
+  if (user.verificationStatus === 'pending_docs') {
+    el.style.display = '';
+    el.className = 'employee-doc-lock-banner pending';
+    el.innerHTML = '<i class="bx bx-file"></i><div><strong>Upload required documents to continue.</strong><span>You will be able to use the rest of the system only after all mandatory documents are uploaded and verified.</span></div>';
+    return;
+  }
+
+  if (user.verificationStatus === 'docs_submitted') {
+    el.style.display = '';
+    el.className = 'employee-doc-lock-banner review';
+    el.innerHTML = '<i class="bx bx-time-five"></i><div><strong>Your documents are under review.</strong><span>Please wait for admin verification. Access to the rest of the system will open automatically after approval.</span></div>';
+    return;
+  }
+
+  el.style.display = 'none';
+}
+
+async function syncVerificationNotice() {
+  try {
+    var freshUser = await api('GET', '/users/me');
+    var token = getToken();
+    var storedUser = getUser() || {};
+    var mergedUser = Object.assign({}, storedUser, freshUser, {
+      company: freshUser.company || storedUser.company
+    });
+    setAuth(token, mergedUser);
+    renderVerificationNotice();
+  } catch (e) {}
+}
+
 function toggleDegreeLabel() {
   document.getElementById('degree-label-grp').style.display = document.getElementById('doc-type').value === 'degree_certificate' ? '' : 'none';
 }
@@ -268,6 +305,7 @@ async function loadDocs() {
     allDocs = await api('GET', '/documents');
     renderMandatoryProgress();
     renderSlots();
+    syncVerificationNotice();
   } catch(e) { toast(e.message, 'error'); }
 }
 
@@ -331,5 +369,6 @@ async function deleteDoc(id) {
 }
 
 loadDocs();
+renderVerificationNotice();
 </script>
 </body></html>

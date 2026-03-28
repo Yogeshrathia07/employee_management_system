@@ -47,8 +47,8 @@ exports.createUser = async (req, res) => {
       phone: phone || '',
       position: position || '',
       gender: gender || 'unspecified',
-      // New employees start as pending_docs; they must upload mandatory docs before activation
-      verificationStatus: ['employee','manager'].includes(finalRole) ? 'pending_docs' : null,
+      // New employees must complete document upload and wait for verification before normal access.
+      verificationStatus: finalRole === 'employee' ? 'pending_docs' : null,
       // Keep status active so admin can still manage them; login check blocks on verificationStatus
       status: 'active',
     };
@@ -76,6 +76,7 @@ exports.updateUser = async (req, res) => {
     const { name, email, role, companyId, managerId, baseSalary, status, department, phone, password, position, gender } = req.body;
     const user = await User.findByPk(req.params.id);
     if (!user) return res.status(404).json({ message: 'User not found' });
+    const nextRole = role || user.role;
 
     if (user.role === 'superadmin' && status && status !== 'active') {
       return res.status(400).json({ message: 'Superadmin cannot be deactivated' });
@@ -102,6 +103,14 @@ exports.updateUser = async (req, res) => {
     if (req.user.role === 'admin') {
       if (role && ['employee', 'manager'].includes(role)) user.role = role;
       if (managerId !== undefined) user.managerId = managerId || null;
+    }
+
+    if (nextRole === 'employee' && !user.verificationStatus) {
+      user.verificationStatus = 'pending_docs';
+      user.status = 'active';
+    }
+    if (nextRole !== 'employee' && user.verificationStatus) {
+      user.verificationStatus = null;
     }
 
     await user.save();

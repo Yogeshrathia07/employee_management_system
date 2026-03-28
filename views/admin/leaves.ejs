@@ -70,29 +70,31 @@ function renderLeaves() {
   }
   grid.innerHTML = data.map(function(l){
     var tone = leaveColors[l.type] || leaveColors.other;
-    var ic = leaveIcons[l.type] || 'bxs-calendar';
     var typeLabel = leaveTypeLabels[l.type] || 'Other Leave';
     var isPending = l.status === 'pending';
     return '<div class="leave-review-card leave-tone-'+tone+'">'+
       '<div class="leave-review-top">'+
-        '<div class="leave-review-title-row">'+
-          '<div class="leave-review-icon"><i class="bx '+ic+'"></i></div>'+
-          '<div><div class="leave-review-title">'+typeLabel+'</div><div class="leave-review-days">'+l.days+' day'+(l.days!==1?'s':'')+'</div></div>'+
+        '<div class="leave-review-user-row leave-review-user-row-top">'+
+          userAvatar(l.user,36)+
+          '<div class="leave-review-user-copy">'+
+            '<div class="leave-review-user-name">'+(l.user ? l.user.name : '-')+'</div>'+
+            '<div class="leave-review-user-sub">'+(l.user ? (l.user.department || l.user.role || 'Employee') : 'Employee')+'</div>'+
+          '</div>'+
         '</div>'+
         '<span class="leave-status-pill status-'+l.status+'">'+l.status+'</span>'+
       '</div>'+
       '<div class="leave-review-body">'+
-        '<div class="leave-review-user-row">'+
-          userAvatar(l.user,28)+
-          '<span class="leave-review-user-name">'+(l.user ? l.user.name : '-')+'</span>'+
-          '<span style="margin-left:4px;">'+roleBadge(l.user ? l.user.role : 'employee')+'</span>'+
+        '<div class="leave-review-detail-row">'+
+          '<div class="leave-review-title">'+typeLabel+'</div>'+
+          '<div class="leave-review-days">'+l.days+' day'+(l.days!==1?'s':'')+'</div>'+
         '</div>'+
-        '<div class="leave-review-meta"><i class="bx bxs-calendar"></i>'+fmtDate(l.startDate)+' to '+fmtDate(l.endDate)+'</div>'+
+        '<div class="leave-review-meta">'+fmtDate(l.startDate)+' to '+fmtDate(l.endDate)+'</div>'+
+        '<div class="leave-review-role-pill">'+roleBadge(l.user ? l.user.role : 'employee')+'</div>'+
         (l.reason ? '<div class="leave-review-note">'+l.reason+'</div>' : '')+
         (l.approver ? '<div class="leave-review-by"><i class="bx bxs-user-check"></i> By '+l.approver.name+'</div>' : '')+
         '<div class="leave-review-actions">'+
-          '<button class="btn btn-ghost btn-sm" onclick="viewLeave('+l.id+')"><i class="bx bx-show"></i> View</button>'+
-          (isPending ? '<button class="btn btn-success btn-sm" onclick="act('+l.id+',\'approve\')"><i class="bx bx-check"></i> Approve</button><button class="btn btn-danger btn-sm" onclick="openReject('+l.id+')"><i class="bx bx-x"></i> Reject</button>' : '')+
+          '<button class="btn btn-ghost btn-sm" onclick="viewLeave('+l.id+')" title="View"><i class="bx bx-show"></i></button>'+
+          (isPending ? '<button class="btn btn-success btn-sm" onclick="act('+l.id+',\'approve\')" title="Approve"><i class="bx bx-check"></i></button><button class="btn btn-danger btn-sm" onclick="openReject('+l.id+')" title="Reject"><i class="bx bx-x"></i></button>' : '')+
         '</div>'+
       '</div>'+
     '</div>';
