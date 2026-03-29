@@ -66,6 +66,44 @@ async function getLeaveTaken(userId, month, year) {
   return total;
 }
 
+// ─── Helper: detailed leave breakdown for month ───────────────────────────────
+async function getLeaveBreakdown(userId, month, year) {
+  const monthStart = new Date(year, month - 1, 1);
+  const monthEnd   = new Date(year, month, 0, 23, 59, 59);
+
+  const leaves = await Leave.findAll({
+    where: {
+      userId,
+      status: 'approved',
+      startDate: { [Op.lte]: monthEnd },
+      endDate:   { [Op.gte]: monthStart },
+    },
+  });
+
+  const HOLIDAY_TYPES = ['holiday', 'festival', 'company_event'];
+  const breakdown = {};
+  let totalLeaveDays = 0;
+  let holidayDays = 0;
+
+  leaves.forEach(l => {
+    const start = new Date(Math.max(new Date(l.startDate), monthStart));
+    const end   = new Date(Math.min(new Date(l.endDate),   monthEnd));
+    const days  = Math.max(0, Math.round((end - start) / (1000 * 60 * 60 * 24)) + 1);
+    if (!days) return;
+
+    const type = l.type || 'other';
+    breakdown[type] = (breakdown[type] || 0) + days;
+
+    if (HOLIDAY_TYPES.includes(type)) {
+      holidayDays += days;
+    } else {
+      totalLeaveDays += days;
+    }
+  });
+
+  return { breakdown, totalLeaveDays, holidayDays };
+}
+
 // ─── GET /salary/preview — fetch defaults before generation ──────────────────
 exports.getSalaryPreview = async (req, res) => {
   try {
@@ -77,16 +115,28 @@ exports.getSalaryPreview = async (req, res) => {
     const user = await User.findByPk(userId);
     if (!user) return res.status(404).json({ message: 'Employee not found' });
 
-    const [{ totalHours, presentDays }, leaveTaken] = await Promise.all([
+    const [{ totalHours, presentDays }, leaveBreakdown] = await Promise.all([
       getActualHours(Number(userId), Number(month), Number(year)),
-      getLeaveTaken(Number(userId), Number(month), Number(year)),
+      getLeaveBreakdown(Number(userId), Number(month), Number(year)),
     ]);
 
+    const totalWorkDays = getWorkingDays(Number(month), Number(year));
+    const leaveTaken    = leaveBreakdown.totalLeaveDays;
+    const absentDays    = Math.max(0, totalWorkDays - presentDays - leaveTaken);
+    const expectedHours = totalWorkDays * 8;
+    const calDays       = new Date(Number(year), Number(month), 0).getDate();
+
     res.json({
-      // Attendance
+      // Attendance summary
       leaveTaken,
-      actualHours: totalHours,
+      actualHours:  totalHours,
       presentDays,
+      absentDays,
+      totalWorkDays,
+      expectedHours,
+      calDays,
+      holidayDays:  leaveBreakdown.holidayDays,
+      leaveBreakdown: leaveBreakdown.breakdown,
       // Salary structure from profile
       baseSalary:       user.baseSalary        || 0,
       basicSalary:      user.basicSalary       || 0,

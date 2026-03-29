@@ -47,9 +47,9 @@
 </div>
 
 <div class="modal-overlay" id="leave-modal">
-  <div class="modal">
-    <div class="modal-header"><span class="modal-title">Apply for Leave</span><button class="modal-close" onclick="closeModal('leave-modal')">x</button></div>
-    <div class="modal-body">
+  <div class="modal" style="max-width:520px;">
+    <div class="modal-header"><span class="modal-title">Apply for Leave</span><button class="modal-close" onclick="closeModal('leave-modal')">×</button></div>
+    <div class="modal-body" style="max-height:78vh;overflow-y:auto;">
       <div class="toggle-group">
         <button class="toggle-btn active" id="toggle-single" onclick="toggleMode('single')">Single Day</button>
         <button class="toggle-btn" id="toggle-range" onclick="toggleMode('range')">Date Range</button>
@@ -58,20 +58,27 @@
         <label class="form-label">Leave Type</label>
         <select id="leave-type" class="form-control"></select>
       </div>
+
+      <!-- Mini Calendar -->
+      <div id="mini-cal-wrap" style="margin-bottom:14px;">
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-muted);margin-bottom:8px;">Select Date</div>
+        <div id="mini-cal"></div>
+      </div>
+
       <div id="date-error" class="alert alert-danger" style="display:none;"></div>
       <div class="form-row">
         <div class="form-group mb-0">
           <label class="form-label">Start Date</label>
-          <input type="date" id="leave-start" class="form-control" onchange="validateDates()">
+          <input type="date" id="leave-start" class="form-control" onchange="onDateInputChange()">
         </div>
         <div class="form-group mb-0" id="end-date-group" style="display:none;">
           <label class="form-label">End Date</label>
-          <input type="date" id="leave-end" class="form-control" onchange="validateDates()">
+          <input type="date" id="leave-end" class="form-control" onchange="onDateInputChange()">
         </div>
       </div>
       <div class="form-group mt-3">
         <label class="form-label">Reason <span class="text-muted">(optional)</span></label>
-        <textarea id="leave-reason" class="form-control" rows="3" placeholder="Briefly describe the reason..."></textarea>
+        <textarea id="leave-reason" class="form-control" rows="2" placeholder="Briefly describe the reason..."></textarea>
       </div>
     </div>
     <div class="modal-footer">
@@ -81,16 +88,143 @@
   </div>
 </div>
 
+<style>
+.mini-cal-grid { display:grid; grid-template-columns:repeat(7,1fr); gap:3px; }
+.mini-cal-dow  { text-align:center; font-size:10px; font-weight:700; color:var(--text-muted); padding:3px 0; }
+.mini-cal-day  { text-align:center; font-size:12px; font-weight:500; padding:6px 2px; border-radius:6px; cursor:pointer; transition:background 0.15s, color 0.15s; color:var(--text-primary); }
+.mini-cal-day:hover:not(.past) { background:var(--accent-light); color:var(--accent); }
+.mini-cal-day.today { font-weight:800; color:var(--accent); }
+.mini-cal-day.past  { color:var(--text-muted); opacity:0.4; cursor:not-allowed; }
+.mini-cal-day.sel-start, .mini-cal-day.sel-end { background:var(--accent); color:#fff; font-weight:700; }
+.mini-cal-day.sel-range { background:var(--accent-light); color:var(--accent); }
+.mini-cal-week-label { grid-column:1/-1; font-size:10px; color:var(--text-muted); font-weight:600; padding:4px 2px 1px; margin-top:4px; border-top:1px solid var(--border); }
+</style>
+
 <script src="/js/api.js"></script>
 <script>
 let singleMode = true;
 let allLeaves = [];
 let currentFilter = 'all';
 let currentUserGender = 'unspecified';
+let calClickState = 0; // 0=fresh, 1=start picked (range mode)
 
-const todayISO = new Date().toISOString().split('T')[0];
-document.getElementById('leave-start').min = todayISO;
-document.getElementById('leave-end').min = todayISO;
+const todayISO = new Date().toISOString().slice(0, 10);
+
+// Min allowed = Monday of previous week
+(function() {
+  const now = new Date();
+  const dow = now.getDay();
+  const daysToThisMon = dow === 0 ? 6 : dow - 1;
+  const prevMon = new Date(now);
+  prevMon.setDate(now.getDate() - daysToThisMon - 7);
+  const minISO = prevMon.toISOString().slice(0, 10);
+  document.getElementById('leave-start').min = minISO;
+  document.getElementById('leave-end').min   = minISO;
+})();
+
+// ── Mini Calendar ──────────────────────────────────────────────────
+const MINI_CAL_MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+let miniCalYear  = new Date().getFullYear();
+let miniCalMonth = new Date().getMonth(); // 0-indexed
+
+function getMinAllowedDate() {
+  const now = new Date();
+  const dow = now.getDay();
+  const daysToThisMon = dow === 0 ? 6 : dow - 1;
+  const prevMon = new Date(now);
+  prevMon.setDate(now.getDate() - daysToThisMon - 7);
+  return prevMon.toISOString().slice(0, 10);
+}
+
+function miniCalNav(delta) {
+  miniCalMonth += delta;
+  if (miniCalMonth > 11) { miniCalMonth = 0;  miniCalYear++; }
+  if (miniCalMonth < 0)  { miniCalMonth = 11; miniCalYear--; }
+  buildMiniCal();
+}
+
+function buildMiniCal() {
+  const start  = document.getElementById('leave-start').value;
+  const end    = singleMode ? start : document.getElementById('leave-end').value;
+  const minDs  = getMinAllowedDate();
+  const DOW    = ['Mo','Tu','We','Th','Fr','Sa','Su'];
+
+  // First day of displayed month (Monday-based grid)
+  const firstDay = new Date(miniCalYear, miniCalMonth, 1);
+  const lastDay  = new Date(miniCalYear, miniCalMonth + 1, 0);
+  // Offset: Monday=0 ... Sunday=6
+  let startOffset = firstDay.getDay() - 1;
+  if (startOffset < 0) startOffset = 6;
+
+  let html = `
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+    <button type="button" onclick="miniCalNav(-1)" style="background:none;border:1px solid var(--border);border-radius:6px;padding:3px 8px;cursor:pointer;color:var(--text-primary);font-size:14px;">‹</button>
+    <span style="font-size:13px;font-weight:700;color:var(--text-primary);">${MINI_CAL_MONTHS[miniCalMonth]} ${miniCalYear}</span>
+    <button type="button" onclick="miniCalNav(1)"  style="background:none;border:1px solid var(--border);border-radius:6px;padding:3px 8px;cursor:pointer;color:var(--text-primary);font-size:14px;">›</button>
+  </div>
+  <div class="mini-cal-grid">`;
+
+  DOW.forEach(d => { html += `<div class="mini-cal-dow">${d}</div>`; });
+
+  // Leading empty cells
+  for (let i = 0; i < startOffset; i++) html += '<div></div>';
+
+  for (let d = 1; d <= lastDay.getDate(); d++) {
+    const ds = miniCalYear + '-' + String(miniCalMonth + 1).padStart(2,'0') + '-' + String(d).padStart(2,'0');
+    const isPast   = ds < minDs;
+    const isToday  = ds === todayISO;
+    const isStart  = ds === start;
+    const isEnd    = ds === end;
+    const isRange  = !singleMode && start && end && ds > start && ds < end;
+    let cls = 'mini-cal-day';
+    if (isPast)              cls += ' past';
+    if (isToday)             cls += ' today';
+    if (isStart)             cls += ' sel-start';
+    else if (isEnd)          cls += ' sel-end';
+    else if (isRange)        cls += ' sel-range';
+    html += `<div class="${cls}" onclick="minicalClick('${ds}')">${d}</div>`;
+  }
+
+  html += '</div>';
+  document.getElementById('mini-cal').innerHTML = html;
+}
+
+function minicalClick(ds) {
+  if (ds < getMinAllowedDate()) return;
+
+  if (singleMode) {
+    document.getElementById('leave-start').value = ds;
+    document.getElementById('leave-end').value   = ds;
+  } else {
+    const cur    = document.getElementById('leave-start').value;
+    const curEnd = document.getElementById('leave-end').value;
+    if (!cur || (cur && curEnd)) {
+      document.getElementById('leave-start').value = ds;
+      document.getElementById('leave-end').value   = '';
+    } else {
+      if (ds >= cur) {
+        document.getElementById('leave-end').value = ds;
+      } else {
+        document.getElementById('leave-start').value = ds;
+        document.getElementById('leave-end').value   = cur;
+      }
+    }
+  }
+  buildMiniCal();
+  validateDates();
+}
+
+function onDateInputChange() {
+  // Sync calendar view to the selected month
+  const val = document.getElementById('leave-start').value;
+  if (val) {
+    const [y, m] = val.split('-').map(Number);
+    miniCalYear  = y;
+    miniCalMonth = m - 1;
+  }
+  buildMiniCal();
+  validateDates();
+}
 
 const leaveConfig = {
   earned:   { tone:'indigo', icon:'bxs-calendar-check', label:'Earned Leave' },
@@ -121,27 +255,19 @@ function renderLeaveOptions() {
 }
 
 function validateDates() {
-  const start = document.getElementById('leave-start').value;
-  const end = document.getElementById('leave-end').value;
-  const startInput = document.getElementById('leave-start');
-  const endInput = document.getElementById('leave-end');
-  const errEl = document.getElementById('date-error');
+  const start    = document.getElementById('leave-start').value;
+  const end      = document.getElementById('leave-end').value;
+  const errEl    = document.getElementById('date-error');
   errEl.style.display = 'none';
+  document.getElementById('leave-start').style.borderColor = '';
+  document.getElementById('leave-end').style.borderColor   = '';
 
-  if (start && new Date(start) < new Date(todayISO)) {
-    startInput.style.borderColor = 'var(--danger)';
-    errEl.textContent = 'Start date cannot be in the past';
-    errEl.style.display = '';
-    return false;
-  } else { startInput.style.borderColor = ''; }
-
-  if (start) endInput.min = start;
   if (!singleMode && end && start && end < start) {
-    endInput.style.borderColor = 'var(--danger)';
-    errEl.textContent = 'End date must be after start date';
-    errEl.style.display = '';
+    document.getElementById('leave-end').style.borderColor = 'var(--danger)';
+    errEl.textContent    = 'End date must be on or after start date';
+    errEl.style.display  = '';
     return false;
-  } else { endInput.style.borderColor = ''; }
+  }
   return true;
 }
 
@@ -150,6 +276,8 @@ function toggleMode(mode) {
   document.getElementById('toggle-single').classList.toggle('active', singleMode);
   document.getElementById('toggle-range').classList.toggle('active', !singleMode);
   document.getElementById('end-date-group').style.display = singleMode ? 'none' : '';
+  if (singleMode) document.getElementById('leave-end').value = document.getElementById('leave-start').value;
+  buildMiniCal();
 }
 
 function filterLeaves(filter) {
@@ -235,5 +363,6 @@ async function deleteLeave(id) {
 }
 
 loadLeaves();
+buildMiniCal();
 </script>
 </body></html>

@@ -94,21 +94,60 @@
         <div class="form-group"><label class="form-label">Month</label><select id="g-month" class="form-control" onchange="onEmployeeOrPeriodChange()"></select></div>
         <div class="form-group"><label class="form-label">Year</label><input type="number" id="g-year" class="form-control" oninput="onEmployeeOrPeriodChange()"></div>
       </div>
-      <div class="form-row">
-        <div class="form-group">
-          <label class="form-label">CTC (Monthly, Rs.)</label>
-          <input type="number" id="g-ctc" class="form-control" readonly style="background:var(--bg-input);cursor:not-allowed;color:var(--text-muted);" value="0">
-          <div style="font-size:11px;color:var(--text-muted);margin-top:3px;">Auto from components</div>
+
+      <!-- Attendance Summary Panel -->
+      <div id="g-attendance-panel" style="display:none;margin:12px 0 4px;border:1px solid var(--border);border-radius:10px;overflow:hidden;">
+        <div style="background:var(--bg-input);padding:8px 14px;display:flex;align-items:center;justify-content:space-between;">
+          <span style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-muted);">Employee Attendance Summary</span>
+          <span id="g-att-period" style="font-size:11px;color:var(--text-muted);"></span>
         </div>
-        <div class="form-group">
-          <label class="form-label" style="display:flex;align-items:center;gap:6px;">
-            Leave Taken (days)
-            <span id="g-leave-loading" style="display:none;font-size:11px;color:var(--text-muted);">fetching…</span>
-          </label>
-          <input type="number" id="g-leave" class="form-control" min="0" value="0">
-          <div id="g-leave-hint" style="font-size:11px;color:var(--text-muted);margin-top:3px;display:none;"></div>
+        <div style="padding:12px 14px;">
+          <!-- Day stats row -->
+          <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:10px;">
+            <div style="background:var(--bg-input);border-radius:8px;padding:10px 8px;text-align:center;">
+              <div style="font-size:18px;font-weight:800;color:var(--text-primary);" id="g-att-caldays">—</div>
+              <div style="font-size:10px;color:var(--text-muted);margin-top:2px;">Cal. Days</div>
+            </div>
+            <div style="background:#dcfce7;border-radius:8px;padding:10px 8px;text-align:center;">
+              <div style="font-size:18px;font-weight:800;color:#16a34a;" id="g-att-present">—</div>
+              <div style="font-size:10px;color:#15803d;margin-top:2px;">Present</div>
+            </div>
+            <div style="background:#fee2e2;border-radius:8px;padding:10px 8px;text-align:center;">
+              <div style="font-size:18px;font-weight:800;color:#dc2626;" id="g-att-absent">—</div>
+              <div style="font-size:10px;color:#b91c1c;margin-top:2px;">Absent</div>
+            </div>
+            <div style="background:#fef3c7;border-radius:8px;padding:10px 8px;text-align:center;">
+              <div style="font-size:18px;font-weight:800;color:#d97706;" id="g-att-leaves">—</div>
+              <div style="font-size:10px;color:#b45309;margin-top:2px;">Leaves</div>
+            </div>
+            <div style="background:#ede9fe;border-radius:8px;padding:10px 8px;text-align:center;">
+              <div style="font-size:18px;font-weight:800;color:#7c3aed;" id="g-att-holidays">—</div>
+              <div style="font-size:10px;color:#6d28d9;margin-top:2px;">Holidays</div>
+            </div>
+          </div>
+          <!-- Hours + working days row -->
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:6px;">
+            <div style="background:var(--bg-input);border-radius:8px;padding:8px 10px;display:flex;flex-direction:column;gap:2px;">
+              <div style="font-size:10px;color:var(--text-muted);">Working Days</div>
+              <div style="font-size:14px;font-weight:700;color:var(--text-primary);" id="g-att-workdays">—</div>
+            </div>
+            <div style="background:var(--bg-input);border-radius:8px;padding:8px 10px;display:flex;flex-direction:column;gap:2px;">
+              <div style="font-size:10px;color:var(--text-muted);">Hours Worked</div>
+              <div style="font-size:14px;font-weight:700;color:var(--text-primary);" id="g-att-hours">—</div>
+            </div>
+          </div>
+          <div id="g-att-nodata" style="display:none;font-size:12px;color:var(--text-muted);text-align:center;padding:4px 0;">No approved timesheets or leaves found for this period.</div>
         </div>
       </div>
+
+      <div class="form-group">
+        <label class="form-label">CTC (Monthly, Rs.)</label>
+        <input type="number" id="g-ctc" class="form-control" readonly style="background:var(--bg-input);cursor:not-allowed;color:var(--text-muted);" value="0">
+        <div style="font-size:11px;color:var(--text-muted);margin-top:3px;">Auto from components</div>
+      </div>
+      <!-- hidden leave value still submitted -->
+      <input type="hidden" id="g-leave" value="0">
+      <span id="g-leave-loading" style="display:none;"></span>
 
       <div class="section-divider-label">Earnings Components</div>
       <div class="form-row" style="grid-template-columns:1fr 1fr 1fr">
@@ -149,14 +188,55 @@
   <div class="modal" style="max-width:580px">
     <div class="modal-header"><span class="modal-title" id="edit-title">Edit Salary</span><button class="modal-close" onclick="closeModal('edit-modal')">×</button></div>
     <div class="modal-body" style="max-height:72vh;overflow-y:auto;padding-right:4px;">
-      <div class="form-row">
-        <div class="form-group">
-          <label class="form-label">CTC (Monthly)</label>
-          <input type="number" id="e-ctc" class="form-control" readonly style="background:var(--bg-input);cursor:not-allowed;color:var(--text-muted);">
-          <div style="font-size:11px;color:var(--text-muted);margin-top:3px;">Auto from components</div>
+
+      <!-- Attendance Summary (read-only, from stored salary data) -->
+      <div id="e-attendance-panel" style="display:none;margin-bottom:14px;border:1px solid var(--border);border-radius:10px;overflow:hidden;">
+        <div style="background:var(--bg-input);padding:8px 14px;display:flex;align-items:center;justify-content:space-between;">
+          <span style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-muted);">Attendance Summary</span>
+          <span id="e-att-period" style="font-size:11px;color:var(--text-muted);"></span>
         </div>
-        <div class="form-group"><label class="form-label">Leave Taken (days)</label><input type="number" id="e-leave" class="form-control"></div>
+        <div style="padding:10px 14px;">
+          <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-bottom:8px;">
+            <div style="background:var(--bg-input);border-radius:8px;padding:8px 6px;text-align:center;">
+              <div style="font-size:16px;font-weight:800;color:var(--text-primary);" id="e-att-caldays">—</div>
+              <div style="font-size:10px;color:var(--text-muted);margin-top:1px;">Cal. Days</div>
+            </div>
+            <div style="background:#dcfce7;border-radius:8px;padding:8px 6px;text-align:center;">
+              <div style="font-size:16px;font-weight:800;color:#16a34a;" id="e-att-present">—</div>
+              <div style="font-size:10px;color:#15803d;margin-top:1px;">Present</div>
+            </div>
+            <div style="background:#fee2e2;border-radius:8px;padding:8px 6px;text-align:center;">
+              <div style="font-size:16px;font-weight:800;color:#dc2626;" id="e-att-absent">—</div>
+              <div style="font-size:10px;color:#b91c1c;margin-top:1px;">Absent</div>
+            </div>
+            <div style="background:#fef3c7;border-radius:8px;padding:8px 6px;text-align:center;">
+              <div style="font-size:16px;font-weight:800;color:#d97706;" id="e-att-leaves">—</div>
+              <div style="font-size:10px;color:#b45309;margin-top:1px;">Leaves</div>
+            </div>
+            <div style="background:var(--bg-input);border-radius:8px;padding:8px 6px;text-align:center;">
+              <div style="font-size:16px;font-weight:800;color:var(--text-primary);" id="e-att-hours">—</div>
+              <div style="font-size:10px;color:var(--text-muted);margin-top:1px;">Hrs Worked</div>
+            </div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
+            <div style="background:var(--bg-input);border-radius:8px;padding:7px 10px;">
+              <div style="font-size:10px;color:var(--text-muted);">Working Days</div>
+              <div style="font-size:13px;font-weight:700;" id="e-att-workdays">—</div>
+            </div>
+            <div style="background:var(--bg-input);border-radius:8px;padding:7px 10px;">
+              <div style="font-size:10px;color:var(--text-muted);">Employee</div>
+              <div style="font-size:13px;font-weight:700;" id="e-att-emp">—</div>
+            </div>
+          </div>
+        </div>
       </div>
+
+      <div class="form-group">
+        <label class="form-label">CTC (Monthly)</label>
+        <input type="number" id="e-ctc" class="form-control" readonly style="background:var(--bg-input);cursor:not-allowed;color:var(--text-muted);">
+        <div style="font-size:11px;color:var(--text-muted);margin-top:3px;">Auto from components</div>
+      </div>
+      <input type="hidden" id="e-leave" value="0">
 
       <div class="section-divider-label">Earnings Components</div>
       <div class="form-row" style="grid-template-columns:1fr 1fr 1fr">
@@ -310,25 +390,17 @@ function onEmployeeOrPeriodChange() {
   }
 
   // Fetch live leave taken + hours if all three are set
-  if (!uid || !month || !year) return;
+  if (!uid || !month || !year) {
+    document.getElementById('g-attendance-panel').style.display = 'none';
+    return;
+  }
   clearTimeout(_previewTimer);
   _previewTimer = setTimeout(async () => {
     const loading = document.getElementById('g-leave-loading');
-    const hint    = document.getElementById('g-leave-hint');
     loading.style.display = '';
-    hint.style.display    = 'none';
     try {
       const preview = await api('GET', `/salary/preview?userId=${uid}&month=${month}&year=${year}`);
       document.getElementById('g-leave').value = preview.leaveTaken || 0;
-      if (preview.leaveTaken > 0) {
-        hint.textContent    = `${preview.leaveTaken} approved leave day(s) found for this period`;
-        hint.style.display  = '';
-        hint.style.color    = '#f59e0b';
-      } else {
-        hint.textContent    = 'No approved leaves found for this period';
-        hint.style.display  = '';
-        hint.style.color    = 'var(--text-muted)';
-      }
       // Update salary structure with fresh server data
       document.getElementById('g-basic').value   = preview.basicSalary       || document.getElementById('g-basic').value;
       document.getElementById('g-hra').value     = preview.hra               || document.getElementById('g-hra').value;
@@ -338,10 +410,26 @@ function onEmployeeOrPeriodChange() {
       document.getElementById('g-bonus').value   = preview.bonus             || document.getElementById('g-bonus').value;
       document.getElementById('g-ta').value      = preview.ta                || document.getElementById('g-ta').value;
       calcGenCTC();
+
+      // ── Attendance Summary Panel ──────────────────────────────────────
+      const panel = document.getElementById('g-attendance-panel');
+      panel.style.display = '';
+      document.getElementById('g-att-period').textContent = MONTHS[Number(month) - 1] + ' ' + year;
+      document.getElementById('g-att-caldays').textContent  = preview.calDays       || '—';
+      document.getElementById('g-att-present').textContent  = preview.presentDays   ?? '—';
+      document.getElementById('g-att-absent').textContent   = preview.absentDays    ?? '—';
+      document.getElementById('g-att-leaves').textContent   = preview.leaveTaken    ?? '—';
+      document.getElementById('g-att-holidays').textContent = preview.holidayDays   ?? '—';
+      document.getElementById('g-att-workdays').textContent = (preview.totalWorkDays ?? '—') + ' days';
+      document.getElementById('g-att-hours').textContent    = (preview.actualHours   ?? '—') + ' hrs';
+
+      const noData = !preview.presentDays && !preview.leaveTaken && !preview.actualHours;
+      document.getElementById('g-att-nodata').style.display = noData ? '' : 'none';
     } catch(e) {
       hint.textContent   = 'Could not fetch leave data';
       hint.style.display = '';
       hint.style.color   = 'var(--danger)';
+      document.getElementById('g-attendance-panel').style.display = 'none';
     } finally {
       loading.style.display = 'none';
     }
@@ -406,7 +494,7 @@ async function loadSalaries() {
           </div>
           <div style="background:var(--bg-input);border-radius:8px;padding:10px;">
             <div style="font-size:10px;color:var(--text-muted);">Days</div>
-            <div style="font-size:13px;font-weight:700;">${worked}/${calDays}d</div>
+            <div style="font-size:13px;font-weight:700;">${worked}/${calDays}</div>
           </div>
         </div>
         <div style="display:flex;gap:6px;flex-wrap:wrap;">
@@ -489,6 +577,19 @@ function openEdit(id) {
   document.getElementById('e-advance').value = s.salaryAdvance || 0;
   document.getElementById('e-status').value  = s.status;
   document.getElementById('e-notes').value   = s.notes || '';
+
+  // Attendance summary panel
+  const calDays = new Date(s.year, s.month, 0).getDate();
+  document.getElementById('e-attendance-panel').style.display = '';
+  document.getElementById('e-att-period').textContent   = MONTHS[s.month-1] + ' ' + s.year;
+  document.getElementById('e-att-caldays').textContent  = calDays;
+  document.getElementById('e-att-present').textContent  = s.presentDays  ?? '—';
+  document.getElementById('e-att-absent').textContent   = s.absentDays   ?? '—';
+  document.getElementById('e-att-leaves').textContent   = s.leaveTaken   ?? '—';
+  document.getElementById('e-att-hours').textContent    = (s.actualHours  ?? '—') + (s.actualHours != null ? ' hrs' : '');
+  document.getElementById('e-att-workdays').textContent = (s.totalWorkDays ?? '—') + (s.totalWorkDays != null ? ' days' : '');
+  document.getElementById('e-att-emp').textContent      = s.user?.name || '—';
+
   openModal('edit-modal');
 }
 

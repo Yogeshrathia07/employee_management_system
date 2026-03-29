@@ -154,7 +154,7 @@ function roleBadge(role) {
 
 // Currency formatter — INR
 function fmtCurrency(n) {
-  return '₹' + Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+  return '<span style="font-weight:300;">₹</span>' + Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
 }
 
 // Profile photo helper — returns img tag or initials div

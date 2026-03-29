@@ -4,8 +4,8 @@ const sequelize = require('../config/database');
 const Leave = sequelize.define('Leave', {
   userId: { type: DataTypes.INTEGER, allowNull: false },
   type: { type: DataTypes.STRING(20), defaultValue: 'annual' },
-  startDate: { type: DataTypes.DATE, allowNull: false },
-  endDate: { type: DataTypes.DATE, allowNull: false },
+  startDate: { type: DataTypes.DATEONLY, allowNull: false },
+  endDate: { type: DataTypes.DATEONLY, allowNull: false },
   days: { type: DataTypes.INTEGER, allowNull: false },
   reason: { type: DataTypes.TEXT, defaultValue: '' },
   status: { type: DataTypes.STRING(20), defaultValue: 'pending' },

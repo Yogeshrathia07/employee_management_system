@@ -24,7 +24,7 @@
           <div style="display:flex;align-items:center;gap:6px;font-size:13px;"><span style="width:10px;height:10px;border-radius:50%;background:#8b5cf6;display:inline-block;"></span> Holiday</div>
         </div>
         <div style="display:flex;gap:8px;">
-          <a href="/admin/leaves" class="btn btn-ghost btn-sm"><i class="bx bx-list-ul"></i> List View</a>
+          <a href="/admin/leaves" class="btn btn-primary btn-sm"><i class="bx bx-list-ul"></i> Manage Leaves</a>
           <button class="btn btn-primary btn-sm" onclick="openAddLeaveModal(null)"><i class="bx bx-plus"></i> Add Holiday / Leave</button>
         </div>
       </div>
@@ -176,7 +176,8 @@ function localDateStr(date) {
     String(date.getDate()).padStart(2,'0');
 }
 function leaveIncludes(l, dateStr) {
-  return dateStr >= l.startDate.split('T')[0] && dateStr <= l.endDate.split('T')[0];
+  // Slice to YYYY-MM-DD regardless of whether value has time/timezone suffix
+  return dateStr >= l.startDate.slice(0, 10) && dateStr <= l.endDate.slice(0, 10);
 }
 function statusColor(s){ return s==='approved'?'#22c55e':s==='rejected'?'#ef4444':s==='holiday'?'#8b5cf6':'#f59e0b'; }
 function statusBg(s)   { return s==='approved'?'#dcfce7':s==='rejected'?'#fee2e2':s==='holiday'?'#ede9fe':'#fef3c7'; }
@@ -302,7 +303,8 @@ async function reloadCalendar() {
 }
 
 function injectDayBadges(info) {
-  const dateStr  = localDateStr(info.date);
+  // Use FullCalendar's dateStr directly (always YYYY-MM-DD, no timezone shift)
+  const dateStr  = info.dateStr || localDateStr(info.date);
   const day      = allLeaves.filter(l => leaveIncludes(l, dateStr));
   if (!day.length) return;
 
@@ -334,7 +336,8 @@ function initCalendar() {
     eventDisplay: 'none',
     dayCellDidMount: injectDayBadges,
     dateClick: function(info) {
-      // Click on empty cell space → add holiday for that date
+      // Ignore clicks that originated from a status pill or its wrapper
+      if (info.jsEvent.target.closest('.day-status-wrap, .day-status-pill')) return;
       openAddLeaveModal(info.dateStr);
     },
     height: 'auto',

@@ -1,7 +1,8 @@
 const { Op } = require('sequelize');
 const { Leave, User } = require('../models');
 
-const VALID_LEAVE_TYPES = ['earned', 'casual', 'sick', 'maternity', 'paternity', 'unpaid', 'other'];
+const VALID_LEAVE_TYPES = ['earned', 'casual', 'sick', 'maternity', 'paternity', 'unpaid', 'other', 'holiday', 'festival', 'company_event'];
+const COMPANY_LEAVE_TYPES = ['holiday', 'festival', 'company_event'];
 
 exports.getLeaves = async (req, res) => {
   try {
@@ -63,36 +64,44 @@ exports.createLeave = async (req, res) => {
       return res.status(400).json({ message: 'Reason is required for Other leave' });
     }
 
-    const start = new Date(startDate);
-    const end = new Date(endDate);
-    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+    const start = String(startDate || '').slice(0, 10);
+    const end   = String(endDate   || '').slice(0, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(start) || !/^\d{4}-\d{2}-\d{2}$/.test(end)) {
       return res.status(400).json({ message: 'Please select valid leave dates' });
     }
+    const isCompanyLeave = COMPANY_LEAVE_TYPES.includes(leaveType);
 
-    start.setHours(0, 0, 0, 0);
-    end.setHours(0, 0, 0, 0);
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    if (start < today) {
-      return res.status(400).json({ message: 'Start date cannot be in the past' });
+    if (!isCompanyLeave) {
+      // Allow from the Monday of the previous week
+      const now = new Date();
+      const dow = now.getDay(); // 0=Sun, 1=Mon ... 6=Sat
+      const daysToThisMon = dow === 0 ? 6 : dow - 1;
+      const prevWeekMon = new Date(now);
+      prevWeekMon.setDate(now.getDate() - daysToThisMon - 7);
+      const minAllowed = prevWeekMon.toISOString().slice(0, 10);
+      if (start < minAllowed) {
+        return res.status(400).json({ message: 'Leave cannot be applied more than one week in the past' });
+      }
     }
     if (end < start) {
       return res.status(400).json({ message: 'End date must be on or after start date' });
     }
 
-    const overlappingLeave = await Leave.findOne({
-      where: {
-        userId: req.user.id,
-        status: { [Op.in]: ['pending', 'approved'] },
-        startDate: { [Op.lte]: end },
-        endDate: { [Op.gte]: start },
-      },
-    });
-    if (overlappingLeave) {
-      return res.status(400).json({ message: 'You already have a leave request for one or more of those dates' });
+    if (!isCompanyLeave) {
+      const overlappingLeave = await Leave.findOne({
+        where: {
+          userId: req.user.id,
+          status: { [Op.in]: ['pending', 'approved'] },
+          startDate: { [Op.lte]: end },
+          endDate: { [Op.gte]: start },
+        },
+      });
+      if (overlappingLeave) {
+        return res.status(400).json({ message: 'You already have a leave request for one or more of those dates' });
+      }
     }
 
-    const days = Math.ceil((end - start) / (1000 * 60 * 60 * 24)) + 1;
+    const days = Math.round((new Date(end) - new Date(start)) / (1000 * 60 * 60 * 24)) + 1;
     if (days <= 0) {
       return res.status(400).json({ message: 'Leave duration must be at least 1 day' });
     }
@@ -120,8 +129,8 @@ exports.actionLeave = async (req, res) => {
     const actor = req.user;
     const submitter = leave.user;
 
-    // Nobody can approve their own leave
-    if (submitter.id === actor.id) {
+    // Nobody can approve their own leave (except company-wide holidays added by admin)
+    if (submitter.id === actor.id && !COMPANY_LEAVE_TYPES.includes(leave.type)) {
       return res.status(403).json({ message: 'Cannot approve your own leave' });
     }
 
