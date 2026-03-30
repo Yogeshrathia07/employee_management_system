@@ -19,6 +19,7 @@ const Company = sequelize.define('Company', {
   sealUrl: { type: DataTypes.STRING, defaultValue: '' },
   signatureUrl: { type: DataTypes.STRING, defaultValue: '' },
   authorizedSignatory: { type: DataTypes.STRING, defaultValue: '' },
+  currency: { type: DataTypes.STRING(10), defaultValue: 'INR' },
 }, { timestamps: true });
 
 module.exports = Company;

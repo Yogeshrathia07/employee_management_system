@@ -57,6 +57,8 @@ const Salary = sequelize.define('Salary', {
   finalizedBy: { type: DataTypes.INTEGER, allowNull: true },
   finalizedAt: { type: DataTypes.DATE, allowNull: true },
 
+  currency:       { type: DataTypes.STRING(10), defaultValue: 'INR' },
+
   // ── Bank snapshot ─────────────────────────────────────────────────
   empBankName:    { type: DataTypes.STRING, defaultValue: '' },
   empBankAccount: { type: DataTypes.STRING, defaultValue: '' },

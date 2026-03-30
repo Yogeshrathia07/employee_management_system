@@ -87,8 +87,7 @@
             <div class="employee-overview-head">
               <div class="employee-overview-icon purple"><i class="bx bxs-wallet"></i></div>
               <div>
-                <div class="employee-overview-label">Payroll This Month</div>
-                <div class="employee-overview-value" id="stat-salary">-</div>
+                <div class="employee-overview-label">Payroll</div>
               </div>
             </div>
             <div class="employee-overview-link">View Payroll</div>
@@ -155,7 +154,6 @@ async function loadDashboard() {
     document.getElementById('stat-leaves-approved').textContent = leavesApproved;
     document.getElementById('timesheet-total-count').textContent = timesheets.length;
     document.getElementById('documents-total-count').textContent = (docs || []).length;
-    document.getElementById('stat-salary').textContent = thisMo ? fmtCurrency(thisMo.netSalary) : '-';
   } catch(e) {
     toast(e.message, 'error');
   }

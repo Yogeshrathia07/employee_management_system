@@ -29,6 +29,7 @@ const User = sequelize.define('User', {
   gender:        { type: DataTypes.STRING(20), defaultValue: 'unspecified' },
   profilePhoto:  { type: DataTypes.STRING, defaultValue: '' },
   employeeCode:  { type: DataTypes.STRING, allowNull: true, unique: true }, // e.g. EMP-0001
+  currency:      { type: DataTypes.STRING(10), defaultValue: 'INR' },
 }, { timestamps: true });
 
 // Hash password before create

@@ -63,7 +63,11 @@
       </div>
       <div class="form-row">
         <div class="form-group"><label class="form-label">Status</label><select id="c-status" class="form-control"><option value="active">Active</option><option value="inactive">Inactive</option></select></div>
+        <div class="form-group"><label class="form-label">Currency</label><select id="c-currency" class="form-control"></select></div>
+      </div>
+      <div class="form-row">
         <div class="form-group"><label class="form-label">Authorized Signatory</label><input type="text" id="c-signatory" class="form-control"></div>
+        <div class="form-group"></div>
       </div>
     </div>
     <div class="modal-footer">
@@ -77,6 +81,17 @@
 <script>
 let editId = null, allCompanies = [];
 let currentLogoCompany = null;
+
+// Populate currency dropdown from CURRENCY_LIST defined in api.js
+(function() {
+  var sel = document.getElementById('c-currency');
+  CURRENCY_LIST.forEach(function(c) {
+    var opt = document.createElement('option');
+    opt.value = c.code;
+    opt.textContent = c.name;
+    sel.appendChild(opt);
+  });
+})();
 
 function esc(value) {
   return String(value == null ? '' : value)
@@ -180,6 +195,7 @@ function openCreate() {
   document.getElementById('co-modal-title').textContent = 'Add Company';
   ['c-name','c-email','c-phone','c-industry','c-address','c-signatory','c-pan','c-gst'].forEach(id => document.getElementById(id).value = '');
   document.getElementById('c-status').value = 'active';
+  document.getElementById('c-currency').value = 'INR';
   document.getElementById('c-logo').value = '';
   setCompanyLogoPreview({ name: 'Company' });
   openModal('co-modal');
@@ -199,6 +215,7 @@ async function editCompany(id) {
   document.getElementById('c-signatory').value = c.authorizedSignatory || '';
   document.getElementById('c-pan').value = c.panNo || '';
   document.getElementById('c-gst').value = c.gstNo || '';
+  document.getElementById('c-currency').value = c.currency || 'INR';
   document.getElementById('c-logo').value = '';
   setCompanyLogoPreview(c);
   openModal('co-modal');
@@ -214,7 +231,8 @@ async function saveCompany() {
     status: document.getElementById('c-status').value,
     panNo: document.getElementById('c-pan').value || '',
     gstNo: document.getElementById('c-gst').value || '',
-    authorizedSignatory: document.getElementById('c-signatory').value
+    authorizedSignatory: document.getElementById('c-signatory').value,
+    currency: document.getElementById('c-currency').value || 'INR',
   };
   if (!body.name || !body.email) return toast('Name and email required','error');
   try {

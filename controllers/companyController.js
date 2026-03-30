@@ -33,6 +33,21 @@ exports.createCompany = async (req, res) => {
   }
 };
 
+exports.updateOwnCompany = async (req, res) => {
+  try {
+    const { companyId } = req.user;
+    if (!companyId) return res.status(400).json({ message: 'No company associated' });
+    const company = await Company.findByPk(companyId);
+    if (!company) return res.status(404).json({ message: 'Company not found' });
+    const { currency } = req.body;
+    if (currency) company.currency = currency;
+    await company.save();
+    res.json(company);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
 exports.updateCompany = async (req, res) => {
   try {
     const company = await Company.findByPk(req.params.id);

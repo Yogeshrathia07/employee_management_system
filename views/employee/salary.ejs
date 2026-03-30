@@ -135,9 +135,9 @@ function showBreakdown(s) {
   document.getElementById('salary-hero').style.display  = '';
   document.getElementById('breakdown-grid').style.display = '';
 
-  document.getElementById('hero-net').textContent    = fmt(s.netSalary);
+  document.getElementById('hero-net').innerHTML = fmt(s.netSalary);
   document.getElementById('hero-month').textContent  = MONTHS[s.month-1] + ' ' + s.year;
-  document.getElementById('hero-ctc').textContent    = fmt(s.baseSalary);
+  document.getElementById('hero-ctc').innerHTML = fmt(s.baseSalary);
   document.getElementById('hero-days').textContent   = worked + '/' + calDays + 'd';
   document.getElementById('hero-status').textContent = s.status;
   document.getElementById('hero-dl-btns').style.display = (s.status==='paid'||s.status==='finalized') ? '' : 'none';
@@ -149,7 +149,7 @@ function showBreakdown(s) {
   document.getElementById('bd-present').textContent = s.presentDays || 0;
 
   // Earnings
-  document.getElementById('bd-basic').textContent   = fmt(s.basicSalary);
+  document.getElementById('bd-basic').innerHTML = fmt(s.basicSalary);
   document.getElementById('bd-da').textContent      = fmtPlus(s.da);
   document.getElementById('bd-hra').textContent     = fmtPlus(s.hra);
   document.getElementById('bd-conv').textContent    = fmtPlus(s.conveyanceWorking);
@@ -157,19 +157,19 @@ function showBreakdown(s) {
   document.getElementById('bd-special').textContent = fmtPlus(s.specialAllowance);
   document.getElementById('bd-bonus').textContent   = fmtPlus(s.bonus);
   document.getElementById('bd-ta').textContent      = fmtPlus(s.ta);
-  document.getElementById('bd-gross').textContent   = fmt(s.grossSalary);
+  document.getElementById('bd-gross').innerHTML = fmt(s.grossSalary);
 
   // Deductions
   document.getElementById('bd-pf').textContent      = fmtMinus(s.pfContribution);
   document.getElementById('bd-ptax').textContent    = fmtMinus(s.professionTax);
   document.getElementById('bd-tds').textContent     = fmtMinus(s.tds);
   document.getElementById('bd-advance').textContent = fmtMinus(s.salaryAdvance);
-  document.getElementById('bd-total-ded').textContent = '-' + fmt(s.deductions);
+  document.getElementById('bd-total-ded').innerHTML = '-' + fmt(s.deductions);
 
   // Summary
-  document.getElementById('bd-net').textContent    = fmt(s.netSalary);
+  document.getElementById('bd-net').innerHTML = fmt(s.netSalary);
   document.getElementById('bd-period').textContent = MONTHS[s.month-1] + ' ' + s.year;
-  document.getElementById('bd-ctc').textContent    = fmt(s.baseSalary);
+  document.getElementById('bd-ctc').innerHTML = fmt(s.baseSalary);
 }
 
 async function loadSalary() {

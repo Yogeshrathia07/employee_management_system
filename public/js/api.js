@@ -152,10 +152,68 @@ function roleBadge(role) {
   return `<span class="badge badge-${role}">${role}</span>`;
 }
 
-// Currency formatter — INR
+// Currency formatter — reads company currency from stored user, defaults to INR
 function fmtCurrency(n) {
-  return '<span style="font-weight:300;">₹</span>' + Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+  var user = getUser();
+  var code = (user && user.company && user.company.currency) || 'INR';
+  var num  = Number(n || 0);
+  try {
+    var parts = new Intl.NumberFormat(undefined, {
+      style: 'currency', currency: code,
+      minimumFractionDigits: 0, maximumFractionDigits: 0
+    }).formatToParts(num);
+    var html = '';
+    parts.forEach(function(p) {
+      if (p.type === 'currency') html += '<span style="font-weight:300;">' + p.value + '</span>';
+      else html += p.value;
+    });
+    return html;
+  } catch(e) {
+    return '<span style="font-weight:300;">₹</span>' + num.toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+  }
 }
+
+// List of supported currencies for dropdowns
+var CURRENCY_LIST = [
+  { code:'INR', name:'Indian Rupee (₹)' },
+  { code:'USD', name:'US Dollar ($)' },
+  { code:'EUR', name:'Euro (€)' },
+  { code:'GBP', name:'British Pound (£)' },
+  { code:'AED', name:'UAE Dirham (د.إ)' },
+  { code:'SAR', name:'Saudi Riyal (﷼)' },
+  { code:'AUD', name:'Australian Dollar (A$)' },
+  { code:'CAD', name:'Canadian Dollar (C$)' },
+  { code:'SGD', name:'Singapore Dollar (S$)' },
+  { code:'MYR', name:'Malaysian Ringgit (RM)' },
+  { code:'JPY', name:'Japanese Yen (¥)' },
+  { code:'CNY', name:'Chinese Yuan (¥)' },
+  { code:'KRW', name:'South Korean Won (₩)' },
+  { code:'THB', name:'Thai Baht (฿)' },
+  { code:'IDR', name:'Indonesian Rupiah (Rp)' },
+  { code:'PHP', name:'Philippine Peso (₱)' },
+  { code:'PKR', name:'Pakistani Rupee (₨)' },
+  { code:'BDT', name:'Bangladeshi Taka (৳)' },
+  { code:'NPR', name:'Nepalese Rupee (रू)' },
+  { code:'LKR', name:'Sri Lankan Rupee (රු)' },
+  { code:'CHF', name:'Swiss Franc (Fr)' },
+  { code:'ZAR', name:'South African Rand (R)' },
+  { code:'BRL', name:'Brazilian Real (R$)' },
+  { code:'MXN', name:'Mexican Peso ($)' },
+  { code:'NGN', name:'Nigerian Naira (₦)' },
+  { code:'GHS', name:'Ghanaian Cedi (₵)' },
+  { code:'KES', name:'Kenyan Shilling (KSh)' },
+  { code:'QAR', name:'Qatari Riyal (﷼)' },
+  { code:'KWD', name:'Kuwaiti Dinar (KD)' },
+  { code:'BHD', name:'Bahraini Dinar (BD)' },
+  { code:'OMR', name:'Omani Rial (ر.ع.)' },
+  { code:'TRY', name:'Turkish Lira (₺)' },
+  { code:'RUB', name:'Russian Ruble (₽)' },
+  { code:'SEK', name:'Swedish Krona (kr)' },
+  { code:'NOK', name:'Norwegian Krone (kr)' },
+  { code:'DKK', name:'Danish Krone (kr)' },
+  { code:'NZD', name:'New Zealand Dollar (NZ$)' },
+  { code:'HKD', name:'Hong Kong Dollar (HK$)' },
+];
 
 // Profile photo helper — returns img tag or initials div
 function userAvatar(user, size) {

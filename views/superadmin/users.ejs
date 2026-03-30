@@ -61,7 +61,11 @@
       </div>
       <div class="form-row">
         <div class="form-group"><label class="form-label">Status</label><select id="u-status" class="form-control"><option value="active">Active</option><option value="inactive">Inactive</option></select></div>
-        <div class="form-group"><label class="form-label">Password <span style="color:var(--text-muted)">(default: Admin@123)</span></label><input type="password" id="u-pass" class="form-control" placeholder="Leave blank for default"></div>
+        <div class="form-group"><label class="form-label">Password <span style="color:var(--text-muted)">(default: Employee@123)</span></label><input type="password" id="u-pass" class="form-control" placeholder="Leave blank for default"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Confirm Password</label><input type="password" id="u-pass-confirm" class="form-control" placeholder="Re-enter password"></div>
+        <div class="form-group"></div>
       </div>
     </div>
     <div class="modal-footer">
@@ -160,7 +164,7 @@ function renderUsers() {
 function openCreate() {
   editId = null;
   document.getElementById('u-modal-title').textContent = 'Add User';
-  ['u-name','u-email','u-pass','u-dept','u-phone'].forEach(id => document.getElementById(id).value = '');
+  ['u-name','u-email','u-pass','u-pass-confirm','u-dept','u-phone'].forEach(id => document.getElementById(id).value = '');
   document.getElementById('u-gender').value = 'unspecified';
   document.getElementById('u-role').value = 'employee';
   document.getElementById('u-company').value = '';
@@ -184,6 +188,7 @@ function editUser(id) {
   document.getElementById('u-status').value = u.role === 'superadmin' ? 'active' : u.status;
   document.getElementById('u-status').disabled = u.role === 'superadmin';
   document.getElementById('u-pass').value = '';
+  document.getElementById('u-pass-confirm').value = '';
   openModal('user-modal');
 }
 
@@ -200,7 +205,13 @@ async function saveUser() {
     status: currentUser && currentUser.role === 'superadmin' ? 'active' : document.getElementById('u-status').value
   };
   var pass = document.getElementById('u-pass').value;
-  if (pass) body.password = pass;
+  var passConfirm = document.getElementById('u-pass-confirm').value;
+  if (pass) {
+    var strongPwd = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&#^()_\-+=])[A-Za-z\d@$!%*?&#^()_\-+=]{8,}$/.test(pass);
+    if (!strongPwd) return toast('Password must be at least 8 characters with uppercase, lowercase, number and special character', 'error');
+    if (pass !== passConfirm) return toast('Passwords do not match', 'error');
+    body.password = pass;
+  }
   if (!body.name || !body.email) return toast('Name and email are required', 'error');
   try {
     if (editId) await api('PUT', '/users/' + editId, body);

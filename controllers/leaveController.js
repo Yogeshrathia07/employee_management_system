@@ -9,17 +9,19 @@ exports.getLeaves = async (req, res) => {
     const { role, id, companyId } = req.user;
     let where = {};
 
+    const companyHolidayClause = { type: { [Op.in]: COMPANY_LEAVE_TYPES }, companyId };
+
     if (role === 'employee') {
-      where.userId = id;
+      where[Op.or] = [{ userId: id }, companyHolidayClause];
     } else if (role === 'manager') {
       if (req.query.scope === 'own') {
-        where.userId = id;
+        where[Op.or] = [{ userId: id }, companyHolidayClause];
       } else if (req.query.scope === 'team') {
         const teamMembers = await User.findAll({ where: { managerId: id }, attributes: ['id'] });
-        where.userId = { [Op.in]: teamMembers.map(m => m.id) };
+        where[Op.or] = [{ userId: { [Op.in]: teamMembers.map(m => m.id) } }, companyHolidayClause];
       } else {
         const teamMembers = await User.findAll({ where: { managerId: id }, attributes: ['id'] });
-        where.userId = { [Op.in]: [...teamMembers.map(m => m.id), id] };
+        where[Op.or] = [{ userId: { [Op.in]: [...teamMembers.map(m => m.id), id] } }, companyHolidayClause];
       }
     } else if (role === 'admin') {
       const companyUsers = await User.findAll({ where: { companyId }, attributes: ['id'] });

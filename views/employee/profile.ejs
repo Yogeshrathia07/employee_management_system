@@ -211,7 +211,7 @@
     <div class="modal-header"><span class="modal-title">Change Password</span><button class="modal-close" onclick="closeModal('pwd-modal')">×</button></div>
     <div class="modal-body">
       <div class="form-group"><label class="form-label">Current Password</label><input type="password" id="pwd-current" class="form-control"></div>
-      <div class="form-group"><label class="form-label">New Password</label><input type="password" id="pwd-new" class="form-control" placeholder="Min 6 characters"></div>
+      <div class="form-group"><label class="form-label">New Password</label><input type="password" id="pwd-new" class="form-control" placeholder="Min 8 chars, upper, lower, number, special"></div>
       <div class="form-group"><label class="form-label">Confirm New Password</label><input type="password" id="pwd-confirm" class="form-control"></div>
     </div>
     <div class="modal-footer">
@@ -434,7 +434,7 @@ async function changePassword() {
   var np  = document.getElementById('pwd-new').value;
   var cf  = document.getElementById('pwd-confirm').value;
   if (!cur || !np) return toast('All fields required', 'error');
-  if (np.length < 6) return toast('Min 6 characters', 'error');
+  if (!/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&#^()_\-+=])[A-Za-z\d@$!%*?&#^()_\-+=]{8,}$/.test(np)) return toast('Password must be at least 8 characters with uppercase, lowercase, number and special character', 'error');
   if (np !== cf) return toast('Passwords do not match', 'error');
   try {
     await api('POST', '/users/change-password', { currentPassword: cur, newPassword: np });
@@ -486,20 +486,20 @@ function showBreakdown(s) {
   document.getElementById('salary-hero').style.display    = '';
   document.getElementById('breakdown-grid').style.display = '';
 
-  document.getElementById('hero-net').textContent    = fmt(s.netSalary);
+  document.getElementById('hero-net').innerHTML = fmt(s.netSalary);
   document.getElementById('hero-month').textContent  = MONTHS[s.month-1] + ' ' + s.year;
   document.getElementById('hero-days').textContent   = (s.presentDays||0) + '/' + (s.totalWorkDays||0);
   document.getElementById('hero-hrs').textContent    = (s.actualHours||0) + 'h';
   document.getElementById('hero-status').textContent = s.status;
   document.getElementById('hero-dl-btns').style.display = (s.status==='paid' || s.status==='finalized') ? '' : 'none';
 
-  document.getElementById('bd-base').textContent      = fmt(s.baseSalary);
-  document.getElementById('bd-allow').textContent     = '+' + fmt(s.allowances);
-  document.getElementById('bd-otpay').textContent     = '+' + fmt(s.overtimePay);
-  document.getElementById('bd-gross').textContent     = fmt(s.grossSalary);
-  document.getElementById('bd-ded').textContent       = '-' + fmt(s.deductions);
-  document.getElementById('bd-absent').textContent    = '-' + fmt(s.absentDeduction);
-  document.getElementById('bd-total-ded').textContent = '-' + fmt(s.deductions + (s.absentDeduction||0));
+  document.getElementById('bd-base').innerHTML = fmt(s.baseSalary);
+  document.getElementById('bd-allow').innerHTML     = '+' + fmt(s.allowances);
+  document.getElementById('bd-otpay').innerHTML     = '+' + fmt(s.overtimePay);
+  document.getElementById('bd-gross').innerHTML     = fmt(s.grossSalary);
+  document.getElementById('bd-ded').innerHTML       = '-' + fmt(s.deductions);
+  document.getElementById('bd-absent').innerHTML    = '-' + fmt(s.absentDeduction);
+  document.getElementById('bd-total-ded').innerHTML = '-' + fmt(s.deductions + (s.absentDeduction||0));
   document.getElementById('bd-workdays').textContent  = s.totalWorkDays || 0;
   document.getElementById('bd-present').textContent   = s.presentDays || 0;
   document.getElementById('bd-absentd').textContent   = s.absentDays || 0;
@@ -507,7 +507,7 @@ function showBreakdown(s) {
   document.getElementById('bd-rate').textContent      = rate + '%';
   document.getElementById('bd-bar').style.width       = rate + '%';
   document.getElementById('bd-bar').className = 'progress-bar-fill' + (rate >= 90 ? ' green' : rate >= 70 ? '' : ' red');
-  document.getElementById('bd-net').textContent       = fmt(s.netSalary);
+  document.getElementById('bd-net').innerHTML = fmt(s.netSalary);
   document.getElementById('bd-period').textContent    = MONTHS[s.month-1] + ' ' + s.year;
   document.getElementById('bd-hourly').textContent    = '₹' + hourly + '/hr';
 }

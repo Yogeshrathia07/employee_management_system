@@ -134,6 +134,7 @@ const companyCtrl = require('../controllers/companyController');
 router.get('/companies/stats',           auth, requireRole('superadmin'), companyCtrl.getCompanyStats);
 router.get('/companies',                 auth, requireRole('superadmin', 'admin'), companyCtrl.getCompanies);
 router.post('/companies',                auth, requireRole('superadmin'), companyCtrl.createCompany);
+router.put('/companies/own',             auth, requireRole('admin'), companyCtrl.updateOwnCompany);
 router.put('/companies/:id',             auth, requireRole('superadmin'), companyCtrl.updateCompany);
 router.post('/companies/:id/logo',       auth, requireRole('superadmin'), photoUpload.single('logo'), companyCtrl.uploadLogo);
 router.get('/companies/:id/logo',        companyCtrl.getLogo);

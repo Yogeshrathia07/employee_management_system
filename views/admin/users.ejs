@@ -43,6 +43,27 @@
   </div>
 </div>
 
+<!-- Currency Setting Modal -->
+<div class="modal-overlay" id="currency-modal">
+  <div class="modal" style="max-width:400px;">
+    <div class="modal-header">
+      <span class="modal-title"><i class="bx bx-dollar-circle" style="color:var(--accent);margin-right:6px;"></i> Company Currency</span>
+      <button class="modal-close" onclick="closeModal('currency-modal')">×</button>
+    </div>
+    <div class="modal-body">
+      <p style="font-size:13px;color:var(--text-muted);margin-bottom:16px;">Select the currency used for salary and payroll across your company.</p>
+      <div class="form-group">
+        <label class="form-label">Currency</label>
+        <select id="company-currency-select" class="form-control"></select>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('currency-modal')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveCurrency()"><i class="bx bx-save"></i> Save</button>
+    </div>
+  </div>
+</div>
+
 <!-- Add/Edit User Modal -->
 <div class="modal-overlay" id="user-modal">
   <div class="modal">
@@ -54,8 +75,8 @@
         <div id="edit-user-label" style="font-size:12px;color:var(--text-muted);"></div>
       </div>
       <div class="form-row">
-        <div class="form-group"><label class="form-label">Full Name</label><input type="text" id="u-name" class="form-control" placeholder="John Doe"></div>
-        <div class="form-group"><label class="form-label">Email</label><input type="email" id="u-email" class="form-control" placeholder="john@company.com"></div>
+        <div class="form-group"><label class="form-label">Full Name</label><input type="text" id="u-name" class="form-control" placeholder="Enter employee name"></div>
+        <div class="form-group"><label class="form-label">Email</label><input type="email" id="u-email" class="form-control" placeholder="name@company.com"></div>
       </div>
       <div class="form-row">
         <div class="form-group"><label class="form-label">Role</label>
@@ -64,7 +85,7 @@
         <div class="form-group"><label class="form-label">Department</label><input type="text" id="u-dept" class="form-control" placeholder="Engineering"></div>
       </div>
       <div class="form-row">
-        <div class="form-group"><label class="form-label">Phone</label><input type="text" id="u-phone" class="form-control" placeholder="+91 98765 43210"></div>
+        <div class="form-group"><label class="form-label">Phone</label><input type="text" id="u-phone" class="form-control" placeholder="Phone number"></div>
         <div class="form-group">
           <label class="form-label">CTC / Base Salary (₹/month)</label>
           <input type="number" id="u-salary" class="form-control" readonly style="background:var(--bg-input);cursor:not-allowed;color:var(--text-muted);" placeholder="Auto from components" value="0">
@@ -95,13 +116,15 @@
           </div>
           <div class="form-row">
             <div class="form-group"><label class="form-label">Travel Allow. (TA)</label><input type="number" id="u-ta" class="form-control" min="0" value="0" oninput="calcUserCTC()"></div>
-            <div class="form-group"><label class="form-label">Allowed Leave/Month</label><input type="number" id="u-leave-pm" class="form-control" min="0" value="2"></div>
+            <div class="form-group"></div>
           </div>
           <div class="form-row">
             <div class="form-group"><label class="form-label">PF Applicable</label>
               <select id="u-pf" class="form-control"><option value="true">Yes</option><option value="false">No</option></select>
             </div>
-            <div class="form-group"></div>
+            <div class="form-group"><label class="form-label">Salary Currency</label>
+              <select id="u-currency" class="form-control"></select>
+            </div>
           </div>
         </div>
       </div>
@@ -111,10 +134,14 @@
         <select id="u-manager" class="form-control"><option value="">— No Manager —</option></select>
       </div>
       <div class="form-row">
-        <div class="form-group"><label class="form-label">Password <span class="text-muted">(default: Admin@123)</span></label><input type="password" id="u-pass" class="form-control" placeholder="Leave blank for default"></div>
+        <div class="form-group"><label class="form-label">Password <span class="text-muted">(default: Employee@123)</span></label><input type="password" id="u-pass" class="form-control" placeholder="Leave blank for default"></div>
+        <div class="form-group"><label class="form-label">Confirm Password</label><input type="password" id="u-pass-confirm" class="form-control" placeholder="Re-enter password"></div>
+      </div>
+      <div class="form-row">
         <div class="form-group"><label class="form-label">Status</label>
           <select id="u-status" class="form-control"><option value="active">Active</option><option value="inactive">Inactive</option></select>
         </div>
+        <div class="form-group"></div>
       </div>
     </div>
     <div class="modal-footer">
@@ -163,7 +190,6 @@ function resetSalaryFields() {
   ['u-basic','u-hra','u-conv','u-med','u-special','u-bonus','u-ta'].forEach(function(id){
     document.getElementById(id).value = 0;
   });
-  document.getElementById('u-leave-pm').value = 2;
   document.getElementById('u-pf').value = 'true';
   document.getElementById('sal-section').style.display = 'none';
   document.getElementById('sal-toggle-icon').textContent = '▼ Expand';
@@ -177,8 +203,8 @@ function fillSalaryFields(u) {
   document.getElementById('u-special').value = u.specialAllowance   || 0;
   document.getElementById('u-bonus').value   = u.bonus              || 0;
   document.getElementById('u-ta').value      = u.ta                 || 0;
-  document.getElementById('u-leave-pm').value = u.allowedLeavePerMonth || 2;
   document.getElementById('u-pf').value      = u.pfApplicable === false ? 'false' : 'true';
+  document.getElementById('u-currency').value = u.currency || (function(){ var usr=getUser(); return (usr&&usr.company&&usr.company.currency)||'INR'; })();
   calcUserCTC();
   // Auto-expand if any value is set
   var hasValues = [u.basicSalary,u.hra,u.conveyance,u.medicalExpenses,u.specialAllowance,u.bonus,u.ta].some(function(v){return v > 0;});
@@ -261,12 +287,14 @@ function openCreateModal() {
   editId = null;
   document.getElementById('modal-title').textContent = 'Add Employee';
   document.getElementById('edit-photo-area').style.display = 'none';
-  ['u-name','u-email','u-dept','u-phone','u-pass'].forEach(function(id){document.getElementById(id).value='';});
+  ['u-name','u-email','u-dept','u-phone','u-pass','u-pass-confirm'].forEach(function(id){document.getElementById(id).value='';});
   document.getElementById('u-role').value = 'employee';
   document.getElementById('u-gender').value = 'unspecified';
   document.getElementById('u-salary').value = '';
   document.getElementById('u-status').value = 'active';
   document.getElementById('u-manager').value = '';
+  var u = getUser();
+  document.getElementById('u-currency').value = (u && u.company && u.company.currency) || 'INR';
   resetSalaryFields();
   toggleManagerField();
   openModal('user-modal');
@@ -299,6 +327,7 @@ function editUser(id) {
   document.getElementById('u-status').value = u.status;
   document.getElementById('u-manager').value = u.manager?.id || '';
   document.getElementById('u-pass').value = '';
+  document.getElementById('u-pass-confirm').value = '';
   fillSalaryFields(u);
   toggleManagerField();
   openModal('user-modal');
@@ -324,10 +353,16 @@ async function saveUser() {
     bonus:            parseFloat(document.getElementById('u-bonus').value)     || 0,
     ta:               parseFloat(document.getElementById('u-ta').value)        || 0,
     pfApplicable:     document.getElementById('u-pf').value === 'true',
-    allowedLeavePerMonth: parseInt(document.getElementById('u-leave-pm').value) || 2,
+    currency:         document.getElementById('u-currency').value || 'INR',
   };
   var pass = document.getElementById('u-pass').value;
-  if (pass) body.password = pass;
+  var passConfirm = document.getElementById('u-pass-confirm').value;
+  if (pass) {
+    var strongPwd = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&#^()_\-+=])[A-Za-z\d@$!%*?&#^()_\-+=]{8,}$/.test(pass);
+    if (!strongPwd) return toast('Password must be at least 8 characters with uppercase, lowercase, number and special character', 'error');
+    if (pass !== passConfirm) return toast('Passwords do not match', 'error');
+    body.password = pass;
+  }
   if (!body.name || !body.email) return toast('Name and email required', 'error');
   try {
     if (editId) await api('PUT','/users/'+editId, body);
@@ -433,5 +468,46 @@ async function rejectLeaveFromDetail(id) {
 }
 
 loadUsers();
+
+// ── Populate both currency selects from CURRENCY_LIST ──
+(function() {
+  ['company-currency-select', 'u-currency'].forEach(function(selId) {
+    var sel = document.getElementById(selId);
+    if (!sel) return;
+    CURRENCY_LIST.forEach(function(c) {
+      var opt = document.createElement('option');
+      opt.value = c.code;
+      opt.textContent = c.name;
+      sel.appendChild(opt);
+    });
+  });
+  // default employee currency = company currency
+  var u = getUser();
+  var companyCurr = (u && u.company && u.company.currency) || 'INR';
+  document.getElementById('u-currency').value = companyCurr;
+})();
+
+function openCurrencyModal() {
+  var user = getUser();
+  var current = (user && user.company && user.company.currency) || 'INR';
+  document.getElementById('company-currency-select').value = current;
+  openModal('currency-modal');
+}
+
+async function saveCurrency() {
+  var code = document.getElementById('company-currency-select').value;
+  try {
+    var company = await api('PUT', '/companies/own', { currency: code });
+    // Update stored user so fmtCurrency picks up the new value immediately
+    var user = getUser();
+    if (user) {
+      if (!user.company) user.company = {};
+      user.company.currency = company.currency || code;
+      setAuth(localStorage.getItem('ems_token'), user);
+    }
+    toast('Currency updated to ' + code, 'success');
+    closeModal('currency-modal');
+  } catch(e) { toast(e.message, 'error'); }
+}
 </script>
 </body></html>

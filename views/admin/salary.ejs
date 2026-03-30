@@ -32,12 +32,13 @@
           <option value="">All Months</option>
         </select>
         <input type="number" id="f-year" class="form-control" style="width:100px" placeholder="Year" onchange="loadSalaries()">
-        <select id="f-status" class="form-control" style="width:130px" onchange="loadSalaries()">
+        <select id="f-status" class="form-control" style="width:130px" onchange="filterSalaries()">
           <option value="">All Status</option>
           <option value="draft">Draft</option>
           <option value="finalized">Finalized</option>
           <option value="paid">Paid</option>
         </select>
+        <input type="text" id="f-search" class="form-control" style="width:200px" placeholder="Search employee..." oninput="filterSalaries()">
         <button class="btn btn-ghost" onclick="exportCSV()"><i class="bx bx-download"></i> Export CSV</button>
         <button class="btn btn-ghost" onclick="openModal('gen-modal')"><i class="bx bx-plus"></i> Single Generate</button>
         <button class="btn btn-primary" onclick="openModal('bulk-modal')"><i class="bx bxs-magic-wand"></i> Generate All</button>
@@ -140,10 +141,16 @@
         </div>
       </div>
 
-      <div class="form-group">
-        <label class="form-label">CTC (Monthly, Rs.)</label>
-        <input type="number" id="g-ctc" class="form-control" readonly style="background:var(--bg-input);cursor:not-allowed;color:var(--text-muted);" value="0">
-        <div style="font-size:11px;color:var(--text-muted);margin-top:3px;">Auto from components</div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Currency</label>
+          <select id="g-currency" class="form-control"></select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">CTC (Monthly)</label>
+          <input type="number" id="g-ctc" class="form-control" readonly style="background:var(--bg-input);cursor:not-allowed;color:var(--text-muted);" value="0">
+          <div style="font-size:11px;color:var(--text-muted);margin-top:3px;">Auto from components</div>
+        </div>
       </div>
       <!-- hidden leave value still submitted -->
       <input type="hidden" id="g-leave" value="0">
@@ -231,10 +238,16 @@
         </div>
       </div>
 
-      <div class="form-group">
-        <label class="form-label">CTC (Monthly)</label>
-        <input type="number" id="e-ctc" class="form-control" readonly style="background:var(--bg-input);cursor:not-allowed;color:var(--text-muted);">
-        <div style="font-size:11px;color:var(--text-muted);margin-top:3px;">Auto from components</div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Currency</label>
+          <select id="e-currency" class="form-control"></select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">CTC (Monthly)</label>
+          <input type="number" id="e-ctc" class="form-control" readonly style="background:var(--bg-input);cursor:not-allowed;color:var(--text-muted);">
+          <div style="font-size:11px;color:var(--text-muted);margin-top:3px;">Auto from components</div>
+        </div>
       </div>
       <input type="hidden" id="e-leave" value="0">
 
@@ -386,6 +399,9 @@ function onEmployeeOrPeriodChange() {
     document.getElementById('g-special').value = user.specialAllowance  || 0;
     document.getElementById('g-bonus').value   = user.bonus             || 0;
     document.getElementById('g-ta').value      = user.ta                || 0;
+    // Pre-fill currency from employee's stored currency
+    var defCurr = (getUser()&&getUser().company&&getUser().company.currency)||'INR';
+    document.getElementById('g-currency').value = user.currency || defCurr;
     calcGenCTC();
   }
 
@@ -449,64 +465,60 @@ async function loadSalaries() {
 
     let salaries = await api('GET', '/salary' + (params.length ? '?' + params.join('&') : ''));
     allSalaries = salaries;
-    if (status) salaries = salaries.filter(s => s.status === status);
 
     document.getElementById('s-total').textContent     = allSalaries.length;
     document.getElementById('s-draft').textContent     = allSalaries.filter(s => s.status === 'draft').length;
     document.getElementById('s-finalized').textContent = allSalaries.filter(s => s.status === 'finalized').length;
     document.getElementById('s-paid').textContent      = allSalaries.filter(s => s.status === 'paid').length;
 
-    const grid = document.getElementById('salary-grid');
-    if (!salaries.length) {
-      grid.innerHTML = '<div style="grid-column:1/-1;"><div class="empty-state"><div class="empty-icon"><i class="bx bxs-wallet"></i></div><p>No salary records found</p></div></div>';
-      return;
-    }
-
-    grid.innerHTML = salaries.map(s => {
-      const sc = s.status==='paid'?'#22c55e':s.status==='finalized'?'#3b82f6':'#f59e0b';
-      const sb = s.status==='paid'?'#dcfce7':s.status==='finalized'?'#dbeafe':'#fef3c7';
-      const calDays = new Date(s.year, s.month, 0).getDate();
-      const worked  = Math.max(0, calDays - (s.leaveTaken || 0));
-      return `<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:18px;display:flex;flex-direction:column;gap:12px;transition:box-shadow 0.2s;" onmouseover="this.style.boxShadow='var(--shadow-lg)'" onmouseout="this.style.boxShadow=''">
-        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
-          <div style="min-width:0;">
-            <div style="font-weight:700;font-size:14px;color:var(--text-primary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${s.user?.name||'—'}</div>
-            <div style="font-size:11px;color:var(--text-muted);margin-top:2px;text-transform:capitalize;">${s.user?.department||s.user?.role||''}</div>
-          </div>
-          <span style="font-size:11px;font-weight:700;background:${sb};color:${sc};border-radius:20px;padding:3px 10px;flex-shrink:0;text-transform:capitalize;">${s.status}</span>
-        </div>
-        <div style="text-align:center;background:linear-gradient(135deg,var(--accent),#7c3aed);border-radius:12px;padding:16px;">
-          <div style="font-size:11px;color:rgba(255,255,255,0.7);margin-bottom:4px;">${MONTHS[s.month-1]} ${s.year} · Net Pay</div>
-          <div style="font-size:28px;font-weight:900;color:white;">${fmt(s.netSalary)}</div>
-        </div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
-          <div style="background:var(--bg-input);border-radius:8px;padding:10px;">
-            <div style="font-size:10px;color:var(--text-muted);">CTC</div>
-            <div style="font-size:13px;font-weight:700;">${fmt(s.baseSalary)}</div>
-          </div>
-          <div style="background:var(--bg-input);border-radius:8px;padding:10px;">
-            <div style="font-size:10px;color:var(--text-muted);">Gross</div>
-            <div style="font-size:13px;font-weight:700;">${fmt(s.grossSalary)}</div>
-          </div>
-          <div style="background:var(--bg-input);border-radius:8px;padding:10px;">
-            <div style="font-size:10px;color:var(--text-muted);">Deductions</div>
-            <div style="font-size:13px;font-weight:700;color:var(--danger);">-${fmt(s.deductions)}</div>
-          </div>
-          <div style="background:var(--bg-input);border-radius:8px;padding:10px;">
-            <div style="font-size:10px;color:var(--text-muted);">Days</div>
-            <div style="font-size:13px;font-weight:700;">${worked}/${calDays}</div>
-          </div>
-        </div>
-        <div style="display:flex;gap:6px;flex-wrap:wrap;">
-          <button class="btn btn-ghost btn-sm" onclick="viewPayslip(${s.id})" style="flex:1;justify-content:center;"><i class="bx bx-show"></i> View</button>
-          <button class="btn btn-ghost btn-sm" onclick="downloadPayslip(${s.id})"><i class="bx bx-download"></i></button>
-          ${s.status!=='paid'?`<button class="btn btn-ghost btn-sm" onclick="openEdit(${s.id})"><i class="bx bx-edit"></i></button>`:''}
-          ${s.status==='finalized'?`<button class="btn btn-success btn-sm" onclick="pay(${s.id})"><i class="bx bxs-wallet"></i> Pay</button>`:''}
-          ${s.status!=='paid'?`<button class="btn btn-danger btn-sm" onclick="delSal(${s.id})"><i class="bx bx-trash"></i></button>`:''}
-        </div>
-      </div>`;
-    }).join('');
+    filterSalaries();
   } catch(e) { toast(e.message, 'error'); }
+}
+
+function filterSalaries() {
+  const status = document.getElementById('f-status').value;
+  const search = (document.getElementById('f-search').value || '').toLowerCase().trim();
+  let salaries = allSalaries;
+  if (status) salaries = salaries.filter(s => s.status === status);
+  if (search) salaries = salaries.filter(s => (s.user?.name || '').toLowerCase().includes(search));
+  renderSalaries(salaries);
+}
+
+function renderSalaries(salaries) {
+  const grid = document.getElementById('salary-grid');
+  if (!salaries.length) {
+    grid.innerHTML = '<div style="grid-column:1/-1;"><div class="empty-state"><div class="empty-icon"><i class="bx bxs-wallet"></i></div><p>No salary records found</p></div></div>';
+    return;
+  }
+
+  grid.innerHTML = salaries.map(s => {
+    const sc = s.status==='paid'?'#22c55e':s.status==='finalized'?'#3b82f6':'#f59e0b';
+    const sb = s.status==='paid'?'#dcfce7':s.status==='finalized'?'#dbeafe':'#fef3c7';
+    const calDays = new Date(s.year, s.month, 0).getDate();
+    return `<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px;display:flex;flex-direction:column;gap:10px;transition:box-shadow 0.2s;" onmouseover="this.style.boxShadow='var(--shadow-lg)'" onmouseout="this.style.boxShadow=''">
+      <!-- Header: name + status -->
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
+        <div style="min-width:0;">
+          <div style="font-weight:700;font-size:14px;color:var(--text-primary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${s.user?.name||'—'}</div>
+          <div style="font-size:11px;color:var(--text-muted);text-transform:capitalize;">${s.user?.department||s.user?.role||''} · ${MONTHS[s.month-1]} ${s.year} · ${calDays} days</div>
+        </div>
+        <span style="font-size:11px;font-weight:700;background:${sb};color:${sc};border-radius:20px;padding:3px 10px;flex-shrink:0;text-transform:capitalize;">${s.status}</span>
+      </div>
+      <!-- Net pay highlight -->
+      <div style="background:linear-gradient(135deg,var(--accent),#7c3aed);border-radius:10px;padding:10px 14px;display:flex;align-items:center;justify-content:space-between;">
+        <span style="font-size:11px;color:rgba(255,255,255,0.75);">Net Pay</span>
+        <span style="font-size:20px;font-weight:800;color:white;">${fmt(s.netSalary)}</span>
+      </div>
+      <!-- Actions -->
+      <div style="display:flex;flex-wrap:wrap;gap:6px;">
+        <button class="btn btn-ghost btn-sm" onclick="viewPayslip(${s.id})" style="flex:1;min-width:0;justify-content:center;"><i class="bx bx-show"></i> View</button>
+        ${s.status==='finalized'?`<button class="btn btn-success btn-sm" onclick="pay(${s.id})" style="flex:1;min-width:0;justify-content:center;"><i class="bx bxs-wallet"></i> Pay</button>`:''}
+        <button class="btn btn-ghost btn-sm" onclick="downloadPayslip(${s.id})" title="Download"><i class="bx bx-download"></i></button>
+        ${s.status!=='paid'?`<button class="btn btn-ghost btn-sm" onclick="openEdit(${s.id})" title="Edit"><i class="bx bx-edit"></i></button>`:''}
+        ${s.status!=='paid'?`<button class="btn btn-danger btn-sm" onclick="delSal(${s.id})" title="Delete"><i class="bx bx-trash"></i></button>`:''}
+      </div>
+    </div>`;
+  }).join('');
 }
 
 async function bulkGenerate() {
@@ -547,6 +559,7 @@ async function genSingle() {
     tds:             parseFloat(document.getElementById('g-tds').value)    || 0,
     salaryAdvance:   parseFloat(document.getElementById('g-advance').value)|| 0,
     notes:           document.getElementById('g-notes').value,
+    currency:        document.getElementById('g-currency').value || 'INR',
   };
   if (!body.userId) return toast('Select an employee', 'error');
   try {
@@ -577,6 +590,8 @@ function openEdit(id) {
   document.getElementById('e-advance').value = s.salaryAdvance || 0;
   document.getElementById('e-status').value  = s.status;
   document.getElementById('e-notes').value   = s.notes || '';
+  var defCurr = (getUser()&&getUser().company&&getUser().company.currency)||'INR';
+  document.getElementById('e-currency').value = s.currency || defCurr;
 
   // Attendance summary panel
   const calDays = new Date(s.year, s.month, 0).getDate();
@@ -609,6 +624,7 @@ async function updateSalary() {
     salaryAdvance:   parseFloat(document.getElementById('e-advance').value) || 0,
     status:          document.getElementById('e-status').value,
     notes:           document.getElementById('e-notes').value,
+    currency:        document.getElementById('e-currency').value || 'INR',
   };
   try {
     await api('PUT', '/salary/' + editSalId, body);
@@ -648,5 +664,23 @@ function exportCSV() {
 
 function reloadPageData() { setupPayrollCompanySelectors(); loadSalaries(); loadUsers(); }
 initCompanyFilter().then(function() { setupPayrollCompanySelectors(); loadUsers(); loadSalaries(); });
+
+// ── Populate currency selects ──
+(function() {
+  ['g-currency', 'e-currency'].forEach(function(selId) {
+    var sel = document.getElementById(selId);
+    if (!sel) return;
+    CURRENCY_LIST.forEach(function(c) {
+      var opt = document.createElement('option');
+      opt.value = c.code;
+      opt.textContent = c.name;
+      sel.appendChild(opt);
+    });
+  });
+  var u = getUser();
+  var def = (u && u.company && u.company.currency) || 'INR';
+  document.getElementById('g-currency').value = def;
+  document.getElementById('e-currency').value = def;
+})();
 </script>
 </body></html>

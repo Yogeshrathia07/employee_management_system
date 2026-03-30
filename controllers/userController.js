@@ -4,6 +4,10 @@ const bcrypt = require('bcryptjs');
 const fs   = require('fs');
 const path = require('path');
 
+function isStrongPassword(p) {
+  return /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&#^()_\-+=])[A-Za-z\d@$!%*?&#^()_\-+=]{8,}$/.test(p);
+}
+
 exports.getUsers = async (req, res) => {
   try {
     const where = {};
@@ -44,7 +48,7 @@ exports.createUser = async (req, res) => {
     const finalRole = role || 'employee';
     const userData = {
       name, email,
-      password: password || 'Password@123',
+      password: password || 'Employee@123',
       role: finalRole,
       department: department || '',
       phone: phone || '',
@@ -69,6 +73,7 @@ exports.createUser = async (req, res) => {
       + comp.medicalExpenses + comp.specialAllowance + comp.bonus + comp.ta;
     if (pfApplicable !== undefined)         userData.pfApplicable         = pfApplicable;
     if (allowedLeavePerMonth !== undefined) userData.allowedLeavePerMonth = allowedLeavePerMonth;
+    if (req.body.currency)                  userData.currency              = req.body.currency;
 
     if (req.user.role === 'admin') {
       userData.companyId = req.user.companyId;
@@ -121,8 +126,9 @@ exports.updateUser = async (req, res) => {
     }
     if (pfApplicable !== undefined)         user.pfApplicable         = pfApplicable;
     if (allowedLeavePerMonth !== undefined) user.allowedLeavePerMonth = allowedLeavePerMonth;
+    if (req.body.currency)                  user.currency              = req.body.currency;
     if (password) {
-      if (password.length < 6) return res.status(400).json({ message: 'Password must be at least 6 characters' });
+      if (!isStrongPassword(password)) return res.status(400).json({ message: 'Password must be at least 8 characters with uppercase, lowercase, number and special character' });
       user.password = password;
     }
 
@@ -234,7 +240,7 @@ exports.changeOwnPassword = async (req, res) => {
   try {
     const { currentPassword, newPassword } = req.body;
     if (!currentPassword || !newPassword) return res.status(400).json({ message: 'Current and new password are required' });
-    if (newPassword.length < 6) return res.status(400).json({ message: 'New password must be at least 6 characters' });
+    if (!isStrongPassword(newPassword)) return res.status(400).json({ message: 'Password must be at least 8 characters with uppercase, lowercase, number and special character' });
 
     const user = await User.findByPk(req.user.id);
     const match = await user.comparePassword(currentPassword);
@@ -253,7 +259,7 @@ exports.resetPassword = async (req, res) => {
   try {
     const { newPassword } = req.body;
     if (!newPassword) return res.status(400).json({ message: 'New password is required' });
-    if (newPassword.length < 6) return res.status(400).json({ message: 'Password must be at least 6 characters' });
+    if (!isStrongPassword(newPassword)) return res.status(400).json({ message: 'Password must be at least 8 characters with uppercase, lowercase, number and special character' });
 
     const user = await User.findByPk(req.params.id);
     if (!user) return res.status(404).json({ message: 'User not found' });
