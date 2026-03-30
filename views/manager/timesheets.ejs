@@ -121,10 +121,10 @@ function setWeek(which) {
 }
 function buildDayPicker() {
   const dates = getWeekDates(activeWeek);
-  const today = new Date(); today.setHours(0,0,0,0);
+  // Allow all days of the selected week (including future days of current week)
   document.getElementById('day-picker').innerHTML = dates.map((d,i) => {
-    const iso = fmtISO(d), isFuture = d > today, isSelected = selectedDates.has(iso);
-    return `<button type="button" class="day-chip${isSelected?' selected':''}${isFuture?' disabled':''}" data-date="${iso}" onclick="toggleDay(this)" ${isFuture?'disabled':''}>
+    const iso = fmtISO(d), isSelected = selectedDates.has(iso);
+    return `<button type="button" class="day-chip${isSelected?' selected':''}" data-date="${iso}" onclick="toggleDay(this)">
       <span class="day-chip-name">${DAYNAMES[i]}</span>
       <span class="day-chip-date">${fmtShort(d)}</span>
     </button>`;

@@ -11,19 +11,38 @@
     </header>
     <div class="page-body admin-employees-page employee-shared-page">
       <div class="employee-directory-shell">
-      <div class="admin-toolbar" style="margin-bottom:20px;justify-content:flex-end;">
-        <button class="btn employee-cta-btn" onclick="openNewTs()"><i class="bx bx-plus"></i> New Timesheet</button>
-      </div>
-      <div class="stats-grid" style="grid-template-columns:repeat(3,1fr);">
+
+      <!-- Stats -->
+      <div class="stats-grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:24px;">
         <div class="stat-card"><div class="stat-icon blue"><i class="bx bxs-time-five"></i></div><div><div class="stat-value" id="total-hours">0h</div><div class="stat-label">Approved Hours</div></div></div>
         <div class="stat-card"><div class="stat-icon green"><i class="bx bxs-check-circle"></i></div><div><div class="stat-value" id="approved-sheets">0</div><div class="stat-label">Approved</div></div></div>
         <div class="stat-card"><div class="stat-icon orange"><i class="bx bxs-hourglass"></i></div><div><div class="stat-value" id="pending-sheets">0</div><div class="stat-label">Pending</div></div></div>
+        <div class="stat-card"><div class="stat-icon" style="background:#fee2e2;color:#ef4444;"><i class="bx bxs-x-circle"></i></div><div><div class="stat-value" id="rejected-sheets">0</div><div class="stat-label">Rejected</div></div></div>
       </div>
 
-      <div style="margin-bottom:8px;"><div class="card-title" style="padding:0 4px;">My Timesheets</div><div class="card-subtitle" style="padding:0 4px;">Your submitted work hours</div></div>
-      <div id="ts-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px;">
-        <div style="grid-column:1/-1;display:flex;justify-content:center;padding:40px;"><span class="spinner"></span></div>
+      <!-- Toolbar -->
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:16px;">
+        <div class="toggle-group">
+          <button class="toggle-btn active" id="tab-week" onclick="setView('week')"><i class="bx bx-calendar-week"></i> Week</button>
+          <button class="toggle-btn" id="tab-month" onclick="setView('month')"><i class="bx bx-calendar"></i> Month</button>
+          <button class="toggle-btn" id="tab-year" onclick="setView('year')"><i class="bx bx-bar-chart-alt-2"></i> Year</button>
+        </div>
+        <button class="btn employee-cta-btn" onclick="openNewTs()"><i class="bx bx-plus"></i> New Timesheet</button>
       </div>
+
+      <!-- Navigator -->
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:20px;">
+        <button class="btn btn-ghost btn-sm" onclick="navPrev()"><i class="bx bx-chevron-left"></i></button>
+        <div style="flex:1;text-align:center;font-weight:600;font-size:14px;color:var(--text-primary);" id="nav-label">—</div>
+        <button class="btn btn-ghost btn-sm" onclick="navNext()"><i class="bx bx-chevron-right"></i></button>
+        <button class="btn btn-ghost btn-sm" style="font-size:12px;" onclick="navToday()">Today</button>
+      </div>
+
+      <!-- View content -->
+      <div id="ts-content">
+        <div style="display:flex;justify-content:center;padding:40px;"><span class="spinner"></span></div>
+      </div>
+
       </div>
     </div>
   </div>
@@ -32,10 +51,14 @@
 <!-- Timesheet Modal -->
 <div class="modal-overlay" id="ts-modal">
   <div class="modal modal-lg">
-    <div class="modal-header"><span class="modal-title" id="ts-modal-title">Log Work Hours</span><button class="modal-close" onclick="closeModal('ts-modal')">×</button></div>
+    <div class="modal-header">
+      <span class="modal-title" id="ts-modal-title">Log Work Hours</span>
+      <button class="modal-close" onclick="closeModal('ts-modal')">×</button>
+    </div>
     <div class="modal-body">
-      <p style="font-size:13px;color:var(--text-muted);margin-bottom:16px;">Select days and enter hours. Only current and previous week allowed.</p>
-      <div class="form-group"><label class="form-label">Week</label>
+      <p style="font-size:13px;color:var(--text-muted);margin-bottom:16px;">Select days and enter hours. You can fill the entire current week in advance.</p>
+      <div class="form-group">
+        <label class="form-label">Week</label>
         <div class="toggle-group">
           <button class="toggle-btn active" id="toggle-curr" onclick="setWeek('current')">Current Week</button>
           <button class="toggle-btn" id="toggle-prev" onclick="setWeek('previous')">Previous Week</button>
@@ -43,9 +66,18 @@
       </div>
       <div class="form-group"><label class="form-label">Select Days</label><div id="day-picker" class="day-picker-grid"></div></div>
       <div class="form-row">
-        <div class="form-group"><label class="form-label">Hours per day</label><input type="number" id="ts-hours" class="form-control" min="0.5" max="24" step="0.5" value="8" oninput="updateSummary()"></div>
-        <div class="form-group"><label class="form-label">Work Type</label>
-          <select id="ts-worktype" class="form-control"><option value="work">Work</option><option value="leave">Leave</option><option value="holiday">Holiday</option><option value="half-day">Half Day</option></select>
+        <div class="form-group">
+          <label class="form-label">Hours per day</label>
+          <input type="number" id="ts-hours" class="form-control" min="0.5" max="24" step="0.5" value="8" oninput="updateSummary()">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Work Type</label>
+          <select id="ts-worktype" class="form-control">
+            <option value="work">Work</option>
+            <option value="leave">Leave</option>
+            <option value="holiday">Holiday</option>
+            <option value="half-day">Half Day</option>
+          </select>
         </div>
       </div>
       <div class="form-row">
@@ -70,144 +102,427 @@
 
 <script src="/js/api.js"></script>
 <script>
-var DAYNAMES=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
-var selectedDates = new Set();
-var activeWeek = 'current';
-var editingTsId = null; // If editing an existing timesheet
+var DAYNAMES      = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+var MONTHS_SHORT  = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+var MONTHS_FULL   = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+
 var allTimesheets = [];
+var currentView   = 'week';
+var navDate       = new Date();
+var selectedDates = new Set();
+var activeWeek    = 'current';
+var editingTsId   = null;
 
-function getMondayOf(date){var d=new Date(date);var day=d.getDay();d.setDate(d.getDate()-day+(day===0?-6:1));d.setHours(0,0,0,0);return d;}
-function getWeekDates(which){var today=new Date();today.setHours(0,0,0,0);var monday=getMondayOf(today);if(which==='previous')monday.setDate(monday.getDate()-7);var dates=[];for(var i=0;i<7;i++){var d=new Date(monday);d.setDate(d.getDate()+i);dates.push(d);}return dates;}
-function fmtISO(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
-function fmtShort(d){return d.toLocaleDateString('en-US',{day:'2-digit',month:'short'});}
+/* ── helpers ────────────────────────────────────────────── */
+function getMondayOf(date) {
+  var d = new Date(date); d.setHours(0,0,0,0);
+  var day = d.getDay();
+  d.setDate(d.getDate() - day + (day === 0 ? -6 : 1));
+  return d;
+}
+function addDays(d, n) { var r = new Date(d); r.setDate(r.getDate() + n); return r; }
+function fmtISO(d) {
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+}
+function fmtRange(a, b) {
+  var da = new Date(a), db = new Date(b);
+  if (da.getMonth() === db.getMonth() && da.getFullYear() === db.getFullYear())
+    return da.getDate() + '–' + db.getDate() + ' ' + MONTHS_SHORT[da.getMonth()] + ' ' + da.getFullYear();
+  return da.getDate() + ' ' + MONTHS_SHORT[da.getMonth()] + ' – ' + db.getDate() + ' ' + MONTHS_SHORT[db.getMonth()] + ' ' + db.getFullYear();
+}
+function fmtFull(d) {
+  var x = new Date(d);
+  return x.toLocaleDateString('en-US', {day:'2-digit', month:'short', year:'numeric'});
+}
+function dayIndex(d) { var x = new Date(d).getDay(); return x === 0 ? 6 : x - 1; }
+function statusStyle(s) {
+  return s==='approved' ? {c:'#22c55e',b:'#dcfce7'} : s==='rejected' ? {c:'#ef4444',b:'#fee2e2'} : {c:'#f59e0b',b:'#fef3c7'};
+}
 
-function setWeek(which){activeWeek=which;selectedDates.clear();
-  document.getElementById('toggle-curr').classList.toggle('active',which==='current');
-  document.getElementById('toggle-prev').classList.toggle('active',which==='previous');
-  buildDayPicker();updateSummary();}
+/* ── view switching ─────────────────────────────────────── */
+function setView(v) {
+  currentView = v;
+  ['week','month','year'].forEach(function(x) {
+    document.getElementById('tab-' + x).classList.toggle('active', x === v);
+  });
+  renderView();
+}
+function navPrev() {
+  if (currentView === 'week')       navDate = addDays(getMondayOf(navDate), -7);
+  else if (currentView === 'month') navDate = new Date(navDate.getFullYear(), navDate.getMonth() - 1, 1);
+  else                              navDate = new Date(navDate.getFullYear() - 1, 0, 1);
+  renderView();
+}
+function navNext() {
+  if (currentView === 'week')       navDate = addDays(getMondayOf(navDate), 7);
+  else if (currentView === 'month') navDate = new Date(navDate.getFullYear(), navDate.getMonth() + 1, 1);
+  else                              navDate = new Date(navDate.getFullYear() + 1, 0, 1);
+  renderView();
+}
+function navToday() { navDate = new Date(); renderView(); }
+function renderView() {
+  if (currentView === 'week') renderWeekView();
+  else if (currentView === 'month') renderMonthView();
+  else renderYearView();
+}
 
-function buildDayPicker(){
-  var dates=getWeekDates(activeWeek);var today=new Date();today.setHours(0,0,0,0);
-  document.getElementById('day-picker').innerHTML=dates.map(function(d,i){
-    var iso=fmtISO(d),isFuture=d>today,isSelected=selectedDates.has(iso);
-    return '<button type="button" class="day-chip'+(isSelected?' selected':'')+(isFuture?' disabled':'')+'" data-date="'+iso+'" onclick="toggleDay(this)"'+(isFuture?' disabled':'')+'><span class="day-chip-name">'+DAYNAMES[i]+'</span><span class="day-chip-date">'+fmtShort(d)+'</span></button>';
+/* ── WEEK VIEW ──────────────────────────────────────────── */
+function renderWeekView() {
+  var monday = getMondayOf(navDate);
+  var sunday = addDays(monday, 6);
+  document.getElementById('nav-label').textContent = 'Week of ' + fmtRange(monday, sunday);
+
+  // Build date→{entry,ts} map
+  var dayMap = {};
+  allTimesheets.forEach(function(ts) {
+    (ts.entries || []).forEach(function(e) { dayMap[e.date] = { entry: e, ts: ts }; });
+  });
+
+  var todayISO = fmtISO(new Date());
+  var totalH = 0;
+  var rows = '';
+
+  for (var i = 0; i < 7; i++) {
+    var d = addDays(monday, i);
+    var iso = fmtISO(d);
+    var hit = dayMap[iso];
+    var isToday = iso === todayISO;
+    var isWeekend = i >= 5;
+    var st = hit ? statusStyle(hit.ts.status) : null;
+
+    rows += '<tr style="border-bottom:1px solid var(--border);' +
+      (isToday ? 'background:rgba(99,102,241,0.05);' : isWeekend ? 'opacity:0.55;' : '') + '">' +
+      '<td style="padding:11px 14px;white-space:nowrap;">' +
+        '<div style="display:flex;align-items:center;gap:8px;">' +
+          '<span style="display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:8px;font-size:11px;font-weight:700;' +
+            (isToday ? 'background:var(--accent);color:white;' : 'background:var(--bg-input);color:var(--text-muted);') + '">' +
+            DAYNAMES[i].charAt(0) +
+          '</span>' +
+          '<div>' +
+            '<div style="font-weight:' + (isToday?'700':'500') + ';font-size:13px;color:var(--text-primary);">' + DAYNAMES[i] + '</div>' +
+            '<div style="font-size:11px;color:var(--text-muted);">' + d.getDate() + ' ' + MONTHS_SHORT[d.getMonth()] + '</div>' +
+          '</div>' +
+        '</div>' +
+      '</td>' +
+      '<td style="padding:11px 14px;text-align:center;">' +
+        (hit ? '<span style="font-size:15px;font-weight:800;color:var(--accent);">' + hit.entry.hours + '<span style="font-size:11px;font-weight:400;">h</span></span>'
+             : '<span style="color:var(--border);font-size:18px;">—</span>') +
+      '</td>' +
+      '<td style="padding:11px 14px;">' +
+        (hit && hit.entry.workType ? '<span style="font-size:11px;background:var(--bg-input);border-radius:6px;padding:3px 8px;text-transform:capitalize;color:var(--text-secondary);">' + hit.entry.workType + '</span>' : '') +
+      '</td>' +
+      '<td style="padding:11px 14px;font-size:13px;color:var(--text-secondary);">' + (hit && hit.entry.project ? hit.entry.project : '') + '</td>' +
+      '<td style="padding:11px 14px;font-size:12px;color:var(--text-muted);max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + (hit && hit.entry.description ? hit.entry.description : '') + '</td>' +
+      '<td style="padding:11px 14px;">' +
+        (hit ? '<span style="font-size:11px;font-weight:600;background:' + st.b + ';color:' + st.c + ';border-radius:12px;padding:2px 9px;text-transform:capitalize;">' + hit.ts.status + '</span>' : '') +
+      '</td>' +
+      '<td style="padding:11px 10px;text-align:right;">' +
+        (hit && (hit.ts.status==='pending'||hit.ts.status==='rejected') ?
+          '<button class="btn btn-ghost btn-sm" onclick="openEditTs(' + hit.ts.id + ')"><i class="bx bx-edit"></i></button>' : '') +
+      '</td>' +
+    '</tr>';
+    if (hit) totalH += (hit.entry.hours || 0);
+  }
+
+  var hasWeekEntries = Object.keys(dayMap).some(function(k) {
+    var dd = new Date(k); return dd >= monday && dd <= sunday;
+  });
+
+  var html = '<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;">' +
+    '<table style="width:100%;border-collapse:collapse;">' +
+    '<thead><tr style="background:var(--bg-input);border-bottom:1px solid var(--border);">' +
+      '<th style="padding:10px 14px;text-align:left;font-size:11px;font-weight:600;color:var(--text-muted);letter-spacing:.5px;text-transform:uppercase;">Day</th>' +
+      '<th style="padding:10px 14px;text-align:center;font-size:11px;font-weight:600;color:var(--text-muted);letter-spacing:.5px;text-transform:uppercase;">Hours</th>' +
+      '<th style="padding:10px 14px;text-align:left;font-size:11px;font-weight:600;color:var(--text-muted);letter-spacing:.5px;text-transform:uppercase;">Type</th>' +
+      '<th style="padding:10px 14px;text-align:left;font-size:11px;font-weight:600;color:var(--text-muted);letter-spacing:.5px;text-transform:uppercase;">Project</th>' +
+      '<th style="padding:10px 14px;text-align:left;font-size:11px;font-weight:600;color:var(--text-muted);letter-spacing:.5px;text-transform:uppercase;">Task</th>' +
+      '<th style="padding:10px 14px;text-align:left;font-size:11px;font-weight:600;color:var(--text-muted);letter-spacing:.5px;text-transform:uppercase;">Status</th>' +
+      '<th></th>' +
+    '</tr></thead>' +
+    '<tbody>' + rows + '</tbody>' +
+    '<tfoot><tr style="background:var(--bg-input);border-top:2px solid var(--border);">' +
+      '<td style="padding:10px 14px;font-weight:700;font-size:13px;color:var(--text-primary);">Weekly Total</td>' +
+      '<td style="padding:10px 14px;text-align:center;font-size:18px;font-weight:800;color:var(--accent);">' + totalH + '<span style="font-size:12px;font-weight:400;">h</span></td>' +
+      '<td colspan="5"></td>' +
+    '</tr></tfoot>' +
+    '</table>' +
+    '</div>';
+
+  if (!hasWeekEntries) {
+    html += '<div style="margin-top:14px;text-align:center;padding:20px 24px;background:var(--bg-input);border-radius:var(--radius);border:1px dashed var(--border);">' +
+      '<div style="font-size:13px;color:var(--text-muted);margin-bottom:10px;">No timesheet entries for this week</div>' +
+      '<button class="btn btn-primary btn-sm" onclick="openNewTs()"><i class="bx bx-plus"></i> Log This Week</button>' +
+      '</div>';
+  }
+
+  document.getElementById('ts-content').innerHTML = html;
+}
+
+/* ── MONTH VIEW ─────────────────────────────────────────── */
+function renderMonthView() {
+  var yr = navDate.getFullYear(), mo = navDate.getMonth();
+  document.getElementById('nav-label').textContent = MONTHS_FULL[mo] + ' ' + yr;
+
+  var sheets = allTimesheets.filter(function(ts) {
+    var d = new Date(ts.weekStart);
+    return d.getFullYear() === yr && d.getMonth() === mo;
+  }).sort(function(a,b){ return new Date(a.weekStart)-new Date(b.weekStart); });
+
+  if (!sheets.length) {
+    document.getElementById('ts-content').innerHTML =
+      '<div style="text-align:center;padding:48px 24px;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);">' +
+      '<i class="bx bxs-calendar-x" style="font-size:48px;color:var(--text-muted);margin-bottom:12px;display:block;"></i>' +
+      '<div style="color:var(--text-muted);font-size:14px;margin-bottom:16px;">No timesheets for ' + MONTHS_FULL[mo] + ' ' + yr + '</div>' +
+      '<button class="btn btn-primary" onclick="openNewTs()"><i class="bx bx-plus"></i> Add Timesheet</button>' +
+      '</div>';
+    return;
+  }
+
+  var totalH    = sheets.reduce(function(s,t){ return s+(t.totalHours||0); },0);
+  var approvedH = sheets.filter(function(t){return t.status==='approved';}).reduce(function(s,t){ return s+(t.totalHours||0); },0);
+
+  var html = '<div style="background:linear-gradient(135deg,var(--accent),#7c3aed);border-radius:var(--radius);padding:18px 22px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:16px;margin-bottom:18px;">' +
+    '<div style="color:white;"><div style="font-size:28px;font-weight:800;line-height:1;">' + totalH + 'h</div><div style="font-size:12px;opacity:.75;margin-top:2px;">Total logged</div></div>' +
+    '<div style="color:white;"><div style="font-size:28px;font-weight:800;line-height:1;">' + approvedH + 'h</div><div style="font-size:12px;opacity:.75;margin-top:2px;">Approved</div></div>' +
+    '<div style="color:white;"><div style="font-size:28px;font-weight:800;line-height:1;">' + sheets.length + '</div><div style="font-size:12px;opacity:.75;margin-top:2px;">Timesheets</div></div>' +
+    '</div>';
+
+  html += '<div style="display:flex;flex-direction:column;gap:12px;">';
+  sheets.forEach(function(ts) {
+    var st      = statusStyle(ts.status);
+    var entries = ts.entries || [];
+    var canEdit = ts.status === 'pending' || ts.status === 'rejected';
+
+    html += '<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:16px 18px;">' +
+      '<div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:14px;">' +
+        '<div>' +
+          '<div style="font-weight:600;font-size:14px;color:var(--text-primary);margin-bottom:3px;"><i class="bx bx-calendar" style="color:var(--accent);margin-right:6px;"></i>' + fmtRange(ts.weekStart, ts.weekEnd) + '</div>' +
+          '<div style="font-size:11px;color:var(--text-muted);">Submitted ' + fmtFull(ts.createdAt) + '</div>' +
+        '</div>' +
+        '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">' +
+          '<span style="font-size:11px;font-weight:700;background:' + st.b + ';color:' + st.c + ';border-radius:20px;padding:3px 11px;text-transform:capitalize;">' + ts.status + '</span>' +
+          (canEdit ? '<button class="btn btn-ghost btn-sm" onclick="openEditTs(' + ts.id + ')"><i class="bx bx-edit"></i> Edit</button>' : '') +
+          (ts.status==='pending' ? '<button class="btn btn-danger btn-sm" onclick="deleteTs(' + ts.id + ')" title="Delete"><i class="bx bx-trash"></i></button>' : '') +
+        '</div>' +
+      '</div>' +
+      '<div style="display:flex;gap:12px;margin-bottom:' + (entries.length?'12':'0') + 'px;">' +
+        '<div style="background:var(--bg-input);border-radius:10px;padding:8px 18px;text-align:center;">' +
+          '<div style="font-size:20px;font-weight:800;color:var(--accent);">' + ts.totalHours + 'h</div>' +
+          '<div style="font-size:11px;color:var(--text-muted);">Total Hours</div>' +
+        '</div>' +
+        '<div style="background:var(--bg-input);border-radius:10px;padding:8px 18px;text-align:center;">' +
+          '<div style="font-size:20px;font-weight:800;color:var(--text-primary);">' + entries.length + '</div>' +
+          '<div style="font-size:11px;color:var(--text-muted);">Days Logged</div>' +
+        '</div>' +
+      '</div>' +
+      (entries.length ? '<div style="display:flex;flex-wrap:wrap;gap:6px;">' +
+        entries.map(function(e) {
+          var ed = new Date(e.date);
+          return '<div style="background:var(--bg-input);border-radius:8px;padding:4px 10px;font-size:11px;color:var(--text-secondary);">' +
+            '<strong>' + DAYNAMES[dayIndex(ed)] + ' ' + ed.getDate() + '</strong>' +
+            ' · ' + e.hours + 'h' +
+            (e.workType ? ' · <span style="text-transform:capitalize;">' + e.workType + '</span>' : '') +
+            (e.project ? ' · ' + e.project : '') +
+          '</div>';
+        }).join('') +
+      '</div>' : '') +
+      (ts.approver ? '<div style="margin-top:10px;font-size:12px;color:var(--text-muted);"><i class="bx bx-check-circle" style="color:#22c55e;margin-right:4px;"></i>Approved by <strong>' + ts.approver.name + '</strong></div>' : '') +
+      (ts.rejectionReason ? '<div style="margin-top:10px;font-size:12px;color:#ef4444;background:#fee2e2;border-radius:8px;padding:8px 12px;"><i class="bx bx-x-circle" style="margin-right:4px;"></i>' + ts.rejectionReason + '</div>' : '') +
+    '</div>';
+  });
+  html += '</div>';
+  document.getElementById('ts-content').innerHTML = html;
+}
+
+/* ── YEAR VIEW ──────────────────────────────────────────── */
+function renderYearView() {
+  var yr = navDate.getFullYear();
+  document.getElementById('nav-label').textContent = yr.toString();
+
+  var yearSheets = allTimesheets.filter(function(ts) {
+    return new Date(ts.weekStart).getFullYear() === yr;
+  });
+  var totalYearH = yearSheets.reduce(function(s,t){ return s+(t.totalHours||0); },0);
+
+  var monthData = MONTHS_FULL.map(function(name, mi) {
+    var ms = yearSheets.filter(function(ts){ return new Date(ts.weekStart).getMonth() === mi; });
+    return {
+      name: name, short: MONTHS_SHORT[mi], mi: mi,
+      sheets: ms,
+      hours: ms.reduce(function(s,t){ return s+(t.totalHours||0); },0),
+      approvedH: ms.filter(function(t){return t.status==='approved';}).reduce(function(s,t){return s+(t.totalHours||0);},0),
+      pending: ms.filter(function(t){return t.status==='pending';}).length,
+      rejected: ms.filter(function(t){return t.status==='rejected';}).length
+    };
+  });
+  var maxH = Math.max.apply(null, monthData.map(function(m){ return m.hours; })) || 1;
+
+  var html = '<div style="background:linear-gradient(135deg,var(--accent),#7c3aed);border-radius:var(--radius);padding:18px 22px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:16px;margin-bottom:20px;">' +
+    '<div style="color:white;"><div style="font-size:28px;font-weight:800;line-height:1;">' + totalYearH + 'h</div><div style="font-size:12px;opacity:.75;margin-top:2px;">Total in ' + yr + '</div></div>' +
+    '<div style="color:white;"><div style="font-size:28px;font-weight:800;line-height:1;">' + yearSheets.filter(function(t){return t.status==='approved';}).length + '</div><div style="font-size:12px;opacity:.75;margin-top:2px;">Approved sheets</div></div>' +
+    '<div style="color:white;"><div style="font-size:28px;font-weight:800;line-height:1;">' + yearSheets.length + '</div><div style="font-size:12px;opacity:.75;margin-top:2px;">Total sheets</div></div>' +
+    '</div>';
+
+  var now = new Date();
+  html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px;">';
+  monthData.forEach(function(m) {
+    var isCurrMonth = m.mi === now.getMonth() && yr === now.getFullYear();
+    var barW = Math.round((m.hours / maxH) * 100);
+
+    html += '<div style="background:var(--bg-card);border:1px solid ' + (isCurrMonth?'var(--accent)':'var(--border)') + ';border-radius:var(--radius);padding:14px 16px;cursor:pointer;transition:box-shadow .2s;" ' +
+      'onclick="navDate=new Date(' + yr + ',' + m.mi + ',1);setView(\'month\')" ' +
+      'onmouseover="this.style.boxShadow=\'var(--shadow-lg)\'" onmouseout="this.style.boxShadow=\'\'">' +
+      '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">' +
+        '<div style="font-weight:600;font-size:14px;color:' + (isCurrMonth?'var(--accent)':'var(--text-primary)') + ';">' + m.name + '</div>' +
+        (m.pending ? '<span style="font-size:10px;background:#fef3c7;color:#b45309;border-radius:10px;padding:1px 7px;font-weight:700;">' + m.pending + ' pending</span>' : '') +
+        (m.rejected && !m.pending ? '<span style="font-size:10px;background:#fee2e2;color:#ef4444;border-radius:10px;padding:1px 7px;font-weight:700;">' + m.rejected + ' rejected</span>' : '') +
+      '</div>' +
+      '<div style="font-size:24px;font-weight:800;color:' + (m.hours?'var(--text-primary)':'var(--text-muted)') + ';line-height:1;margin-bottom:8px;">' +
+        m.hours + '<span style="font-size:14px;font-weight:400;color:var(--text-muted);">h</span>' +
+      '</div>' +
+      '<div style="height:5px;background:var(--bg-input);border-radius:5px;overflow:hidden;margin-bottom:8px;">' +
+        '<div style="width:' + barW + '%;height:100%;background:var(--accent);border-radius:5px;"></div>' +
+      '</div>' +
+      '<div style="font-size:11px;color:var(--text-muted);">' +
+        (m.sheets.length
+          ? m.sheets.length + ' sheet' + (m.sheets.length>1?'s':'') + (m.approvedH ? ' · ' + m.approvedH + 'h approved' : '')
+          : 'No entries') +
+      '</div>' +
+    '</div>';
+  });
+  html += '</div>';
+  document.getElementById('ts-content').innerHTML = html;
+}
+
+/* ── stats ──────────────────────────────────────────────── */
+function updateStats() {
+  var approved = allTimesheets.filter(function(t){return t.status==='approved';});
+  var pending  = allTimesheets.filter(function(t){return t.status==='pending';});
+  var rejected = allTimesheets.filter(function(t){return t.status==='rejected';});
+  document.getElementById('total-hours').textContent    = approved.reduce(function(s,t){return s+t.totalHours;},0).toFixed(1) + 'h';
+  document.getElementById('approved-sheets').textContent = approved.length;
+  document.getElementById('pending-sheets').textContent  = pending.length;
+  document.getElementById('rejected-sheets').textContent = rejected.length;
+}
+
+async function loadTimesheets() {
+  try {
+    allTimesheets = await api('GET', '/timesheets');
+    updateStats();
+    renderView();
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+/* ── day picker ─────────────────────────────────────────── */
+function getWeekDates(which) {
+  var today = new Date(); today.setHours(0,0,0,0);
+  var monday = getMondayOf(today);
+  if (which === 'previous') monday = addDays(monday, -7);
+  return Array.from({length:7}, function(_,i){ return addDays(monday, i); });
+}
+
+function setWeek(which) {
+  activeWeek = which;
+  selectedDates.clear();
+  document.getElementById('toggle-curr').classList.toggle('active', which==='current');
+  document.getElementById('toggle-prev').classList.toggle('active', which==='previous');
+  buildDayPicker(); updateSummary();
+}
+
+function buildDayPicker() {
+  var dates = getWeekDates(activeWeek);
+  // Allow all 7 days of the selected week (including future days of current week)
+  document.getElementById('day-picker').innerHTML = dates.map(function(d, i) {
+    var iso = fmtISO(d);
+    var isSelected = selectedDates.has(iso);
+    return '<button type="button" class="day-chip' + (isSelected?' selected':'') + '" data-date="' + iso + '" onclick="toggleDay(this)">' +
+      '<span class="day-chip-name">' + DAYNAMES[i] + '</span>' +
+      '<span class="day-chip-date">' + d.getDate() + ' ' + MONTHS_SHORT[d.getMonth()] + '</span>' +
+    '</button>';
   }).join('');
 }
 
-function toggleDay(btn){var date=btn.dataset.date;if(selectedDates.has(date)){selectedDates.delete(date);btn.classList.remove('selected');}else{selectedDates.add(date);btn.classList.add('selected');}updateSummary();}
-function updateSummary(){var hrs=parseFloat(document.getElementById('ts-hours').value)||0;document.getElementById('sum-days').textContent=selectedDates.size;document.getElementById('sum-hrs').textContent=hrs;document.getElementById('sum-total').textContent=(selectedDates.size*hrs).toFixed(1);}
+function toggleDay(btn) {
+  var date = btn.dataset.date;
+  if (selectedDates.has(date)) { selectedDates.delete(date); btn.classList.remove('selected'); }
+  else { selectedDates.add(date); btn.classList.add('selected'); }
+  updateSummary();
+}
+function updateSummary() {
+  var hrs = parseFloat(document.getElementById('ts-hours').value) || 0;
+  document.getElementById('sum-days').textContent  = selectedDates.size;
+  document.getElementById('sum-hrs').textContent   = hrs;
+  document.getElementById('sum-total').textContent = (selectedDates.size * hrs).toFixed(1);
+}
 
-function openNewTs(){
-  editingTsId=null;
-  document.getElementById('ts-modal-title').textContent='Log Work Hours';
-  document.getElementById('ts-submit-btn').textContent='Submit Timesheet';
-  selectedDates.clear();activeWeek='current';
+/* ── modal open/edit ────────────────────────────────────── */
+function openNewTs() {
+  editingTsId = null;
+  document.getElementById('ts-modal-title').textContent = 'Log Work Hours';
+  document.getElementById('ts-submit-btn').textContent  = 'Submit Timesheet';
+  selectedDates.clear(); activeWeek = 'current';
   document.getElementById('toggle-curr').classList.add('active');
   document.getElementById('toggle-prev').classList.remove('active');
-  document.getElementById('ts-hours').value=8;
-  document.getElementById('ts-worktype').value='work';
-  document.getElementById('ts-project').value='';
-  document.getElementById('ts-desc').value='';
-  document.getElementById('ts-notes').value='';
-  buildDayPicker();updateSummary();openModal('ts-modal');
+  document.getElementById('ts-hours').value    = 8;
+  document.getElementById('ts-worktype').value = 'work';
+  document.getElementById('ts-project').value  = '';
+  document.getElementById('ts-desc').value     = '';
+  document.getElementById('ts-notes').value    = '';
+  buildDayPicker(); updateSummary(); openModal('ts-modal');
 }
 
-function openEditTs(id){
-  var t=allTimesheets.find(function(x){return x.id===id;});
-  if(!t)return;
-  editingTsId=id;
-  document.getElementById('ts-modal-title').textContent='Edit Timesheet (will reset to pending)';
-  document.getElementById('ts-submit-btn').textContent='Update & Resubmit';
+function openEditTs(id) {
+  var t = allTimesheets.find(function(x){ return x.id === id; });
+  if (!t) return;
+  editingTsId = id;
+  document.getElementById('ts-modal-title').textContent = 'Edit Timesheet (will reset to pending)';
+  document.getElementById('ts-submit-btn').textContent  = 'Update & Resubmit';
   selectedDates.clear();
-  var entries=t.entries||[];
-  // Auto-select days from existing entries
-  if(entries.length){
-    var firstEntry=new Date(entries[0].date);
-    var monday=getMondayOf(firstEntry);
-    var thisMon=getMondayOf(new Date());
-    var prevMon=new Date(thisMon);prevMon.setDate(prevMon.getDate()-7);
-    if(monday.getTime()===thisMon.getTime()) activeWeek='current';
-    else activeWeek='previous';
-    document.getElementById('toggle-curr').classList.toggle('active',activeWeek==='current');
-    document.getElementById('toggle-prev').classList.toggle('active',activeWeek==='previous');
-    entries.forEach(function(e){selectedDates.add(e.date);});
-    document.getElementById('ts-hours').value=entries[0].hours||8;
-    document.getElementById('ts-worktype').value=entries[0].workType||'work';
-    document.getElementById('ts-project').value=entries[0].project||'';
-    document.getElementById('ts-desc').value=entries[0].description||'';
+  var entries = t.entries || [];
+  if (entries.length) {
+    var thisMon  = getMondayOf(new Date());
+    var entryMon = getMondayOf(new Date(entries[0].date));
+    activeWeek = entryMon.getTime() === thisMon.getTime() ? 'current' : 'previous';
+    document.getElementById('toggle-curr').classList.toggle('active', activeWeek==='current');
+    document.getElementById('toggle-prev').classList.toggle('active', activeWeek==='previous');
+    entries.forEach(function(e){ selectedDates.add(e.date); });
+    document.getElementById('ts-hours').value    = entries[0].hours    || 8;
+    document.getElementById('ts-worktype').value = entries[0].workType || 'work';
+    document.getElementById('ts-project').value  = entries[0].project  || '';
+    document.getElementById('ts-desc').value     = entries[0].description || '';
   }
-  document.getElementById('ts-notes').value=t.notes||'';
-  buildDayPicker();updateSummary();openModal('ts-modal');
+  document.getElementById('ts-notes').value = t.notes || '';
+  buildDayPicker(); updateSummary(); openModal('ts-modal');
 }
 
-async function loadTimesheets(){
-  try{
-    var ts=await api('GET','/timesheets');
-    allTimesheets=ts;
-    document.getElementById('total-hours').textContent=ts.filter(function(t){return t.status==='approved';}).reduce(function(s,t){return s+t.totalHours;},0).toFixed(1)+'h';
-    document.getElementById('approved-sheets').textContent=ts.filter(function(t){return t.status==='approved';}).length;
-    document.getElementById('pending-sheets').textContent=ts.filter(function(t){return t.status==='pending';}).length;
-    var grid=document.getElementById('ts-grid');
-    if(!ts.length){grid.innerHTML='<div style="grid-column:1/-1;"><div class="empty-state"><div class="empty-icon"><i class="bx bxs-time-five"></i></div><h3>No timesheets yet</h3></div></div>';return;}
-    grid.innerHTML=ts.map(function(t){
-      var entries=t.entries||[];
-      var canEdit=(t.status==='pending'||t.status==='rejected');
-      var sc=t.status==='approved'?'#22c55e':t.status==='rejected'?'#ef4444':'#f59e0b';
-      var sb=t.status==='approved'?'#dcfce7':t.status==='rejected'?'#fee2e2':'#fef3c7';
-      return '<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:18px;display:flex;flex-direction:column;gap:12px;transition:box-shadow 0.2s;" onmouseover="this.style.boxShadow=\'var(--shadow-lg)\'" onmouseout="this.style.boxShadow=\'\'">'+
-        '<div style="display:flex;align-items:center;justify-content:space-between;">'+
-          '<div style="font-size:13px;font-weight:600;color:var(--text-primary);"><i class="bx bx-calendar" style="color:var(--accent)"></i> '+fmtDate(t.weekStart)+' – '+fmtDate(t.weekEnd)+'</div>'+
-          '<span style="font-size:11px;font-weight:700;background:'+sb+';color:'+sc+';border-radius:20px;padding:3px 10px;text-transform:capitalize;">'+t.status+'</span>'+
-        '</div>'+
-        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">'+
-          '<div style="background:var(--bg-input);border-radius:10px;padding:12px;text-align:center;">'+
-            '<div style="font-size:22px;font-weight:900;color:var(--accent);">'+t.totalHours+'h</div>'+
-            '<div style="font-size:11px;color:var(--text-muted);">Total Hours</div>'+
-          '</div>'+
-          '<div style="background:var(--bg-input);border-radius:10px;padding:12px;text-align:center;">'+
-            '<div style="font-size:22px;font-weight:900;color:var(--text-primary);">'+entries.length+'</div>'+
-            '<div style="font-size:11px;color:var(--text-muted);">Entries</div>'+
-          '</div>'+
-        '</div>'+
-        (t.approver?'<div style="font-size:12px;color:var(--text-muted);"><i class="bx bx-check-circle" style="color:#22c55e"></i> Approved by <strong>'+t.approver.name+'</strong></div>':'')+''+
-        '<div style="font-size:11px;color:var(--text-muted);">Submitted '+fmtDate(t.createdAt)+'</div>'+
-        '<div style="display:flex;gap:6px;">'+
-          (canEdit?'<button class="btn btn-ghost btn-sm" onclick="openEditTs('+t.id+')" style="flex:1;justify-content:center;"><i class="bx bx-edit"></i> Edit</button>':'')+
-          (t.status==='pending'?'<button class="btn btn-danger btn-sm" onclick="deleteTs('+t.id+')"><i class="bx bx-trash"></i></button>':'')+
-        '</div>'+
-      '</div>';
-    }).join('');
-  }catch(e){toast(e.message,'error');}
-}
-
-async function submitTimesheet(){
-  if(!selectedDates.size)return toast('Select at least one day','error');
-  var hrs=parseFloat(document.getElementById('ts-hours').value)||0;
-  if(hrs<=0)return toast('Enter valid hours','error');
-  var workType=document.getElementById('ts-worktype').value;
-  var project=document.getElementById('ts-project').value;
-  var description=document.getElementById('ts-desc').value;
-  var notes=document.getElementById('ts-notes').value;
-  var sorted=[...selectedDates].sort();
-  var entries=sorted.map(function(d){return{date:d,hours:hrs,workType:workType,project:project,description:description};});
-
-  try{
-    if(editingTsId){
-      // Update existing
-      await api('PUT','/timesheets/'+editingTsId,{entries:entries,notes:notes});
-      toast('Timesheet updated & resubmitted for approval!','success');
-    }else{
-      await api('POST','/timesheets',{weekStart:sorted[0],weekEnd:sorted[sorted.length-1],entries:entries,notes:notes});
-      toast('Timesheet submitted!','success');
+/* ── submit / delete ────────────────────────────────────── */
+async function submitTimesheet() {
+  if (!selectedDates.size) return toast('Select at least one day', 'error');
+  var hrs = parseFloat(document.getElementById('ts-hours').value) || 0;
+  if (hrs <= 0) return toast('Enter valid hours', 'error');
+  var sorted  = [...selectedDates].sort();
+  var entries = sorted.map(function(d) {
+    return { date: d, hours: hrs, workType: document.getElementById('ts-worktype').value,
+             project: document.getElementById('ts-project').value, description: document.getElementById('ts-desc').value };
+  });
+  var notes = document.getElementById('ts-notes').value;
+  try {
+    if (editingTsId) {
+      await api('PUT', '/timesheets/' + editingTsId, { entries: entries, notes: notes });
+      toast('Timesheet updated & resubmitted!', 'success');
+    } else {
+      await api('POST', '/timesheets', { weekStart: sorted[0], weekEnd: sorted[sorted.length-1], entries: entries, notes: notes });
+      toast('Timesheet submitted!', 'success');
     }
-    closeModal('ts-modal');loadTimesheets();
-  }catch(e){toast(e.message,'error');}
+    closeModal('ts-modal');
+    loadTimesheets();
+  } catch(e) { toast(e.message, 'error'); }
 }
 
-async function deleteTs(id){
-  if(!confirm('Delete this timesheet?'))return;
-  try{await api('DELETE','/timesheets/'+id);toast('Deleted','success');loadTimesheets();}
-  catch(e){toast(e.message,'error');}
+async function deleteTs(id) {
+  if (!confirm('Delete this timesheet?')) return;
+  try { await api('DELETE', '/timesheets/' + id); toast('Deleted', 'success'); loadTimesheets(); }
+  catch(e) { toast(e.message, 'error'); }
 }
 
 loadTimesheets();
