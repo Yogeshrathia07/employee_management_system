@@ -71,6 +71,7 @@ app.get('/superadmin/companies',   (req, res) => res.render('superadmin/companie
 app.get('/superadmin/users',       (req, res) => res.render('superadmin/users',       { title: 'All Users' }));
 app.get('/superadmin/recycle-bin', (req, res) => res.render('superadmin/recycle-bin', { title: 'Recycle Bin' }));
 app.get('/superadmin/policies',    (req, res) => res.render('superadmin/policies',    { title: 'Company Policies' }));
+app.get('/superadmin/accounts',    (req, res) => res.render('superadmin/accounts',    { title: 'Accounts' }));
 
 // 404 fallback
 app.use((req, res) => {

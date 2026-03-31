@@ -1,0 +1,925 @@
+<%- include('../partials/head', {title: 'Accounts'}) %>
+<div class="app-layout">
+  <%- include('../partials/sidebar-superadmin') %>
+  <div class="main-content">
+    <header class="page-header">
+      <div class="flex items-center gap-3">
+        <button class="mobile-menu-btn" onclick="openSidebar()"><i class="bx bx-menu"></i></button>
+        <div>
+          <div class="page-title"><i class="bx bxs-credit-card" style="color:var(--accent)"></i> Accounts</div>
+          <div class="page-subtitle">Financial management — invoices, orders, vendors & projects</div>
+        </div>
+      </div>
+      <div class="header-actions"></div>
+    </header>
+
+    <div class="page-body admin-employees-page">
+      <div class="employee-directory-shell">
+
+        <!-- Module Tabs -->
+        <div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:24px;background:var(--bg-input);border-radius:12px;padding:4px;">
+          <button class="acc-tab active" id="tab-home"    onclick="showModule('home')"><i class="bx bxs-home"></i> Dashboard</button>
+          <button class="acc-tab" id="tab-inv"     onclick="showModule('inv')"><i class="bx bxs-receipt"></i> Invoices</button>
+          <button class="acc-tab" id="tab-pro"     onclick="showModule('pro')"><i class="bx bxs-file-doc"></i> Proforma</button>
+          <button class="acc-tab" id="tab-quo"     onclick="showModule('quo')"><i class="bx bxs-notepad"></i> Quotations</button>
+          <button class="acc-tab" id="tab-po"      onclick="showModule('po')"><i class="bx bxs-truck"></i> Purchase Orders</button>
+          <button class="acc-tab" id="tab-ven"     onclick="showModule('ven')"><i class="bx bxs-user-badge"></i> Vendors</button>
+          <button class="acc-tab" id="tab-cwo"     onclick="showModule('cwo')"><i class="bx bxs-briefcase"></i> Client W/O</button>
+          <button class="acc-tab" id="tab-vwo"     onclick="showModule('vwo')"><i class="bx bxs-wrench"></i> Vendor W/O</button>
+          <button class="acc-tab" id="tab-prj"     onclick="showModule('prj')"><i class="bx bxs-bar-chart-alt-2"></i> Project Accounts</button>
+        </div>
+
+        <!-- ═══════════════════════════════════════════════════ DASHBOARD -->
+        <div id="mod-home" class="acc-module">
+          <div class="stats-grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:24px;">
+            <div class="stat-card"><div class="stat-icon blue"><i class="bx bxs-receipt"></i></div><div><div class="stat-value" id="dash-inv">0</div><div class="stat-label">Invoices</div></div></div>
+            <div class="stat-card"><div class="stat-icon green"><i class="bx bxs-user-badge"></i></div><div><div class="stat-value" id="dash-ven">0</div><div class="stat-label">Vendors</div></div></div>
+            <div class="stat-card"><div class="stat-icon orange"><i class="bx bxs-briefcase"></i></div><div><div class="stat-value" id="dash-cwo">0</div><div class="stat-label">Client W/O</div></div></div>
+            <div class="stat-card"><div class="stat-icon" style="background:#f3e8ff;color:#7c3aed;"><i class="bx bxs-bar-chart-alt-2"></i></div><div><div class="stat-value" id="dash-prj">0</div><div class="stat-label">Projects</div></div></div>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:16px;">
+            <% var modules = [
+              {key:'inv', icon:'bxs-receipt',       color:'#3b82f6', bg:'#dbeafe', title:'Invoices',            desc:'Manage client invoices and billing'},
+              {key:'pro', icon:'bxs-file-doc',       color:'#8b5cf6', bg:'#ede9fe', title:'Proforma Invoices',   desc:'Generate preliminary invoices for clients'},
+              {key:'quo', icon:'bxs-notepad',        color:'#0ea5e9', bg:'#e0f2fe', title:'Quotations',          desc:'Create and send quotes to potential clients'},
+              {key:'po',  icon:'bxs-truck',          color:'#f59e0b', bg:'#fef3c7', title:'Purchase Orders',     desc:'Manage vendor purchase orders'},
+              {key:'ven', icon:'bxs-user-badge',     color:'#22c55e', bg:'#dcfce7', title:'Vendor Registration', desc:'Register and manage vendor information'},
+              {key:'cwo', icon:'bxs-briefcase',      color:'#ef4444', bg:'#fee2e2', title:'Client Work Orders',  desc:'Track work orders for clients'},
+              {key:'vwo', icon:'bxs-wrench',         color:'#f97316', bg:'#ffedd5', title:'Vendor Work Orders',  desc:'Assign and track vendor work orders'},
+              {key:'prj', icon:'bxs-bar-chart-alt-2',color:'#7c3aed', bg:'#f3e8ff', title:'Project Accounts',   desc:'Budget and track project financials'}
+            ]; %>
+            <% modules.forEach(function(m) { %>
+            <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:20px;display:flex;flex-direction:column;gap:12px;transition:box-shadow .2s;cursor:pointer;" onclick="showModule('<%= m.key %>')" onmouseover="this.style.boxShadow='var(--shadow-lg)'" onmouseout="this.style.boxShadow=''">
+              <div style="width:44px;height:44px;border-radius:12px;background:<%= m.bg %>;display:flex;align-items:center;justify-content:center;">
+                <i class="bx <%= m.icon %>" style="font-size:22px;color:<%= m.color %>;"></i>
+              </div>
+              <div>
+                <div style="font-weight:700;font-size:14px;color:var(--text-primary);margin-bottom:4px;"><%= m.title %></div>
+                <div style="font-size:12px;color:var(--text-muted);"><%= m.desc %></div>
+              </div>
+              <button class="btn btn-ghost btn-sm" style="margin-top:auto;justify-content:flex-start;" onclick="event.stopPropagation();showModule('<%= m.key %>')">Go to <%= m.title %> <i class="bx bx-chevron-right"></i></button>
+            </div>
+            <% }); %>
+          </div>
+        </div>
+
+        <!-- ═══════════════════════════════════════════════════ INVOICES -->
+        <div id="mod-inv" class="acc-module" style="display:none;">
+          <div style="display:flex;gap:4px;background:var(--bg-input);border-radius:10px;padding:3px;width:fit-content;margin-bottom:20px;">
+            <button class="acc-subtab active" id="stab-invoices" onclick="showSubTab('invoices')">Invoices</button>
+            <button class="acc-subtab" id="stab-calc" onclick="showSubTab('calc')">Calculators</button>
+          </div>
+          <!-- Invoices subtab -->
+          <div id="sub-invoices">
+            <div class="admin-toolbar" style="margin-bottom:16px;">
+              <div class="search-bar" style="width:220px;"><span class="search-icon"><i class="bx bx-search"></i></span><input type="text" id="inv-search" placeholder="Search invoice..." oninput="renderInvoices()"></div>
+              <select id="inv-status" class="form-control" style="width:140px" onchange="renderInvoices()">
+                <option value="">All Status</option><option>Draft</option><option>Sent</option><option>Paid</option><option>Overdue</option>
+              </select>
+              <button class="btn btn-primary" style="margin-left:auto;" onclick="openInvModal()"><i class="bx bx-plus"></i> New Invoice</button>
+            </div>
+            <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;">
+              <table style="width:100%;border-collapse:collapse;" id="inv-table">
+                <thead><tr style="background:var(--bg-input);border-bottom:1px solid var(--border);">
+                  <th class="acc-th">Invoice #</th><th class="acc-th">Client</th><th class="acc-th">Date</th><th class="acc-th">Due Date</th><th class="acc-th">Amount</th><th class="acc-th">Status</th><th class="acc-th"></th>
+                </tr></thead>
+                <tbody id="inv-body"></tbody>
+              </table>
+            </div>
+          </div>
+          <!-- Calculator subtab -->
+          <div id="sub-calc" style="display:none;">
+            <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px;">
+              <!-- GST Calc -->
+              <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:20px;">
+                <div style="font-weight:700;font-size:14px;margin-bottom:16px;"><i class="bx bx-calculator" style="color:var(--accent)"></i> GST Calculator</div>
+                <div class="form-group"><label class="form-label">Amount (excl. GST)</label><input type="number" id="gst-amount" class="form-control" placeholder="Enter amount" oninput="calcGST()"></div>
+                <div class="form-group"><label class="form-label">GST Rate %</label>
+                  <select id="gst-rate" class="form-control" onchange="calcGST()">
+                    <option value="5">5%</option><option value="12">12%</option><option value="18" selected>18%</option><option value="28">28%</option>
+                  </select>
+                </div>
+                <div style="background:var(--bg-input);border-radius:10px;padding:14px;margin-top:8px;">
+                  <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:6px;"><span style="color:var(--text-muted);">CGST</span><span id="gst-cgst" style="font-weight:600;">₹0</span></div>
+                  <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:6px;"><span style="color:var(--text-muted);">SGST</span><span id="gst-sgst" style="font-weight:600;">₹0</span></div>
+                  <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:6px;"><span style="color:var(--text-muted);">IGST</span><span id="gst-igst" style="font-weight:600;">₹0</span></div>
+                  <div style="border-top:1px solid var(--border);margin:8px 0;"></div>
+                  <div style="display:flex;justify-content:space-between;font-size:15px;font-weight:700;"><span>Total</span><span id="gst-total" style="color:var(--accent);">₹0</span></div>
+                </div>
+              </div>
+              <!-- Discount Calc -->
+              <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:20px;">
+                <div style="font-weight:700;font-size:14px;margin-bottom:16px;"><i class="bx bx-purchase-tag" style="color:var(--accent)"></i> Discount Calculator</div>
+                <div class="form-group"><label class="form-label">Original Price</label><input type="number" id="disc-orig" class="form-control" placeholder="Original price" oninput="calcDiscount()"></div>
+                <div class="form-group"><label class="form-label">Discount %</label><input type="number" id="disc-pct" class="form-control" placeholder="e.g. 10" min="0" max="100" oninput="calcDiscount()"></div>
+                <div style="background:var(--bg-input);border-radius:10px;padding:14px;margin-top:8px;">
+                  <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:6px;"><span style="color:var(--text-muted);">Discount Amount</span><span id="disc-amt" style="font-weight:600;">₹0</span></div>
+                  <div style="border-top:1px solid var(--border);margin:8px 0;"></div>
+                  <div style="display:flex;justify-content:space-between;font-size:15px;font-weight:700;"><span>Payable Amount</span><span id="disc-pay" style="color:var(--accent);">₹0</span></div>
+                </div>
+              </div>
+              <!-- TDS Calc -->
+              <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:20px;">
+                <div style="font-weight:700;font-size:14px;margin-bottom:16px;"><i class="bx bx-trending-down" style="color:var(--accent)"></i> TDS Calculator</div>
+                <div class="form-group"><label class="form-label">Gross Amount</label><input type="number" id="tds-gross" class="form-control" placeholder="Gross amount" oninput="calcTDS()"></div>
+                <div class="form-group"><label class="form-label">TDS Rate %</label>
+                  <select id="tds-rate" class="form-control" onchange="calcTDS()">
+                    <option value="1">1% (Rent)</option><option value="2">2% (Contractor)</option><option value="10" selected>10% (Professional)</option><option value="30">30% (Winnings)</option>
+                  </select>
+                </div>
+                <div style="background:var(--bg-input);border-radius:10px;padding:14px;margin-top:8px;">
+                  <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:6px;"><span style="color:var(--text-muted);">TDS Deduction</span><span id="tds-ded" style="font-weight:600;">₹0</span></div>
+                  <div style="border-top:1px solid var(--border);margin:8px 0;"></div>
+                  <div style="display:flex;justify-content:space-between;font-size:15px;font-weight:700;"><span>Net Receivable</span><span id="tds-net" style="color:var(--accent);">₹0</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ═══════════════════════════════════════════════ PROFORMA -->
+        <div id="mod-pro" class="acc-module" style="display:none;">
+          <div class="admin-toolbar" style="margin-bottom:16px;">
+            <div class="search-bar" style="width:220px;"><span class="search-icon"><i class="bx bx-search"></i></span><input type="text" id="pro-search" placeholder="Search proforma..." oninput="renderProforma()"></div>
+            <select id="pro-status" class="form-control" style="width:140px" onchange="renderProforma()">
+              <option value="">All Status</option><option>Draft</option><option>Sent</option><option>Accepted</option><option>Rejected</option>
+            </select>
+            <button class="btn btn-primary" style="margin-left:auto;" onclick="openDocModal('pro')"><i class="bx bx-plus"></i> New Proforma</button>
+          </div>
+          <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;">
+            <table style="width:100%;border-collapse:collapse;">
+              <thead><tr style="background:var(--bg-input);border-bottom:1px solid var(--border);">
+                <th class="acc-th">Proforma #</th><th class="acc-th">Client</th><th class="acc-th">Date</th><th class="acc-th">Valid Till</th><th class="acc-th">Amount</th><th class="acc-th">Status</th><th class="acc-th"></th>
+              </tr></thead>
+              <tbody id="pro-body"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- ═══════════════════════════════════════════════ QUOTATIONS -->
+        <div id="mod-quo" class="acc-module" style="display:none;">
+          <div class="admin-toolbar" style="margin-bottom:16px;">
+            <div class="search-bar" style="width:220px;"><span class="search-icon"><i class="bx bx-search"></i></span><input type="text" id="quo-search" placeholder="Search quotation..." oninput="renderQuotations()"></div>
+            <select id="quo-status" class="form-control" style="width:140px" onchange="renderQuotations()">
+              <option value="">All Status</option><option>Draft</option><option>Sent</option><option>Accepted</option><option>Rejected</option>
+            </select>
+            <button class="btn btn-primary" style="margin-left:auto;" onclick="openDocModal('quo')"><i class="bx bx-plus"></i> New Quotation</button>
+          </div>
+          <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;">
+            <table style="width:100%;border-collapse:collapse;">
+              <thead><tr style="background:var(--bg-input);border-bottom:1px solid var(--border);">
+                <th class="acc-th">Quotation #</th><th class="acc-th">Client</th><th class="acc-th">Date</th><th class="acc-th">Valid Till</th><th class="acc-th">Amount</th><th class="acc-th">Status</th><th class="acc-th"></th>
+              </tr></thead>
+              <tbody id="quo-body"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- ══════════════════════════════════════════ PURCHASE ORDERS -->
+        <div id="mod-po" class="acc-module" style="display:none;">
+          <div class="admin-toolbar" style="margin-bottom:16px;">
+            <div class="search-bar" style="width:220px;"><span class="search-icon"><i class="bx bx-search"></i></span><input type="text" id="po-search" placeholder="Search PO..." oninput="renderPO()"></div>
+            <select id="po-status" class="form-control" style="width:140px" onchange="renderPO()">
+              <option value="">All Status</option><option>Draft</option><option>Sent</option><option>Received</option><option>Cancelled</option>
+            </select>
+            <button class="btn btn-primary" style="margin-left:auto;" onclick="openPOModal()"><i class="bx bx-plus"></i> New PO</button>
+          </div>
+          <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;">
+            <table style="width:100%;border-collapse:collapse;">
+              <thead><tr style="background:var(--bg-input);border-bottom:1px solid var(--border);">
+                <th class="acc-th">PO #</th><th class="acc-th">Vendor</th><th class="acc-th">Date</th><th class="acc-th">Delivery Date</th><th class="acc-th">Amount</th><th class="acc-th">Status</th><th class="acc-th"></th>
+              </tr></thead>
+              <tbody id="po-body"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- ═══════════════════════════════════════ VENDOR REGISTRATION -->
+        <div id="mod-ven" class="acc-module" style="display:none;">
+          <div class="admin-toolbar" style="margin-bottom:16px;">
+            <div class="search-bar" style="width:220px;"><span class="search-icon"><i class="bx bx-search"></i></span><input type="text" id="ven-search" placeholder="Search vendor..." oninput="renderVendors()"></div>
+            <select id="ven-status" class="form-control" style="width:140px" onchange="renderVendors()">
+              <option value="">All Status</option><option>Active</option><option>Inactive</option>
+            </select>
+            <button class="btn btn-primary" style="margin-left:auto;" onclick="openVenModal()"><i class="bx bx-plus"></i> Register Vendor</button>
+          </div>
+          <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;">
+            <table style="width:100%;border-collapse:collapse;">
+              <thead><tr style="background:var(--bg-input);border-bottom:1px solid var(--border);">
+                <th class="acc-th">Vendor #</th><th class="acc-th">Name</th><th class="acc-th">Contact</th><th class="acc-th">Email</th><th class="acc-th">Category</th><th class="acc-th">GST</th><th class="acc-th">Status</th><th class="acc-th"></th>
+              </tr></thead>
+              <tbody id="ven-body"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- ══════════════════════════════════════ CLIENT WORK ORDERS -->
+        <div id="mod-cwo" class="acc-module" style="display:none;">
+          <div class="admin-toolbar" style="margin-bottom:16px;">
+            <div class="search-bar" style="width:220px;"><span class="search-icon"><i class="bx bx-search"></i></span><input type="text" id="cwo-search" placeholder="Search CWO..." oninput="renderCWO()"></div>
+            <select id="cwo-status" class="form-control" style="width:140px" onchange="renderCWO()">
+              <option value="">All Status</option><option>Draft</option><option>Proposed</option><option>Active</option><option>Completed</option><option>Cancelled</option>
+            </select>
+            <button class="btn btn-primary" style="margin-left:auto;" onclick="openWOModal('cwo')"><i class="bx bx-plus"></i> Create CWO</button>
+          </div>
+          <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;">
+            <table style="width:100%;border-collapse:collapse;">
+              <thead><tr style="background:var(--bg-input);border-bottom:1px solid var(--border);">
+                <th class="acc-th">CWO #</th><th class="acc-th">Client</th><th class="acc-th">Project</th><th class="acc-th">Start Date</th><th class="acc-th">End Date</th><th class="acc-th">Amount</th><th class="acc-th">Status</th><th class="acc-th"></th>
+              </tr></thead>
+              <tbody id="cwo-body"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- ═══════════════════════════════════════ VENDOR WORK ORDERS -->
+        <div id="mod-vwo" class="acc-module" style="display:none;">
+          <div class="admin-toolbar" style="margin-bottom:16px;">
+            <div class="search-bar" style="width:220px;"><span class="search-icon"><i class="bx bx-search"></i></span><input type="text" id="vwo-search" placeholder="Search VWO..." oninput="renderVWO()"></div>
+            <select id="vwo-status" class="form-control" style="width:140px" onchange="renderVWO()">
+              <option value="">All Status</option><option>Draft</option><option>Proposed</option><option>Active</option><option>Completed</option><option>Cancelled</option>
+            </select>
+            <button class="btn btn-primary" style="margin-left:auto;" onclick="openWOModal('vwo')"><i class="bx bx-plus"></i> Create VWO</button>
+          </div>
+          <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;">
+            <table style="width:100%;border-collapse:collapse;">
+              <thead><tr style="background:var(--bg-input);border-bottom:1px solid var(--border);">
+                <th class="acc-th">VWO #</th><th class="acc-th">Vendor</th><th class="acc-th">Project</th><th class="acc-th">Start Date</th><th class="acc-th">End Date</th><th class="acc-th">Amount</th><th class="acc-th">Status</th><th class="acc-th"></th>
+              </tr></thead>
+              <tbody id="vwo-body"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- ════════════════════════════════════════ PROJECT ACCOUNTS -->
+        <div id="mod-prj" class="acc-module" style="display:none;">
+          <div class="admin-toolbar" style="margin-bottom:16px;">
+            <div class="search-bar" style="width:220px;"><span class="search-icon"><i class="bx bx-search"></i></span><input type="text" id="prj-search" placeholder="Search project..." oninput="renderProjects()"></div>
+            <select id="prj-status" class="form-control" style="width:140px" onchange="renderProjects()">
+              <option value="">All Status</option><option>Planning</option><option>Active</option><option>Completed</option><option>On Hold</option>
+            </select>
+            <button class="btn btn-primary" style="margin-left:auto;" onclick="openPrjModal()"><i class="bx bx-plus"></i> New Project</button>
+          </div>
+          <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;">
+            <table style="width:100%;border-collapse:collapse;">
+              <thead><tr style="background:var(--bg-input);border-bottom:1px solid var(--border);">
+                <th class="acc-th">Project #</th><th class="acc-th">Name</th><th class="acc-th">Client</th><th class="acc-th">Budget</th><th class="acc-th">Spent</th><th class="acc-th">Remaining</th><th class="acc-th">Status</th><th class="acc-th"></th>
+              </tr></thead>
+              <tbody id="prj-body"></tbody>
+            </table>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════ MODALS -->
+
+<!-- Invoice / Proforma / Quotation modal -->
+<div class="modal-overlay" id="doc-modal">
+  <div class="modal" style="max-width:640px;">
+    <div class="modal-header"><span class="modal-title" id="doc-modal-title">New Invoice</span><button class="modal-close" onclick="closeModal('doc-modal')">×</button></div>
+    <div class="modal-body" style="max-height:75vh;overflow-y:auto;">
+      <input type="hidden" id="doc-type">
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">ID / Number</label><input type="text" id="doc-id" class="form-control" readonly style="background:var(--bg-input);"></div>
+        <div class="form-group"><label class="form-label" id="doc-party-label">Client Name</label><input type="text" id="doc-party" class="form-control" placeholder="Client name"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Date</label><input type="date" id="doc-date" class="form-control"></div>
+        <div class="form-group"><label class="form-label" id="doc-date2-label">Due Date</label><input type="date" id="doc-date2" class="form-control"></div>
+      </div>
+      <!-- Line items -->
+      <div class="form-group">
+        <label class="form-label">Line Items</label>
+        <div id="doc-items" style="display:flex;flex-direction:column;gap:8px;"></div>
+        <button type="button" class="btn btn-ghost btn-sm" style="margin-top:8px;" onclick="addLineItem()"><i class="bx bx-plus"></i> Add Item</button>
+      </div>
+      <div style="background:var(--bg-input);border-radius:10px;padding:12px;display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+        <span style="font-weight:600;font-size:14px;">Total Amount</span>
+        <span id="doc-total-display" style="font-size:18px;font-weight:800;color:var(--accent);">₹0</span>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Status</label>
+          <select id="doc-status" class="form-control">
+            <option>Draft</option><option>Sent</option><option>Accepted</option><option>Paid</option><option>Rejected</option><option>Overdue</option>
+          </select>
+        </div>
+        <div class="form-group"><label class="form-label">Notes</label><input type="text" id="doc-notes" class="form-control" placeholder="Optional notes"></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('doc-modal')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveDoc()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Purchase Order modal -->
+<div class="modal-overlay" id="po-modal">
+  <div class="modal" style="max-width:580px;">
+    <div class="modal-header"><span class="modal-title" id="po-modal-title">New Purchase Order</span><button class="modal-close" onclick="closeModal('po-modal')">×</button></div>
+    <div class="modal-body">
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">PO Number</label><input type="text" id="po-id" class="form-control" readonly style="background:var(--bg-input);"></div>
+        <div class="form-group"><label class="form-label">Vendor Name</label><input type="text" id="po-vendor" class="form-control" placeholder="Vendor name"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">PO Date</label><input type="date" id="po-date" class="form-control"></div>
+        <div class="form-group"><label class="form-label">Delivery Date</label><input type="date" id="po-delivery" class="form-control"></div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Items / Description</label>
+        <div id="po-items" style="display:flex;flex-direction:column;gap:8px;"></div>
+        <button type="button" class="btn btn-ghost btn-sm" style="margin-top:8px;" onclick="addPOItem()"><i class="bx bx-plus"></i> Add Item</button>
+      </div>
+      <div style="background:var(--bg-input);border-radius:10px;padding:12px;display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+        <span style="font-weight:600;font-size:14px;">Total Amount</span>
+        <span id="po-total-display" style="font-size:18px;font-weight:800;color:var(--accent);">₹0</span>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Status</label>
+          <select id="po-status-sel" class="form-control"><option>Draft</option><option>Sent</option><option>Received</option><option>Cancelled</option></select>
+        </div>
+        <div class="form-group"><label class="form-label">Notes</label><input type="text" id="po-notes" class="form-control" placeholder="Optional notes"></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('po-modal')">Cancel</button>
+      <button class="btn btn-primary" onclick="savePO()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Vendor Registration modal -->
+<div class="modal-overlay" id="ven-modal">
+  <div class="modal" style="max-width:580px;">
+    <div class="modal-header"><span class="modal-title" id="ven-modal-title">Register Vendor</span><button class="modal-close" onclick="closeModal('ven-modal')">×</button></div>
+    <div class="modal-body">
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Vendor ID</label><input type="text" id="ven-id" class="form-control" readonly style="background:var(--bg-input);"></div>
+        <div class="form-group"><label class="form-label">Vendor Name</label><input type="text" id="ven-name" class="form-control" placeholder="Business name"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Contact Person</label><input type="text" id="ven-contact" class="form-control" placeholder="Contact name"></div>
+        <div class="form-group"><label class="form-label">Phone</label><input type="text" id="ven-phone" class="form-control" placeholder="Phone number"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Email</label><input type="email" id="ven-email" class="form-control" placeholder="Email address"></div>
+        <div class="form-group"><label class="form-label">Category</label><input type="text" id="ven-category" class="form-control" placeholder="e.g. IT, Logistics"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">GST Number</label><input type="text" id="ven-gst" class="form-control" placeholder="GSTIN"></div>
+        <div class="form-group"><label class="form-label">PAN Number</label><input type="text" id="ven-pan" class="form-control" placeholder="PAN"></div>
+      </div>
+      <div class="form-group"><label class="form-label">Address</label><textarea id="ven-address" class="form-control" rows="2" placeholder="Full address"></textarea></div>
+      <div class="form-group"><label class="form-label">Status</label>
+        <select id="ven-status-sel" class="form-control"><option>Active</option><option>Inactive</option></select>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('ven-modal')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveVendor()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Work Order modal (Client & Vendor) -->
+<div class="modal-overlay" id="wo-modal">
+  <div class="modal" style="max-width:580px;">
+    <div class="modal-header"><span class="modal-title" id="wo-modal-title">New Work Order</span><button class="modal-close" onclick="closeModal('wo-modal')">×</button></div>
+    <div class="modal-body">
+      <input type="hidden" id="wo-type">
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Work Order #</label><input type="text" id="wo-id" class="form-control" readonly style="background:var(--bg-input);"></div>
+        <div class="form-group"><label class="form-label" id="wo-party-label">Client Name</label><input type="text" id="wo-party" class="form-control" placeholder="Client / Vendor name"></div>
+      </div>
+      <div class="form-group"><label class="form-label">Project Name</label><input type="text" id="wo-project" class="form-control" placeholder="Project name"></div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Start Date</label><input type="date" id="wo-start" class="form-control"></div>
+        <div class="form-group"><label class="form-label">End Date</label><input type="date" id="wo-end" class="form-control"></div>
+      </div>
+      <div class="form-group"><label class="form-label">Scope of Work</label><textarea id="wo-scope" class="form-control" rows="3" placeholder="Describe the scope of work..."></textarea></div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Total Amount (₹)</label><input type="number" id="wo-amount" class="form-control" placeholder="0" min="0"></div>
+        <div class="form-group"><label class="form-label">Status</label>
+          <select id="wo-status-sel" class="form-control"><option>Draft</option><option>Proposed</option><option>Active</option><option>Completed</option><option>Cancelled</option></select>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('wo-modal')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveWO()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Project Accounts modal -->
+<div class="modal-overlay" id="prj-modal">
+  <div class="modal" style="max-width:540px;">
+    <div class="modal-header"><span class="modal-title" id="prj-modal-title">New Project</span><button class="modal-close" onclick="closeModal('prj-modal')">×</button></div>
+    <div class="modal-body">
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Project #</label><input type="text" id="prj-id" class="form-control" readonly style="background:var(--bg-input);"></div>
+        <div class="form-group"><label class="form-label">Project Name</label><input type="text" id="prj-name" class="form-control" placeholder="Project name"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Client</label><input type="text" id="prj-client" class="form-control" placeholder="Client name"></div>
+        <div class="form-group"><label class="form-label">Status</label>
+          <select id="prj-status-sel" class="form-control"><option>Planning</option><option>Active</option><option>Completed</option><option>On Hold</option></select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Start Date</label><input type="date" id="prj-start" class="form-control"></div>
+        <div class="form-group"><label class="form-label">End Date</label><input type="date" id="prj-end" class="form-control"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Total Budget (₹)</label><input type="number" id="prj-budget" class="form-control" placeholder="0" min="0"></div>
+        <div class="form-group"><label class="form-label">Amount Spent (₹)</label><input type="number" id="prj-spent" class="form-control" placeholder="0" min="0"></div>
+      </div>
+      <div class="form-group"><label class="form-label">Description</label><textarea id="prj-desc" class="form-control" rows="2" placeholder="Project description..."></textarea></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('prj-modal')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveProject()">Save</button>
+    </div>
+  </div>
+</div>
+
+<style>
+.acc-tab {
+  flex:1;min-width:fit-content;padding:8px 14px;border:none;background:transparent;border-radius:9px;
+  font-size:12px;font-weight:600;color:var(--text-muted);cursor:pointer;transition:all .15s;white-space:nowrap;
+}
+.acc-tab.active { background:var(--bg-card);color:var(--accent);box-shadow:var(--shadow); }
+.acc-tab:hover:not(.active) { color:var(--text-primary); }
+.acc-subtab {
+  padding:6px 16px;border:none;background:transparent;border-radius:7px;
+  font-size:12px;font-weight:600;color:var(--text-muted);cursor:pointer;transition:all .15s;
+}
+.acc-subtab.active { background:var(--bg-card);color:var(--accent);box-shadow:var(--shadow); }
+.acc-th { padding:10px 14px;text-align:left;font-size:11px;font-weight:600;color:var(--text-muted);letter-spacing:.5px;text-transform:uppercase;white-space:nowrap; }
+.acc-td { padding:11px 14px;font-size:13px;color:var(--text-primary);border-bottom:1px solid var(--border); }
+.acc-empty { grid-column:1/-1;padding:48px;text-align:center;color:var(--text-muted);font-size:14px; }
+.line-item-row { display:flex;gap:8px;align-items:center; }
+.line-item-row input { flex:1; }
+.line-item-row .item-qty { width:70px;flex:none; }
+.line-item-row .item-rate { width:100px;flex:none; }
+.line-item-row .item-total { width:90px;flex:none;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:12px;color:var(--text-muted);text-align:right; }
+</style>
+
+<script src="/js/api.js"></script>
+<script>
+/* ── storage helpers ──────────────────────────────────── */
+var STORE = {
+  inv: 'acc_invoices', pro: 'acc_proforma', quo: 'acc_quotations',
+  po: 'acc_po', ven: 'acc_vendors', cwo: 'acc_cwo', vwo: 'acc_vwo', prj: 'acc_projects'
+};
+function load(key) { try { return JSON.parse(localStorage.getItem(STORE[key]||key)||'[]'); } catch(e){ return []; } }
+function save(key, arr) { localStorage.setItem(STORE[key]||key, JSON.stringify(arr)); }
+function genId(prefix) { return prefix + '-' + Math.random().toString(36).substr(2,6).toUpperCase(); }
+function today() { return new Date().toISOString().slice(0,10); }
+function fmtAmt(n) { return '₹' + Number(n||0).toLocaleString('en-IN'); }
+function fmtD(s) { if(!s) return '—'; var d=new Date(s); return d.getDate()+' '+['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][d.getMonth()]+' '+d.getFullYear(); }
+
+var STATUS_COLORS = {
+  Draft:{c:'#64748b',b:'#f1f5f9'}, Sent:{c:'#3b82f6',b:'#dbeafe'},
+  Paid:{c:'#22c55e',b:'#dcfce7'}, Accepted:{c:'#22c55e',b:'#dcfce7'},
+  Active:{c:'#22c55e',b:'#dcfce7'}, Completed:{c:'#8b5cf6',b:'#ede9fe'},
+  Overdue:{c:'#ef4444',b:'#fee2e2'}, Rejected:{c:'#ef4444',b:'#fee2e2'},
+  Cancelled:{c:'#ef4444',b:'#fee2e2'}, Received:{c:'#22c55e',b:'#dcfce7'},
+  Proposed:{c:'#f59e0b',b:'#fef3c7'}, Planning:{c:'#f59e0b',b:'#fef3c7'},
+  'On Hold':{c:'#f59e0b',b:'#fef3c7'}
+};
+function badge(s) {
+  var sc = STATUS_COLORS[s]||{c:'#64748b',b:'#f1f5f9'};
+  return '<span style="font-size:11px;font-weight:700;background:'+sc.b+';color:'+sc.c+';border-radius:20px;padding:2px 10px;">'+s+'</span>';
+}
+function emptyRow(cols) {
+  return '<tr><td colspan="'+cols+'" style="padding:48px;text-align:center;color:var(--text-muted);">No records found</td></tr>';
+}
+function actBtns(editFn, delFn) {
+  return '<div style="display:flex;gap:4px;">'+
+    '<button class="btn btn-ghost btn-sm" onclick="'+editFn+'"><i class="bx bx-edit"></i></button>'+
+    '<button class="btn btn-danger btn-sm" onclick="'+delFn+'"><i class="bx bx-trash"></i></button>'+
+  '</div>';
+}
+
+/* ── tab navigation ───────────────────────────────────── */
+var activeModule = 'home';
+function showModule(key) {
+  document.querySelectorAll('.acc-module').forEach(function(el){ el.style.display='none'; });
+  document.querySelectorAll('.acc-tab').forEach(function(el){ el.classList.remove('active'); });
+  document.getElementById('mod-'+key).style.display='';
+  document.getElementById('tab-'+key).classList.add('active');
+  activeModule = key;
+  if(key==='home') updateDashStats();
+  else if(key==='inv') renderInvoices();
+  else if(key==='pro') renderProforma();
+  else if(key==='quo') renderQuotations();
+  else if(key==='po') renderPO();
+  else if(key==='ven') renderVendors();
+  else if(key==='cwo') renderCWO();
+  else if(key==='vwo') renderVWO();
+  else if(key==='prj') renderProjects();
+}
+function showSubTab(key) {
+  document.getElementById('sub-invoices').style.display = key==='invoices'?'':'none';
+  document.getElementById('sub-calc').style.display = key==='calc'?'':'none';
+  document.getElementById('stab-invoices').classList.toggle('active', key==='invoices');
+  document.getElementById('stab-calc').classList.toggle('active', key==='calc');
+}
+function updateDashStats() {
+  document.getElementById('dash-inv').textContent = load('inv').length;
+  document.getElementById('dash-ven').textContent = load('ven').length;
+  document.getElementById('dash-cwo').textContent = load('cwo').length;
+  document.getElementById('dash-prj').textContent = load('prj').length;
+}
+
+/* ── INVOICES ─────────────────────────────────────────── */
+var editingDocId = null, editingDocType = null;
+function calcDocItems(container) {
+  var rows = container.querySelectorAll('.line-item-row');
+  var total = 0;
+  rows.forEach(function(row){ total += (parseFloat(row.querySelector('.item-qty').value)||0) * (parseFloat(row.querySelector('.item-rate').value)||0); });
+  return total;
+}
+function updateDocTotal() {
+  var t = calcDocItems(document.getElementById('doc-items'));
+  document.getElementById('doc-total-display').textContent = fmtAmt(t);
+}
+function addLineItemRow(container, item) {
+  item = item || {name:'',qty:1,rate:0};
+  var div = document.createElement('div');
+  div.className = 'line-item-row';
+  div.innerHTML = '<input type="text" class="form-control item-name" placeholder="Item description" value="'+escape(item.name||'')+'">'+
+    '<input type="number" class="form-control item-qty" placeholder="Qty" value="'+(item.qty||1)+'" min="1" oninput="updateDocTotal()">'+
+    '<input type="number" class="form-control item-rate" placeholder="Rate" value="'+(item.rate||0)+'" min="0" oninput="updateDocTotal()">'+
+    '<div class="item-total">'+(item.qty&&item.rate?fmtAmt(item.qty*item.rate):'₹0')+'</div>'+
+    '<button type="button" class="btn btn-danger btn-sm" onclick="this.parentElement.remove();updateDocTotal()"><i class="bx bx-x"></i></button>';
+  div.querySelector('.item-rate').addEventListener('input', function(){ div.querySelector('.item-total').textContent=fmtAmt((parseFloat(div.querySelector('.item-qty').value)||0)*(parseFloat(div.querySelector('.item-rate').value)||0)); });
+  div.querySelector('.item-qty').addEventListener('input', function(){ div.querySelector('.item-total').textContent=fmtAmt((parseFloat(div.querySelector('.item-qty').value)||0)*(parseFloat(div.querySelector('.item-rate').value)||0)); });
+  container.appendChild(div);
+}
+function addLineItem() { addLineItemRow(document.getElementById('doc-items'), null); updateDocTotal(); }
+function getDocItems(container) {
+  return Array.from(container.querySelectorAll('.line-item-row')).map(function(row){
+    return {name:unescape(row.querySelector('.item-name').value), qty:parseFloat(row.querySelector('.item-qty').value)||1, rate:parseFloat(row.querySelector('.item-rate').value)||0};
+  });
+}
+function openInvModal(id) {
+  editingDocType = 'inv'; editingDocId = id||null;
+  document.getElementById('doc-type').value = 'inv';
+  document.getElementById('doc-modal-title').textContent = id ? 'Edit Invoice' : 'New Invoice';
+  document.getElementById('doc-party-label').textContent = 'Client Name';
+  document.getElementById('doc-date2-label').textContent = 'Due Date';
+  document.getElementById('doc-items').innerHTML = '';
+  var statuses = '<option>Draft</option><option>Sent</option><option>Paid</option><option>Overdue</option>';
+  document.getElementById('doc-status').innerHTML = statuses;
+  if (id) {
+    var rec = load('inv').find(function(x){return x.id===id;});
+    if (!rec) return;
+    document.getElementById('doc-id').value    = rec.id;
+    document.getElementById('doc-party').value = rec.client;
+    document.getElementById('doc-date').value  = rec.date;
+    document.getElementById('doc-date2').value = rec.dueDate;
+    document.getElementById('doc-status').value = rec.status;
+    document.getElementById('doc-notes').value = rec.notes||'';
+    (rec.items||[]).forEach(function(it){ addLineItemRow(document.getElementById('doc-items'), it); });
+  } else {
+    document.getElementById('doc-id').value    = genId('INV');
+    document.getElementById('doc-party').value = '';
+    document.getElementById('doc-date').value  = today();
+    document.getElementById('doc-date2').value = '';
+    document.getElementById('doc-status').value = 'Draft';
+    document.getElementById('doc-notes').value = '';
+    addLineItemRow(document.getElementById('doc-items'), null);
+  }
+  updateDocTotal(); openModal('doc-modal');
+}
+function openDocModal(type) {
+  editingDocType = type; editingDocId = null;
+  var titles = {pro:'New Proforma Invoice', quo:'New Quotation'};
+  document.getElementById('doc-type').value = type;
+  document.getElementById('doc-modal-title').textContent = titles[type];
+  document.getElementById('doc-party-label').textContent = 'Client Name';
+  document.getElementById('doc-date2-label').textContent = 'Valid Till';
+  document.getElementById('doc-items').innerHTML = '';
+  document.getElementById('doc-status').innerHTML = '<option>Draft</option><option>Sent</option><option>Accepted</option><option>Rejected</option>';
+  document.getElementById('doc-id').value    = genId(type==='pro'?'PRO':'QUO');
+  document.getElementById('doc-party').value = '';
+  document.getElementById('doc-date').value  = today();
+  document.getElementById('doc-date2').value = '';
+  document.getElementById('doc-status').value = 'Draft';
+  document.getElementById('doc-notes').value = '';
+  addLineItemRow(document.getElementById('doc-items'), null);
+  updateDocTotal(); openModal('doc-modal');
+}
+function openDocEditModal(type, id) {
+  editingDocType = type; editingDocId = id;
+  var rec = load(type).find(function(x){return x.id===id;});
+  if (!rec) return;
+  var titles = {inv:'Edit Invoice', pro:'Edit Proforma Invoice', quo:'Edit Quotation'};
+  document.getElementById('doc-type').value = type;
+  document.getElementById('doc-modal-title').textContent = titles[type];
+  document.getElementById('doc-party-label').textContent = 'Client Name';
+  document.getElementById('doc-date2-label').textContent = type==='inv' ? 'Due Date' : 'Valid Till';
+  document.getElementById('doc-items').innerHTML = '';
+  var statMap = {inv:'<option>Draft</option><option>Sent</option><option>Paid</option><option>Overdue</option>', pro:'<option>Draft</option><option>Sent</option><option>Accepted</option><option>Rejected</option>', quo:'<option>Draft</option><option>Sent</option><option>Accepted</option><option>Rejected</option>'};
+  document.getElementById('doc-status').innerHTML = statMap[type];
+  document.getElementById('doc-id').value    = rec.id;
+  document.getElementById('doc-party').value = rec.client;
+  document.getElementById('doc-date').value  = rec.date;
+  document.getElementById('doc-date2').value = rec.dueDate||rec.validTill||'';
+  document.getElementById('doc-status').value = rec.status;
+  document.getElementById('doc-notes').value = rec.notes||'';
+  (rec.items||[]).forEach(function(it){ addLineItemRow(document.getElementById('doc-items'), it); });
+  updateDocTotal(); openModal('doc-modal');
+}
+function saveDoc() {
+  var type = document.getElementById('doc-type').value;
+  var items = getDocItems(document.getElementById('doc-items'));
+  var total = items.reduce(function(s,it){return s+it.qty*it.rate;},0);
+  var d2Key = type==='inv' ? 'dueDate' : 'validTill';
+  var rec = { id: document.getElementById('doc-id').value, client: document.getElementById('doc-party').value,
+    date: document.getElementById('doc-date').value, status: document.getElementById('doc-status').value,
+    notes: document.getElementById('doc-notes').value, items: items, amount: total };
+  rec[d2Key] = document.getElementById('doc-date2').value;
+  var arr = load(type);
+  if (editingDocId) { var i=arr.findIndex(function(x){return x.id===editingDocId;}); if(i>=0)arr[i]=rec; }
+  else arr.unshift(rec);
+  save(type, arr);
+  closeModal('doc-modal');
+  if(type==='inv') renderInvoices(); else if(type==='pro') renderProforma(); else renderQuotations();
+  toast('Saved!','success');
+}
+function renderInvoices() {
+  var q=(document.getElementById('inv-search').value||'').toLowerCase();
+  var st=document.getElementById('inv-status').value;
+  var data=load('inv').filter(function(r){ return (!q||(r.client||'').toLowerCase().includes(q)||(r.id||'').toLowerCase().includes(q))&&(!st||r.status===st); });
+  document.getElementById('inv-body').innerHTML = data.length ? data.map(function(r){
+    return '<tr>'+
+      '<td class="acc-td" style="font-weight:600;">'+r.id+'</td>'+
+      '<td class="acc-td">'+r.client+'</td>'+
+      '<td class="acc-td">'+fmtD(r.date)+'</td>'+
+      '<td class="acc-td">'+fmtD(r.dueDate)+'</td>'+
+      '<td class="acc-td" style="font-weight:600;">'+fmtAmt(r.amount)+'</td>'+
+      '<td class="acc-td">'+badge(r.status)+'</td>'+
+      '<td class="acc-td">'+actBtns('openDocEditModal(\'inv\',\''+r.id+'\')', 'delRecord(\'inv\',\''+r.id+'\')')+'</td>'+
+    '</tr>';
+  }).join('') : emptyRow(7);
+}
+function renderProforma() {
+  var q=(document.getElementById('pro-search').value||'').toLowerCase();
+  var st=document.getElementById('pro-status').value;
+  var data=load('pro').filter(function(r){ return (!q||(r.client||'').toLowerCase().includes(q)||(r.id||'').toLowerCase().includes(q))&&(!st||r.status===st); });
+  document.getElementById('pro-body').innerHTML = data.length ? data.map(function(r){
+    return '<tr><td class="acc-td" style="font-weight:600;">'+r.id+'</td><td class="acc-td">'+r.client+'</td><td class="acc-td">'+fmtD(r.date)+'</td><td class="acc-td">'+fmtD(r.validTill)+'</td><td class="acc-td" style="font-weight:600;">'+fmtAmt(r.amount)+'</td><td class="acc-td">'+badge(r.status)+'</td><td class="acc-td">'+actBtns('openDocEditModal(\'pro\',\''+r.id+'\')', 'delRecord(\'pro\',\''+r.id+'\')')+'</td></tr>';
+  }).join('') : emptyRow(7);
+}
+function renderQuotations() {
+  var q=(document.getElementById('quo-search').value||'').toLowerCase();
+  var st=document.getElementById('quo-status').value;
+  var data=load('quo').filter(function(r){ return (!q||(r.client||'').toLowerCase().includes(q)||(r.id||'').toLowerCase().includes(q))&&(!st||r.status===st); });
+  document.getElementById('quo-body').innerHTML = data.length ? data.map(function(r){
+    return '<tr><td class="acc-td" style="font-weight:600;">'+r.id+'</td><td class="acc-td">'+r.client+'</td><td class="acc-td">'+fmtD(r.date)+'</td><td class="acc-td">'+fmtD(r.validTill)+'</td><td class="acc-td" style="font-weight:600;">'+fmtAmt(r.amount)+'</td><td class="acc-td">'+badge(r.status)+'</td><td class="acc-td">'+actBtns('openDocEditModal(\'quo\',\''+r.id+'\')', 'delRecord(\'quo\',\''+r.id+'\')')+'</td></tr>';
+  }).join('') : emptyRow(7);
+}
+
+/* ── PURCHASE ORDERS ──────────────────────────────────── */
+var editingPOId = null;
+function addPOItemRow(container, item) {
+  item = item||{name:'',qty:1,rate:0};
+  var div = document.createElement('div'); div.className='line-item-row';
+  div.innerHTML='<input type="text" class="form-control item-name" placeholder="Item description" value="'+escape(item.name||'')+'">'+
+    '<input type="number" class="form-control item-qty" placeholder="Qty" value="'+(item.qty||1)+'" min="1" oninput="updatePOTotal()">'+
+    '<input type="number" class="form-control item-rate" placeholder="Rate" value="'+(item.rate||0)+'" min="0" oninput="updatePOTotal()">'+
+    '<div class="item-total">'+fmtAmt((item.qty||1)*(item.rate||0))+'</div>'+
+    '<button type="button" class="btn btn-danger btn-sm" onclick="this.parentElement.remove();updatePOTotal()"><i class="bx bx-x"></i></button>';
+  div.querySelector('.item-rate').addEventListener('input',function(){div.querySelector('.item-total').textContent=fmtAmt((parseFloat(div.querySelector('.item-qty').value)||0)*(parseFloat(div.querySelector('.item-rate').value)||0));});
+  div.querySelector('.item-qty').addEventListener('input',function(){div.querySelector('.item-total').textContent=fmtAmt((parseFloat(div.querySelector('.item-qty').value)||0)*(parseFloat(div.querySelector('.item-rate').value)||0));});
+  container.appendChild(div);
+}
+function addPOItem() { addPOItemRow(document.getElementById('po-items'),null); updatePOTotal(); }
+function updatePOTotal() {
+  var rows=document.getElementById('po-items').querySelectorAll('.line-item-row');
+  var total=0; rows.forEach(function(r){total+=(parseFloat(r.querySelector('.item-qty').value)||0)*(parseFloat(r.querySelector('.item-rate').value)||0);});
+  document.getElementById('po-total-display').textContent=fmtAmt(total);
+}
+function openPOModal(id) {
+  editingPOId=id||null;
+  document.getElementById('po-modal-title').textContent=id?'Edit Purchase Order':'New Purchase Order';
+  document.getElementById('po-items').innerHTML='';
+  if(id){
+    var rec=load('po').find(function(x){return x.id===id;}); if(!rec)return;
+    document.getElementById('po-id').value=rec.id; document.getElementById('po-vendor').value=rec.vendor;
+    document.getElementById('po-date').value=rec.date; document.getElementById('po-delivery').value=rec.deliveryDate||'';
+    document.getElementById('po-status-sel').value=rec.status; document.getElementById('po-notes').value=rec.notes||'';
+    (rec.items||[]).forEach(function(it){addPOItemRow(document.getElementById('po-items'),it);});
+  } else {
+    document.getElementById('po-id').value=genId('PO'); document.getElementById('po-vendor').value='';
+    document.getElementById('po-date').value=today(); document.getElementById('po-delivery').value='';
+    document.getElementById('po-status-sel').value='Draft'; document.getElementById('po-notes').value='';
+    addPOItemRow(document.getElementById('po-items'),null);
+  }
+  updatePOTotal(); openModal('po-modal');
+}
+function savePO() {
+  var items=getDocItems(document.getElementById('po-items'));
+  var rec={id:document.getElementById('po-id').value, vendor:document.getElementById('po-vendor').value,
+    date:document.getElementById('po-date').value, deliveryDate:document.getElementById('po-delivery').value,
+    status:document.getElementById('po-status-sel').value, notes:document.getElementById('po-notes').value,
+    items:items, amount:items.reduce(function(s,it){return s+it.qty*it.rate;},0)};
+  var arr=load('po');
+  if(editingPOId){var i=arr.findIndex(function(x){return x.id===editingPOId;});if(i>=0)arr[i]=rec;}else arr.unshift(rec);
+  save('po',arr); closeModal('po-modal'); renderPO(); toast('Saved!','success');
+}
+function renderPO() {
+  var q=(document.getElementById('po-search').value||'').toLowerCase();
+  var st=document.getElementById('po-status').value;
+  var data=load('po').filter(function(r){return(!q||(r.vendor||'').toLowerCase().includes(q)||(r.id||'').toLowerCase().includes(q))&&(!st||r.status===st);});
+  document.getElementById('po-body').innerHTML=data.length?data.map(function(r){
+    return '<tr><td class="acc-td" style="font-weight:600;">'+r.id+'</td><td class="acc-td">'+r.vendor+'</td><td class="acc-td">'+fmtD(r.date)+'</td><td class="acc-td">'+fmtD(r.deliveryDate)+'</td><td class="acc-td" style="font-weight:600;">'+fmtAmt(r.amount)+'</td><td class="acc-td">'+badge(r.status)+'</td><td class="acc-td">'+actBtns('openPOModal(\''+r.id+'\')','delRecord(\'po\',\''+r.id+'\')')+'</td></tr>';
+  }).join(''):emptyRow(7);
+}
+
+/* ── VENDORS ──────────────────────────────────────────── */
+var editingVenId=null;
+function openVenModal(id) {
+  editingVenId=id||null;
+  document.getElementById('ven-modal-title').textContent=id?'Edit Vendor':'Register Vendor';
+  if(id){
+    var rec=load('ven').find(function(x){return x.id===id;}); if(!rec)return;
+    document.getElementById('ven-id').value=rec.id; document.getElementById('ven-name').value=rec.name;
+    document.getElementById('ven-contact').value=rec.contact||''; document.getElementById('ven-phone').value=rec.phone||'';
+    document.getElementById('ven-email').value=rec.email||''; document.getElementById('ven-category').value=rec.category||'';
+    document.getElementById('ven-gst').value=rec.gst||''; document.getElementById('ven-pan').value=rec.pan||'';
+    document.getElementById('ven-address').value=rec.address||''; document.getElementById('ven-status-sel').value=rec.status||'Active';
+  } else {
+    ['ven-name','ven-contact','ven-phone','ven-email','ven-category','ven-gst','ven-pan','ven-address'].forEach(function(i){document.getElementById(i).value='';});
+    document.getElementById('ven-id').value=genId('VEN'); document.getElementById('ven-status-sel').value='Active';
+  }
+  openModal('ven-modal');
+}
+function saveVendor() {
+  var rec={id:document.getElementById('ven-id').value, name:document.getElementById('ven-name').value,
+    contact:document.getElementById('ven-contact').value, phone:document.getElementById('ven-phone').value,
+    email:document.getElementById('ven-email').value, category:document.getElementById('ven-category').value,
+    gst:document.getElementById('ven-gst').value, pan:document.getElementById('ven-pan').value,
+    address:document.getElementById('ven-address').value, status:document.getElementById('ven-status-sel').value};
+  if(!rec.name) return toast('Vendor name required','error');
+  var arr=load('ven');
+  if(editingVenId){var i=arr.findIndex(function(x){return x.id===editingVenId;});if(i>=0)arr[i]=rec;}else arr.unshift(rec);
+  save('ven',arr); closeModal('ven-modal'); renderVendors(); toast('Saved!','success');
+}
+function renderVendors() {
+  var q=(document.getElementById('ven-search').value||'').toLowerCase();
+  var st=document.getElementById('ven-status').value;
+  var data=load('ven').filter(function(r){return(!q||(r.name||'').toLowerCase().includes(q)||(r.id||'').toLowerCase().includes(q))&&(!st||r.status===st);});
+  document.getElementById('ven-body').innerHTML=data.length?data.map(function(r){
+    return '<tr><td class="acc-td" style="font-weight:600;">'+r.id+'</td><td class="acc-td">'+r.name+'</td><td class="acc-td">'+r.contact+'</td><td class="acc-td">'+r.email+'</td><td class="acc-td">'+r.category+'</td><td class="acc-td" style="font-size:12px;">'+r.gst+'</td><td class="acc-td">'+badge(r.status)+'</td><td class="acc-td">'+actBtns('openVenModal(\''+r.id+'\')','delRecord(\'ven\',\''+r.id+'\')')+'</td></tr>';
+  }).join(''):emptyRow(8);
+}
+
+/* ── WORK ORDERS (Client & Vendor) ────────────────────── */
+var editingWOId=null, editingWOType=null;
+function openWOModal(type, id) {
+  editingWOType=type; editingWOId=id||null;
+  var labels={cwo:{title:id?'Edit Client Work Order':'New Client Work Order', party:'Client Name'},
+               vwo:{title:id?'Edit Vendor Work Order':'New Vendor Work Order', party:'Vendor Name'}};
+  document.getElementById('wo-type').value=type;
+  document.getElementById('wo-modal-title').textContent=labels[type].title;
+  document.getElementById('wo-party-label').textContent=labels[type].party;
+  if(id){
+    var rec=load(type).find(function(x){return x.id===id;}); if(!rec)return;
+    document.getElementById('wo-id').value=rec.id; document.getElementById('wo-party').value=rec.party;
+    document.getElementById('wo-project').value=rec.project||''; document.getElementById('wo-start').value=rec.startDate||'';
+    document.getElementById('wo-end').value=rec.endDate||''; document.getElementById('wo-scope').value=rec.scope||'';
+    document.getElementById('wo-amount').value=rec.amount||0; document.getElementById('wo-status-sel').value=rec.status||'Draft';
+  } else {
+    ['wo-party','wo-project','wo-scope'].forEach(function(i){document.getElementById(i).value='';});
+    document.getElementById('wo-id').value=genId(type==='cwo'?'CWO':'VWO');
+    document.getElementById('wo-start').value=today(); document.getElementById('wo-end').value='';
+    document.getElementById('wo-amount').value=0; document.getElementById('wo-status-sel').value='Draft';
+  }
+  openModal('wo-modal');
+}
+function saveWO() {
+  var type=document.getElementById('wo-type').value;
+  var rec={id:document.getElementById('wo-id').value, party:document.getElementById('wo-party').value,
+    project:document.getElementById('wo-project').value, startDate:document.getElementById('wo-start').value,
+    endDate:document.getElementById('wo-end').value, scope:document.getElementById('wo-scope').value,
+    amount:parseFloat(document.getElementById('wo-amount').value)||0, status:document.getElementById('wo-status-sel').value};
+  if(!rec.party) return toast('Name required','error');
+  var arr=load(type);
+  if(editingWOId){var i=arr.findIndex(function(x){return x.id===editingWOId;});if(i>=0)arr[i]=rec;}else arr.unshift(rec);
+  save(type,arr); closeModal('wo-modal');
+  if(type==='cwo') renderCWO(); else renderVWO(); toast('Saved!','success');
+}
+function renderCWO() {
+  var q=(document.getElementById('cwo-search').value||'').toLowerCase();
+  var st=document.getElementById('cwo-status').value;
+  var data=load('cwo').filter(function(r){return(!q||(r.party||'').toLowerCase().includes(q)||(r.id||'').toLowerCase().includes(q)||(r.project||'').toLowerCase().includes(q))&&(!st||r.status===st);});
+  document.getElementById('cwo-body').innerHTML=data.length?data.map(function(r){
+    return '<tr><td class="acc-td" style="font-weight:600;">'+r.id+'</td><td class="acc-td">'+r.party+'</td><td class="acc-td">'+r.project+'</td><td class="acc-td">'+fmtD(r.startDate)+'</td><td class="acc-td">'+fmtD(r.endDate)+'</td><td class="acc-td" style="font-weight:600;">'+fmtAmt(r.amount)+'</td><td class="acc-td">'+badge(r.status)+'</td><td class="acc-td">'+actBtns('openWOModal(\'cwo\',\''+r.id+'\')','delRecord(\'cwo\',\''+r.id+'\')')+'</td></tr>';
+  }).join(''):emptyRow(8);
+}
+function renderVWO() {
+  var q=(document.getElementById('vwo-search').value||'').toLowerCase();
+  var st=document.getElementById('vwo-status').value;
+  var data=load('vwo').filter(function(r){return(!q||(r.party||'').toLowerCase().includes(q)||(r.id||'').toLowerCase().includes(q)||(r.project||'').toLowerCase().includes(q))&&(!st||r.status===st);});
+  document.getElementById('vwo-body').innerHTML=data.length?data.map(function(r){
+    return '<tr><td class="acc-td" style="font-weight:600;">'+r.id+'</td><td class="acc-td">'+r.party+'</td><td class="acc-td">'+r.project+'</td><td class="acc-td">'+fmtD(r.startDate)+'</td><td class="acc-td">'+fmtD(r.endDate)+'</td><td class="acc-td" style="font-weight:600;">'+fmtAmt(r.amount)+'</td><td class="acc-td">'+badge(r.status)+'</td><td class="acc-td">'+actBtns('openWOModal(\'vwo\',\''+r.id+'\')','delRecord(\'vwo\',\''+r.id+'\')')+'</td></tr>';
+  }).join(''):emptyRow(8);
+}
+
+/* ── PROJECT ACCOUNTS ─────────────────────────────────── */
+var editingPrjId=null;
+function openPrjModal(id) {
+  editingPrjId=id||null;
+  document.getElementById('prj-modal-title').textContent=id?'Edit Project':'New Project';
+  if(id){
+    var rec=load('prj').find(function(x){return x.id===id;}); if(!rec)return;
+    document.getElementById('prj-id').value=rec.id; document.getElementById('prj-name').value=rec.name;
+    document.getElementById('prj-client').value=rec.client||''; document.getElementById('prj-status-sel').value=rec.status||'Planning';
+    document.getElementById('prj-start').value=rec.startDate||''; document.getElementById('prj-end').value=rec.endDate||'';
+    document.getElementById('prj-budget').value=rec.budget||0; document.getElementById('prj-spent').value=rec.spent||0;
+    document.getElementById('prj-desc').value=rec.desc||'';
+  } else {
+    ['prj-name','prj-client','prj-desc'].forEach(function(i){document.getElementById(i).value='';});
+    document.getElementById('prj-id').value=genId('PRJ'); document.getElementById('prj-status-sel').value='Planning';
+    document.getElementById('prj-start').value=today(); document.getElementById('prj-end').value='';
+    document.getElementById('prj-budget').value=0; document.getElementById('prj-spent').value=0;
+  }
+  openModal('prj-modal');
+}
+function saveProject() {
+  var rec={id:document.getElementById('prj-id').value, name:document.getElementById('prj-name').value,
+    client:document.getElementById('prj-client').value, status:document.getElementById('prj-status-sel').value,
+    startDate:document.getElementById('prj-start').value, endDate:document.getElementById('prj-end').value,
+    budget:parseFloat(document.getElementById('prj-budget').value)||0, spent:parseFloat(document.getElementById('prj-spent').value)||0,
+    desc:document.getElementById('prj-desc').value};
+  if(!rec.name) return toast('Project name required','error');
+  var arr=load('prj');
+  if(editingPrjId){var i=arr.findIndex(function(x){return x.id===editingPrjId;});if(i>=0)arr[i]=rec;}else arr.unshift(rec);
+  save('prj',arr); closeModal('prj-modal'); renderProjects(); toast('Saved!','success');
+}
+function renderProjects() {
+  var q=(document.getElementById('prj-search').value||'').toLowerCase();
+  var st=document.getElementById('prj-status').value;
+  var data=load('prj').filter(function(r){return(!q||(r.name||'').toLowerCase().includes(q)||(r.id||'').toLowerCase().includes(q)||(r.client||'').toLowerCase().includes(q))&&(!st||r.status===st);});
+  document.getElementById('prj-body').innerHTML=data.length?data.map(function(r){
+    var rem=r.budget-r.spent; var pct=r.budget?Math.round((r.spent/r.budget)*100):0;
+    var barColor=pct>90?'#ef4444':pct>70?'#f59e0b':'#22c55e';
+    return '<tr><td class="acc-td" style="font-weight:600;">'+r.id+'</td>'+
+      '<td class="acc-td"><div style="font-weight:600;">'+r.name+'</div><div style="height:4px;background:var(--bg-input);border-radius:4px;margin-top:4px;width:100px;"><div style="width:'+pct+'%;height:100%;background:'+barColor+';border-radius:4px;"></div></div></td>'+
+      '<td class="acc-td">'+r.client+'</td>'+
+      '<td class="acc-td" style="font-weight:600;">'+fmtAmt(r.budget)+'</td>'+
+      '<td class="acc-td">'+fmtAmt(r.spent)+'</td>'+
+      '<td class="acc-td" style="font-weight:600;color:'+(rem<0?'#ef4444':'var(--text-primary)')+';">'+fmtAmt(rem)+'</td>'+
+      '<td class="acc-td">'+badge(r.status)+'</td>'+
+      '<td class="acc-td">'+actBtns('openPrjModal(\''+r.id+'\')','delRecord(\'prj\',\''+r.id+'\')')+'</td></tr>';
+  }).join(''):emptyRow(8);
+}
+
+/* ── delete ───────────────────────────────────────────── */
+function delRecord(key, id) {
+  if(!confirm('Delete this record?')) return;
+  var arr=load(key).filter(function(x){return x.id!==id;});
+  save(key,arr);
+  var renders={inv:renderInvoices,pro:renderProforma,quo:renderQuotations,po:renderPO,ven:renderVendors,cwo:renderCWO,vwo:renderVWO,prj:renderProjects};
+  if(renders[key]) renders[key]();
+  toast('Deleted','success');
+}
+
+/* ── calculators ──────────────────────────────────────── */
+function calcGST() {
+  var amt=parseFloat(document.getElementById('gst-amount').value)||0;
+  var rate=parseFloat(document.getElementById('gst-rate').value)||18;
+  var gstAmt=amt*rate/100;
+  document.getElementById('gst-cgst').textContent=fmtAmt(gstAmt/2);
+  document.getElementById('gst-sgst').textContent=fmtAmt(gstAmt/2);
+  document.getElementById('gst-igst').textContent=fmtAmt(gstAmt);
+  document.getElementById('gst-total').textContent=fmtAmt(amt+gstAmt);
+}
+function calcDiscount() {
+  var orig=parseFloat(document.getElementById('disc-orig').value)||0;
+  var pct=parseFloat(document.getElementById('disc-pct').value)||0;
+  var disc=orig*pct/100;
+  document.getElementById('disc-amt').textContent=fmtAmt(disc);
+  document.getElementById('disc-pay').textContent=fmtAmt(orig-disc);
+}
+function calcTDS() {
+  var gross=parseFloat(document.getElementById('tds-gross').value)||0;
+  var rate=parseFloat(document.getElementById('tds-rate').value)||10;
+  var ded=gross*rate/100;
+  document.getElementById('tds-ded').textContent=fmtAmt(ded);
+  document.getElementById('tds-net').textContent=fmtAmt(gross-ded);
+}
+
+/* ── init ─────────────────────────────────────────────── */
+updateDashStats();
+</script>
+</body></html>
