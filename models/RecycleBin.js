@@ -3,8 +3,8 @@ const sequelize = require('../config/database');
 
 const RecycleBin = sequelize.define('RecycleBin', {
   // What was deleted
-  itemType: { type: DataTypes.ENUM('user', 'leave', 'timesheet', 'salary', 'document', 'notification', 'company'), allowNull: false },
-  itemId: { type: DataTypes.INTEGER, allowNull: false },
+  itemType: { type: DataTypes.ENUM('user', 'leave', 'timesheet', 'salary', 'document', 'notification', 'company', 'invoice', 'proforma', 'quotation', 'purchase_order', 'vendor', 'client_work_order', 'vendor_work_order', 'project_account'), allowNull: false },
+  itemId: { type: DataTypes.STRING, allowNull: false },
   itemData: { type: DataTypes.JSON, allowNull: false }, // full snapshot of the deleted record
   itemTitle: { type: DataTypes.STRING, defaultValue: '' }, // human-readable label
   // Who deleted it

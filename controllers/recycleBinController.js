@@ -1,5 +1,5 @@
 const { Op } = require('sequelize');
-const { RecycleBin, User, Leave, Timesheet, Salary, Document, Notification, Company } = require('../models');
+const { RecycleBin, User, Leave, Timesheet, Salary, Document, Notification, Company, Invoice } = require('../models');
 
 // Helper: move item to recycle bin before deleting
 async function moveToRecycleBin(itemType, itemId, actor, itemData, itemTitle) {
@@ -19,6 +19,29 @@ async function moveToRecycleBin(itemType, itemId, actor, itemData, itemTitle) {
     expiresAt,
   });
 }
+
+exports.storeCustomItem = async (req, res) => {
+  try {
+    const allowedTypes = ['proforma', 'quotation', 'purchase_order', 'vendor', 'client_work_order', 'vendor_work_order', 'project_account'];
+    const itemType = req.body?.itemType;
+    const itemData = req.body?.itemData;
+    const itemTitle = req.body?.itemTitle;
+    const itemId = req.body?.itemId || itemData?.id;
+    if (!allowedTypes.includes(itemType)) {
+      return res.status(400).json({ message: 'Unsupported recycle item type' });
+    }
+    if (!itemData || typeof itemData !== 'object') {
+      return res.status(400).json({ message: 'Item data is required' });
+    }
+    if (!itemId) {
+      return res.status(400).json({ message: 'Item id is required' });
+    }
+    await moveToRecycleBin(itemType, String(itemId), req.user, itemData, itemTitle || `${itemType} ${itemId}`);
+    res.json({ message: 'Moved to recycle bin' });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
 
 // GET /recycle-bin — superadmin only
 exports.getItems = async (req, res) => {
@@ -66,7 +89,13 @@ exports.restoreItem = async (req, res) => {
       return res.status(400).json({ message: 'Stored recycle-bin data is missing' });
     }
 
-    const ModelMap = { user: User, leave: Leave, timesheet: Timesheet, salary: Salary, document: Document, notification: Notification, company: Company };
+    const localAccountTypes = ['proforma', 'quotation', 'purchase_order', 'vendor', 'client_work_order', 'vendor_work_order', 'project_account'];
+    if (localAccountTypes.includes(item.itemType)) {
+      await item.destroy();
+      return res.json({ message: `${item.itemType} restored successfully`, itemType: item.itemType, restoredData: data });
+    }
+
+    const ModelMap = { user: User, leave: Leave, timesheet: Timesheet, salary: Salary, document: Document, notification: Notification, company: Company, invoice: Invoice };
     const Model = ModelMap[item.itemType];
     if (!Model) return res.status(400).json({ message: 'Unknown item type' });
 
@@ -78,6 +107,7 @@ exports.restoreItem = async (req, res) => {
       document: (data.userId && data.type && data.originalName && data.createdAt) ? { userId: data.userId, type: data.type, originalName: data.originalName, createdAt: data.createdAt } : null,
       notification: (data.title && data.companyId) ? { title: data.title, companyId: data.companyId } : null,
       company: data.email ? { email: data.email } : null,
+      invoice: data.invoiceNumber ? { invoiceNumber: data.invoiceNumber } : null,
     };
 
     const duplicateWhere = duplicateWhereMap[item.itemType];

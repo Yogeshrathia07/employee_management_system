@@ -149,6 +149,7 @@ router.post('/settings/login-hero',      auth, requireRole('superadmin'), photoU
 // ─── Recycle Bin ──────────────────────────────────────────────────────────────
 const recycleBinCtrl = require('../controllers/recycleBinController');
 router.get('/recycle-bin',             auth, requireRole('admin', 'superadmin'), recycleBinCtrl.getItems);
+router.post('/recycle-bin/custom',     auth, requireRole('admin', 'superadmin'), recycleBinCtrl.storeCustomItem);
 router.post('/recycle-bin/:id/restore',auth, requireRole('admin', 'superadmin'), recycleBinCtrl.restoreItem);
 router.delete('/recycle-bin/:id',      auth, requireRole('admin', 'superadmin'), recycleBinCtrl.permanentDelete);
 router.delete('/recycle-bin',          auth, requireRole('admin', 'superadmin'), recycleBinCtrl.emptyBin);
@@ -163,6 +164,20 @@ router.patch('/tasks/:id/request-completion',     auth, taskCtrl.requestCompleti
 router.patch('/tasks/:id/approve-completion',     auth, requireRole('manager', 'admin', 'superadmin'), taskCtrl.approveCompletion);
 router.patch('/tasks/:id/refuse',                 auth, taskCtrl.refuseTask);
 router.delete('/tasks/:id',                       auth, requireRole('manager', 'admin', 'superadmin'), taskCtrl.deleteTask);
+
+// ─── Proformas (PDF only — data stored client-side) ───────────────────────────
+const proformaCtrl = require('../controllers/proformaController');
+router.post('/proformas/pdf', auth, requireRole('superadmin'), proformaCtrl.generatePDF);
+
+// ─── Invoices ─────────────────────────────────────────────────────────────────
+const invoiceCtrl = require('../controllers/invoiceController');
+router.get('/invoices',              auth, requireRole('superadmin'), invoiceCtrl.getInvoices);
+router.get('/invoices/:id',          auth, requireRole('superadmin'), invoiceCtrl.getInvoice);
+router.post('/invoices',             auth, requireRole('superadmin'), invoiceCtrl.createInvoice);
+router.put('/invoices/:id',          auth, requireRole('superadmin'), invoiceCtrl.updateInvoice);
+router.patch('/invoices/:id/pay',    auth, requireRole('superadmin'), invoiceCtrl.markPaid);
+router.get('/invoices/:id/pdf',      auth, requireRole('superadmin'), invoiceCtrl.downloadPDF);
+router.delete('/invoices/:id',       auth, requireRole('superadmin'), invoiceCtrl.deleteInvoice);
 
 // ─── Company Policies ─────────────────────────────────────────────────────────
 const policyCtrl = require('../controllers/policyController');

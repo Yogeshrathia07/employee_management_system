@@ -24,6 +24,14 @@
           <option value="leave">Leaves</option>
           <option value="timesheet">Timesheets</option>
           <option value="salary">Salary</option>
+          <option value="invoice">Invoices</option>
+          <option value="proforma">Proforma</option>
+          <option value="quotation">Quotations</option>
+          <option value="purchase_order">Purchase Orders</option>
+          <option value="vendor">Vendors</option>
+          <option value="client_work_order">Client W/O</option>
+          <option value="vendor_work_order">Vendor W/O</option>
+          <option value="project_account">Project Accounts</option>
           <option value="document">Documents</option>
           <option value="notification">Notifications</option>
           <option value="company">Companies</option>
@@ -53,12 +61,39 @@ var recycleCompanies = [];
 
 var TYPE_ICONS = {
   user: 'bxs-group', leave: 'bxs-calendar-check', timesheet: 'bxs-time-five',
-  salary: 'bxs-wallet', document: 'bxs-file-doc', notification: 'bxs-megaphone', company: 'bxs-buildings'
+  salary: 'bxs-wallet', invoice: 'bxs-receipt', proforma: 'bx-file', quotation: 'bx-message-square-detail',
+  purchase_order: 'bx-cart', vendor: 'bx-user-check', client_work_order: 'bx-briefcase',
+  vendor_work_order: 'bx-clipboard', project_account: 'bx-bar-chart-alt-2',
+  document: 'bxs-file-doc', notification: 'bxs-megaphone', company: 'bxs-buildings'
 };
 var TYPE_COLORS = {
   user: 'blue', leave: 'orange', timesheet: 'teal',
-  salary: 'green', document: 'purple', notification: 'pink', company: 'red'
+  salary: 'green', invoice: 'blue', proforma: 'blue', quotation: 'orange',
+  purchase_order: 'teal', vendor: 'purple', client_work_order: 'green',
+  vendor_work_order: 'orange', project_account: 'pink',
+  document: 'purple', notification: 'pink', company: 'red'
 };
+
+function restoreLocalAccountsItem(itemType, restoredData) {
+  var keyMap = {
+    proforma: 'pro',
+    quotation: 'quo',
+    purchase_order: 'po',
+    vendor: 'ven',
+    client_work_order: 'cwo',
+    vendor_work_order: 'vwo',
+    project_account: 'prj'
+  };
+  var localKey = keyMap[itemType];
+  if (!localKey || !restoredData || !restoredData.id) return false;
+  var existing = JSON.parse(localStorage.getItem('acc_' + localKey) || '[]');
+  if (!Array.isArray(existing)) existing = [];
+  if (!existing.some(function(entry) { return entry && entry.id === restoredData.id; })) {
+    existing.unshift(restoredData);
+    localStorage.setItem('acc_' + localKey, JSON.stringify(existing));
+  }
+  return true;
+}
 
 function daysLeft(expiresAt) {
   var diff = Math.ceil((new Date(expiresAt) - new Date()) / (1000 * 60 * 60 * 24));
@@ -131,6 +166,9 @@ async function restoreItem(id) {
   if (!confirm('Restore this item?')) return;
   try {
     var res = await api('POST', '/recycle-bin/' + id + '/restore');
+    if (res && res.itemType && res.restoredData) {
+      restoreLocalAccountsItem(res.itemType, res.restoredData);
+    }
     toast(res.message || 'Restored!', 'success');
     loadBin();
   } catch (e) { toast(e.message, 'error'); }

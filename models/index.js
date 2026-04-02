@@ -11,6 +11,7 @@ const RecycleBin      = require('./RecycleBin');
 const Task            = require('./Task');
 const CompanyPolicy   = require('./CompanyPolicy');
 const AppSetting      = require('./AppSetting');
+const Invoice         = require('./Invoice');
 
 // ─── User <-> Company ───
 User.belongsTo(Company, { foreignKey: 'companyId', as: 'company' });
@@ -60,8 +61,11 @@ User.hasMany(Task, { foreignKey: 'assignedTo', as: 'tasks' });
 CompanyPolicy.belongsTo(Company, { foreignKey: 'companyId', as: 'company' });
 CompanyPolicy.belongsTo(User,    { foreignKey: 'createdBy', as: 'creator' });
 
+// ─── Invoice ───
+// Invoice is standalone (no FK to Company/User required for superadmin use)
+
 module.exports = {
   sequelize, Company, User, Leave, Timesheet, Salary,
   Document, Notification, NotificationRead, RecycleBin,
-  Task, CompanyPolicy, AppSetting,
+  Task, CompanyPolicy, AppSetting, Invoice,
 };

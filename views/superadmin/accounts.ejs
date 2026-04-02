@@ -7,7 +7,7 @@
         <button class="mobile-menu-btn" onclick="openSidebar()"><i class="bx bx-menu"></i></button>
         <div>
           <div class="page-title"><i class="bx bxs-credit-card" style="color:var(--accent)"></i> Accounts</div>
-          <div class="page-subtitle">Financial management — invoices, orders, vendors & projects</div>
+          <div class="page-subtitle">Financial management - invoices, orders, vendors and projects</div>
         </div>
       </div>
       <div class="header-actions"></div>
@@ -65,38 +65,82 @@
 
         <!-- ═══════════════════════════════════════════════════ INVOICES -->
         <div id="mod-inv" class="acc-module" style="display:none;">
-          <div style="display:flex;gap:4px;background:var(--bg-input);border-radius:10px;padding:3px;width:fit-content;margin-bottom:20px;">
-            <button class="acc-subtab active" id="stab-invoices" onclick="showSubTab('invoices')">Invoices</button>
-            <button class="acc-subtab" id="stab-calc" onclick="showSubTab('calc')">Calculators</button>
+          <!-- Module Title -->
+          <div style="margin-bottom:20px;">
+            <div style="font-size:17px;font-weight:800;color:var(--text-primary);margin-bottom:4px;"><i class="bx bxs-receipt" style="color:var(--accent);margin-right:6px;"></i>Invoice Management & Tools</div>
+            <div style="font-size:12px;color:var(--text-muted);">Create, view, and manage client invoices. Includes helpful calculators and export options.</div>
           </div>
-          <!-- Invoices subtab -->
+
+          <!-- Sub-tabs -->
+          <div style="display:flex;gap:4px;background:var(--bg-input);border-radius:10px;padding:3px;width:fit-content;margin-bottom:20px;">
+            <button class="acc-subtab active" id="stab-invoices" onclick="showSubTab('invoices')"><i class="bx bx-list-ul"></i> Invoices</button>
+            <button class="acc-subtab" id="stab-calc" onclick="showSubTab('calc')"><i class="bx bx-calculator"></i> Calculators</button>
+          </div>
+
+          <!-- ── Invoices sub-tab ── -->
           <div id="sub-invoices">
-            <div class="admin-toolbar" style="margin-bottom:16px;">
-              <div class="search-bar" style="width:220px;"><span class="search-icon"><i class="bx bx-search"></i></span><input type="text" id="inv-search" placeholder="Search invoice..." oninput="renderInvoices()"></div>
-              <select id="inv-status" class="form-control" style="width:140px" onchange="renderInvoices()">
-                <option value="">All Status</option><option>Draft</option><option>Sent</option><option>Paid</option><option>Overdue</option>
-              </select>
-              <button class="btn btn-primary" style="margin-left:auto;" onclick="openInvModal()"><i class="bx bx-plus"></i> New Invoice</button>
+            <!-- Invoice number settings -->
+            <div class="acc-inline-settings">
+              <div class="acc-inline-title"><i class="bx bx-cog"></i> Invoice Number Format</div>
+              <div class="acc-inline-field">
+                <label class="acc-inline-label" for="inv-company-code">Company Code</label>
+                <input type="text" id="inv-company-code" class="form-control acc-inline-input" placeholder="e.g. DHPE" maxlength="8" oninput="updateInvNumPreview()">
+              </div>
+              <div class="acc-inline-field">
+                <label class="acc-inline-label" for="inv-fy-sel">Financial Year</label>
+                <select id="inv-fy-sel" class="form-control acc-inline-input" onchange="updateInvNumPreview()"></select>
+              </div>
+              <div class="acc-inline-preview">Preview: <code id="inv-num-preview" class="acc-inline-code">INV-001/DHPE/26-27/XXXXXX</code></div>
+            </div>
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;flex-wrap:wrap;">
+              <label style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--text-muted);cursor:pointer;">
+                <input type="checkbox" id="inv-show-deleted" onchange="renderInvoices()" style="accent-color:var(--accent);width:15px;height:15px;">
+                Show Deleted
+              </label>
+              <div style="margin-left:auto;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+                <div class="search-bar" style="width:200px;"><span class="search-icon"><i class="bx bx-search"></i></span><input type="text" id="inv-search" placeholder="Search ref, customer..." oninput="renderInvoices()"></div>
+                <select id="inv-status" class="form-control" style="width:120px" onchange="renderInvoices()">
+                  <option value="">All Status</option><option>Draft</option><option>Sent</option><option>Paid</option><option>Overdue</option><option>Cancelled</option>
+                </select>
+                <select id="inv-type" class="form-control" style="width:120px" onchange="renderInvoices()">
+                  <option value="">All Types</option><option value="B2B">Tax Invoice</option><option value="B2C">B2C Invoice</option>
+                </select>
+                <button class="btn btn-primary" onclick="openGSTModal()" style="font-weight:700;gap:6px;">
+                  <i class="bx bx-plus-circle"></i> Create Invoice
+                </button>
+              </div>
             </div>
             <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;">
               <table style="width:100%;border-collapse:collapse;" id="inv-table">
-                <thead><tr style="background:var(--bg-input);border-bottom:1px solid var(--border);">
-                  <th class="acc-th">Invoice #</th><th class="acc-th">Client</th><th class="acc-th">Date</th><th class="acc-th">Due Date</th><th class="acc-th">Amount</th><th class="acc-th">Status</th><th class="acc-th"></th>
+                <thead><tr style="background:var(--bg-input);border-bottom:2px solid var(--border);">
+                  <th class="acc-th">Ref #</th>
+                  <th class="acc-th">Type</th>
+                  <th class="acc-th">Customer</th>
+                  <th class="acc-th">Date</th>
+                  <th class="acc-th">Total (₹)</th>
+                  <th class="acc-th">Status</th>
+                  <th class="acc-th" style="text-align:center;">Actions</th>
                 </tr></thead>
                 <tbody id="inv-body"></tbody>
               </table>
             </div>
           </div>
+
+          <!-- ── Reports sub-tab ── -->
           <!-- Calculator subtab -->
           <div id="sub-calc" style="display:none;">
             <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px;">
               <!-- GST Calc -->
               <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:20px;">
                 <div style="font-weight:700;font-size:14px;margin-bottom:16px;"><i class="bx bx-calculator" style="color:var(--accent)"></i> GST Calculator</div>
-                <div class="form-group"><label class="form-label">Amount (excl. GST)</label><input type="number" id="gst-amount" class="form-control" placeholder="Enter amount" oninput="calcGST()"></div>
+                <div class="form-group"><label class="form-label">Amount</label><input type="number" id="gst-amount" class="form-control" placeholder="Enter amount" oninput="calcGST()" onwheel="this.blur()"></div>
                 <div class="form-group"><label class="form-label">GST Rate %</label>
-                  <select id="gst-rate" class="form-control" onchange="calcGST()">
-                    <option value="5">5%</option><option value="12">12%</option><option value="18" selected>18%</option><option value="28">28%</option>
+                  <input type="number" id="gst-rate" class="form-control" placeholder="Enter GST rate" value="18" min="0" step="0.01" inputmode="decimal" oninput="calcGST()" onwheel="this.blur()">
+                </div>
+                <div class="form-group"><label class="form-label">GST Type</label>
+                  <select id="gst-mode" class="form-control" onchange="calcGST()">
+                    <option value="exclusive" selected>Exclusive</option>
+                    <option value="inclusive">Inclusive</option>
                   </select>
                 </div>
                 <div style="background:var(--bg-input);border-radius:10px;padding:14px;margin-top:8px;">
@@ -121,10 +165,14 @@
               <!-- TDS Calc -->
               <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:20px;">
                 <div style="font-weight:700;font-size:14px;margin-bottom:16px;"><i class="bx bx-trending-down" style="color:var(--accent)"></i> TDS Calculator</div>
-                <div class="form-group"><label class="form-label">Gross Amount</label><input type="number" id="tds-gross" class="form-control" placeholder="Gross amount" oninput="calcTDS()"></div>
+                <div class="form-group"><label class="form-label">Amount</label><input type="number" id="tds-gross" class="form-control" placeholder="Enter amount" oninput="calcTDS()" onwheel="this.blur()"></div>
                 <div class="form-group"><label class="form-label">TDS Rate %</label>
-                  <select id="tds-rate" class="form-control" onchange="calcTDS()">
-                    <option value="1">1% (Rent)</option><option value="2">2% (Contractor)</option><option value="10" selected>10% (Professional)</option><option value="30">30% (Winnings)</option>
+                  <input type="number" id="tds-rate" class="form-control" placeholder="Enter TDS rate" value="10" min="0" step="0.01" inputmode="decimal" oninput="calcTDS()" onwheel="this.blur()">
+                </div>
+                <div class="form-group"><label class="form-label">TDS Type</label>
+                  <select id="tds-mode" class="form-control" onchange="calcTDS()">
+                    <option value="exclusive" selected>Exclusive</option>
+                    <option value="inclusive">Inclusive</option>
                   </select>
                 </div>
                 <div style="background:var(--bg-input);border-radius:10px;padding:14px;margin-top:8px;">
@@ -144,12 +192,12 @@
             <select id="pro-status" class="form-control" style="width:140px" onchange="renderProforma()">
               <option value="">All Status</option><option>Draft</option><option>Sent</option><option>Accepted</option><option>Rejected</option>
             </select>
-            <button class="btn btn-primary" style="margin-left:auto;" onclick="openDocModal('pro')"><i class="bx bx-plus"></i> New Proforma</button>
+            <button class="btn btn-primary" style="margin-left:auto;" onclick="openProformaModal()"><i class="bx bx-plus"></i> New Proforma</button>
           </div>
           <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;">
             <table style="width:100%;border-collapse:collapse;">
               <thead><tr style="background:var(--bg-input);border-bottom:1px solid var(--border);">
-                <th class="acc-th">Proforma #</th><th class="acc-th">Client</th><th class="acc-th">Date</th><th class="acc-th">Valid Till</th><th class="acc-th">Amount</th><th class="acc-th">Status</th><th class="acc-th"></th>
+                <th class="acc-th">Proforma #</th><th class="acc-th">Customer</th><th class="acc-th">Date</th><th class="acc-th">Valid Till</th><th class="acc-th">Total (₹)</th><th class="acc-th">Status</th><th class="acc-th" style="text-align:center;">Actions</th>
               </tr></thead>
               <tbody id="pro-body"></tbody>
             </table>
@@ -277,11 +325,491 @@
 
 <!-- ══════════════════════════════════════════════════════════ MODALS -->
 
+<!-- ════════════════════════════ GST INVOICE MODAL ════════════════════════════ -->
+<div class="modal-overlay" id="gst-inv-modal" style="align-items:flex-start;padding:10px 0;">
+  <div class="modal gst-invoice-modal-shell" style="max-width:99vw;width:99vw;margin:0 auto;border-radius:14px;">
+    <div class="modal-header" style="position:sticky;top:0;z-index:10;background:var(--bg-card);border-radius:14px 14px 0 0;">
+      <span class="modal-title" id="gst-inv-title"><i class="bx bxs-receipt" style="color:var(--accent)"></i> New GST Invoice</span>
+      <button class="modal-close" onclick="closeModal('gst-inv-modal')" style="font-size:22px;">×</button>
+    </div>
+    <div class="modal-body gst-invoice-modal-body" style="padding:0;overflow-y:auto;overflow-x:hidden;">
+      <input type="hidden" id="gst-inv-id">
+
+      <!-- ── Section: Invoice Info ──────────────────────────────────────── -->
+      <div class="gst-section">
+        <div class="gst-section-title"><i class="bx bxs-file-doc"></i> Invoice Information</div>
+        <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:12px;">
+          <div class="form-group">
+            <label class="form-label">Invoice #</label>
+            <input type="text" id="gst-number" class="form-control" readonly style="background:var(--bg-input);font-weight:600;" placeholder="Auto-generated">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Invoice Type</label>
+            <select id="gst-type" class="form-control">
+              <option value="B2B">B2B</option>
+              <option value="B2C">B2C</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Invoice Date <span style="color:#ef4444">*</span></label>
+            <input type="date" id="gst-date" class="form-control">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Due Date</label>
+            <input type="date" id="gst-due" class="form-control">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Place of Supply</label>
+            <input type="text" id="gst-supply" class="form-control" placeholder="e.g. Maharashtra">
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Section: Seller & Buyer ────────────────────────────────────── -->
+      <div class="gst-collapse-panel">
+        <div class="gst-panel-hdr" onclick="toggleGSTPanel(this)"><i class="bx bxs-buildings"></i> Seller & Customer Details <i class="bx bx-chevron-up gst-chevron"></i></div>
+        <div class="gst-panel-body" style="display:grid;grid-template-columns:1fr 1fr;gap:0;border-top:1px solid var(--border);">
+        <!-- Seller -->
+        <div class="gst-section" style="border-right:1px solid var(--border);">
+          <div class="gst-section-title" style="color:#1d4ed8;"><i class="bx bxs-buildings"></i> Company / Seller Details</div>
+          <div class="form-group"><label class="form-label">Company Name <span style="color:#ef4444">*</span></label><input type="text" id="gst-s-name" class="form-control" placeholder="Your company name"></div>
+          <div class="form-group"><label class="form-label">GSTIN</label><input type="text" id="gst-s-gstin" class="form-control" placeholder="22AAAAA0000A1Z5" maxlength="15" style="text-transform:uppercase"></div>
+          <div class="form-group"><label class="form-label">Address</label><textarea id="gst-s-addr" class="form-control" rows="2" placeholder="Full address"></textarea></div>
+          <div style="display:grid;grid-template-columns:2fr 1fr;gap:8px;">
+            <div class="form-group"><label class="form-label">State</label><input type="text" id="gst-s-state" class="form-control" placeholder="e.g. Maharashtra"></div>
+            <div class="form-group"><label class="form-label">State Code</label><input type="text" id="gst-s-code" class="form-control" placeholder="27" maxlength="2"></div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+            <div class="form-group"><label class="form-label">Phone</label><input type="text" id="gst-s-phone" class="form-control" placeholder="Contact number"></div>
+            <div class="form-group"><label class="form-label">Email</label><input type="email" id="gst-s-email" class="form-control" placeholder="company@email.com"></div>
+          </div>
+          <div class="form-group"><label class="form-label">PAN</label><input type="text" id="gst-s-pan" class="form-control" placeholder="ABCDE1234F" maxlength="10" style="text-transform:uppercase"></div>
+        </div>
+        <!-- Buyer -->
+        <div class="gst-section">
+          <div class="gst-section-title" style="color:#0891b2;"><i class="bx bxs-user-detail"></i> Customer / Buyer Details</div>
+          <!-- Vendor quick-select -->
+          <div class="form-group">
+            <label class="form-label"><i class="bx bxs-user-badge" style="color:#0891b2;font-size:13px;"></i> Select from Vendor List <span style="color:var(--text-muted);font-weight:400;font-size:11px;">(auto-fills fields below)</span></label>
+            <select id="gst-vendor-sel" class="form-control" onchange="fillFromVendor(this.value)" style="border-color:#0891b2;">
+              <option value="">— Type manually or pick a vendor —</option>
+            </select>
+          </div>
+          <div style="border-top:1px dashed var(--border);margin:4px 0 12px 0;"></div>
+          <div class="form-group"><label class="form-label">Customer Name <span style="color:#ef4444">*</span></label><input type="text" id="gst-c-name" class="form-control" placeholder="Customer / company name"></div>
+          <div class="form-group"><label class="form-label">GSTIN <span style="color:var(--text-muted);font-weight:400;font-size:11px;">(optional for B2C)</span></label><input type="text" id="gst-c-gstin" class="form-control" placeholder="Customer GSTIN" maxlength="15" style="text-transform:uppercase"></div>
+          <div class="form-group"><label class="form-label">Address</label><textarea id="gst-c-addr" class="form-control" rows="2" placeholder="Customer address"></textarea></div>
+          <div style="display:grid;grid-template-columns:2fr 1fr;gap:8px;">
+            <div class="form-group"><label class="form-label">State</label><input type="text" id="gst-c-state" class="form-control" placeholder="e.g. Karnataka" oninput="recalcGST()"></div>
+            <div class="form-group"><label class="form-label">State Code</label><input type="text" id="gst-c-code" class="form-control" placeholder="29" maxlength="2" oninput="recalcGST()"></div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+            <div class="form-group"><label class="form-label">PAN</label><input type="text" id="gst-c-pan" class="form-control" placeholder="ABCDE1234F" maxlength="10" style="text-transform:uppercase"></div>
+            <div class="form-group"><label class="form-label">Email</label><input type="email" id="gst-c-email" class="form-control" placeholder="customer@email.com"></div>
+          </div>
+          <div style="background:var(--bg-input);border-radius:8px;padding:10px;font-size:12px;color:var(--text-muted);margin-top:4px;">
+            <i class="bx bx-info-circle"></i>
+            <span id="gst-tax-hint">CGST + SGST applied (same state). Change state code to switch.</span>
+          </div>
+        </div>
+        </div><!-- /gst-panel-body -->
+      </div><!-- /gst-collapse-panel -->
+
+      <!-- ── Section: Bill Details + Bank Details ─────────────────────── -->
+      <div class="gst-collapse-panel">
+        <div class="gst-panel-hdr" onclick="toggleGSTPanel(this)"><i class="bx bxs-calendar"></i> Bill Details & Bank Account <i class="bx bx-chevron-up gst-chevron"></i></div>
+        <div class="gst-panel-body" style="display:grid;grid-template-columns:1fr 1fr;gap:0;border-top:1px solid var(--border);">
+        <!-- Bill Details -->
+        <div class="gst-section" style="border-right:1px solid var(--border);">
+          <div class="gst-section-title" style="color:#0891b2;"><i class="bx bxs-calendar"></i> Bill Details <span style="font-size:11px;font-weight:400;color:var(--text-muted);">(optional)</span></div>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;">
+            <div class="form-group"><label class="form-label">Bill Month</label><input type="text" id="gst-bill-month" class="form-control" placeholder="e.g. Feb-26"></div>
+            <div class="form-group"><label class="form-label">Period From</label><input type="date" id="gst-bill-from" class="form-control"></div>
+            <div class="form-group"><label class="form-label">Period To</label><input type="date" id="gst-bill-to" class="form-control"></div>
+          </div>
+          <div class="form-group"><label class="form-label">Work Order Ref</label><input type="text" id="gst-work-order" class="form-control" placeholder="WO number / reference"></div>
+          <div class="form-group"><label class="form-label">Project Name</label><input type="text" id="gst-project" class="form-control" placeholder="Project name"></div>
+          <div class="form-group"><label class="form-label">Work Details</label><textarea id="gst-work-details" class="form-control" rows="2" placeholder="Brief description of work done"></textarea></div>
+        </div>
+        <!-- Bank Details -->
+        <div class="gst-section">
+          <div class="gst-section-title" style="color:#1d4ed8;"><i class="bx bxs-bank"></i> Bank Details <span style="font-size:11px;font-weight:400;color:var(--text-muted);">(for payment)</span></div>
+          <div class="form-group"><label class="form-label">Bank Name</label><input type="text" id="gst-bank-name" class="form-control" placeholder="e.g. State Bank of India"></div>
+          <div class="form-group"><label class="form-label">Account Holder Name</label><input type="text" id="gst-bank-acname" class="form-control" placeholder="Name on bank account"></div>
+          <div class="form-group"><label class="form-label">Account Number</label><input type="text" id="gst-bank-ac" class="form-control" placeholder="Bank account number"></div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+            <div class="form-group"><label class="form-label">IFSC Code</label><input type="text" id="gst-bank-ifsc" class="form-control" placeholder="SBIN0001234" style="text-transform:uppercase"></div>
+            <div class="form-group"><label class="form-label">Branch</label><input type="text" id="gst-bank-branch" class="form-control" placeholder="Branch name"></div>
+          </div>
+        </div>
+        </div><!-- /gst-panel-body -->
+      </div><!-- /gst-collapse-panel -->
+
+      <!-- ── Section: Items ──────────────────────────────────────────────── -->
+      <div class="gst-collapse-panel">
+        <div class="gst-panel-hdr" onclick="toggleGSTPanel(this)"><i class="bx bxs-package"></i> Product / Service Items <i class="bx bx-chevron-up gst-chevron"></i></div>
+        <div class="gst-panel-body">
+        <div class="gst-section" style="border-top:1px solid var(--border);">
+        <div style="overflow-x:auto;">
+          <table style="width:100%;border-collapse:collapse;table-layout:fixed;" id="gst-items-table">
+            <colgroup>
+              <col style="width:36px"><col style="width:7%"><col><col style="width:8%"><col style="width:6%"><col style="width:6%"><col style="width:10%"><col style="width:7%"><col style="width:8%"><col style="width:10%"><col style="width:36px">
+            </colgroup>
+            <thead>
+              <tr style="background:var(--bg-input);border-bottom:1px solid var(--border);">
+                <th class="acc-th">#</th>
+                <th class="acc-th">Code</th>
+                <th class="acc-th">Item Name / Description</th>
+                <th class="acc-th">HSN/SAC</th>
+                <th class="acc-th">Qty</th>
+                <th class="acc-th">Unit</th>
+                <th class="acc-th">Unit Price (₹)</th>
+                <th class="acc-th">Disc %</th>
+                <th class="acc-th">Tax %</th>
+                <th class="acc-th">Amount (₹)</th>
+                <th class="acc-th"></th>
+              </tr>
+            </thead>
+            <tbody id="gst-items-body"></tbody>
+          </table>
+        </div>
+        <button type="button" class="btn btn-ghost btn-sm" style="margin-top:10px;" onclick="addGSTItem()">
+          <i class="bx bx-plus"></i> Add Item
+        </button>
+        </div><!-- /gst-section -->
+        </div><!-- /gst-panel-body -->
+      </div><!-- /gst-collapse-panel -->
+
+      <!-- ── Section: Tax Summary + Payment ─────────────────────────────── -->
+      <div class="gst-collapse-panel">
+        <div class="gst-panel-hdr" onclick="toggleGSTPanel(this)"><i class="bx bx-calculator"></i> Tax Summary & Payment <i class="bx bx-chevron-up gst-chevron"></i></div>
+        <div class="gst-panel-body" style="display:grid;grid-template-columns:1fr 1fr;gap:0;border-top:1px solid var(--border);">
+        <!-- Tax Summary -->
+        <div class="gst-section" style="border-right:1px solid var(--border);">
+          <div class="gst-section-title"><i class="bx bx-calculator"></i> Tax Calculation</div>
+          <div class="gst-summary-table">
+            <div class="gst-sum-row"><span>Subtotal (Taxable Value)</span><span id="gst-sub">₹0.00</span></div>
+            <div class="gst-sum-row" id="gst-row-cgst"><span>CGST</span><span id="gst-cgst-val">₹0.00</span></div>
+            <div class="gst-sum-row" id="gst-row-sgst"><span>SGST</span><span id="gst-sgst-val">₹0.00</span></div>
+            <div class="gst-sum-row" id="gst-row-igst"><span>IGST</span><span id="gst-igst-val">₹0.00</span></div>
+            <div class="gst-sum-row"><span>Total Tax</span><span id="gst-tax-total">₹0.00</span></div>
+            <div class="gst-sum-row" style="border-top:1px solid var(--border);padding-top:8px;">
+              <span>Round Off</span>
+              <span id="gst-roundoff">₹0.00</span>
+            </div>
+            <div class="gst-sum-row gst-total-row">
+              <span>TOTAL AMOUNT</span>
+              <span id="gst-total-amt" style="font-size:18px;color:var(--accent);">₹0.00</span>
+            </div>
+          </div>
+        </div>
+        <!-- Payment -->
+        <div class="gst-section">
+          <div class="gst-section-title"><i class="bx bxs-wallet"></i> Payment & Status</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+            <div class="form-group">
+              <label class="form-label">Payment Status</label>
+              <select id="gst-pay-status" class="form-control">
+                <option value="Unpaid">Unpaid</option>
+                <option value="Paid">Paid</option>
+                <option value="Partial">Partial</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Payment Mode</label>
+              <select id="gst-pay-mode" class="form-control">
+                <option value="">Select mode</option>
+                <option value="Cash">Cash</option>
+                <option value="UPI">UPI</option>
+                <option value="Bank Transfer">Bank Transfer</option>
+                <option value="Cheque">Cheque</option>
+                <option value="Card">Card</option>
+                <option value="NEFT">NEFT</option>
+                <option value="RTGS">RTGS</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Invoice Status</label>
+            <select id="gst-status" class="form-control">
+              <option value="Draft">Draft</option>
+              <option value="Sent">Sent</option>
+              <option value="Paid">Paid</option>
+              <option value="Overdue">Overdue</option>
+              <option value="Cancelled">Cancelled</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Notes</label>
+            <textarea id="gst-notes" class="form-control" rows="2" placeholder="Any additional notes for this invoice..."></textarea>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Terms & Conditions</label>
+            <textarea id="gst-terms" class="form-control" rows="2" placeholder="e.g. Payment due within 30 days..."></textarea>
+          </div>
+        </div>
+        </div><!-- /gst-panel-body -->
+      </div><!-- /gst-collapse-panel -->
+    </div>
+
+    <div class="modal-footer gst-invoice-modal-footer" style="flex-wrap:wrap;gap:8px;">
+      <button class="btn btn-ghost" onclick="closeModal('gst-inv-modal')">Cancel</button>
+      <div style="margin-left:auto;display:flex;gap:8px;flex-wrap:wrap;">
+        <button class="btn btn-secondary" onclick="saveGSTInvoice('Draft')"><i class="bx bx-save"></i> Save as Draft</button>
+        <button class="btn btn-primary" onclick="saveGSTInvoice()"><i class="bx bxs-receipt"></i> Generate Invoice</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════ INVOICE PREVIEW MODAL ═══════════════════════════ -->
+<div class="modal-overlay" id="inv-preview-modal">
+  <div class="modal" style="max-width:780px;width:96vw;">
+    <div class="modal-header">
+      <span class="modal-title"><i class="bx bx-show"></i> Invoice Preview</span>
+      <button class="modal-close" onclick="closeModal('inv-preview-modal')">×</button>
+    </div>
+    <div class="modal-body" id="inv-preview-body" style="max-height:82vh;overflow-y:auto;padding:0;font-family:'DM Sans',sans-serif;">
+    </div>
+    <div class="modal-footer" style="gap:8px;">
+      <button class="btn btn-ghost" onclick="closeModal('inv-preview-modal')">Close</button>
+      <button class="btn btn-secondary" id="btn-preview-edit" onclick="closeModal('inv-preview-modal')"><i class="bx bx-edit"></i> Edit</button>
+      <button class="btn btn-primary" id="btn-preview-pdf" onclick=""><i class="bx bx-download"></i> Download PDF</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════ MARK PAID MODAL ════════════════════════════════ -->
+<div class="modal-overlay" id="mark-paid-modal">
+  <div class="modal" style="max-width:400px;">
+    <div class="modal-header"><span class="modal-title"><i class="bx bx-check-circle" style="color:#22c55e"></i> Mark as Paid</span><button class="modal-close" onclick="closeModal('mark-paid-modal')">×</button></div>
+    <div class="modal-body">
+      <input type="hidden" id="mark-paid-id">
+      <div class="form-group">
+        <label class="form-label">Invoice Number</label>
+        <input type="text" id="mark-paid-num" class="form-control" readonly style="background:var(--bg-input);font-weight:600;">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Payment Mode</label>
+        <select id="mark-paid-mode" class="form-control">
+          <option value="Bank Transfer">Bank Transfer</option>
+          <option value="Cash">Cash</option>
+          <option value="UPI">UPI</option>
+          <option value="Cheque">Cheque</option>
+          <option value="NEFT">NEFT</option>
+          <option value="RTGS">RTGS</option>
+        </select>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('mark-paid-modal')">Cancel</button>
+      <button class="btn btn-success" onclick="confirmMarkPaid()" style="background:#22c55e;color:#fff;border:none;"><i class="bx bx-check"></i> Confirm Payment</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════ PROFORMA INVOICE MODAL ══════════════════════════════ -->
+<div class="modal-overlay" id="pro-inv-modal">
+  <div class="modal acc-form-modal-shell acc-form-modal-wide" style="max-width:99vw;width:99vw;margin:0 auto;border-radius:14px;">
+    <div class="modal-header">
+      <span class="modal-title" id="pro-inv-title"><i class="bx bxs-file-doc" style="color:var(--accent)"></i> New Proforma Invoice</span>
+      <button class="modal-close" onclick="closeModal('pro-inv-modal')">×</button>
+    </div>
+    <div class="modal-body acc-form-modal-body" style="padding:0;">
+      <input type="hidden" id="pro-edit-id">
+
+      <!-- ── Proforma Info ─────────────────────────────────────────────────── -->
+      <div class="gst-section">
+        <div class="gst-section-title"><i class="bx bxs-file-doc"></i> Proforma Information</div>
+        <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:12px;">
+          <div class="form-group"><label class="form-label">Proforma #</label><input type="text" id="pro-number" class="form-control" readonly style="background:var(--bg-input);font-weight:600;" placeholder="Auto-generated"></div>
+          <div class="form-group"><label class="form-label">Date <span style="color:#ef4444">*</span></label><input type="date" id="pro-date" class="form-control"></div>
+          <div class="form-group"><label class="form-label">Validity Date <span style="color:#ef4444">*</span></label><input type="date" id="pro-validity" class="form-control"></div>
+          <div class="form-group"><label class="form-label">Place of Supply</label><input type="text" id="pro-supply" class="form-control" placeholder="e.g. Maharashtra"></div>
+          <div class="form-group"><label class="form-label">Status</label>
+            <select id="pro-status-field" class="form-control">
+              <option value="Draft">Draft</option><option value="Sent">Sent</option>
+              <option value="Accepted">Accepted</option><option value="Rejected">Rejected</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Seller + Customer ─────────────────────────────────────────────── -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:0;border-top:1px solid var(--border);">
+        <div class="gst-section" style="border-right:1px solid var(--border);">
+          <div class="gst-section-title" style="color:#1d4ed8;"><i class="bx bxs-buildings"></i> Company / Seller Details</div>
+          <div class="form-group"><label class="form-label">Company Name <span style="color:#ef4444">*</span></label><input type="text" id="pro-s-name" class="form-control" placeholder="Your company name"></div>
+          <div class="form-group"><label class="form-label">GSTIN</label><input type="text" id="pro-s-gstin" class="form-control" placeholder="22AAAAA0000A1Z5" maxlength="15" style="text-transform:uppercase"></div>
+          <div class="form-group"><label class="form-label">Address</label><textarea id="pro-s-addr" class="form-control" rows="2" placeholder="Full address"></textarea></div>
+          <div style="display:grid;grid-template-columns:2fr 1fr;gap:8px;">
+            <div class="form-group"><label class="form-label">State</label><input type="text" id="pro-s-state" class="form-control" placeholder="e.g. Maharashtra"></div>
+            <div class="form-group"><label class="form-label">State Code</label><input type="text" id="pro-s-code" class="form-control" placeholder="27" maxlength="2"></div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+            <div class="form-group"><label class="form-label">Phone</label><input type="text" id="pro-s-phone" class="form-control" placeholder="Contact number"></div>
+            <div class="form-group"><label class="form-label">Email</label><input type="email" id="pro-s-email" class="form-control" placeholder="company@email.com"></div>
+          </div>
+          <div class="form-group"><label class="form-label">PAN</label><input type="text" id="pro-s-pan" class="form-control" placeholder="ABCDE1234F" maxlength="10" style="text-transform:uppercase"></div>
+        </div>
+        <div class="gst-section">
+          <div class="gst-section-title" style="color:#0891b2;"><i class="bx bxs-user-detail"></i> Customer / Buyer Details</div>
+          <div class="form-group">
+            <label class="form-label"><i class="bx bxs-user-badge" style="color:#0891b2;font-size:13px;"></i> Select from Vendor List</label>
+            <select id="pro-vendor-sel" class="form-control" onchange="fillProFromVendor(this.value)" style="border-color:#0891b2;">
+              <option value="">— Type manually or pick a vendor —</option>
+            </select>
+          </div>
+          <div style="border-top:1px dashed var(--border);margin:4px 0 12px 0;"></div>
+          <div class="form-group"><label class="form-label">Customer Name <span style="color:#ef4444">*</span></label><input type="text" id="pro-c-name" class="form-control" placeholder="Customer / company name"></div>
+          <div class="form-group"><label class="form-label">GSTIN</label><input type="text" id="pro-c-gstin" class="form-control" placeholder="Customer GSTIN" maxlength="15" style="text-transform:uppercase"></div>
+          <div class="form-group"><label class="form-label">Address</label><textarea id="pro-c-addr" class="form-control" rows="2" placeholder="Customer address"></textarea></div>
+          <div style="display:grid;grid-template-columns:2fr 1fr;gap:8px;">
+            <div class="form-group"><label class="form-label">State</label><input type="text" id="pro-c-state" class="form-control" placeholder="e.g. Karnataka" oninput="recalcProforma()"></div>
+            <div class="form-group"><label class="form-label">State Code</label><input type="text" id="pro-c-code" class="form-control" placeholder="29" maxlength="2" oninput="recalcProforma()"></div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+            <div class="form-group"><label class="form-label">PAN</label><input type="text" id="pro-c-pan" class="form-control" placeholder="ABCDE1234F" maxlength="10" style="text-transform:uppercase"></div>
+            <div class="form-group"><label class="form-label">Email</label><input type="email" id="pro-c-email" class="form-control" placeholder="customer@email.com"></div>
+          </div>
+          <div style="background:var(--bg-input);border-radius:8px;padding:10px;font-size:12px;color:var(--text-muted);">
+            <i class="bx bx-info-circle"></i> <span id="pro-tax-hint">CGST + SGST applied (same state).</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Bill Details + Bank Details ──────────────────────────────────── -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:0;border-top:1px solid var(--border);">
+        <div class="gst-section" style="border-right:1px solid var(--border);">
+          <div class="gst-section-title" style="color:#0891b2;"><i class="bx bxs-calendar"></i> Bill Details <span style="font-size:11px;font-weight:400;color:var(--text-muted);">(optional)</span></div>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;">
+            <div class="form-group"><label class="form-label">Bill Month</label><input type="text" id="pro-bill-month" class="form-control" placeholder="e.g. Feb-26"></div>
+            <div class="form-group"><label class="form-label">Period From</label><input type="date" id="pro-bill-from" class="form-control"></div>
+            <div class="form-group"><label class="form-label">Period To</label><input type="date" id="pro-bill-to" class="form-control"></div>
+          </div>
+          <div class="form-group"><label class="form-label">Work Order Ref</label><input type="text" id="pro-work-order" class="form-control" placeholder="WO number / reference"></div>
+          <div class="form-group"><label class="form-label">Project Name</label><input type="text" id="pro-project" class="form-control" placeholder="Project name"></div>
+          <div class="form-group"><label class="form-label">Work Details</label><textarea id="pro-work-details" class="form-control" rows="2" placeholder="Brief description of work"></textarea></div>
+        </div>
+        <div class="gst-section">
+          <div class="gst-section-title" style="color:#1d4ed8;"><i class="bx bxs-bank"></i> Bank Details</div>
+          <div class="form-group"><label class="form-label">Bank Name</label><input type="text" id="pro-bank-name" class="form-control" placeholder="e.g. State Bank of India"></div>
+          <div class="form-group"><label class="form-label">Account Holder Name</label><input type="text" id="pro-bank-acname" class="form-control" placeholder="Name on bank account"></div>
+          <div class="form-group"><label class="form-label">Account Number</label><input type="text" id="pro-bank-ac" class="form-control" placeholder="Bank account number"></div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+            <div class="form-group"><label class="form-label">IFSC Code</label><input type="text" id="pro-bank-ifsc" class="form-control" placeholder="SBIN0001234" style="text-transform:uppercase"></div>
+            <div class="form-group"><label class="form-label">Branch</label><input type="text" id="pro-bank-branch" class="form-control" placeholder="Branch name"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Items Table ───────────────────────────────────────────────────── -->
+      <div class="gst-section" style="border-top:1px solid var(--border);">
+        <div class="gst-section-title"><i class="bx bxs-package"></i> Product / Service Items</div>
+        <div style="overflow-x:auto;">
+          <table style="width:100%;border-collapse:collapse;min-width:860px;" id="pro-items-table">
+            <thead>
+              <tr style="background:var(--bg-input);border-bottom:1px solid var(--border);">
+                <th class="acc-th" style="width:28px;">#</th>
+                <th class="acc-th" style="width:70px;">Item Code</th>
+                <th class="acc-th">Item Name / Description</th>
+                <th class="acc-th" style="width:80px;">HSN/SAC</th>
+                <th class="acc-th" style="width:55px;">Qty</th>
+                <th class="acc-th" style="width:50px;">Unit</th>
+                <th class="acc-th" style="width:90px;">Unit Price (₹)</th>
+                <th class="acc-th" style="width:65px;">Disc %</th>
+                <th class="acc-th" style="width:75px;">Tax Rate %</th>
+                <th class="acc-th" style="width:95px;">Amount (₹)</th>
+                <th class="acc-th" style="width:32px;"></th>
+              </tr>
+            </thead>
+            <tbody id="pro-items-body"></tbody>
+          </table>
+        </div>
+        <button type="button" class="btn btn-ghost btn-sm" style="margin-top:10px;" onclick="addProformaItem()">
+          <i class="bx bx-plus"></i> Add Item
+        </button>
+      </div>
+
+      <!-- ── Tax Summary + Payment Terms ──────────────────────────────────── -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:0;border-top:1px solid var(--border);">
+        <div class="gst-section" style="border-right:1px solid var(--border);">
+          <div class="gst-section-title"><i class="bx bx-calculator"></i> Tax Calculation</div>
+          <div class="gst-summary-table">
+            <div class="gst-sum-row"><span>Subtotal (Taxable Value)</span><span id="pro-sub">₹0.00</span></div>
+            <div class="gst-sum-row" id="pro-row-cgst"><span>CGST</span><span id="pro-cgst-val">₹0.00</span></div>
+            <div class="gst-sum-row" id="pro-row-sgst"><span>SGST</span><span id="pro-sgst-val">₹0.00</span></div>
+            <div class="gst-sum-row" id="pro-row-igst"><span>IGST</span><span id="pro-igst-val">₹0.00</span></div>
+            <div class="gst-sum-row"><span>Total Tax</span><span id="pro-tax-total">₹0.00</span></div>
+            <div class="gst-sum-row" style="border-top:1px solid var(--border);padding-top:8px;"><span>Round Off</span><span id="pro-roundoff">₹0.00</span></div>
+            <div class="gst-sum-row gst-total-row"><span>TOTAL AMOUNT</span><span id="pro-total-amt" style="font-size:18px;color:var(--accent);">₹0.00</span></div>
+          </div>
+        </div>
+        <div class="gst-section">
+          <div class="gst-section-title"><i class="bx bxs-wallet"></i> Payment Terms & Delivery</div>
+          <div class="form-group">
+            <label class="form-label">Payment Terms</label>
+            <select id="pro-pay-terms" class="form-control">
+              <option value="">Select terms</option>
+              <option value="100% Advance">100% Advance</option>
+              <option value="50% Advance, 50% on Delivery">50% Advance, 50% on Delivery</option>
+              <option value="30% Advance, 70% on Delivery">30% Advance, 70% on Delivery</option>
+              <option value="Net 15 Days">Net 15 Days</option>
+              <option value="Net 30 Days">Net 30 Days</option>
+              <option value="Net 45 Days">Net 45 Days</option>
+              <option value="Net 60 Days">Net 60 Days</option>
+              <option value="On Delivery">On Delivery</option>
+            </select>
+          </div>
+          <div class="form-group"><label class="form-label">Custom Payment Terms</label><input type="text" id="pro-pay-terms-custom" class="form-control" placeholder="Or type custom terms..."></div>
+          <div class="form-group"><label class="form-label">Delivery Timeline</label><input type="text" id="pro-delivery" class="form-control" placeholder="e.g. 4-6 weeks after advance payment"></div>
+          <div class="form-group"><label class="form-label">Warranty / Remarks</label><input type="text" id="pro-warranty" class="form-control" placeholder="e.g. 1 Year warranty on parts"></div>
+        </div>
+      </div>
+
+      <!-- ── Notes & Terms ─────────────────────────────────────────────────── -->
+      <div class="gst-section" style="border-top:1px solid var(--border);">
+        <div class="gst-section-title"><i class="bx bxs-notepad"></i> Notes & Terms</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+          <div class="form-group"><label class="form-label">Notes</label><textarea id="pro-notes" class="form-control" rows="3" placeholder="Additional notes for the customer..."></textarea></div>
+          <div class="form-group"><label class="form-label">Terms & Conditions</label><textarea id="pro-terms" class="form-control" rows="3" placeholder="e.g. Prices valid for 30 days. GST extra as applicable."></textarea></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal-footer acc-form-modal-footer" style="flex-wrap:wrap;gap:8px;">
+      <button class="btn btn-ghost" onclick="closeModal('pro-inv-modal')">Cancel</button>
+      <div style="margin-left:auto;display:flex;gap:8px;flex-wrap:wrap;">
+        <button class="btn btn-ghost" onclick="saveProforma('Draft')"><i class="bx bx-save"></i> Save as Draft</button>
+        <button class="btn btn-secondary" onclick="saveProforma()"><i class="bx bxs-file-doc"></i> Save Proforma</button>
+        <button class="btn btn-primary" id="pro-convert-btn" style="display:none;" onclick="convertToInvoice()"><i class="bx bxs-receipt"></i> Convert to Invoice</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════ PROFORMA PREVIEW MODAL ═════════════════════════════ -->
+<div class="modal-overlay" id="pro-preview-modal">
+  <div class="modal" style="max-width:780px;width:96vw;">
+    <div class="modal-header">
+      <span class="modal-title"><i class="bx bx-show"></i> Proforma Preview</span>
+      <button class="modal-close" onclick="closeModal('pro-preview-modal')">×</button>
+    </div>
+    <div class="modal-body" id="pro-preview-body" style="max-height:82vh;overflow-y:auto;padding:0;font-family:'DM Sans',sans-serif;"></div>
+    <div class="modal-footer" style="gap:8px;">
+      <button class="btn btn-ghost" onclick="closeModal('pro-preview-modal')">Close</button>
+      <button class="btn btn-secondary" id="btn-pro-edit" onclick="closeModal('pro-preview-modal')"><i class="bx bx-edit"></i> Edit</button>
+      <button class="btn btn-secondary" id="btn-pro-print"><i class="bx bx-printer"></i> Print</button>
+      <button class="btn btn-primary" id="btn-pro-pdf"><i class="bx bx-download"></i> Download PDF</button>
+    </div>
+  </div>
+</div>
+
 <!-- Invoice / Proforma / Quotation modal -->
 <div class="modal-overlay" id="doc-modal">
-  <div class="modal" style="max-width:640px;">
+  <div class="modal acc-form-modal-shell acc-form-modal-wide" style="max-width:99vw;width:99vw;margin:0 auto;border-radius:14px;">
     <div class="modal-header"><span class="modal-title" id="doc-modal-title">New Invoice</span><button class="modal-close" onclick="closeModal('doc-modal')">×</button></div>
-    <div class="modal-body" style="max-height:75vh;overflow-y:auto;">
+    <div class="modal-body acc-form-modal-body">
       <input type="hidden" id="doc-type">
       <div class="form-row">
         <div class="form-group"><label class="form-label">ID / Number</label><input type="text" id="doc-id" class="form-control" readonly style="background:var(--bg-input);"></div>
@@ -310,7 +838,7 @@
         <div class="form-group"><label class="form-label">Notes</label><input type="text" id="doc-notes" class="form-control" placeholder="Optional notes"></div>
       </div>
     </div>
-    <div class="modal-footer">
+    <div class="modal-footer acc-form-modal-footer">
       <button class="btn btn-ghost" onclick="closeModal('doc-modal')">Cancel</button>
       <button class="btn btn-primary" onclick="saveDoc()">Save</button>
     </div>
@@ -319,12 +847,12 @@
 
 <!-- Purchase Order modal -->
 <div class="modal-overlay" id="po-modal">
-  <div class="modal" style="max-width:580px;">
+  <div class="modal acc-form-modal-shell acc-form-modal-wide" style="max-width:99vw;width:99vw;margin:0 auto;border-radius:14px;">
     <div class="modal-header"><span class="modal-title" id="po-modal-title">New Purchase Order</span><button class="modal-close" onclick="closeModal('po-modal')">×</button></div>
-    <div class="modal-body">
+    <div class="modal-body acc-form-modal-body">
       <div class="form-row">
         <div class="form-group"><label class="form-label">PO Number</label><input type="text" id="po-id" class="form-control" readonly style="background:var(--bg-input);"></div>
-        <div class="form-group"><label class="form-label">Vendor Name</label><input type="text" id="po-vendor" class="form-control" placeholder="Vendor name"></div>
+        <div class="form-group"><label class="form-label">Vendor</label><select id="po-vendor" class="form-control"></select></div>
       </div>
       <div class="form-row">
         <div class="form-group"><label class="form-label">PO Date</label><input type="date" id="po-date" class="form-control"></div>
@@ -346,7 +874,7 @@
         <div class="form-group"><label class="form-label">Notes</label><input type="text" id="po-notes" class="form-control" placeholder="Optional notes"></div>
       </div>
     </div>
-    <div class="modal-footer">
+    <div class="modal-footer acc-form-modal-footer">
       <button class="btn btn-ghost" onclick="closeModal('po-modal')">Cancel</button>
       <button class="btn btn-primary" onclick="savePO()">Save</button>
     </div>
@@ -355,9 +883,9 @@
 
 <!-- Vendor Registration modal -->
 <div class="modal-overlay" id="ven-modal">
-  <div class="modal" style="max-width:580px;">
+  <div class="modal acc-form-modal-shell acc-form-modal-wide" style="max-width:99vw;width:99vw;margin:0 auto;border-radius:14px;">
     <div class="modal-header"><span class="modal-title" id="ven-modal-title">Register Vendor</span><button class="modal-close" onclick="closeModal('ven-modal')">×</button></div>
-    <div class="modal-body">
+    <div class="modal-body acc-form-modal-body">
       <div class="form-row">
         <div class="form-group"><label class="form-label">Vendor ID</label><input type="text" id="ven-id" class="form-control" readonly style="background:var(--bg-input);"></div>
         <div class="form-group"><label class="form-label">Vendor Name</label><input type="text" id="ven-name" class="form-control" placeholder="Business name"></div>
@@ -371,15 +899,19 @@
         <div class="form-group"><label class="form-label">Category</label><input type="text" id="ven-category" class="form-control" placeholder="e.g. IT, Logistics"></div>
       </div>
       <div class="form-row">
-        <div class="form-group"><label class="form-label">GST Number</label><input type="text" id="ven-gst" class="form-control" placeholder="GSTIN"></div>
+        <div class="form-group"><label class="form-label">GST Number</label><input type="text" id="ven-gst" class="form-control" placeholder="GSTIN" style="text-transform:uppercase"></div>
         <div class="form-group"><label class="form-label">PAN Number</label><input type="text" id="ven-pan" class="form-control" placeholder="PAN"></div>
       </div>
       <div class="form-group"><label class="form-label">Address</label><textarea id="ven-address" class="form-control" rows="2" placeholder="Full address"></textarea></div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">State</label><input type="text" id="ven-state" class="form-control" placeholder="e.g. Maharashtra"></div>
+        <div class="form-group"><label class="form-label">State Code</label><input type="text" id="ven-statecode" class="form-control" placeholder="27" maxlength="2"></div>
+      </div>
       <div class="form-group"><label class="form-label">Status</label>
         <select id="ven-status-sel" class="form-control"><option>Active</option><option>Inactive</option></select>
       </div>
     </div>
-    <div class="modal-footer">
+    <div class="modal-footer acc-form-modal-footer">
       <button class="btn btn-ghost" onclick="closeModal('ven-modal')">Cancel</button>
       <button class="btn btn-primary" onclick="saveVendor()">Save</button>
     </div>
@@ -388,13 +920,17 @@
 
 <!-- Work Order modal (Client & Vendor) -->
 <div class="modal-overlay" id="wo-modal">
-  <div class="modal" style="max-width:580px;">
+  <div class="modal acc-form-modal-shell acc-form-modal-wide" style="max-width:99vw;width:99vw;margin:0 auto;border-radius:14px;">
     <div class="modal-header"><span class="modal-title" id="wo-modal-title">New Work Order</span><button class="modal-close" onclick="closeModal('wo-modal')">×</button></div>
-    <div class="modal-body">
+    <div class="modal-body acc-form-modal-body">
       <input type="hidden" id="wo-type">
       <div class="form-row">
         <div class="form-group"><label class="form-label">Work Order #</label><input type="text" id="wo-id" class="form-control" readonly style="background:var(--bg-input);"></div>
-        <div class="form-group"><label class="form-label" id="wo-party-label">Client Name</label><input type="text" id="wo-party" class="form-control" placeholder="Client / Vendor name"></div>
+        <div class="form-group">
+          <label class="form-label" id="wo-party-label">Client Name</label>
+          <input type="text" id="wo-party" class="form-control" placeholder="Client / Vendor name">
+          <select id="wo-vendor" class="form-control" style="display:none;margin-top:8px;"></select>
+        </div>
       </div>
       <div class="form-group"><label class="form-label">Project Name</label><input type="text" id="wo-project" class="form-control" placeholder="Project name"></div>
       <div class="form-row">
@@ -409,7 +945,7 @@
         </div>
       </div>
     </div>
-    <div class="modal-footer">
+    <div class="modal-footer acc-form-modal-footer">
       <button class="btn btn-ghost" onclick="closeModal('wo-modal')">Cancel</button>
       <button class="btn btn-primary" onclick="saveWO()">Save</button>
     </div>
@@ -418,9 +954,9 @@
 
 <!-- Project Accounts modal -->
 <div class="modal-overlay" id="prj-modal">
-  <div class="modal" style="max-width:540px;">
+  <div class="modal acc-form-modal-shell acc-form-modal-wide" style="max-width:99vw;width:99vw;margin:0 auto;border-radius:14px;">
     <div class="modal-header"><span class="modal-title" id="prj-modal-title">New Project</span><button class="modal-close" onclick="closeModal('prj-modal')">×</button></div>
-    <div class="modal-body">
+    <div class="modal-body acc-form-modal-body">
       <div class="form-row">
         <div class="form-group"><label class="form-label">Project #</label><input type="text" id="prj-id" class="form-control" readonly style="background:var(--bg-input);"></div>
         <div class="form-group"><label class="form-label">Project Name</label><input type="text" id="prj-name" class="form-control" placeholder="Project name"></div>
@@ -441,7 +977,7 @@
       </div>
       <div class="form-group"><label class="form-label">Description</label><textarea id="prj-desc" class="form-control" rows="2" placeholder="Project description..."></textarea></div>
     </div>
-    <div class="modal-footer">
+    <div class="modal-footer acc-form-modal-footer">
       <button class="btn btn-ghost" onclick="closeModal('prj-modal')">Cancel</button>
       <button class="btn btn-primary" onclick="saveProject()">Save</button>
     </div>
@@ -463,11 +999,239 @@
 .acc-th { padding:10px 14px;text-align:left;font-size:11px;font-weight:600;color:var(--text-muted);letter-spacing:.5px;text-transform:uppercase;white-space:nowrap; }
 .acc-td { padding:11px 14px;font-size:13px;color:var(--text-primary);border-bottom:1px solid var(--border); }
 .acc-empty { grid-column:1/-1;padding:48px;text-align:center;color:var(--text-muted);font-size:14px; }
-.line-item-row { display:flex;gap:8px;align-items:center; }
-.line-item-row input { flex:1; }
-.line-item-row .item-qty { width:70px;flex:none; }
-.line-item-row .item-rate { width:100px;flex:none; }
-.line-item-row .item-total { width:90px;flex:none;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:12px;color:var(--text-muted);text-align:right; }
+.acc-inline-settings {
+  display:grid;
+  grid-template-columns:auto minmax(180px, 220px) minmax(210px, 260px) minmax(240px, 1fr);
+  align-items:end;
+  gap:12px 18px;
+  padding:14px 16px;
+  background:var(--bg-input);
+  border:1px solid var(--border);
+  border-radius:12px;
+  margin-bottom:14px;
+}
+.acc-inline-title {
+  display:flex;
+  align-items:center;
+  gap:8px;
+  font-size:13px;
+  font-weight:700;
+  color:var(--text-muted);
+  white-space:nowrap;
+}
+.acc-inline-title i {
+  color:var(--accent);
+  font-size:15px;
+}
+.acc-inline-field {
+  display:flex;
+  align-items:center;
+  gap:8px;
+}
+.acc-inline-label {
+  font-size:12px;
+  color:var(--text-muted);
+  white-space:nowrap;
+}
+.acc-inline-input {
+  min-width:0;
+  height:40px !important;
+  min-height:40px;
+  padding:0 14px !important;
+  font-size:13px !important;
+  line-height:1.2;
+}
+.acc-inline-preview {
+  display:flex;
+  align-items:center;
+  justify-content:flex-start;
+  gap:8px;
+  font-size:12px;
+  color:var(--text-muted);
+  min-height:40px;
+}
+.acc-inline-code {
+  display:inline-flex;
+  align-items:center;
+  min-height:32px;
+  padding:4px 10px;
+  border-radius:8px;
+  background:var(--bg-card);
+  border:1px solid var(--border);
+  font-size:12px;
+  font-weight:700;
+  color:var(--accent);
+  white-space:nowrap;
+}
+.line-item-row {
+  display:grid;
+  grid-template-columns:minmax(220px, 2.2fr) minmax(90px, .8fr) minmax(120px, 1fr) minmax(120px, 1fr) auto;
+  gap:10px;
+  align-items:end;
+  padding:12px;
+  border:1px solid var(--border);
+  border-radius:12px;
+  background:var(--bg-card);
+}
+.line-item-field {
+  display:flex;
+  flex-direction:column;
+  gap:6px;
+  min-width:0;
+}
+.line-item-label {
+  font-size:11px;
+  font-weight:700;
+  color:var(--text-muted);
+  letter-spacing:.04em;
+  text-transform:uppercase;
+}
+.line-item-row input { width:100%; min-width:0; }
+.line-item-row .item-total {
+  display:flex;
+  align-items:center;
+  justify-content:flex-end;
+  min-height:42px;
+  background:var(--bg-input);
+  border:1px solid var(--border);
+  border-radius:10px;
+  padding:0 12px;
+  font-size:13px;
+  font-weight:700;
+  color:var(--text-primary);
+  text-align:right;
+}
+.line-item-actions {
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  padding-bottom:2px;
+}
+.line-item-remove {
+  width:40px;
+  height:40px;
+  border-radius:10px;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+}
+/* GST Modal Styles */
+.gst-section { padding:20px 24px; }
+.gst-section-title { font-size:12px;font-weight:700;color:var(--text-muted);letter-spacing:.6px;text-transform:uppercase;margin-bottom:14px;display:flex;align-items:center;gap:6px; }
+/* Collapsible panel */
+.gst-collapse-panel { border-top:1px solid var(--border); }
+.gst-panel-hdr {
+  display:flex;align-items:center;gap:8px;padding:12px 20px;
+  font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;
+  color:var(--text-muted);background:var(--bg-input);cursor:pointer;
+  user-select:none;transition:background .15s;
+}
+.gst-panel-hdr:hover { background:var(--border); }
+.gst-chevron { margin-left:auto;font-size:16px;transition:transform .2s; }
+.gst-collapse-panel.collapsed .gst-panel-body { display:none!important; }
+.gst-collapse-panel.collapsed .gst-chevron { transform:rotate(-180deg); }
+.gst-summary-table { display:flex;flex-direction:column;gap:6px; }
+.gst-sum-row { display:flex;justify-content:space-between;align-items:center;font-size:13px;color:var(--text-primary); }
+.gst-sum-row span:first-child { color:var(--text-muted); }
+.gst-total-row { border-top:2px solid var(--border);padding-top:10px;margin-top:4px;font-weight:700;font-size:14px; }
+.gst-total-row span:first-child { color:var(--text-primary); }
+#gst-items-table td { padding:6px 8px;border-bottom:1px solid var(--border);vertical-align:middle; }
+#gst-items-table td input, #gst-items-table td select { padding:5px 7px;font-size:12px;border:1px solid var(--border);border-radius:6px;background:var(--bg-card);color:var(--text-primary);width:100%; }
+#gst-items-table td input:focus, #gst-items-table td select:focus { outline:none;border-color:var(--accent); }
+#gst-items-table td input, #gst-items-table td select { width:100%;min-width:0; }
+#pro-items-table td input, #pro-items-table td select { width:100%;min-width:0; }
+.gst-item-num { font-size:11px;color:var(--text-muted);text-align:center; }
+.gst-invoice-modal-shell {
+  display:flex;
+  flex-direction:column;
+  height:calc(100vh - 20px);
+  max-height:calc(100vh - 20px);
+}
+.gst-invoice-modal-body {
+  flex:1 1 auto;
+  min-height:0;
+}
+.gst-invoice-modal-footer {
+  position:sticky;
+  bottom:0;
+  z-index:8;
+  background:var(--bg-card);
+  border-top:1px solid var(--border);
+  padding:18px 24px;
+}
+.acc-form-modal-shell {
+  display:flex;
+  flex-direction:column;
+  width:96vw;
+  max-height:calc(100vh - 32px);
+}
+.acc-form-modal-wide {
+  max-height:calc(100vh - 24px);
+}
+.acc-form-modal-body {
+  flex:1 1 auto;
+  min-height:0;
+  overflow-y:auto;
+  overflow-x:hidden;
+}
+.acc-form-modal-footer {
+  position:sticky;
+  bottom:0;
+  z-index:4;
+  background:var(--bg-card);
+  border-top:1px solid var(--border);
+}
+.inv-preview-wrapper { padding:32px; }
+.inv-preview-wrapper .inv-header { background:#1d4ed8;color:#fff;padding:24px 28px;border-radius:10px 10px 0 0; }
+.inv-preview-wrapper .inv-body-section { padding:20px 28px;border-left:1px solid #e2e8f0;border-right:1px solid #e2e8f0; }
+.inv-preview-wrapper .inv-footer-section { background:#f8fafc;padding:16px 28px;border:1px solid #e2e8f0;border-radius:0 0 10px 10px; }
+.inv-preview-wrapper table { width:100%;border-collapse:collapse; }
+.inv-preview-wrapper thead th { background:#f1f5f9;padding:8px 10px;font-size:11px;font-weight:700;text-transform:uppercase;color:#64748b;border-bottom:2px solid #e2e8f0;text-align:left; }
+.inv-preview-wrapper tbody td { padding:9px 10px;font-size:13px;border-bottom:1px solid #f1f5f9; }
+.inv-preview-wrapper .sum-table td { padding:5px 10px;font-size:13px; }
+/* Invoice action buttons (small icon buttons) */
+.inv-act-btn {
+  display:inline-flex;align-items:center;justify-content:center;
+  width:28px;height:28px;border-radius:7px;border:1px solid var(--border);
+  background:var(--bg-card);color:var(--text-muted);cursor:pointer;
+  font-size:14px;transition:all .15s;
+}
+.inv-act-btn:hover { background:var(--bg-input);color:var(--accent);border-color:var(--accent); }
+.inv-act-del:hover { background:#fee2e2;color:#dc2626;border-color:#dc2626; }
+.inv-row:hover { background:var(--bg-input); }
+@media (max-width: 1200px) {
+  .acc-inline-settings {
+    grid-template-columns:1fr 1fr;
+  }
+}
+@media (max-width: 760px) {
+  .acc-inline-settings,
+  .acc-inline-field {
+    grid-template-columns:1fr;
+    display:grid;
+  }
+  .acc-inline-preview {
+    min-height:auto;
+  }
+  .gst-invoice-modal-shell {
+    height:calc(100vh - 12px);
+    max-height:calc(100vh - 12px);
+  }
+  .gst-invoice-modal-footer {
+    padding:14px 16px;
+  }
+  .acc-form-modal-shell,
+  .acc-form-modal-wide {
+    max-height:calc(100vh - 12px);
+    width:98vw;
+  }
+  .line-item-row {
+    grid-template-columns:1fr;
+  }
+  .line-item-actions {
+    justify-content:flex-end;
+  }
+}
 </style>
 
 <script src="/js/api.js"></script>
@@ -481,8 +1245,8 @@ function load(key) { try { return JSON.parse(localStorage.getItem(STORE[key]||ke
 function save(key, arr) { localStorage.setItem(STORE[key]||key, JSON.stringify(arr)); }
 function genId(prefix) { return prefix + '-' + Math.random().toString(36).substr(2,6).toUpperCase(); }
 function today() { return new Date().toISOString().slice(0,10); }
-function fmtAmt(n) { return '₹' + Number(n||0).toLocaleString('en-IN'); }
-function fmtD(s) { if(!s) return '—'; var d=new Date(s); return d.getDate()+' '+['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][d.getMonth()]+' '+d.getFullYear(); }
+function fmtAmt(n) { return 'Rs. ' + Number(n||0).toLocaleString('en-IN'); }
+function fmtD(s) { if(!s) return '-'; var d=new Date(s); return d.getDate()+' '+['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][d.getMonth()]+' '+d.getFullYear(); }
 
 var STATUS_COLORS = {
   Draft:{c:'#64748b',b:'#f1f5f9'}, Sent:{c:'#3b82f6',b:'#dbeafe'},
@@ -516,7 +1280,7 @@ function showModule(key) {
   document.getElementById('tab-'+key).classList.add('active');
   activeModule = key;
   if(key==='home') updateDashStats();
-  else if(key==='inv') renderInvoices();
+  else if(key==='inv') { initInvSettings(); renderInvoices(); }
   else if(key==='pro') renderProforma();
   else if(key==='quo') renderQuotations();
   else if(key==='po') renderPO();
@@ -526,30 +1290,720 @@ function showModule(key) {
   else if(key==='prj') renderProjects();
 }
 function showSubTab(key) {
-  document.getElementById('sub-invoices').style.display = key==='invoices'?'':'none';
-  document.getElementById('sub-calc').style.display = key==='calc'?'':'none';
-  document.getElementById('stab-invoices').classList.toggle('active', key==='invoices');
-  document.getElementById('stab-calc').classList.toggle('active', key==='calc');
+  ['invoices','calc'].forEach(function(k) {
+    var el = document.getElementById('sub-' + k);
+    if (el) el.style.display = k===key ? '' : 'none';
+    var btn = document.getElementById('stab-' + k);
+    if (btn) btn.classList.toggle('active', k===key);
+  });
 }
 function updateDashStats() {
-  document.getElementById('dash-inv').textContent = load('inv').length;
+  // Invoices from API
+  api('GET', '/invoices').then(function(data) {
+    document.getElementById('dash-inv').textContent = (data||[]).length;
+  }).catch(function() {});
+  // Others from localStorage
   document.getElementById('dash-ven').textContent = load('ven').length;
   document.getElementById('dash-cwo').textContent = load('cwo').length;
   document.getElementById('dash-prj').textContent = load('prj').length;
 }
 
-/* ── INVOICES ─────────────────────────────────────────── */
+/* ══════════════════════════════════════════════════════════
+   GST INVOICE MODULE  (API-backed)
+══════════════════════════════════════════════════════════ */
+var gstEditingId = null;
+var gstItemCount = 0;
+
+/* ── Populate vendor dropdown from localStorage vendors ─── */
+function populateVendorDropdown(selectedName) {
+  var sel = document.getElementById('gst-vendor-sel');
+  var vendors = load('ven');
+  sel.innerHTML = '<option value="">— Type manually or pick a vendor —</option>';
+  vendors.forEach(function(v) {
+    if (v.status === 'Inactive') return;
+    var opt = document.createElement('option');
+    opt.value = JSON.stringify(v);
+    opt.textContent = v.name + (v.gst ? '  |  GST: ' + v.gst : '');
+    if (selectedName && v.name === selectedName) opt.selected = true;
+    sel.appendChild(opt);
+  });
+}
+
+function populatePOVendorDropdown(selectedName) {
+  var sel = document.getElementById('po-vendor');
+  if (!sel) return;
+  var vendors = load('ven').filter(function(v) { return v.status !== 'Inactive'; });
+  sel.innerHTML = '<option value="">Select vendor</option>' + vendors.map(function(v) {
+    var label = v.name + (v.gst ? ' | GST: ' + v.gst : '');
+    return '<option value="' + escape(v.name || '') + '">' + escape(label) + '</option>';
+  }).join('');
+  if (selectedName) {
+    var safeSelectedName = escape(selectedName);
+    if (!Array.from(sel.options).some(function(opt) { return opt.value === safeSelectedName; })) {
+      var opt = document.createElement('option');
+      opt.value = safeSelectedName;
+      opt.textContent = selectedName;
+      sel.appendChild(opt);
+    }
+    sel.value = safeSelectedName;
+  }
+}
+
+/* ── Auto-fill customer fields from selected vendor ─────── */
+function fillFromVendor(jsonStr) {
+  if (!jsonStr) return;
+  var v;
+  try { v = JSON.parse(jsonStr); } catch(e) { return; }
+  document.getElementById('gst-c-name').value  = v.name    || '';
+  document.getElementById('gst-c-gstin').value = (v.gst    || '').toUpperCase();
+  document.getElementById('gst-c-addr').value  = v.address || '';
+  // Parse state / state code from vendor address or name
+  document.getElementById('gst-c-state').value = v.state   || '';
+  document.getElementById('gst-c-code').value  = v.stateCode || '';
+  recalcGST();
+}
+
+/* ── Open GST Invoice Modal ─────────────────────────────── */
+function openGSTModal(invId) {
+  gstEditingId = invId || null;
+  gstItemCount = 0;
+  document.getElementById('gst-items-body').innerHTML = '';
+  document.getElementById('gst-inv-title').innerHTML = invId
+    ? '<i class="bx bxs-edit" style="color:var(--accent)"></i> Edit Invoice'
+    : '<i class="bx bxs-receipt" style="color:var(--accent)"></i> New GST Invoice';
+
+  populateVendorDropdown();
+  if (invId) {
+    api('GET', '/invoices/' + invId).then(function(inv) {
+      document.getElementById('gst-number').value     = inv.invoiceNumber;
+      document.getElementById('gst-type').value       = inv.invoiceType || 'B2B';
+      document.getElementById('gst-date').value       = inv.invoiceDate || '';
+      document.getElementById('gst-due').value        = inv.dueDate     || '';
+      document.getElementById('gst-supply').value     = inv.placeOfSupply || '';
+      document.getElementById('gst-s-name').value     = inv.sellerName  || '';
+      document.getElementById('gst-s-gstin').value    = inv.sellerGstin || '';
+      document.getElementById('gst-s-addr').value     = inv.sellerAddress || '';
+      document.getElementById('gst-s-state').value    = inv.sellerState || '';
+      document.getElementById('gst-s-code').value     = inv.sellerStateCode || '';
+      document.getElementById('gst-s-phone').value    = inv.sellerPhone || '';
+      document.getElementById('gst-s-email').value    = inv.sellerEmail || '';
+      document.getElementById('gst-s-pan').value      = inv.sellerPan   || '';
+      document.getElementById('gst-c-name').value     = inv.customerName || '';
+      document.getElementById('gst-c-gstin').value    = inv.customerGstin || '';
+      document.getElementById('gst-c-addr').value     = inv.customerAddress || '';
+      document.getElementById('gst-c-state').value    = inv.customerState || '';
+      document.getElementById('gst-c-code').value     = inv.customerStateCode || '';
+      document.getElementById('gst-c-pan').value      = inv.customerPan  || '';
+      document.getElementById('gst-c-email').value    = inv.customerEmail || '';
+      document.getElementById('gst-bill-month').value = inv.billMonth    || '';
+      document.getElementById('gst-bill-from').value  = inv.billPeriodFrom || '';
+      document.getElementById('gst-bill-to').value    = inv.billPeriodTo   || '';
+      document.getElementById('gst-work-order').value = inv.workOrder    || '';
+      document.getElementById('gst-project').value    = inv.projectName  || '';
+      document.getElementById('gst-work-details').value = inv.workDetails || '';
+      document.getElementById('gst-bank-name').value  = inv.bankName     || '';
+      document.getElementById('gst-bank-acname').value= inv.bankAcName   || '';
+      document.getElementById('gst-bank-ac').value    = inv.bankAccount  || '';
+      document.getElementById('gst-bank-ifsc').value  = inv.bankIfsc     || '';
+      document.getElementById('gst-bank-branch').value= inv.bankBranch   || '';
+      document.getElementById('gst-pay-status').value = inv.paymentStatus || 'Unpaid';
+      document.getElementById('gst-pay-mode').value   = inv.paymentMode || '';
+      document.getElementById('gst-status').value     = inv.status || 'Draft';
+      document.getElementById('gst-notes').value      = inv.notes || '';
+      document.getElementById('gst-terms').value      = inv.termsConditions || '';
+      (inv.items || []).forEach(function(it) { addGSTItem(it); });
+      recalcGST();
+      openModal('gst-inv-modal');
+    }).catch(function(e) { toast('Failed to load invoice', 'error'); });
+  } else {
+    document.getElementById('gst-number').value     = 'Auto-generated';
+    document.getElementById('gst-type').value       = 'B2B';
+    document.getElementById('gst-date').value       = today();
+    document.getElementById('gst-due').value        = '';
+    document.getElementById('gst-supply').value     = '';
+    document.getElementById('gst-s-name').value     = '';
+    document.getElementById('gst-s-gstin').value    = '';
+    document.getElementById('gst-s-addr').value     = '';
+    document.getElementById('gst-s-state').value    = '';
+    document.getElementById('gst-s-code').value     = '';
+    document.getElementById('gst-s-phone').value    = '';
+    document.getElementById('gst-s-email').value    = '';
+    document.getElementById('gst-s-pan').value      = '';
+    document.getElementById('gst-vendor-sel').value = '';
+    document.getElementById('gst-c-name').value     = '';
+    document.getElementById('gst-c-gstin').value    = '';
+    document.getElementById('gst-c-addr').value     = '';
+    document.getElementById('gst-c-state').value    = '';
+    document.getElementById('gst-c-code').value     = '';
+    document.getElementById('gst-c-pan').value      = '';
+    document.getElementById('gst-c-email').value    = '';
+    document.getElementById('gst-bill-month').value = '';
+    document.getElementById('gst-bill-from').value  = '';
+    document.getElementById('gst-bill-to').value    = '';
+    document.getElementById('gst-work-order').value = '';
+    document.getElementById('gst-project').value    = '';
+    document.getElementById('gst-work-details').value = '';
+    document.getElementById('gst-bank-name').value  = '';
+    document.getElementById('gst-bank-acname').value= '';
+    document.getElementById('gst-bank-ac').value    = '';
+    document.getElementById('gst-bank-ifsc').value  = '';
+    document.getElementById('gst-bank-branch').value= '';
+    document.getElementById('gst-pay-status').value = 'Unpaid';
+    document.getElementById('gst-pay-mode').value   = '';
+    document.getElementById('gst-status').value     = 'Draft';
+    document.getElementById('gst-notes').value      = '';
+    document.getElementById('gst-terms').value      = '';
+    addGSTItem();
+    recalcGST();
+    openModal('gst-inv-modal');
+  }
+}
+
+/* ── Add GST Line Item Row ──────────────────────────────── */
+function addGSTItem(it) {
+  gstItemCount++;
+  var idx = gstItemCount;
+  it = it || { itemCode:'', name:'', hsnCode:'', quantity:1, unit:'', unitPrice:0, discount:0, taxRate:18 };
+  var row = document.createElement('tr');
+  row.id = 'gst-row-' + idx;
+  row.innerHTML =
+    '<td class="gst-item-num">' + idx + '</td>' +
+    '<td><input type="text"   class="gi-code"  value="' + (it.itemCode||'') + '" placeholder="Code"></td>' +
+    '<td><input type="text"   class="gi-name"  value="' + (it.name||'')     + '" placeholder="Item description" oninput="recalcGST()"></td>' +
+    '<td><input type="text"   class="gi-hsn"   value="' + (it.hsnCode||'')  + '" placeholder="HSN/SAC"></td>' +
+    '<td><input type="number" class="gi-qty"   value="' + (it.quantity||1)  + '" min="0" step="0.01" oninput="recalcGST()"></td>' +
+    '<td><input type="text"   class="gi-unit"  value="' + (it.unit||'')     + '" placeholder="Nos/Kg/Hr"></td>' +
+    '<td><input type="number" class="gi-price" value="' + (it.unitPrice||0) + '" min="0" step="0.01" oninput="recalcGST()"></td>' +
+    '<td><input type="number" class="gi-disc"  value="' + (it.discount||0)  + '" min="0" max="100" step="0.01" oninput="recalcGST()"></td>' +
+    '<td><select class="gi-tax" onchange="recalcGST()">' +
+      ['0','5','12','18','28'].map(function(r){ return '<option value="'+r+'"'+(String(it.taxRate)===r?' selected':'')+'>'+(r==='0'?'Exempt':r+'%')+'</option>'; }).join('') +
+    '</select></td>' +
+    '<td style="text-align:right;font-weight:600;font-size:13px;white-space:nowrap;" id="gi-amt-' + idx + '">₹0.00</td>' +
+    '<td><button type="button" class="btn btn-danger btn-sm" style="padding:3px 7px;" onclick="removeGSTItem(\'gst-row-'+idx+'\')"><i class="bx bx-x"></i></button></td>';
+  document.getElementById('gst-items-body').appendChild(row);
+  recalcGST();
+}
+
+function removeGSTItem(rowId) {
+  var el = document.getElementById(rowId);
+  if (el) el.remove();
+  recalcGST();
+}
+
+/* ── Recalculate GST Totals ─────────────────────────────── */
+function recalcGST() {
+  var selCode = (document.getElementById('gst-s-code').value || '').trim();
+  var cusCode = (document.getElementById('gst-c-code').value || '').trim();
+  var useIGST = selCode && cusCode && selCode !== cusCode;
+
+  document.getElementById('gst-tax-hint').textContent = useIGST
+    ? 'IGST applied (inter-state: different state codes).'
+    : 'CGST + SGST applied (intra-state: same or unset state codes).';
+  document.getElementById('gst-row-cgst').style.display = useIGST ? 'none' : '';
+  document.getElementById('gst-row-sgst').style.display = useIGST ? 'none' : '';
+  document.getElementById('gst-row-igst').style.display = useIGST ? '' : 'none';
+
+  var rows = document.getElementById('gst-items-body').querySelectorAll('tr');
+  var subtotal = 0, totalCgst = 0, totalSgst = 0, totalIgst = 0;
+
+  rows.forEach(function(row, i) {
+    var qty   = parseFloat(row.querySelector('.gi-qty').value)   || 0;
+    var price = parseFloat(row.querySelector('.gi-price').value) || 0;
+    var disc  = parseFloat(row.querySelector('.gi-disc').value)  || 0;
+    var tax   = parseFloat(row.querySelector('.gi-tax').value)   || 0;
+    var taxable = qty * price * (1 - disc / 100);
+    var gstAmt  = taxable * tax / 100;
+    subtotal += taxable;
+    if (useIGST) { totalIgst += gstAmt; }
+    else          { totalCgst += gstAmt / 2; totalSgst += gstAmt / 2; }
+    var amtEl = row.querySelector('[id^="gi-amt-"]');
+    if (amtEl) amtEl.textContent = fmtAmt(taxable + gstAmt);
+  });
+
+  var grossTotal  = subtotal + totalCgst + totalSgst + totalIgst;
+  var roundOff    = Math.round(grossTotal) - grossTotal;
+  var totalAmount = grossTotal + roundOff;
+
+  document.getElementById('gst-sub').textContent       = fmtAmt(subtotal);
+  document.getElementById('gst-cgst-val').textContent  = fmtAmt(totalCgst);
+  document.getElementById('gst-sgst-val').textContent  = fmtAmt(totalSgst);
+  document.getElementById('gst-igst-val').textContent  = fmtAmt(totalIgst);
+  document.getElementById('gst-tax-total').textContent = fmtAmt(totalCgst + totalSgst + totalIgst);
+  document.getElementById('gst-roundoff').textContent  = fmtAmt(roundOff);
+  document.getElementById('gst-total-amt').textContent = fmtAmt(totalAmount);
+}
+
+/* ── Collect Items from Table ───────────────────────────── */
+function collectGSTItems() {
+  var rows = document.getElementById('gst-items-body').querySelectorAll('tr');
+  var items = [];
+  rows.forEach(function(row) {
+    var qty   = parseFloat(row.querySelector('.gi-qty').value)   || 0;
+    var price = parseFloat(row.querySelector('.gi-price').value) || 0;
+    var disc  = parseFloat(row.querySelector('.gi-disc').value)  || 0;
+    var tax   = parseFloat(row.querySelector('.gi-tax').value)   || 0;
+    var taxable = qty * price * (1 - disc / 100);
+    var gstAmt  = taxable * tax / 100;
+    items.push({
+      itemCode: row.querySelector('.gi-code').value,
+      name:    row.querySelector('.gi-name').value,
+      hsnCode: row.querySelector('.gi-hsn').value,
+      quantity: qty,
+      unit:    row.querySelector('.gi-unit').value,
+      unitPrice: price,
+      discount: disc,
+      taxRate:  tax,
+      taxableAmount: parseFloat(taxable.toFixed(2)),
+      cgst:  parseFloat((gstAmt/2).toFixed(2)),
+      sgst:  parseFloat((gstAmt/2).toFixed(2)),
+      igst:  parseFloat(gstAmt.toFixed(2)),
+      itemTotal: parseFloat((taxable+gstAmt).toFixed(2)),
+    });
+  });
+  return items;
+}
+
+/* ── Save GST Invoice (API) ─────────────────────────────── */
+function saveGSTInvoice(forceStatus) {
+  var selCode = (document.getElementById('gst-s-code').value || '').trim();
+  var cusCode = (document.getElementById('gst-c-code').value || '').trim();
+  var useIGST = selCode && cusCode && selCode !== cusCode;
+
+  if (!document.getElementById('gst-c-name').value.trim()) return toast('Customer name is required','error');
+  if (!document.getElementById('gst-date').value)          return toast('Invoice date is required','error');
+
+  var items      = collectGSTItems();
+  var subtotal   = 0, totalCgst = 0, totalSgst = 0, totalIgst = 0;
+  items.forEach(function(it) {
+    subtotal += it.taxableAmount;
+    if (useIGST) totalIgst += it.igst; else { totalCgst += it.cgst; totalSgst += it.sgst; }
+  });
+  var gross      = subtotal + totalCgst + totalSgst + totalIgst;
+  var roundOff   = parseFloat((Math.round(gross) - gross).toFixed(2));
+  var totalAmount= parseFloat((gross + roundOff).toFixed(2));
+
+  var payload = {
+    invoiceType:       document.getElementById('gst-type').value,
+    invoiceDate:       document.getElementById('gst-date').value,
+    dueDate:           document.getElementById('gst-due').value   || null,
+    placeOfSupply:     document.getElementById('gst-supply').value,
+    sellerName:        document.getElementById('gst-s-name').value,
+    sellerGstin:       document.getElementById('gst-s-gstin').value.toUpperCase(),
+    sellerAddress:     document.getElementById('gst-s-addr').value,
+    sellerState:       document.getElementById('gst-s-state').value,
+    sellerStateCode:   document.getElementById('gst-s-code').value,
+    sellerPhone:       document.getElementById('gst-s-phone').value,
+    sellerEmail:       document.getElementById('gst-s-email').value,
+    sellerPan:         document.getElementById('gst-s-pan').value.toUpperCase(),
+    customerName:      document.getElementById('gst-c-name').value,
+    customerGstin:     document.getElementById('gst-c-gstin').value.toUpperCase(),
+    customerAddress:   document.getElementById('gst-c-addr').value,
+    customerState:     document.getElementById('gst-c-state').value,
+    customerStateCode: document.getElementById('gst-c-code').value,
+    customerPan:       document.getElementById('gst-c-pan').value.toUpperCase(),
+    customerEmail:     document.getElementById('gst-c-email').value,
+    billMonth:         document.getElementById('gst-bill-month').value,
+    billPeriodFrom:    document.getElementById('gst-bill-from').value   || null,
+    billPeriodTo:      document.getElementById('gst-bill-to').value     || null,
+    workOrder:         document.getElementById('gst-work-order').value,
+    projectName:       document.getElementById('gst-project').value,
+    workDetails:       document.getElementById('gst-work-details').value,
+    bankName:          document.getElementById('gst-bank-name').value,
+    bankAcName:        document.getElementById('gst-bank-acname').value,
+    bankAccount:       document.getElementById('gst-bank-ac').value,
+    bankIfsc:          document.getElementById('gst-bank-ifsc').value.toUpperCase(),
+    bankBranch:        document.getElementById('gst-bank-branch').value,
+    items:             items,
+    subtotal:          parseFloat(subtotal.toFixed(2)),
+    totalCgst:         parseFloat(totalCgst.toFixed(2)),
+    totalSgst:         parseFloat(totalSgst.toFixed(2)),
+    totalIgst:         parseFloat(totalIgst.toFixed(2)),
+    totalTax:          parseFloat((totalCgst+totalSgst+totalIgst).toFixed(2)),
+    roundOff:          roundOff,
+    totalAmount:       totalAmount,
+    paymentStatus:     document.getElementById('gst-pay-status').value,
+    paymentMode:       document.getElementById('gst-pay-mode').value,
+    status:            forceStatus || document.getElementById('gst-status').value,
+    notes:             document.getElementById('gst-notes').value,
+    termsConditions:   document.getElementById('gst-terms').value,
+    financialYear:     (document.getElementById('inv-fy-sel') && document.getElementById('inv-fy-sel').value) || localStorage.getItem('inv_fy') || '',
+    companyCode:       (document.getElementById('inv-company-code') && document.getElementById('inv-company-code').value.trim().toUpperCase()) || localStorage.getItem('inv_company_code') || '',
+  };
+
+  var method = gstEditingId ? 'PUT' : 'POST';
+  var path   = gstEditingId ? '/invoices/' + gstEditingId : '/invoices';
+
+  api(method, path, payload)
+    .then(function(inv) {
+      closeModal('gst-inv-modal');
+      renderInvoices();
+      toast((gstEditingId ? 'Invoice updated' : 'Invoice #' + inv.invoiceNumber + ' created') + '!', 'success');
+    })
+    .catch(function(e) { toast('Error: ' + (e.message || 'Save failed'), 'error'); });
+}
+
+/* ── Collapsible panel toggle ───────────────────────────── */
+function toggleGSTPanel(hdr) {
+  hdr.closest('.gst-collapse-panel').classList.toggle('collapsed');
+}
+
+/* ── Invoice number settings (FY + company code) ───────── */
+function initInvSettings() {
+  var sel = document.getElementById('inv-fy-sel');
+  if (!sel || sel.options.length > 0) { updateInvNumPreview(); return; }
+  var now = new Date(), yr = now.getFullYear(), mo = now.getMonth() + 1;
+  var startYear = mo >= 4 ? yr : yr - 1;
+  var firstYear = 2018;
+  var lastYear = startYear + 5;
+  var html = '';
+  for (var i = firstYear; i <= lastYear; i++) {
+    var fy = String(i).slice(-2) + '-' + String(i+1).slice(-2);
+    var selected = (i === startYear) ? ' selected' : '';
+    html += '<option value="' + fy + '"' + selected + '>' + i + '-' + (i+1) + '</option>';
+  }
+  sel.innerHTML = html;
+  // Restore saved values
+  var savedCode = localStorage.getItem('inv_company_code') || '';
+  var savedFY   = localStorage.getItem('inv_fy') || '';
+  if (savedCode) document.getElementById('inv-company-code').value = savedCode.toUpperCase();
+  if (savedFY && sel.querySelector('option[value="'+savedFY+'"]')) sel.value = savedFY;
+  updateInvNumPreview();
+}
+
+function updateInvNumPreview() {
+  var code = (document.getElementById('inv-company-code').value || 'DHPE').toUpperCase().replace(/[^A-Z0-9]/g,'') || 'INV';
+  var fy   = (document.getElementById('inv-fy-sel') && document.getElementById('inv-fy-sel').value) || '26-27';
+  localStorage.setItem('inv_company_code', code);
+  localStorage.setItem('inv_fy', fy);
+  var el = document.getElementById('inv-num-preview');
+  if (el) el.textContent = 'INV-001/' + code + '/' + fy + '/XXXXXX';
+}
+
+/* ── Render Invoice List ────────────────────────────────── */
+function renderInvoices() {
+  var q  = (document.getElementById('inv-search').value || '').trim();
+  var st = document.getElementById('inv-status').value;
+  var tp = document.getElementById('inv-type').value;
+  var params = new URLSearchParams();
+  if (q)  params.set('q', q);
+  if (st) params.set('status', st);
+  if (tp) params.set('type', tp);
+
+  api('GET', '/invoices?' + params.toString())
+    .then(function(data) {
+      var tbody = document.getElementById('inv-body');
+      if (!data || !data.length) { tbody.innerHTML = emptyRow(7); return; }
+
+      tbody.innerHTML = data.map(function(r) {
+        var typeLabel = r.invoiceType === 'B2C' ? 'Tax Invoice (B2C)' : 'Tax Invoice';
+        var typeColor = r.invoiceType === 'B2C' ? '#7c3aed' : '#1d4ed8';
+        var typeBg    = r.invoiceType === 'B2C' ? '#ede9fe' : '#dbeafe';
+
+        var actionBtns =
+          '<div style="display:flex;gap:2px;justify-content:center;">' +
+            '<button class="inv-act-btn" title="Preview" onclick="previewInvoice('+r.id+')"><i class="bx bx-show"></i></button>' +
+            '<button class="inv-act-btn" title="Share WhatsApp" onclick="shareWhatsApp(\''+r.invoiceNumber+'\','+r.totalAmount+')"><i class="bx bxl-whatsapp"></i></button>' +
+            '<button class="inv-act-btn" title="Print" onclick="printInvoice('+r.id+')"><i class="bx bx-printer"></i></button>' +
+            '<button class="inv-act-btn" title="Download PDF" onclick="downloadInvPDF('+r.id+',\''+r.invoiceNumber+'\')"><i class="bx bx-download"></i></button>' +
+            (r.paymentStatus !== 'Paid' ? '<button class="inv-act-btn" title="Mark Paid" onclick="openMarkPaid('+r.id+',\''+r.invoiceNumber+'\')"><i class="bx bx-check-circle"></i></button>' : '') +
+            '<button class="inv-act-btn" title="Edit" onclick="openGSTModal('+r.id+')"><i class="bx bx-edit-alt"></i></button>' +
+            '<button class="inv-act-btn inv-act-del" title="Delete" onclick="deleteInvoice('+r.id+',\''+r.invoiceNumber+'\')"><i class="bx bx-trash"></i></button>' +
+          '</div>';
+
+        return '<tr class="inv-row">' +
+          '<td class="acc-td" style="font-weight:700;color:var(--accent);font-size:12px;white-space:nowrap;">' + (r.invoiceNumber||'') + '</td>' +
+          '<td class="acc-td"><span style="font-size:11px;font-weight:700;background:'+typeBg+';color:'+typeColor+';border-radius:6px;padding:3px 9px;">'+typeLabel+'</span></td>' +
+          '<td class="acc-td"><div style="font-weight:600;font-size:13px;">' + (r.customerName||'') + '</div>' +
+            (r.customerGstin ? '<div style="font-size:10px;color:var(--text-muted);margin-top:1px;">'+r.customerGstin+'</div>' : '') + '</td>' +
+          '<td class="acc-td" style="white-space:nowrap;font-size:12px;">' + fmtD(r.invoiceDate) + '</td>' +
+          '<td class="acc-td" style="font-weight:700;white-space:nowrap;">₹' + Number(r.totalAmount||0).toLocaleString('en-IN', {minimumFractionDigits:2}) + '</td>' +
+          '<td class="acc-td">' + badge(r.status) + '</td>' +
+          '<td class="acc-td" style="white-space:nowrap;">' + actionBtns + '</td>' +
+        '</tr>';
+      }).join('');
+
+      document.getElementById('dash-inv').textContent = data.length;
+    })
+    .catch(function(err) {
+      document.getElementById('inv-body').innerHTML =
+        '<tr><td colspan="7" style="padding:40px;text-align:center;">' +
+          '<div style="color:#ef4444;font-weight:600;margin-bottom:6px;"><i class="bx bx-error-circle"></i> Failed to load invoices</div>' +
+          '<div style="font-size:12px;color:var(--text-muted);">Please restart the server so the Invoices table is created, then refresh.</div>' +
+        '</td></tr>';
+    });
+}
+
+/* ── Print Invoice ──────────────────────────────────────── */
+function printInvoice(id) {
+  var token = getToken();
+  fetch('/api/invoices/' + id + '/pdf', { headers: { 'Authorization': 'Bearer ' + token } })
+    .then(function(r) { return r.blob(); })
+    .then(function(blob) {
+      var url = URL.createObjectURL(blob);
+      var win = window.open(url);
+      if (win) {
+        win.addEventListener('load', function() { win.print(); });
+      } else {
+        toast('Allow popups to use Print', 'error');
+      }
+    })
+    .catch(function() { toast('Print failed', 'error'); });
+}
+
+/* ── Preview Invoice ────────────────────────────────────── */
+function previewInvoice(id) {
+  api('GET', '/invoices/' + id).then(function(inv) {
+    var useIGST = inv.sellerStateCode && inv.customerStateCode && inv.sellerStateCode !== inv.customerStateCode;
+    var items   = inv.items || [];
+    var fmt = function(n) { return '₹' + Number(n||0).toLocaleString('en-IN', {minimumFractionDigits:2, maximumFractionDigits:2}); };
+
+    var statusColor = {Draft:'#64748b',Sent:'#3b82f6',Paid:'#22c55e',Overdue:'#ef4444',Cancelled:'#94a3b8'}[inv.status] || '#64748b';
+
+    var itemRows = items.map(function(it, i) {
+      return '<tr style="border-bottom:1px solid #f1f5f9;">' +
+        '<td style="padding:8px 10px;color:#64748b;font-size:12px;">' + (i+1) + '</td>' +
+        '<td style="padding:8px 10px;">' +
+          '<div style="font-weight:600;font-size:13px;">' + (it.name||'—') + '</div>' +
+          ((it.itemCode && it.itemCode !== 'N/A') ? '<div style="font-size:11px;color:#94a3b8;">Code: ' + it.itemCode + '</div>' : '') +
+          (it.hsnCode ? '<div style="font-size:11px;color:#94a3b8;">HSN: ' + it.hsnCode + '</div>' : '') +
+        '</td>' +
+        '<td style="padding:8px 10px;text-align:center;font-size:12px;">' + (it.quantity||0) + (it.unit ? ' '+it.unit : '') + '</td>' +
+        '<td style="padding:8px 10px;text-align:right;font-size:12px;">' + fmt(it.unitPrice) + '</td>' +
+        '<td style="padding:8px 10px;text-align:center;font-size:12px;color:#64748b;">' + (it.discount ? it.discount+'%' : '—') + '</td>' +
+        '<td style="padding:8px 10px;text-align:center;font-size:12px;">' + (it.taxRate||0) + '%</td>' +
+        (useIGST
+          ? '<td style="padding:8px 10px;text-align:right;font-size:12px;color:#7c3aed;">' + fmt(it.igst) + '</td>'
+          : '<td style="padding:8px 10px;text-align:right;font-size:12px;color:#0891b2;">' + fmt(it.cgst) + '</td>' +
+            '<td style="padding:8px 10px;text-align:right;font-size:12px;color:#0891b2;">' + fmt(it.sgst) + '</td>') +
+        '<td style="padding:8px 10px;text-align:right;font-weight:700;font-size:13px;">' + fmt(it.itemTotal) + '</td>' +
+        '</tr>';
+    }).join('');
+
+    var html =
+      '<div style="padding:24px;font-family:\'DM Sans\',sans-serif;">' +
+
+      /* ── Top bar: invoice number + status badge ── */
+      '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">' +
+        '<div>' +
+          '<div style="font-size:11px;font-weight:600;text-transform:uppercase;color:#94a3b8;letter-spacing:.5px;margin-bottom:3px;">' + (inv.invoiceType==='B2B'?'B2B Tax Invoice':'B2C Invoice') + '</div>' +
+          '<div style="font-size:20px;font-weight:800;color:var(--text-primary);">' + (inv.invoiceNumber||'—') + '</div>' +
+          '<div style="font-size:12px;color:#64748b;margin-top:3px;">Date: ' + fmtD(inv.invoiceDate) + (inv.dueDate ? ' &nbsp;|&nbsp; Due: ' + fmtD(inv.dueDate) : '') + '</div>' +
+        '</div>' +
+        '<div style="text-align:right;">' +
+          '<span style="background:' + statusColor + '22;color:' + statusColor + ';font-size:12px;font-weight:700;padding:5px 14px;border-radius:20px;border:1px solid ' + statusColor + '44;">' + (inv.status||'Draft') + '</span>' +
+          '<div style="font-size:12px;color:#64748b;margin-top:6px;">' + (inv.placeOfSupply ? 'Supply: '+inv.placeOfSupply : '') + '</div>' +
+        '</div>' +
+      '</div>' +
+
+      /* ── Seller + Customer cards ── */
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">' +
+        '<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:14px;">' +
+          '<div style="font-size:10px;font-weight:700;text-transform:uppercase;color:#94a3b8;letter-spacing:.5px;margin-bottom:8px;"><i class="bx bxs-buildings" style="font-size:12px;"></i> From (Seller)</div>' +
+          '<div style="font-size:14px;font-weight:700;color:var(--text-primary);">' + (inv.sellerName||'—') + '</div>' +
+          (inv.sellerGstin ? '<div style="font-size:11px;color:#64748b;margin-top:3px;">GSTIN: ' + inv.sellerGstin + (inv.sellerPan ? ' &nbsp;|&nbsp; PAN: '+inv.sellerPan : '') + '</div>' : '') +
+          (inv.sellerAddress ? '<div style="font-size:11px;color:#64748b;margin-top:3px;">' + inv.sellerAddress + '</div>' : '') +
+          (inv.sellerState ? '<div style="font-size:11px;color:#64748b;">' + inv.sellerState + (inv.sellerStateCode ? ' (' + inv.sellerStateCode + ')' : '') + '</div>' : '') +
+          ((inv.sellerPhone||inv.sellerEmail) ? '<div style="font-size:11px;color:#64748b;margin-top:3px;">' + [inv.sellerPhone, inv.sellerEmail].filter(Boolean).join(' | ') + '</div>' : '') +
+        '</div>' +
+        '<div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:10px;padding:14px;">' +
+          '<div style="font-size:10px;font-weight:700;text-transform:uppercase;color:#0891b2;letter-spacing:.5px;margin-bottom:8px;"><i class="bx bxs-user-detail" style="font-size:12px;"></i> Bill To (Customer)</div>' +
+          '<div style="font-size:14px;font-weight:700;color:var(--text-primary);">' + (inv.customerName||'—') + '</div>' +
+          (inv.customerGstin ? '<div style="font-size:11px;color:#64748b;margin-top:3px;">GSTIN: ' + inv.customerGstin + (inv.customerPan ? ' &nbsp;|&nbsp; PAN: '+inv.customerPan : '') + '</div>' : '') +
+          (inv.customerAddress ? '<div style="font-size:11px;color:#64748b;margin-top:3px;">' + inv.customerAddress + '</div>' : '') +
+          (inv.customerState ? '<div style="font-size:11px;color:#64748b;">' + inv.customerState + (inv.customerStateCode ? ' (' + inv.customerStateCode + ')' : '') + '</div>' : '') +
+          (inv.customerEmail ? '<div style="font-size:11px;color:#64748b;margin-top:3px;">' + inv.customerEmail + '</div>' : '') +
+        '</div>' +
+      '</div>' +
+
+      /* ── Work / Bill period (if present) ── */
+      ((inv.workOrder || inv.projectName || inv.billMonth)
+        ? '<div style="background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:12px 14px;margin-bottom:16px;display:flex;gap:24px;flex-wrap:wrap;">' +
+            (inv.billMonth ? '<div><div style="font-size:10px;color:#92400e;font-weight:600;text-transform:uppercase;">Bill Month</div><div style="font-size:12px;font-weight:700;">' + inv.billMonth + '</div></div>' : '') +
+            ((inv.billPeriodFrom && inv.billPeriodTo) ? '<div><div style="font-size:10px;color:#92400e;font-weight:600;text-transform:uppercase;">Bill Period</div><div style="font-size:12px;font-weight:700;">' + fmtD(inv.billPeriodFrom) + ' – ' + fmtD(inv.billPeriodTo) + '</div></div>' : '') +
+            (inv.workOrder ? '<div><div style="font-size:10px;color:#92400e;font-weight:600;text-transform:uppercase;">Work Order</div><div style="font-size:12px;font-weight:700;">' + inv.workOrder + '</div></div>' : '') +
+            (inv.projectName ? '<div><div style="font-size:10px;color:#92400e;font-weight:600;text-transform:uppercase;">Project</div><div style="font-size:12px;font-weight:700;">' + inv.projectName + '</div></div>' : '') +
+          '</div>'
+        : '') +
+
+      /* ── Items table ── */
+      '<div style="border:1px solid #e2e8f0;border-radius:10px;overflow:hidden;margin-bottom:16px;">' +
+        '<div style="background:#f8fafc;padding:10px 12px;font-size:11px;font-weight:700;text-transform:uppercase;color:#64748b;letter-spacing:.5px;border-bottom:1px solid #e2e8f0;"><i class="bx bxs-package" style="font-size:13px;color:var(--accent);"></i> Item Details</div>' +
+        '<table style="width:100%;border-collapse:collapse;">' +
+          '<thead><tr style="background:#f8fafc;border-bottom:2px solid #e2e8f0;">' +
+            '<th style="padding:8px 10px;font-size:11px;font-weight:700;color:#64748b;text-align:left;">#</th>' +
+            '<th style="padding:8px 10px;font-size:11px;font-weight:700;color:#64748b;text-align:left;">Description</th>' +
+            '<th style="padding:8px 10px;font-size:11px;font-weight:700;color:#64748b;text-align:center;">Qty</th>' +
+            '<th style="padding:8px 10px;font-size:11px;font-weight:700;color:#64748b;text-align:right;">Rate</th>' +
+            '<th style="padding:8px 10px;font-size:11px;font-weight:700;color:#64748b;text-align:center;">Disc</th>' +
+            '<th style="padding:8px 10px;font-size:11px;font-weight:700;color:#64748b;text-align:center;">Tax</th>' +
+            (useIGST ? '<th style="padding:8px 10px;font-size:11px;font-weight:700;color:#7c3aed;text-align:right;">IGST</th>'
+                     : '<th style="padding:8px 10px;font-size:11px;font-weight:700;color:#0891b2;text-align:right;">CGST</th><th style="padding:8px 10px;font-size:11px;font-weight:700;color:#0891b2;text-align:right;">SGST</th>') +
+            '<th style="padding:8px 10px;font-size:11px;font-weight:700;color:#64748b;text-align:right;">Total</th>' +
+          '</tr></thead>' +
+          '<tbody>' + itemRows + '</tbody>' +
+        '</table>' +
+      '</div>' +
+
+      /* ── Totals + Bank side by side ── */
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">' +
+        /* Bank details */
+        '<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:14px;">' +
+          '<div style="font-size:10px;font-weight:700;text-transform:uppercase;color:#94a3b8;letter-spacing:.5px;margin-bottom:8px;"><i class="bx bxs-bank" style="font-size:12px;"></i> Bank Details</div>' +
+          (inv.bankName    ? '<div style="font-size:12px;margin-bottom:4px;"><span style="color:#64748b;">Bank:</span> <strong>' + inv.bankName + '</strong></div>' : '') +
+          (inv.bankAcName  ? '<div style="font-size:12px;margin-bottom:4px;"><span style="color:#64748b;">A/c Name:</span> ' + inv.bankAcName + '</div>' : '') +
+          (inv.bankAccount ? '<div style="font-size:12px;margin-bottom:4px;"><span style="color:#64748b;">A/c No.:</span> ' + inv.bankAccount + '</div>' : '') +
+          (inv.bankIfsc    ? '<div style="font-size:12px;margin-bottom:4px;"><span style="color:#64748b;">IFSC:</span> ' + inv.bankIfsc + (inv.bankBranch ? ' &nbsp;|&nbsp; ' + inv.bankBranch : '') + '</div>' : '') +
+          (!inv.bankName && !inv.bankAccount ? '<div style="font-size:12px;color:#94a3b8;">Not provided</div>' : '') +
+        '</div>' +
+        /* Tax summary */
+        '<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;overflow:hidden;">' +
+          '<div style="padding:8px 14px;background:var(--bg-card);border-bottom:1px solid #e2e8f0;">' +
+            '<div style="display:flex;justify-content:space-between;font-size:12px;padding:4px 0;"><span style="color:#64748b;">Subtotal</span><span style="font-weight:600;">' + fmt(inv.subtotal) + '</span></div>' +
+            (useIGST
+              ? '<div style="display:flex;justify-content:space-between;font-size:12px;padding:4px 0;"><span style="color:#7c3aed;">IGST</span><span style="font-weight:600;color:#7c3aed;">' + fmt(inv.totalIgst) + '</span></div>'
+              : '<div style="display:flex;justify-content:space-between;font-size:12px;padding:4px 0;"><span style="color:#0891b2;">CGST</span><span style="font-weight:600;color:#0891b2;">' + fmt(inv.totalCgst) + '</span></div>' +
+                '<div style="display:flex;justify-content:space-between;font-size:12px;padding:4px 0;"><span style="color:#0891b2;">SGST</span><span style="font-weight:600;color:#0891b2;">' + fmt(inv.totalSgst) + '</span></div>') +
+            (parseFloat(inv.roundOff) ? '<div style="display:flex;justify-content:space-between;font-size:12px;padding:4px 0;"><span style="color:#64748b;">Round Off</span><span>' + fmt(inv.roundOff) + '</span></div>' : '') +
+          '</div>' +
+          '<div style="display:flex;justify-content:space-between;align-items:center;padding:12px 14px;background:#1d4ed8;">' +
+            '<span style="font-size:13px;font-weight:700;color:#fff;">Total Amount</span>' +
+            '<span style="font-size:18px;font-weight:800;color:#fff;">' + fmt(inv.totalAmount) + '</span>' +
+          '</div>' +
+        '</div>' +
+      '</div>' +
+
+      /* ── Notes / Terms ── */
+      ((inv.notes || inv.termsConditions)
+        ? '<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:12px 14px;margin-bottom:12px;">' +
+            (inv.notes ? '<div style="margin-bottom:6px;"><span style="font-size:11px;font-weight:700;text-transform:uppercase;color:#64748b;">Notes</span><div style="font-size:12px;color:#334155;margin-top:3px;">' + inv.notes + '</div></div>' : '') +
+            (inv.termsConditions ? '<div><span style="font-size:11px;font-weight:700;text-transform:uppercase;color:#64748b;">Terms & Conditions</span><div style="font-size:12px;color:#334155;margin-top:3px;">' + inv.termsConditions + '</div></div>' : '') +
+          '</div>'
+        : '') +
+
+      '<div style="text-align:center;font-size:11px;color:#94a3b8;padding:8px 0;">Computer-generated invoice preview</div>' +
+      '</div>';
+
+    document.getElementById('inv-preview-body').innerHTML = html;
+    document.getElementById('btn-preview-pdf').onclick = function() {
+      downloadInvPDF(id, inv.invoiceNumber);
+    };
+    document.getElementById('btn-preview-edit').onclick = function() {
+      closeModal('inv-preview-modal');
+      openGSTModal(id);
+    };
+    openModal('inv-preview-modal');
+  }).catch(function() { toast('Failed to load invoice', 'error'); });
+}
+
+/* ── Mark as Paid ───────────────────────────────────────── */
+function openMarkPaid(id, num) {
+  document.getElementById('mark-paid-id').value  = id;
+  document.getElementById('mark-paid-num').value = num;
+  openModal('mark-paid-modal');
+}
+function confirmMarkPaid() {
+  var id   = document.getElementById('mark-paid-id').value;
+  var mode = document.getElementById('mark-paid-mode').value;
+  api('PATCH', '/invoices/' + id + '/pay', { paymentMode: mode })
+    .then(function() { closeModal('mark-paid-modal'); renderInvoices(); toast('Marked as Paid!', 'success'); })
+    .catch(function() { toast('Failed to mark paid', 'error'); });
+}
+
+/* ── Delete Invoice ─────────────────────────────────────── */
+function deleteInvoice(id, num) {
+  if (!confirm('Delete invoice ' + num + '? This cannot be undone.')) return;
+  api('DELETE', '/invoices/' + id)
+    .then(function() { renderInvoices(); toast('Invoice deleted', 'success'); })
+    .catch(function() { toast('Delete failed', 'error'); });
+}
+
+/* ── Invoice Reports ────────────────────────────────────── */
+function renderInvReports() {
+  api('GET', '/invoices').then(function(data) {
+    if (!data) data = [];
+    // Stat cards
+    var total = data.reduce(function(s,r){return s+Number(r.totalAmount||0);},0);
+    var paid  = data.filter(function(r){return r.status==='Paid';});
+    var unpaid= data.filter(function(r){return r.status==='Overdue'||r.paymentStatus==='Unpaid';});
+    var draft = data.filter(function(r){return r.status==='Draft';});
+    var statsEl = document.getElementById('inv-report-stats');
+    function statCard(label, val, color, bg) {
+      return '<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:20px;">' +
+        '<div style="display:flex;align-items:center;gap:12px;">' +
+          '<div style="width:40px;height:40px;border-radius:10px;background:'+bg+';display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:800;color:'+color+';">₹</div>' +
+          '<div><div style="font-size:18px;font-weight:800;color:var(--text-primary);">'+val+'</div><div style="font-size:11px;color:var(--text-muted);">'+label+'</div></div>' +
+        '</div></div>';
+    }
+    statsEl.innerHTML =
+      statCard('Total Invoiced', '₹'+total.toLocaleString('en-IN',{minimumFractionDigits:2}), '#1d4ed8', '#dbeafe') +
+      statCard('Paid Revenue', '₹'+paid.reduce(function(s,r){return s+Number(r.totalAmount||0);},0).toLocaleString('en-IN',{minimumFractionDigits:2}), '#16a34a', '#dcfce7') +
+      statCard('Pending / Overdue', unpaid.length + ' invoice'+(unpaid.length!==1?'s':''), '#dc2626', '#fee2e2') +
+      statCard('Drafts', draft.length + ' invoice'+(draft.length!==1?'s':''), '#7c3aed', '#ede9fe');
+
+    // Status breakdown
+    var statMap = {};
+    data.forEach(function(r){ statMap[r.status]=(statMap[r.status]||0)+1; });
+    var statusEl = document.getElementById('inv-report-status');
+    var maxV = Math.max.apply(null, Object.values(statMap).concat([1]));
+    statusEl.innerHTML = Object.keys(statMap).map(function(k) {
+      var sc = STATUS_COLORS[k]||{c:'#64748b',b:'#f1f5f9'};
+      var pct = Math.round((statMap[k]/maxV)*100);
+      return '<div style="margin-bottom:12px;">'+
+        '<div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px;"><span style="font-weight:600;">'+k+'</span><span style="color:var(--text-muted);">'+statMap[k]+'</span></div>'+
+        '<div style="background:var(--bg-input);border-radius:4px;height:8px;"><div style="width:'+pct+'%;height:100%;background:'+sc.c+';border-radius:4px;transition:width .4s;"></div></div>'+
+      '</div>';
+    }).join('') || '<div style="color:var(--text-muted);font-size:13px;text-align:center;padding:24px;">No data yet</div>';
+
+    // Top customers
+    var custMap = {};
+    data.forEach(function(r){ custMap[r.customerName||'Unknown']=(custMap[r.customerName||'Unknown']||0)+Number(r.totalAmount||0); });
+    var sorted = Object.entries(custMap).sort(function(a,b){return b[1]-a[1];}).slice(0,5);
+    var custEl = document.getElementById('inv-report-customers');
+    var maxC = sorted.length ? sorted[0][1] : 1;
+    custEl.innerHTML = sorted.map(function(entry) {
+      var pct = Math.round((entry[1]/maxC)*100);
+      return '<div style="margin-bottom:14px;">'+
+        '<div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px;"><span style="font-weight:600;">'+entry[0]+'</span><span style="color:var(--text-muted);">₹'+Number(entry[1]).toLocaleString('en-IN',{minimumFractionDigits:2})+'</span></div>'+
+        '<div style="background:var(--bg-input);border-radius:4px;height:8px;"><div style="width:'+pct+'%;height:100%;background:#22c55e;border-radius:4px;transition:width .4s;"></div></div>'+
+      '</div>';
+    }).join('') || '<div style="color:var(--text-muted);font-size:13px;text-align:center;padding:24px;">No data yet</div>';
+  }).catch(function(){});
+}
+
+/* ── WhatsApp Share ─────────────────────────────────────── */
+function shareWhatsApp(num, amount) {
+  var msg = 'Dear Customer,\n\nPlease find your invoice details below:\n\n' +
+            'Invoice No: ' + num + '\nAmount: ₹' + Number(amount||0).toLocaleString('en-IN', {minimumFractionDigits:2}) + '\n\n' +
+            'Kindly make the payment at the earliest. Thank you for your business!\n\n' +
+            'Regards';
+  window.open('https://wa.me/?text=' + encodeURIComponent(msg), '_blank');
+}
+
+/* ── PDF Download (blob fetch with auth header) ─────────── */
+function downloadInvPDF(id, num) {
+  var token = getToken();
+  fetch('/api/invoices/' + id + '/pdf', {
+    headers: { 'Authorization': 'Bearer ' + token }
+  }).then(function(res) {
+    if (!res.ok) { toast('PDF generation failed', 'error'); return; }
+    return res.blob();
+  }).then(function(blob) {
+    if (!blob) return;
+    var url = URL.createObjectURL(blob);
+    var a   = document.createElement('a');
+    a.href     = url;
+    a.download = 'Invoice-' + num + '.pdf';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }).catch(function() { toast('PDF download failed', 'error'); });
+}
+
+/* ══════════════════════════════════════════════════════════
+   LEGACY doc modal (Proforma / Quotations)  ← unchanged
+══════════════════════════════════════════════════════════ */
 var editingDocId = null, editingDocType = null;
-function calcDocItems(container) {
-  var rows = container.querySelectorAll('.line-item-row');
-  var total = 0;
-  rows.forEach(function(row){ total += (parseFloat(row.querySelector('.item-qty').value)||0) * (parseFloat(row.querySelector('.item-rate').value)||0); });
-  return total;
-}
-function updateDocTotal() {
-  var t = calcDocItems(document.getElementById('doc-items'));
-  document.getElementById('doc-total-display').textContent = fmtAmt(t);
-}
 function addLineItemRow(container, item) {
   item = item || {name:'',qty:1,rate:0};
   var div = document.createElement('div');
@@ -564,40 +2018,19 @@ function addLineItemRow(container, item) {
   container.appendChild(div);
 }
 function addLineItem() { addLineItemRow(document.getElementById('doc-items'), null); updateDocTotal(); }
+function calcDocItems(container) {
+  var rows = container.querySelectorAll('.line-item-row'); var total = 0;
+  rows.forEach(function(row){ total += (parseFloat(row.querySelector('.item-qty').value)||0) * (parseFloat(row.querySelector('.item-rate').value)||0); });
+  return total;
+}
+function updateDocTotal() {
+  var t = calcDocItems(document.getElementById('doc-items'));
+  document.getElementById('doc-total-display').textContent = fmtAmt(t);
+}
 function getDocItems(container) {
   return Array.from(container.querySelectorAll('.line-item-row')).map(function(row){
     return {name:unescape(row.querySelector('.item-name').value), qty:parseFloat(row.querySelector('.item-qty').value)||1, rate:parseFloat(row.querySelector('.item-rate').value)||0};
   });
-}
-function openInvModal(id) {
-  editingDocType = 'inv'; editingDocId = id||null;
-  document.getElementById('doc-type').value = 'inv';
-  document.getElementById('doc-modal-title').textContent = id ? 'Edit Invoice' : 'New Invoice';
-  document.getElementById('doc-party-label').textContent = 'Client Name';
-  document.getElementById('doc-date2-label').textContent = 'Due Date';
-  document.getElementById('doc-items').innerHTML = '';
-  var statuses = '<option>Draft</option><option>Sent</option><option>Paid</option><option>Overdue</option>';
-  document.getElementById('doc-status').innerHTML = statuses;
-  if (id) {
-    var rec = load('inv').find(function(x){return x.id===id;});
-    if (!rec) return;
-    document.getElementById('doc-id').value    = rec.id;
-    document.getElementById('doc-party').value = rec.client;
-    document.getElementById('doc-date').value  = rec.date;
-    document.getElementById('doc-date2').value = rec.dueDate;
-    document.getElementById('doc-status').value = rec.status;
-    document.getElementById('doc-notes').value = rec.notes||'';
-    (rec.items||[]).forEach(function(it){ addLineItemRow(document.getElementById('doc-items'), it); });
-  } else {
-    document.getElementById('doc-id').value    = genId('INV');
-    document.getElementById('doc-party').value = '';
-    document.getElementById('doc-date').value  = today();
-    document.getElementById('doc-date2').value = '';
-    document.getElementById('doc-status').value = 'Draft';
-    document.getElementById('doc-notes').value = '';
-    addLineItemRow(document.getElementById('doc-items'), null);
-  }
-  updateDocTotal(); openModal('doc-modal');
 }
 function openDocModal(type) {
   editingDocType = type; editingDocId = null;
@@ -652,33 +2085,539 @@ function saveDoc() {
   else arr.unshift(rec);
   save(type, arr);
   closeModal('doc-modal');
-  if(type==='inv') renderInvoices(); else if(type==='pro') renderProforma(); else renderQuotations();
+  if(type==='pro') renderProforma(); else if(type==='quo') renderQuotations();
   toast('Saved!','success');
 }
-function renderInvoices() {
-  var q=(document.getElementById('inv-search').value||'').toLowerCase();
-  var st=document.getElementById('inv-status').value;
-  var data=load('inv').filter(function(r){ return (!q||(r.client||'').toLowerCase().includes(q)||(r.id||'').toLowerCase().includes(q))&&(!st||r.status===st); });
-  document.getElementById('inv-body').innerHTML = data.length ? data.map(function(r){
-    return '<tr>'+
-      '<td class="acc-td" style="font-weight:600;">'+r.id+'</td>'+
-      '<td class="acc-td">'+r.client+'</td>'+
-      '<td class="acc-td">'+fmtD(r.date)+'</td>'+
-      '<td class="acc-td">'+fmtD(r.dueDate)+'</td>'+
-      '<td class="acc-td" style="font-weight:600;">'+fmtAmt(r.amount)+'</td>'+
-      '<td class="acc-td">'+badge(r.status)+'</td>'+
-      '<td class="acc-td">'+actBtns('openDocEditModal(\'inv\',\''+r.id+'\')', 'delRecord(\'inv\',\''+r.id+'\')')+'</td>'+
-    '</tr>';
-  }).join('') : emptyRow(7);
-}
 function renderProforma() {
-  var q=(document.getElementById('pro-search').value||'').toLowerCase();
-  var st=document.getElementById('pro-status').value;
-  var data=load('pro').filter(function(r){ return (!q||(r.client||'').toLowerCase().includes(q)||(r.id||'').toLowerCase().includes(q))&&(!st||r.status===st); });
-  document.getElementById('pro-body').innerHTML = data.length ? data.map(function(r){
-    return '<tr><td class="acc-td" style="font-weight:600;">'+r.id+'</td><td class="acc-td">'+r.client+'</td><td class="acc-td">'+fmtD(r.date)+'</td><td class="acc-td">'+fmtD(r.validTill)+'</td><td class="acc-td" style="font-weight:600;">'+fmtAmt(r.amount)+'</td><td class="acc-td">'+badge(r.status)+'</td><td class="acc-td">'+actBtns('openDocEditModal(\'pro\',\''+r.id+'\')', 'delRecord(\'pro\',\''+r.id+'\')')+'</td></tr>';
+  var q  = (document.getElementById('pro-search').value || '').toLowerCase();
+  var st = document.getElementById('pro-status').value;
+  var data = load('pro').filter(function(r) {
+    return (!q || (r.customerName||r.client||'').toLowerCase().includes(q) || (r.id||'').toLowerCase().includes(q))
+        && (!st || r.status === st);
+  });
+  document.getElementById('pro-body').innerHTML = data.length ? data.map(function(r) {
+    var proActBtns =
+      '<div style="display:flex;gap:2px;justify-content:center;">' +
+        '<button class="inv-act-btn" title="Preview"      onclick="previewProforma(\''+r.id+'\')"><i class="bx bx-show"></i></button>' +
+        '<button class="inv-act-btn" title="Print"        onclick="printProforma(\''+r.id+'\')"><i class="bx bx-printer"></i></button>' +
+        '<button class="inv-act-btn" title="Download PDF" onclick="downloadProformaPDF(\''+r.id+'\')"><i class="bx bx-download"></i></button>' +
+        '<button class="inv-act-btn" title="Convert to Invoice" onclick="convertToInvoiceFromId(\''+r.id+'\')"><i class="bx bxs-receipt"></i></button>' +
+        '<button class="inv-act-btn" title="Edit"         onclick="openProformaModal(\''+r.id+'\')"><i class="bx bx-edit-alt"></i></button>' +
+        '<button class="inv-act-btn inv-act-del" title="Delete" onclick="deleteProforma(\''+r.id+'\')"><i class="bx bx-trash"></i></button>' +
+      '</div>';
+    return '<tr class="inv-row">' +
+      '<td class="acc-td" style="font-weight:700;color:var(--accent);">' + (r.id||'—') + '</td>' +
+      '<td class="acc-td">' + (r.customerName||r.client||'—') + '</td>' +
+      '<td class="acc-td">' + fmtD(r.date) + '</td>' +
+      '<td class="acc-td">' + fmtD(r.validityDate||r.validTill) + '</td>' +
+      '<td class="acc-td" style="font-weight:600;">' + fmtAmt(r.totalAmount||r.amount||0) + '</td>' +
+      '<td class="acc-td">' + badge(r.status) + '</td>' +
+      '<td class="acc-td">' + proActBtns + '</td>' +
+      '</tr>';
   }).join('') : emptyRow(7);
 }
+
+/* ── Proforma number generator ──────────────────────────── */
+function nextProformaNumber() {
+  var year = new Date().getFullYear();
+  var key  = 'pro_seq_' + year;
+  var seq  = parseInt(localStorage.getItem(key) || '0') + 1;
+  localStorage.setItem(key, seq);
+  return 'PRO-' + year + '-' + String(seq).padStart(4, '0');
+}
+
+/* ── Fill customer fields from vendor dropdown ──────────── */
+function fillProFromVendor(jsonStr) {
+  if (!jsonStr) return;
+  try {
+    var v = JSON.parse(jsonStr);
+    document.getElementById('pro-c-name').value  = v.name    || '';
+    document.getElementById('pro-c-gstin').value = v.gst     || '';
+    document.getElementById('pro-c-addr').value  = v.address || '';
+    document.getElementById('pro-c-state').value = v.state   || '';
+    document.getElementById('pro-c-code').value  = v.stateCode || '';
+    recalcProforma();
+  } catch(e) {}
+}
+
+/* ── Populate vendor dropdown for proforma ──────────────── */
+function populateProVendorDropdown() {
+  var sel = document.getElementById('pro-vendor-sel');
+  var vendors = load('ven').filter(function(v) { return v.status === 'Active'; });
+  sel.innerHTML = '<option value="">— Type manually or pick a vendor —</option>' +
+    vendors.map(function(v) {
+      return '<option value=\'' + JSON.stringify(v).replace(/'/g,"&#39;") + '\'>' + v.name + (v.gst ? ' ('+v.gst+')' : '') + '</option>';
+    }).join('');
+}
+
+/* ── Open / reset proforma modal ────────────────────────── */
+function openProformaModal(proId) {
+  proEditingId = proId || null;
+  proItemCount = 0;
+  document.getElementById('pro-items-body').innerHTML = '';
+  document.getElementById('pro-inv-title').innerHTML = proId
+    ? '<i class="bx bxs-edit" style="color:var(--accent)"></i> Edit Proforma'
+    : '<i class="bx bxs-file-doc" style="color:var(--accent)"></i> New Proforma Invoice';
+  document.getElementById('pro-convert-btn').style.display = proId ? '' : 'none';
+
+  populateProVendorDropdown();
+
+  var fields = ['pro-number','pro-date','pro-validity','pro-supply','pro-status-field',
+    'pro-s-name','pro-s-gstin','pro-s-addr','pro-s-state','pro-s-code','pro-s-phone','pro-s-email','pro-s-pan',
+    'pro-c-name','pro-c-gstin','pro-c-addr','pro-c-state','pro-c-code','pro-c-pan','pro-c-email',
+    'pro-bill-month','pro-bill-from','pro-bill-to','pro-work-order','pro-project','pro-work-details',
+    'pro-bank-name','pro-bank-acname','pro-bank-ac','pro-bank-ifsc','pro-bank-branch',
+    'pro-pay-terms','pro-pay-terms-custom','pro-delivery','pro-warranty','pro-notes','pro-terms'];
+  fields.forEach(function(id) { var el = document.getElementById(id); if (el) el.value = ''; });
+  document.getElementById('pro-vendor-sel').value = '';
+
+  if (proId) {
+    var rec = load('pro').find(function(r) { return r.id === proId; });
+    if (!rec) { toast('Proforma not found', 'error'); return; }
+    document.getElementById('pro-number').value          = rec.id;
+    document.getElementById('pro-date').value            = rec.date || '';
+    document.getElementById('pro-validity').value        = rec.validityDate || '';
+    document.getElementById('pro-supply').value          = rec.placeOfSupply || '';
+    document.getElementById('pro-status-field').value    = rec.status || 'Draft';
+    document.getElementById('pro-s-name').value          = rec.sellerName || '';
+    document.getElementById('pro-s-gstin').value         = rec.sellerGstin || '';
+    document.getElementById('pro-s-addr').value          = rec.sellerAddress || '';
+    document.getElementById('pro-s-state').value         = rec.sellerState || '';
+    document.getElementById('pro-s-code').value          = rec.sellerStateCode || '';
+    document.getElementById('pro-s-phone').value         = rec.sellerPhone || '';
+    document.getElementById('pro-s-email').value         = rec.sellerEmail || '';
+    document.getElementById('pro-s-pan').value           = rec.sellerPan || '';
+    document.getElementById('pro-c-name').value          = rec.customerName || '';
+    document.getElementById('pro-c-gstin').value         = rec.customerGstin || '';
+    document.getElementById('pro-c-addr').value          = rec.customerAddress || '';
+    document.getElementById('pro-c-state').value         = rec.customerState || '';
+    document.getElementById('pro-c-code').value          = rec.customerStateCode || '';
+    document.getElementById('pro-c-pan').value           = rec.customerPan || '';
+    document.getElementById('pro-c-email').value         = rec.customerEmail || '';
+    document.getElementById('pro-bill-month').value      = rec.billMonth || '';
+    document.getElementById('pro-bill-from').value       = rec.billPeriodFrom || '';
+    document.getElementById('pro-bill-to').value         = rec.billPeriodTo || '';
+    document.getElementById('pro-work-order').value      = rec.workOrder || '';
+    document.getElementById('pro-project').value         = rec.projectName || '';
+    document.getElementById('pro-work-details').value    = rec.workDetails || '';
+    document.getElementById('pro-bank-name').value       = rec.bankName || '';
+    document.getElementById('pro-bank-acname').value     = rec.bankAcName || '';
+    document.getElementById('pro-bank-ac').value         = rec.bankAccount || '';
+    document.getElementById('pro-bank-ifsc').value       = rec.bankIfsc || '';
+    document.getElementById('pro-bank-branch').value     = rec.bankBranch || '';
+    document.getElementById('pro-pay-terms').value       = rec.paymentTerms || '';
+    document.getElementById('pro-pay-terms-custom').value= rec.paymentTermsCustom || '';
+    document.getElementById('pro-delivery').value        = rec.deliveryTimeline || '';
+    document.getElementById('pro-warranty').value        = rec.warranty || '';
+    document.getElementById('pro-notes').value           = rec.notes || '';
+    document.getElementById('pro-terms').value           = rec.termsConditions || '';
+    (rec.items || []).forEach(function(it) { addProformaItem(it); });
+  } else {
+    document.getElementById('pro-number').value       = 'Auto-generated';
+    document.getElementById('pro-date').value         = today();
+    document.getElementById('pro-status-field').value = 'Draft';
+    addProformaItem();
+  }
+  recalcProforma();
+  openModal('pro-inv-modal');
+}
+
+/* ── Add proforma item row ──────────────────────────────── */
+function addProformaItem(it) {
+  proItemCount++;
+  var idx = proItemCount;
+  it = it || { itemCode:'', name:'', hsnCode:'', quantity:1, unit:'', unitPrice:0, discount:0, taxRate:18 };
+  var row = document.createElement('tr');
+  row.id = 'pro-row-' + idx;
+  row.innerHTML =
+    '<td class="gst-item-num">' + idx + '</td>' +
+    '<td><input type="text"   class="pi-code"  value="' + (it.itemCode||'') + '" placeholder="Code"></td>' +
+    '<td><input type="text"   class="pi-name"  value="' + (it.name||'')     + '" placeholder="Item description" oninput="recalcProforma()"></td>' +
+    '<td><input type="text"   class="pi-hsn"   value="' + (it.hsnCode||'')  + '" placeholder="HSN/SAC"></td>' +
+    '<td><input type="number" class="pi-qty"   value="' + (it.quantity||1)  + '" min="0" step="0.01" oninput="recalcProforma()"></td>' +
+    '<td><input type="text"   class="pi-unit"  value="' + (it.unit||'')     + '" placeholder="Nos/Kg/Hr"></td>' +
+    '<td><input type="number" class="pi-price" value="' + (it.unitPrice||0) + '" min="0" step="0.01" oninput="recalcProforma()"></td>' +
+    '<td><input type="number" class="pi-disc"  value="' + (it.discount||0)  + '" min="0" max="100" step="0.01" oninput="recalcProforma()"></td>' +
+    '<td><select class="pi-tax" onchange="recalcProforma()">' +
+      ['0','5','12','18','28'].map(function(r){ return '<option value="'+r+'"'+(String(it.taxRate)===r?' selected':'')+'>'+(r==='0'?'Exempt':r+'%')+'</option>'; }).join('') +
+    '</select></td>' +
+    '<td style="text-align:right;font-weight:600;font-size:13px;white-space:nowrap;" id="pi-amt-' + idx + '">₹0.00</td>' +
+    '<td><button type="button" class="btn btn-danger btn-sm" style="padding:3px 7px;" onclick="removeProformaItem(\'pro-row-'+idx+'\')"><i class="bx bx-x"></i></button></td>';
+  document.getElementById('pro-items-body').appendChild(row);
+  recalcProforma();
+}
+
+function removeProformaItem(rowId) {
+  var el = document.getElementById(rowId);
+  if (el) el.remove();
+  recalcProforma();
+}
+
+/* ── Recalculate proforma totals ────────────────────────── */
+function recalcProforma() {
+  var selCode = (document.getElementById('pro-s-code').value || '').trim();
+  var cusCode = (document.getElementById('pro-c-code').value || '').trim();
+  var useIGST = selCode && cusCode && selCode !== cusCode;
+
+  document.getElementById('pro-tax-hint').textContent = useIGST
+    ? 'IGST applied (inter-state).' : 'CGST + SGST applied (intra-state).';
+  document.getElementById('pro-row-cgst').style.display = useIGST ? 'none' : '';
+  document.getElementById('pro-row-sgst').style.display = useIGST ? 'none' : '';
+  document.getElementById('pro-row-igst').style.display = useIGST ? '' : 'none';
+
+  var rows = document.getElementById('pro-items-body').querySelectorAll('tr');
+  var subtotal=0, totalCgst=0, totalSgst=0, totalIgst=0;
+
+  rows.forEach(function(row, i) {
+    var qty   = parseFloat(row.querySelector('.pi-qty').value)   || 0;
+    var price = parseFloat(row.querySelector('.pi-price').value) || 0;
+    var disc  = parseFloat(row.querySelector('.pi-disc').value)  || 0;
+    var tax   = parseFloat(row.querySelector('.pi-tax').value)   || 0;
+    var taxable = qty * price * (1 - disc / 100);
+    var gstAmt  = taxable * tax / 100;
+    subtotal += taxable;
+    if (useIGST) { totalIgst += gstAmt; }
+    else         { totalCgst += gstAmt/2; totalSgst += gstAmt/2; }
+    var lineTotal = taxable + gstAmt;
+    var amtEl = document.getElementById('pi-amt-' + (i+1));
+    if (amtEl) amtEl.textContent = '₹' + lineTotal.toFixed(2);
+  });
+
+  var gross    = subtotal + totalCgst + totalSgst + totalIgst;
+  var roundOff = parseFloat((Math.round(gross) - gross).toFixed(2));
+  var total    = gross + roundOff;
+
+  document.getElementById('pro-sub').textContent      = '₹' + subtotal.toFixed(2);
+  document.getElementById('pro-cgst-val').textContent = '₹' + totalCgst.toFixed(2);
+  document.getElementById('pro-sgst-val').textContent = '₹' + totalSgst.toFixed(2);
+  document.getElementById('pro-igst-val').textContent = '₹' + totalIgst.toFixed(2);
+  document.getElementById('pro-tax-total').textContent= '₹' + (totalCgst+totalSgst+totalIgst).toFixed(2);
+  document.getElementById('pro-roundoff').textContent = '₹' + roundOff.toFixed(2);
+  document.getElementById('pro-total-amt').textContent= '₹' + total.toFixed(2);
+}
+
+/* ── Collect proforma items ─────────────────────────────── */
+function collectProformaItems() {
+  var rows = document.getElementById('pro-items-body').querySelectorAll('tr');
+  var items = [];
+  rows.forEach(function(row) {
+    var qty   = parseFloat(row.querySelector('.pi-qty').value)   || 0;
+    var price = parseFloat(row.querySelector('.pi-price').value) || 0;
+    var disc  = parseFloat(row.querySelector('.pi-disc').value)  || 0;
+    var tax   = parseFloat(row.querySelector('.pi-tax').value)   || 0;
+    var taxable = qty * price * (1 - disc / 100);
+    var gstAmt  = taxable * tax / 100;
+    items.push({
+      itemCode: row.querySelector('.pi-code').value,
+      name:     row.querySelector('.pi-name').value,
+      hsnCode:  row.querySelector('.pi-hsn').value,
+      quantity: qty, unit: row.querySelector('.pi-unit').value,
+      unitPrice: price, discount: disc, taxRate: tax,
+      taxableAmount: parseFloat(taxable.toFixed(2)),
+      cgst: parseFloat((gstAmt/2).toFixed(2)),
+      sgst: parseFloat((gstAmt/2).toFixed(2)),
+      igst: parseFloat(gstAmt.toFixed(2)),
+      itemTotal: parseFloat((taxable + gstAmt).toFixed(2)),
+    });
+  });
+  return items;
+}
+
+/* ── Save proforma to localStorage ─────────────────────── */
+function saveProforma(forceStatus) {
+  if (!document.getElementById('pro-c-name').value.trim()) return toast('Customer name is required', 'error');
+  if (!document.getElementById('pro-date').value)          return toast('Date is required', 'error');
+
+  var selCode = (document.getElementById('pro-s-code').value || '').trim();
+  var cusCode = (document.getElementById('pro-c-code').value || '').trim();
+  var useIGST = selCode && cusCode && selCode !== cusCode;
+  var items   = collectProformaItems();
+
+  var subtotal=0, totalCgst=0, totalSgst=0, totalIgst=0;
+  items.forEach(function(it) {
+    subtotal += it.taxableAmount;
+    if (useIGST) totalIgst += it.igst;
+    else { totalCgst += it.cgst; totalSgst += it.sgst; }
+  });
+  var gross    = subtotal + totalCgst + totalSgst + totalIgst;
+  var roundOff = parseFloat((Math.round(gross) - gross).toFixed(2));
+
+  var payTerms = document.getElementById('pro-pay-terms').value;
+  var payTermsCustom = document.getElementById('pro-pay-terms-custom').value;
+
+  var rec = {
+    id:               proEditingId || nextProformaNumber(),
+    date:             document.getElementById('pro-date').value,
+    validityDate:     document.getElementById('pro-validity').value,
+    placeOfSupply:    document.getElementById('pro-supply').value,
+    status:           forceStatus || document.getElementById('pro-status-field').value,
+    sellerName:       document.getElementById('pro-s-name').value,
+    sellerGstin:      document.getElementById('pro-s-gstin').value.toUpperCase(),
+    sellerAddress:    document.getElementById('pro-s-addr').value,
+    sellerState:      document.getElementById('pro-s-state').value,
+    sellerStateCode:  document.getElementById('pro-s-code').value,
+    sellerPhone:      document.getElementById('pro-s-phone').value,
+    sellerEmail:      document.getElementById('pro-s-email').value,
+    sellerPan:        document.getElementById('pro-s-pan').value.toUpperCase(),
+    customerName:     document.getElementById('pro-c-name').value,
+    customerGstin:    document.getElementById('pro-c-gstin').value.toUpperCase(),
+    customerAddress:  document.getElementById('pro-c-addr').value,
+    customerState:    document.getElementById('pro-c-state').value,
+    customerStateCode:document.getElementById('pro-c-code').value,
+    customerPan:      document.getElementById('pro-c-pan').value.toUpperCase(),
+    customerEmail:    document.getElementById('pro-c-email').value,
+    billMonth:        document.getElementById('pro-bill-month').value,
+    billPeriodFrom:   document.getElementById('pro-bill-from').value,
+    billPeriodTo:     document.getElementById('pro-bill-to').value,
+    workOrder:        document.getElementById('pro-work-order').value,
+    projectName:      document.getElementById('pro-project').value,
+    workDetails:      document.getElementById('pro-work-details').value,
+    bankName:         document.getElementById('pro-bank-name').value,
+    bankAcName:       document.getElementById('pro-bank-acname').value,
+    bankAccount:      document.getElementById('pro-bank-ac').value,
+    bankIfsc:         document.getElementById('pro-bank-ifsc').value.toUpperCase(),
+    bankBranch:       document.getElementById('pro-bank-branch').value,
+    paymentTerms:     payTermsCustom || payTerms,
+    paymentTermsCustom: payTermsCustom,
+    deliveryTimeline: document.getElementById('pro-delivery').value,
+    warranty:         document.getElementById('pro-warranty').value,
+    notes:            document.getElementById('pro-notes').value,
+    termsConditions:  document.getElementById('pro-terms').value,
+    items:            items,
+    subtotal:         parseFloat(subtotal.toFixed(2)),
+    totalCgst:        parseFloat(totalCgst.toFixed(2)),
+    totalSgst:        parseFloat(totalSgst.toFixed(2)),
+    totalIgst:        parseFloat(totalIgst.toFixed(2)),
+    totalTax:         parseFloat((totalCgst+totalSgst+totalIgst).toFixed(2)),
+    roundOff:         roundOff,
+    totalAmount:      parseFloat((gross + roundOff).toFixed(2)),
+  };
+
+  var all = load('pro');
+  if (proEditingId) {
+    var idx = all.findIndex(function(r) { return r.id === proEditingId; });
+    if (idx > -1) all[idx] = rec; else all.push(rec);
+  } else {
+    all.push(rec);
+  }
+  save('pro', all);
+  closeModal('pro-inv-modal');
+  renderProforma();
+  toast('Proforma ' + (proEditingId ? 'updated' : 'saved') + '!', 'success');
+  proEditingId = null;
+}
+
+/* ── Preview proforma ───────────────────────────────────── */
+function previewProforma(proId) {
+  var rec = load('pro').find(function(r) { return r.id === proId; });
+  if (!rec) return toast('Proforma not found', 'error');
+  var useIGST = rec.sellerStateCode && rec.customerStateCode && rec.sellerStateCode !== rec.customerStateCode;
+  var fmt = function(n) { return '₹' + Number(n||0).toLocaleString('en-IN', {minimumFractionDigits:2, maximumFractionDigits:2}); };
+  var statusColor = {Draft:'#64748b',Sent:'#3b82f6',Accepted:'#22c55e',Rejected:'#ef4444'}[rec.status] || '#64748b';
+
+  var itemRows = (rec.items||[]).map(function(it, i) {
+    return '<tr style="border-bottom:1px solid #f1f5f9;">' +
+      '<td style="padding:7px 10px;color:#64748b;font-size:12px;">' + (i+1) + '</td>' +
+      '<td style="padding:7px 10px;">' +
+        '<div style="font-weight:600;font-size:13px;">' + (it.name||'—') + '</div>' +
+        ((it.itemCode&&it.itemCode!=='N/A') ? '<div style="font-size:11px;color:#94a3b8;">Code: '+it.itemCode+'</div>' : '') +
+        (it.hsnCode ? '<div style="font-size:11px;color:#94a3b8;">HSN: '+it.hsnCode+'</div>' : '') +
+      '</td>' +
+      '<td style="padding:7px 10px;text-align:center;font-size:12px;">' + (it.quantity||0) + (it.unit?' '+it.unit:'') + '</td>' +
+      '<td style="padding:7px 10px;text-align:right;font-size:12px;">' + fmt(it.unitPrice) + '</td>' +
+      '<td style="padding:7px 10px;text-align:center;font-size:12px;color:#64748b;">' + (it.discount ? it.discount+'%' : '—') + '</td>' +
+      '<td style="padding:7px 10px;text-align:center;font-size:12px;">' + (it.taxRate||0) + '%</td>' +
+      (useIGST ? '<td style="padding:7px 10px;text-align:right;font-size:12px;color:#7c3aed;">' + fmt(it.igst) + '</td>'
+               : '<td style="padding:7px 10px;text-align:right;font-size:12px;color:#0891b2;">' + fmt(it.cgst) + '</td>' +
+                 '<td style="padding:7px 10px;text-align:right;font-size:12px;color:#0891b2;">' + fmt(it.sgst) + '</td>') +
+      '<td style="padding:7px 10px;text-align:right;font-weight:700;font-size:13px;">' + fmt(it.itemTotal) + '</td>' +
+    '</tr>';
+  }).join('');
+
+  var html =
+    '<div style="padding:24px;font-family:\'DM Sans\',sans-serif;">' +
+    '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">' +
+      '<div>' +
+        '<div style="font-size:11px;font-weight:600;text-transform:uppercase;color:#94a3b8;letter-spacing:.5px;margin-bottom:3px;">Proforma Invoice</div>' +
+        '<div style="font-size:20px;font-weight:800;color:var(--text-primary);">' + (rec.id||'—') + '</div>' +
+        '<div style="font-size:12px;color:#64748b;margin-top:3px;">Date: ' + fmtD(rec.date) + (rec.validityDate ? ' &nbsp;|&nbsp; Valid Till: <strong style="color:#ef4444;">' + fmtD(rec.validityDate) + '</strong>' : '') + '</div>' +
+      '</div>' +
+      '<span style="background:'+statusColor+'22;color:'+statusColor+';font-size:12px;font-weight:700;padding:5px 14px;border-radius:20px;border:1px solid '+statusColor+'44;">' + (rec.status||'Draft') + '</span>' +
+    '</div>' +
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">' +
+      '<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:14px;">' +
+        '<div style="font-size:10px;font-weight:700;text-transform:uppercase;color:#94a3b8;letter-spacing:.5px;margin-bottom:8px;">From (Seller)</div>' +
+        '<div style="font-size:14px;font-weight:700;">' + (rec.sellerName||'—') + '</div>' +
+        (rec.sellerGstin ? '<div style="font-size:11px;color:#64748b;margin-top:3px;">GSTIN: '+rec.sellerGstin+'</div>' : '') +
+        (rec.sellerAddress ? '<div style="font-size:11px;color:#64748b;margin-top:3px;">'+rec.sellerAddress+'</div>' : '') +
+        ((rec.sellerPhone||rec.sellerEmail) ? '<div style="font-size:11px;color:#64748b;margin-top:3px;">' + [rec.sellerPhone,rec.sellerEmail].filter(Boolean).join(' | ') + '</div>' : '') +
+      '</div>' +
+      '<div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:10px;padding:14px;">' +
+        '<div style="font-size:10px;font-weight:700;text-transform:uppercase;color:#0891b2;letter-spacing:.5px;margin-bottom:8px;">Bill To (Customer)</div>' +
+        '<div style="font-size:14px;font-weight:700;">' + (rec.customerName||'—') + '</div>' +
+        (rec.customerGstin ? '<div style="font-size:11px;color:#64748b;margin-top:3px;">GSTIN: '+rec.customerGstin+'</div>' : '') +
+        (rec.customerAddress ? '<div style="font-size:11px;color:#64748b;margin-top:3px;">'+rec.customerAddress+'</div>' : '') +
+      '</div>' +
+    '</div>' +
+    ((rec.paymentTerms||rec.deliveryTimeline) ?
+      '<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:12px 14px;margin-bottom:16px;display:flex;gap:24px;flex-wrap:wrap;">' +
+        (rec.paymentTerms ? '<div><div style="font-size:10px;color:#166534;font-weight:600;text-transform:uppercase;">Payment Terms</div><div style="font-size:12px;font-weight:700;">' + rec.paymentTerms + '</div></div>' : '') +
+        (rec.deliveryTimeline ? '<div><div style="font-size:10px;color:#166534;font-weight:600;text-transform:uppercase;">Delivery</div><div style="font-size:12px;font-weight:700;">' + rec.deliveryTimeline + '</div></div>' : '') +
+        (rec.warranty ? '<div><div style="font-size:10px;color:#166534;font-weight:600;text-transform:uppercase;">Warranty</div><div style="font-size:12px;font-weight:700;">' + rec.warranty + '</div></div>' : '') +
+      '</div>' : '') +
+    '<div style="border:1px solid #e2e8f0;border-radius:10px;overflow:hidden;margin-bottom:16px;">' +
+      '<div style="background:#f8fafc;padding:10px 12px;font-size:11px;font-weight:700;text-transform:uppercase;color:#64748b;border-bottom:1px solid #e2e8f0;">Item Details</div>' +
+      '<table style="width:100%;border-collapse:collapse;"><thead><tr style="background:#f8fafc;border-bottom:2px solid #e2e8f0;">' +
+        '<th style="padding:7px 10px;font-size:11px;font-weight:700;color:#64748b;">#</th>' +
+        '<th style="padding:7px 10px;font-size:11px;font-weight:700;color:#64748b;">Description</th>' +
+        '<th style="padding:7px 10px;font-size:11px;font-weight:700;color:#64748b;text-align:center;">Qty</th>' +
+        '<th style="padding:7px 10px;font-size:11px;font-weight:700;color:#64748b;text-align:right;">Rate</th>' +
+        '<th style="padding:7px 10px;font-size:11px;font-weight:700;color:#64748b;text-align:center;">Disc</th>' +
+        '<th style="padding:7px 10px;font-size:11px;font-weight:700;color:#64748b;text-align:center;">Tax</th>' +
+        (useIGST ? '<th style="padding:7px 10px;font-size:11px;font-weight:700;color:#7c3aed;text-align:right;">IGST</th>'
+                 : '<th style="padding:7px 10px;font-size:11px;font-weight:700;color:#0891b2;text-align:right;">CGST</th><th style="padding:7px 10px;font-size:11px;font-weight:700;color:#0891b2;text-align:right;">SGST</th>') +
+        '<th style="padding:7px 10px;font-size:11px;font-weight:700;color:#64748b;text-align:right;">Total</th>' +
+      '</tr></thead><tbody>' + itemRows + '</tbody></table>' +
+    '</div>' +
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">' +
+      '<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:14px;">' +
+        '<div style="font-size:10px;font-weight:700;text-transform:uppercase;color:#94a3b8;margin-bottom:8px;">Bank Details</div>' +
+        (rec.bankName ? '<div style="font-size:12px;margin-bottom:3px;"><span style="color:#64748b;">Bank:</span> <strong>'+rec.bankName+'</strong></div>' : '') +
+        (rec.bankAcName ? '<div style="font-size:12px;margin-bottom:3px;"><span style="color:#64748b;">A/c Name:</span> '+rec.bankAcName+'</div>' : '') +
+        (rec.bankAccount ? '<div style="font-size:12px;margin-bottom:3px;"><span style="color:#64748b;">A/c No.:</span> '+rec.bankAccount+'</div>' : '') +
+        (rec.bankIfsc ? '<div style="font-size:12px;"><span style="color:#64748b;">IFSC:</span> '+rec.bankIfsc+(rec.bankBranch?' | '+rec.bankBranch:'')+'</div>' : '') +
+        (!rec.bankName&&!rec.bankAccount ? '<div style="font-size:12px;color:#94a3b8;">Not provided</div>' : '') +
+      '</div>' +
+      '<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;overflow:hidden;">' +
+        '<div style="padding:8px 14px;background:var(--bg-card);border-bottom:1px solid #e2e8f0;">' +
+          '<div style="display:flex;justify-content:space-between;font-size:12px;padding:3px 0;"><span style="color:#64748b;">Subtotal</span><span style="font-weight:600;">' + fmt(rec.subtotal) + '</span></div>' +
+          (useIGST ? '<div style="display:flex;justify-content:space-between;font-size:12px;padding:3px 0;"><span style="color:#7c3aed;">IGST</span><span style="font-weight:600;color:#7c3aed;">' + fmt(rec.totalIgst) + '</span></div>'
+                   : '<div style="display:flex;justify-content:space-between;font-size:12px;padding:3px 0;"><span style="color:#0891b2;">CGST</span><span style="font-weight:600;color:#0891b2;">' + fmt(rec.totalCgst) + '</span></div>' +
+                     '<div style="display:flex;justify-content:space-between;font-size:12px;padding:3px 0;"><span style="color:#0891b2;">SGST</span><span style="font-weight:600;color:#0891b2;">' + fmt(rec.totalSgst) + '</span></div>') +
+        '</div>' +
+        '<div style="display:flex;justify-content:space-between;align-items:center;padding:12px 14px;background:#1d4ed8;">' +
+          '<span style="font-size:13px;font-weight:700;color:#fff;">Total Amount</span>' +
+          '<span style="font-size:18px;font-weight:800;color:#fff;">' + fmt(rec.totalAmount) + '</span>' +
+        '</div>' +
+      '</div>' +
+    '</div>' +
+    ((rec.notes||rec.termsConditions) ?
+      '<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:12px 14px;margin-bottom:12px;">' +
+        (rec.notes ? '<div style="margin-bottom:6px;"><span style="font-size:11px;font-weight:700;text-transform:uppercase;color:#64748b;">Notes</span><div style="font-size:12px;color:#334155;margin-top:3px;">'+rec.notes+'</div></div>' : '') +
+        (rec.termsConditions ? '<div><span style="font-size:11px;font-weight:700;text-transform:uppercase;color:#64748b;">Terms & Conditions</span><div style="font-size:12px;color:#334155;margin-top:3px;">'+rec.termsConditions+'</div></div>' : '') +
+      '</div>' : '') +
+    '<div style="text-align:center;font-size:11px;color:#94a3b8;padding:8px 0;">This is a Proforma Invoice — not a Tax Invoice. No legal payment obligation.</div>' +
+    '</div>';
+
+  document.getElementById('pro-preview-body').innerHTML = html;
+  document.getElementById('btn-pro-pdf').onclick   = function() { downloadProformaPDF(proId); };
+  document.getElementById('btn-pro-print').onclick = function() { printProforma(proId); };
+  document.getElementById('btn-pro-edit').onclick  = function() { closeModal('pro-preview-modal'); openProformaModal(proId); };
+  openModal('pro-preview-modal');
+}
+
+/* ── PDF blob fetch helper ──────────────────────────────── */
+function _proformaPDFBlob(proId, cb) {
+  var rec = load('pro').find(function(r) { return r.id === proId; });
+  if (!rec) return toast('Proforma not found', 'error');
+  var token = getToken();
+  fetch('/api/proformas/pdf', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+    body: JSON.stringify(rec)
+  }).then(function(r) { return r.blob(); }).then(cb).catch(function() { toast('PDF generation failed', 'error'); });
+}
+
+function downloadProformaPDF(proId) {
+  _proformaPDFBlob(proId, function(blob) {
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a'); a.href = url; a.download = 'Proforma-' + proId + '.pdf'; a.click(); URL.revokeObjectURL(url);
+  });
+}
+
+function printProforma(proId) {
+  _proformaPDFBlob(proId, function(blob) {
+    var url = URL.createObjectURL(blob);
+    var win = window.open(url);
+    if (win) { win.addEventListener('load', function() { win.print(); }); }
+    else { toast('Allow popups to use Print', 'error'); }
+  });
+}
+
+/* ── Delete proforma ────────────────────────────────────── */
+function deleteProforma(proId) {
+  if (!confirm('Delete proforma ' + proId + '?')) return;
+  save('pro', load('pro').filter(function(r) { return r.id !== proId; }));
+  renderProforma();
+  toast('Proforma deleted', 'success');
+}
+
+/* ── Convert proforma → Invoice (from table row) ────────── */
+function convertToInvoiceFromId(proId) {
+  var rec = load('pro').find(function(r) { return r.id === proId; });
+  if (!rec) return toast('Proforma not found', 'error');
+  _applyProformaToInvoiceModal(rec);
+}
+
+/* ── Convert proforma → Invoice (from inside modal) ─────── */
+function convertToInvoice() {
+  if (!proEditingId) return toast('Save the proforma first', 'error');
+  var rec = load('pro').find(function(r) { return r.id === proEditingId; });
+  if (!rec) return toast('Proforma not found', 'error');
+  closeModal('pro-inv-modal');
+  _applyProformaToInvoiceModal(rec);
+}
+
+function _applyProformaToInvoiceModal(rec) {
+  showModule('inv');
+  setTimeout(function() {
+    openGSTModal(null);  // open blank invoice
+    setTimeout(function() {
+      // Fill seller
+      document.getElementById('gst-s-name').value  = rec.sellerName  || '';
+      document.getElementById('gst-s-gstin').value = rec.sellerGstin || '';
+      document.getElementById('gst-s-addr').value  = rec.sellerAddress || '';
+      document.getElementById('gst-s-state').value = rec.sellerState || '';
+      document.getElementById('gst-s-code').value  = rec.sellerStateCode || '';
+      document.getElementById('gst-s-phone').value = rec.sellerPhone || '';
+      document.getElementById('gst-s-email').value = rec.sellerEmail || '';
+      document.getElementById('gst-s-pan').value   = rec.sellerPan   || '';
+      // Fill customer
+      document.getElementById('gst-c-name').value  = rec.customerName  || '';
+      document.getElementById('gst-c-gstin').value = rec.customerGstin || '';
+      document.getElementById('gst-c-addr').value  = rec.customerAddress || '';
+      document.getElementById('gst-c-state').value = rec.customerState || '';
+      document.getElementById('gst-c-code').value  = rec.customerStateCode || '';
+      document.getElementById('gst-c-pan').value   = rec.customerPan  || '';
+      document.getElementById('gst-c-email').value = rec.customerEmail || '';
+      // Fill other fields
+      document.getElementById('gst-supply').value       = rec.placeOfSupply || '';
+      document.getElementById('gst-bill-month').value   = rec.billMonth || '';
+      document.getElementById('gst-bill-from').value    = rec.billPeriodFrom || '';
+      document.getElementById('gst-bill-to').value      = rec.billPeriodTo || '';
+      document.getElementById('gst-work-order').value   = rec.workOrder || '';
+      document.getElementById('gst-project').value      = rec.projectName || '';
+      document.getElementById('gst-work-details').value = rec.workDetails || '';
+      document.getElementById('gst-bank-name').value    = rec.bankName || '';
+      document.getElementById('gst-bank-acname').value  = rec.bankAcName || '';
+      document.getElementById('gst-bank-ac').value      = rec.bankAccount || '';
+      document.getElementById('gst-bank-ifsc').value    = rec.bankIfsc || '';
+      document.getElementById('gst-bank-branch').value  = rec.bankBranch || '';
+      document.getElementById('gst-notes').value        = rec.notes || '';
+      document.getElementById('gst-terms').value        = rec.termsConditions || '';
+      // Fill items
+      document.getElementById('gst-items-body').innerHTML = '';
+      gstItemCount = 0;
+      (rec.items || []).forEach(function(it) { addGSTItem(it); });
+      recalcGST();
+      toast('Proforma data copied to Invoice. Review and save.', 'success');
+    }, 300);
+  }, 200);
+}
+
+/* ── Global state for proforma editing ──────────────────── */
+var proEditingId = null;
+var proItemCount = 0;
 function renderQuotations() {
   var q=(document.getElementById('quo-search').value||'').toLowerCase();
   var st=document.getElementById('quo-status').value;
@@ -756,9 +2695,12 @@ function openVenModal(id) {
     document.getElementById('ven-contact').value=rec.contact||''; document.getElementById('ven-phone').value=rec.phone||'';
     document.getElementById('ven-email').value=rec.email||''; document.getElementById('ven-category').value=rec.category||'';
     document.getElementById('ven-gst').value=rec.gst||''; document.getElementById('ven-pan').value=rec.pan||'';
-    document.getElementById('ven-address').value=rec.address||''; document.getElementById('ven-status-sel').value=rec.status||'Active';
+    document.getElementById('ven-address').value=rec.address||'';
+    document.getElementById('ven-state').value=rec.state||'';
+    document.getElementById('ven-statecode').value=rec.stateCode||'';
+    document.getElementById('ven-status-sel').value=rec.status||'Active';
   } else {
-    ['ven-name','ven-contact','ven-phone','ven-email','ven-category','ven-gst','ven-pan','ven-address'].forEach(function(i){document.getElementById(i).value='';});
+    ['ven-name','ven-contact','ven-phone','ven-email','ven-category','ven-gst','ven-pan','ven-address','ven-state','ven-statecode'].forEach(function(i){document.getElementById(i).value='';});
     document.getElementById('ven-id').value=genId('VEN'); document.getElementById('ven-status-sel').value='Active';
   }
   openModal('ven-modal');
@@ -767,8 +2709,11 @@ function saveVendor() {
   var rec={id:document.getElementById('ven-id').value, name:document.getElementById('ven-name').value,
     contact:document.getElementById('ven-contact').value, phone:document.getElementById('ven-phone').value,
     email:document.getElementById('ven-email').value, category:document.getElementById('ven-category').value,
-    gst:document.getElementById('ven-gst').value, pan:document.getElementById('ven-pan').value,
-    address:document.getElementById('ven-address').value, status:document.getElementById('ven-status-sel').value};
+    gst:document.getElementById('ven-gst').value.toUpperCase(), pan:document.getElementById('ven-pan').value,
+    address:document.getElementById('ven-address').value,
+    state:document.getElementById('ven-state').value,
+    stateCode:document.getElementById('ven-statecode').value,
+    status:document.getElementById('ven-status-sel').value};
   if(!rec.name) return toast('Vendor name required','error');
   var arr=load('ven');
   if(editingVenId){var i=arr.findIndex(function(x){return x.id===editingVenId;});if(i>=0)arr[i]=rec;}else arr.unshift(rec);
@@ -884,25 +2829,48 @@ function renderProjects() {
   }).join(''):emptyRow(8);
 }
 
-/* ── delete ───────────────────────────────────────────── */
-function delRecord(key, id) {
+/* ── delete (localStorage modules only) ──────────────────── */
+async function delRecord(key, id) {
   if(!confirm('Delete this record?')) return;
-  var arr=load(key).filter(function(x){return x.id!==id;});
-  save(key,arr);
-  var renders={inv:renderInvoices,pro:renderProforma,quo:renderQuotations,po:renderPO,ven:renderVendors,cwo:renderCWO,vwo:renderVWO,prj:renderProjects};
+  var arr=load(key);
+  var rec=arr.find(function(x){return x.id===id;});
+  if(!rec) return toast('Record not found','error');
+  var typeMap={
+    pro:'proforma',
+    quo:'quotation',
+    po:'purchase_order',
+    ven:'vendor',
+    cwo:'client_work_order',
+    vwo:'vendor_work_order',
+    prj:'project_account'
+  };
+  try {
+    await api('POST', '/recycle-bin/custom', {
+      itemType:typeMap[key],
+      itemId:rec.id,
+      itemData:rec,
+      itemTitle:rec.id + (rec.name ? (' - ' + rec.name) : rec.vendor ? (' - ' + rec.vendor) : rec.party ? (' - ' + rec.party) : rec.client ? (' - ' + rec.client) : '')
+    });
+  } catch (e) {
+    return toast(e.message || 'Could not move to recycle bin', 'error');
+  }
+  save(key,arr.filter(function(x){return x.id!==id;}));
+  var renders={pro:renderProforma,quo:renderQuotations,po:renderPO,ven:renderVendors,cwo:renderCWO,vwo:renderVWO,prj:renderProjects};
   if(renders[key]) renders[key]();
-  toast('Deleted','success');
+  toast('Deleted (moved to recycle bin)','success');
 }
 
 /* ── calculators ──────────────────────────────────────── */
 function calcGST() {
   var amt=parseFloat(document.getElementById('gst-amount').value)||0;
   var rate=parseFloat(document.getElementById('gst-rate').value)||18;
-  var gstAmt=amt*rate/100;
+  var mode=(document.getElementById('gst-mode')||{}).value||'exclusive';
+  var baseAmt=mode==='inclusive' && rate>0 ? (amt/(1+(rate/100))) : amt;
+  var gstAmt=mode==='inclusive' ? (amt-baseAmt) : (amt*rate/100);
   document.getElementById('gst-cgst').textContent=fmtAmt(gstAmt/2);
   document.getElementById('gst-sgst').textContent=fmtAmt(gstAmt/2);
   document.getElementById('gst-igst').textContent=fmtAmt(gstAmt);
-  document.getElementById('gst-total').textContent=fmtAmt(amt+gstAmt);
+  document.getElementById('gst-total').textContent=fmtAmt(mode==='inclusive'?amt:(amt+gstAmt));
 }
 function calcDiscount() {
   var orig=parseFloat(document.getElementById('disc-orig').value)||0;
@@ -914,12 +2882,220 @@ function calcDiscount() {
 function calcTDS() {
   var gross=parseFloat(document.getElementById('tds-gross').value)||0;
   var rate=parseFloat(document.getElementById('tds-rate').value)||10;
-  var ded=gross*rate/100;
+  var mode=(document.getElementById('tds-mode')||{}).value||'exclusive';
+  var baseAmt=mode==='inclusive' && rate>0 ? (gross/(1+(rate/100))) : gross;
+  var ded=mode==='inclusive' ? (gross-baseAmt) : (gross*rate/100);
   document.getElementById('tds-ded').textContent=fmtAmt(ded);
-  document.getElementById('tds-net').textContent=fmtAmt(gross-ded);
+  document.getElementById('tds-net').textContent=fmtAmt(mode==='inclusive'?baseAmt:(gross-ded));
 }
 
 /* ── init ─────────────────────────────────────────────── */
+/* overrides for easier data entry */
+function htmlEscape(str) {
+  return String(str == null ? '' : str)
+    .replace(/&/g,'&amp;')
+    .replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;')
+    .replace(/'/g,'&#39;');
+}
+function populatePOVendorDropdown(selectedName) {
+  var sel=document.getElementById('po-vendor');
+  if(!sel) return;
+  var vendors=load('ven').filter(function(v){ return (v.status||'Active')!=='Inactive'; });
+  sel.innerHTML='';
+  var placeholder=document.createElement('option');
+  placeholder.value='';
+  placeholder.textContent='Select vendor';
+  sel.appendChild(placeholder);
+  vendors.forEach(function(v){
+    var opt=document.createElement('option');
+    opt.value=v.name||'';
+    opt.textContent=(v.name||'Unnamed Vendor')+(v.id?' ('+v.id+')':'')+(v.gst?' | GST: '+v.gst:'');
+    sel.appendChild(opt);
+  });
+  if(selectedName){
+    var exists=Array.from(sel.options).some(function(opt){ return opt.value===selectedName; });
+    if(!exists){
+      var opt=document.createElement('option');
+      opt.value=selectedName;
+      opt.textContent=selectedName;
+      sel.appendChild(opt);
+    }
+    sel.value=selectedName;
+  }
+}
+function populateVendorWODropdown(selectedName) {
+  var sel=document.getElementById('wo-vendor');
+  if(!sel) return;
+  var vendors=load('ven').filter(function(v){ return (v.status||'Active')!=='Inactive'; });
+  sel.innerHTML='';
+  var placeholder=document.createElement('option');
+  placeholder.value='';
+  placeholder.textContent='Select vendor';
+  sel.appendChild(placeholder);
+  vendors.forEach(function(v){
+    var opt=document.createElement('option');
+    opt.value=v.name||'';
+    opt.textContent=(v.name||'Unnamed Vendor')+(v.id?' ('+v.id+')':'')+(v.gst?' | GST: '+v.gst:'');
+    sel.appendChild(opt);
+  });
+  if(selectedName){
+    var exists=Array.from(sel.options).some(function(opt){ return opt.value===selectedName; });
+    if(!exists){
+      var opt=document.createElement('option');
+      opt.value=selectedName;
+      opt.textContent=selectedName;
+      sel.appendChild(opt);
+    }
+    sel.value=selectedName;
+  }
+}
+function buildLineItemRow(item, totalUpdater) {
+  item=item||{name:'',qty:1,rate:0};
+  var total=((parseFloat(item.qty)||0)*(parseFloat(item.rate)||0));
+  return '<div class="line-item-field">'+
+      '<label class="line-item-label">Description</label>'+
+      '<input type="text" class="form-control item-name" placeholder="Item description" value="'+htmlEscape(item.name||'')+'">'+
+    '</div>'+
+    '<div class="line-item-field">'+
+      '<label class="line-item-label">Qty</label>'+
+      '<input type="number" class="form-control item-qty" placeholder="Qty" value="'+(item.qty||1)+'" min="1" oninput="'+totalUpdater+'()">'+
+    '</div>'+
+    '<div class="line-item-field">'+
+      '<label class="line-item-label">Rate</label>'+
+      '<input type="number" class="form-control item-rate" placeholder="Rate" value="'+(item.rate||0)+'" min="0" oninput="'+totalUpdater+'()">'+
+    '</div>'+
+    '<div class="line-item-field">'+
+      '<label class="line-item-label">Total</label>'+
+      '<div class="item-total">'+fmtAmt(total)+'</div>'+
+    '</div>'+
+    '<div class="line-item-actions">'+
+      '<button type="button" class="btn btn-danger btn-sm line-item-remove" onclick="this.closest(\'.line-item-row\').remove();'+totalUpdater+'()"><i class="bx bx-x"></i></button>'+
+    '</div>';
+}
+function wireLineItemTotal(row) {
+  function recalc() {
+    var qty=parseFloat(row.querySelector('.item-qty').value)||0;
+    var rate=parseFloat(row.querySelector('.item-rate').value)||0;
+    row.querySelector('.item-total').textContent=fmtAmt(qty*rate);
+  }
+  var qtyEl=row.querySelector('.item-qty');
+  var rateEl=row.querySelector('.item-rate');
+  if(qtyEl) qtyEl.addEventListener('input', recalc);
+  if(rateEl) rateEl.addEventListener('input', recalc);
+  recalc();
+}
+function addLineItemRow(container, item) {
+  var div=document.createElement('div');
+  div.className='line-item-row';
+  div.innerHTML=buildLineItemRow(item,'updateDocTotal');
+  container.appendChild(div);
+  wireLineItemTotal(div);
+}
+function addPOItemRow(container, item) {
+  var div=document.createElement('div');
+  div.className='line-item-row';
+  div.innerHTML=buildLineItemRow(item,'updatePOTotal');
+  container.appendChild(div);
+  wireLineItemTotal(div);
+}
+function openPOModal(id) {
+  editingPOId=id||null;
+  document.getElementById('po-modal-title').textContent=id?'Edit Purchase Order':'New Purchase Order';
+  document.getElementById('po-items').innerHTML='';
+  populatePOVendorDropdown();
+  if(id){
+    var rec=load('po').find(function(x){return x.id===id;}); if(!rec)return;
+    document.getElementById('po-id').value=rec.id;
+    populatePOVendorDropdown(rec.vendor||'');
+    document.getElementById('po-date').value=rec.date;
+    document.getElementById('po-delivery').value=rec.deliveryDate||'';
+    document.getElementById('po-status-sel').value=rec.status;
+    document.getElementById('po-notes').value=rec.notes||'';
+    (rec.items||[]).forEach(function(it){addPOItemRow(document.getElementById('po-items'),it);});
+  } else {
+    document.getElementById('po-id').value=genId('PO');
+    document.getElementById('po-vendor').value='';
+    document.getElementById('po-date').value=today();
+    document.getElementById('po-delivery').value='';
+    document.getElementById('po-status-sel').value='Draft';
+    document.getElementById('po-notes').value='';
+    addPOItemRow(document.getElementById('po-items'),null);
+  }
+  updatePOTotal();
+  openModal('po-modal');
+}
+function savePO() {
+  var items=getDocItems(document.getElementById('po-items'));
+  var vendorName=document.getElementById('po-vendor').value||'';
+  if(!vendorName) return toast('Select a vendor','error');
+  if(!items.length) return toast('Add at least one item','error');
+  var rec={id:document.getElementById('po-id').value, vendor:vendorName,
+    date:document.getElementById('po-date').value, deliveryDate:document.getElementById('po-delivery').value,
+    status:document.getElementById('po-status-sel').value, notes:document.getElementById('po-notes').value,
+    items:items, amount:items.reduce(function(s,it){return s+it.qty*it.rate;},0)};
+  var arr=load('po');
+  if(editingPOId){var i=arr.findIndex(function(x){return x.id===editingPOId;});if(i>=0)arr[i]=rec;}else arr.unshift(rec);
+  save('po',arr); closeModal('po-modal'); renderPO(); toast('Saved!','success');
+}
+function openWOModal(type, id) {
+  editingWOType=type; editingWOId=id||null;
+  var labels={cwo:{title:id?'Edit Client Work Order':'New Client Work Order', party:'Client Name'},
+               vwo:{title:id?'Edit Vendor Work Order':'New Vendor Work Order', party:'Vendor'}};
+  document.getElementById('wo-type').value=type;
+  document.getElementById('wo-modal-title').textContent=labels[type].title;
+  document.getElementById('wo-party-label').textContent=labels[type].party;
+  var partyInput=document.getElementById('wo-party');
+  var vendorSelect=document.getElementById('wo-vendor');
+  if(type==='vwo'){
+    partyInput.style.display='none';
+    vendorSelect.style.display='';
+    populateVendorWODropdown();
+  } else {
+    partyInput.style.display='';
+    vendorSelect.style.display='none';
+    vendorSelect.value='';
+  }
+  if(id){
+    var rec=load(type).find(function(x){return x.id===id;}); if(!rec)return;
+    document.getElementById('wo-id').value=rec.id;
+    partyInput.value=rec.party||'';
+    if(type==='vwo') populateVendorWODropdown(rec.party||'');
+    document.getElementById('wo-project').value=rec.project||'';
+    document.getElementById('wo-start').value=rec.startDate||'';
+    document.getElementById('wo-end').value=rec.endDate||'';
+    document.getElementById('wo-scope').value=rec.scope||'';
+    document.getElementById('wo-amount').value=rec.amount||0;
+    document.getElementById('wo-status-sel').value=rec.status||'Draft';
+  } else {
+    ['wo-party','wo-project','wo-scope'].forEach(function(i){document.getElementById(i).value='';});
+    if(type==='vwo') populateVendorWODropdown();
+    document.getElementById('wo-id').value=genId(type==='cwo'?'CWO':'VWO');
+    document.getElementById('wo-start').value=today();
+    document.getElementById('wo-end').value='';
+    document.getElementById('wo-amount').value=0;
+    document.getElementById('wo-status-sel').value='Draft';
+  }
+  openModal('wo-modal');
+}
+function saveWO() {
+  var type=document.getElementById('wo-type').value;
+  var partyName=type==='vwo' ? (document.getElementById('wo-vendor').value||'') : document.getElementById('wo-party').value;
+  var rec={id:document.getElementById('wo-id').value, party:partyName,
+    project:document.getElementById('wo-project').value, startDate:document.getElementById('wo-start').value,
+    endDate:document.getElementById('wo-end').value, scope:document.getElementById('wo-scope').value,
+    amount:parseFloat(document.getElementById('wo-amount').value)||0, status:document.getElementById('wo-status-sel').value};
+  if(!rec.party) return toast(type==='vwo'?'Select a vendor':'Name required','error');
+  var arr=load(type);
+  if(editingWOId){var i=arr.findIndex(function(x){return x.id===editingWOId;});if(i>=0)arr[i]=rec;}else arr.unshift(rec);
+  save(type,arr); closeModal('wo-modal');
+  if(type==='cwo') renderCWO(); else renderVWO(); toast('Saved!','success');
+}
+document.addEventListener('DOMContentLoaded', function(){
+  populatePOVendorDropdown();
+  populateVendorWODropdown();
+});
 updateDashStats();
 </script>
 </body></html>

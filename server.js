@@ -102,6 +102,7 @@ async function dropExcessIndexes(tableName) {
 const TABLE_NAMES = [
   'Users', 'Leaves', 'Timesheets', 'Salaries', 'Documents',
   'Notifications', 'NotificationReads', 'RecycleBins', 'Tasks', 'CompanyPolicies', 'Companies',
+  'Invoices',
 ];
 
 // ─── Database & Server Start ───
