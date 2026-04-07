@@ -13,6 +13,100 @@
   <link href="https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css" rel="stylesheet">
   <link rel="stylesheet" href="/css/style.css">
   <script>
+    async function fetchSidebarAlertIds(path, token) {
+      var headers = { 'Authorization': 'Bearer ' + token };
+      async function getJson(url) {
+        try {
+          var res = await fetch(url, { headers: headers });
+          if (!res.ok) return [];
+          var data = await res.json();
+          return Array.isArray(data) ? data : [];
+        } catch (e) { return []; }
+      }
+
+      if (path === '/admin/leaves' || path === '/manager/leaves') {
+        var leaves = await getJson('/api/leaves');
+        return leaves.filter(function(l){ return l.status === 'pending'; }).map(function(l){ return 'leave:' + l.id; });
+      }
+      if (path === '/admin/timesheets' || path === '/manager/timesheets') {
+        var timesheets = await getJson('/api/timesheets');
+        return timesheets.filter(function(t){ return t.status === 'pending'; }).map(function(t){ return 'timesheet:' + t.id; });
+      }
+      if (path === '/admin/documents') {
+        var docs = await getJson('/api/documents');
+        return docs.filter(function(d){ return d.verificationStatus === 'pending'; }).map(function(d){ return 'document:' + d.id; });
+      }
+      if (path === '/manager/documents') {
+        var teamDocs = await getJson('/api/documents?scope=team');
+        return teamDocs.filter(function(d){ return d.verificationStatus === 'pending'; }).map(function(d){ return 'document:' + d.id; });
+      }
+      if (path === '/manager/tasks') {
+        var tasks = await getJson('/api/tasks');
+        return tasks.filter(function(t){ return t.approvalStatus === 'pending_approval'; }).map(function(t){ return 'task:' + t.id; });
+      }
+      if (path === '/employee/tasks') {
+        var myTasks = await getJson('/api/tasks');
+        return myTasks.map(function(t){ return 'task:' + t.id; });
+      }
+      if (path === '/employee/documents') {
+        var myDocs = await getJson('/api/documents');
+        return myDocs.filter(function(d){ return d.verificationStatus === 'pending' || d.verificationStatus === 'rejected'; }).map(function(d){ return 'document:' + d.id; });
+      }
+      if (path === '/admin/recycle-bin' || path === '/superadmin/recycle-bin') {
+        var recycleItems = await getJson('/api/recycle-bin');
+        return recycleItems.map(function(i){ return 'bin:' + i.id; });
+      }
+      return [];
+    }
+
+    async function initSidebarAlerts() {
+      if (window.location.pathname.includes('/login')) return;
+      var token = localStorage.getItem('ems_token');
+      var storedUser = null;
+      try { storedUser = JSON.parse(localStorage.getItem('ems_user') || 'null'); } catch(e) {}
+      if (!token || !storedUser) return;
+
+      var role = storedUser.role;
+      var currentPath = window.location.pathname;
+      var alertPaths = [];
+      if (role === 'admin' || role === 'superadmin') {
+        alertPaths = ['/admin/leaves', '/admin/timesheets', '/admin/documents', role === 'superadmin' ? '/superadmin/recycle-bin' : '/admin/recycle-bin'];
+      } else if (role === 'manager') {
+        alertPaths = ['/manager/tasks', '/manager/leaves', '/manager/timesheets', '/manager/documents'];
+      } else if (role === 'employee') {
+        alertPaths = ['/employee/tasks', '/employee/documents'];
+      }
+
+      for (var i = 0; i < alertPaths.length; i++) {
+        var href = alertPaths[i];
+        var ids = await fetchSidebarAlertIds(href, token);
+        var seenKey = 'ems_sidebar_seen::' + role + '::' + href;
+        var seenIds = [];
+        try { seenIds = JSON.parse(localStorage.getItem(seenKey) || '[]'); } catch (e) { seenIds = []; }
+
+        if (currentPath === href) {
+          localStorage.setItem(seenKey, JSON.stringify(ids));
+          seenIds = ids.slice();
+        }
+
+        var seenSet = new Set(seenIds);
+        var hasNew = ids.some(function(id){ return !seenSet.has(id); });
+        var link = document.querySelector('.sidebar .nav-link[href="' + href + '"]');
+        if (!link) continue;
+
+        var existingDot = link.querySelector('.sidebar-alert-dot');
+        if (hasNew) {
+          if (!existingDot) {
+            existingDot = document.createElement('span');
+            existingDot.className = 'sidebar-alert-dot';
+            link.appendChild(existingDot);
+          }
+        } else if (existingDot) {
+          existingDot.remove();
+        }
+      }
+    }
+
     function checkTableScroll(){document.querySelectorAll('.table-wrapper').forEach(function(w){w.scrollWidth>w.clientWidth+2?w.classList.add('has-scroll'):w.classList.remove('has-scroll')})}
     window.addEventListener('DOMContentLoaded',function(){
       checkTableScroll();setTimeout(checkTableScroll,500);setTimeout(checkTableScroll,1500);
@@ -54,11 +148,16 @@
 
         // ── Wrap existing title area in .navbar-center ──
         var titleArea = pageHeader.querySelector('.flex.items-center');
-        if (titleArea && !pageHeader.querySelector('.navbar-center')) {
+        if (!pageHeader.querySelector('.navbar-center')) {
           var navCenter = document.createElement('div');
           navCenter.className = 'navbar-center';
-          pageHeader.insertBefore(navCenter, titleArea);
-          navCenter.appendChild(titleArea);
+          var headerActionsNode = pageHeader.querySelector('.header-actions');
+          var movableChildren = Array.from(pageHeader.children).filter(function(child) {
+            return !child.classList.contains('navbar-brand') && !child.classList.contains('header-actions');
+          });
+          if (headerActionsNode) pageHeader.insertBefore(navCenter, headerActionsNode);
+          else pageHeader.appendChild(navCenter);
+          movableChildren.forEach(function(child) { navCenter.appendChild(child); });
         }
 
         // ── Auto-inject back button on all non-dashboard pages ──
@@ -142,9 +241,9 @@
           var avatarLink = document.createElement('a');
           avatarLink.href  = profileHref;
           avatarLink.title = name + ' — My Profile';
-          avatarLink.style.cssText = 'width:40px;height:40px;border-radius:50%;overflow:hidden;background:linear-gradient(135deg,#5b6abf,#7c3aed);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px;color:white;flex-shrink:0;text-decoration:none;cursor:pointer;border:2px solid #fff;box-shadow:0 0 0 2px rgba(91,106,191,0.25);position:relative;transition:box-shadow 0.2s,transform 0.15s;';
-          avatarLink.onmouseover = function(){ this.style.boxShadow='0 0 0 3px rgba(91,106,191,0.45)'; this.style.transform='scale(1.06)'; };
-          avatarLink.onmouseout  = function(){ this.style.boxShadow='0 0 0 2px rgba(91,106,191,0.25)'; this.style.transform=''; };
+          avatarLink.style.cssText = 'width:40px;height:40px;border-radius:50%;overflow:hidden;background:linear-gradient(135deg,#111111,#000000);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px;color:white;flex-shrink:0;text-decoration:none;cursor:pointer;border:2px solid #fff;box-shadow:0 0 0 2px rgba(17,17,17,0.18);position:relative;transition:box-shadow 0.2s,transform 0.15s;';
+          avatarLink.onmouseover = function(){ this.style.boxShadow='0 0 0 3px rgba(17,17,17,0.30)'; this.style.transform='scale(1.06)'; };
+          avatarLink.onmouseout  = function(){ this.style.boxShadow='0 0 0 2px rgba(17,17,17,0.18)'; this.style.transform=''; };
           avatarLink.innerHTML =
             '<span id="nav-av-init" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px;color:white;pointer-events:none;">' + initials + '</span>' +
             '<img src="' + photoSrc + '" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block;" onload="this.previousElementSibling.style.display=\'none\'" onerror="this.style.display=\'none\'">';
@@ -180,6 +279,7 @@
           }
         }
       }
+      setTimeout(function(){ if (typeof initSidebarAlerts === 'function') initSidebarAlerts(); }, 120);
     });
     window.addEventListener('resize',checkTableScroll);
     function openSidebar(){document.getElementById('sidebar').classList.add('open');document.getElementById('sidebarOverlay').classList.add('show');document.body.style.overflow='hidden'}

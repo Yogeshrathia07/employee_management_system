@@ -5,9 +5,11 @@ const Invoice = sequelize.define('Invoice', {
 
   // ── Identification ────────────────────────────────────────────────────────
   invoiceNumber: { type: DataTypes.STRING(50),  allowNull: false },
+  documentType:  { type: DataTypes.STRING(50),  defaultValue: 'Tax Invoice' },
   invoiceType:   { type: DataTypes.ENUM('B2B', 'B2C'), defaultValue: 'B2B' },
   invoiceDate:   { type: DataTypes.DATEONLY,    allowNull: false },
   dueDate:       { type: DataTypes.DATEONLY,    allowNull: true },
+  isRABill:      { type: DataTypes.BOOLEAN,     defaultValue: false },
   placeOfSupply: { type: DataTypes.STRING(150), defaultValue: '' },
 
   // ── Bill Period (optional) ───────────────────────────────────────────────
@@ -49,6 +51,10 @@ const Invoice = sequelize.define('Invoice', {
     },
     set(v) { this.setDataValue('items', JSON.stringify(v || [])); },
   },
+
+  // ── Tax Rates (global) ───────────────────────────────────────────────────
+  sgstRate: { type: DataTypes.DECIMAL(5, 2), defaultValue: 9 },
+  cgstRate: { type: DataTypes.DECIMAL(5, 2), defaultValue: 9 },
 
   // ── Tax Totals ────────────────────────────────────────────────────────────
   subtotal:    { type: DataTypes.DECIMAL(14, 2), defaultValue: 0 },

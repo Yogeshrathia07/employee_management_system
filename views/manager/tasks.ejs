@@ -77,6 +77,10 @@
         <input type="text" id="task-title" class="form-control" placeholder="e.g. Update API documentation">
       </div>
       <div class="form-group">
+        <label class="form-label">Project Name <span style="font-size:11px;color:var(--text-muted);font-weight:400;">(shown in employee's timesheet)</span></label>
+        <input type="text" id="task-project" class="form-control" placeholder="e.g. Website Redesign, CRM v2">
+      </div>
+      <div class="form-group">
         <label class="form-label">Description</label>
         <textarea id="task-desc" class="form-control" rows="3" placeholder="Describe the task in detail..."></textarea>
       </div>
@@ -171,6 +175,7 @@ function render() {
 
     return '<tr>' +
       '<td><div style="font-weight:600;">' + t.title + '</div>' +
+        (t.projectName ? '<div style="font-size:11px;font-weight:600;color:var(--accent);margin-top:1px;"><i class="bx bx-folder" style="font-size:10px;"></i> ' + t.projectName + '</div>' : '') +
         (t.description ? '<div style="font-size:12px;color:var(--text-muted);">' + t.description.slice(0,60) + (t.description.length>60?'…':'') + '</div>' : '') +
       '</td>' +
       '<td><div style="font-weight:500;">' + (t.assignee ? t.assignee.name : '—') + '</div>' +
@@ -189,11 +194,12 @@ function render() {
 }
 
 function openNewTask() {
-  document.getElementById('task-id').value    = '';
-  document.getElementById('task-title').value = '';
-  document.getElementById('task-desc').value  = '';
+  document.getElementById('task-id').value       = '';
+  document.getElementById('task-title').value    = '';
+  document.getElementById('task-project').value  = '';
+  document.getElementById('task-desc').value     = '';
   document.getElementById('task-priority').value = 'medium';
-  document.getElementById('task-due').value   = '';
+  document.getElementById('task-due').value      = '';
   document.getElementById('task-assignee').value = '';
   document.getElementById('task-modal-title').textContent = 'Assign New Task';
   openModal('task-modal');
@@ -202,6 +208,7 @@ function openNewTask() {
 function editTask(t) {
   document.getElementById('task-id').value       = t.id;
   document.getElementById('task-title').value    = t.title;
+  document.getElementById('task-project').value  = t.projectName || '';
   document.getElementById('task-desc').value     = t.description || '';
   document.getElementById('task-priority').value = t.priority;
   document.getElementById('task-due').value      = t.dueDate || '';
@@ -217,6 +224,7 @@ async function saveTask() {
   if (!title || !assignedTo) return toast('Title and assignee are required', 'error');
   const payload = {
     title,
+    projectName: document.getElementById('task-project').value.trim(),
     description: document.getElementById('task-desc').value,
     assignedTo,
     priority: document.getElementById('task-priority').value,

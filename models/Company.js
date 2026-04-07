@@ -10,10 +10,14 @@ const Company = sequelize.define('Company', {
   panNo: { type: DataTypes.STRING, defaultValue: '' },
   gstNo: { type: DataTypes.STRING, defaultValue: '' },
   status: { type: DataTypes.ENUM('active', 'inactive'), defaultValue: 'active' },
-  // Bank details for payslip
-  bankName: { type: DataTypes.STRING, defaultValue: '' },
+  state:     { type: DataTypes.STRING, defaultValue: '' },
+  stateCode: { type: DataTypes.STRING(5), defaultValue: '' },
+  // Bank details for payslip / invoices
+  bankName:    { type: DataTypes.STRING, defaultValue: '' },
+  bankAcName:  { type: DataTypes.STRING, defaultValue: '' },
   bankAccount: { type: DataTypes.STRING, defaultValue: '' },
-  bankIfsc: { type: DataTypes.STRING, defaultValue: '' },
+  bankIfsc:    { type: DataTypes.STRING, defaultValue: '' },
+  bankBranch:  { type: DataTypes.STRING, defaultValue: '' },
   // Branding — logoUrl stores filename of uploaded logo
   logoUrl: { type: DataTypes.STRING, defaultValue: '' },
   sealUrl: { type: DataTypes.STRING, defaultValue: '' },

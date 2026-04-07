@@ -37,6 +37,9 @@
       html += '<a href="' + l.href + '" class="nav-link' + active + '"><span class="nav-icon"><i class="bx ' + l.icon + '"></i></span> ' + l.label + '</a>';
     });
     nav.innerHTML = html;
+    if (typeof initSidebarAlerts === 'function') {
+      setTimeout(function(){ initSidebarAlerts(); }, 50);
+    }
   }
   
 })();

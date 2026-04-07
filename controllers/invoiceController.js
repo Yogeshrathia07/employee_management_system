@@ -6,7 +6,7 @@ const PDFDocument = require('pdfkit');
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function fmtINR(n) {
-  return 'Rs.' + Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return '₹ ' + Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
 function fmtDate(s) {
@@ -43,16 +43,16 @@ function currentFY() {
   return String(start).slice(-2) + '-' + String(start + 1).slice(-2);
 }
 
-// Format: INV-{SEQ}/{CODE}/{FY}/{RANDOM}  e.g. INV-004/DHPE/26-27/GDTYJH
+// Format: {SEQ}/{CODE}/{FY}/{RANDOM}  e.g. 004/DHPE/26-27/GDTYJH
 async function nextInvoiceNumber(fy, code) {
   const safeFY   = /^\d{2}-\d{2}$/.test(fy || '') ? fy : currentFY();
   const safeCode = ((code || '').toUpperCase().replace(/[^A-Z0-9]/g, '') || 'INV');
   const random   = Math.random().toString(36).substr(2, 6).toUpperCase();
   const count    = await Invoice.count({
-    where: { invoiceNumber: { [Op.like]: `INV-%/${safeCode}/${safeFY}/%` } },
+    where: { invoiceNumber: { [Op.like]: `%/${safeCode}/${safeFY}/%` } },
   });
   const seq = String(count + 1).padStart(3, '0');
-  return `INV-${seq}/${safeCode}/${safeFY}/${random}`;
+  return `${seq}/${safeCode}/${safeFY}/${random}`;
 }
 
 // ── GET /invoices ─────────────────────────────────────────────────────────────
@@ -391,17 +391,17 @@ exports.downloadPDF = async (req, res) => {
       if (useIGST) {
         th('Sl.', COL.sl); th('Item Code', COL.code); th('Description', COL.desc);
         th('HSN/SAC', COL.hsn); th('Unit', COL.unit);
-        th('Rate (Rs.)', COL.rate); th('Qty', COL.qty); th('Amount (Rs.)', COL.amt);
+        th('Rate (₹)', COL.rate); th('Qty', COL.qty); th('Amount (₹)', COL.amt);
       } else {
         th('Sl.', COL.sl); th('Item Code', COL.code); th('Description', COL.desc);
         th('HSN/SAC', COL.hsn); th('Unit', COL.unit);
-        th('Rate (Rs.)', COL.rate); th('Qty', COL.qty);
+        th('Rate (₹)', COL.rate); th('Qty', COL.qty);
         th('CGST%', COL.cgstP); th('CGST', COL.cgst);
         th('SGST%', COL.sgstP); th('SGST', COL.sgst);
         // Amount column fills remainder
         const amtW = W - (COL.sl+COL.code+COL.desc+COL.hsn+COL.unit+COL.rate+COL.qty+COL.cgstP+COL.cgst+COL.sgstP+COL.sgst);
         vLine(cx, y, y + ROW_H, LBD);
-        txt('Amount (Rs.)', cx + 2, y + 4, amtW - 4, { size: 7, bold: true, color: BLK, align: 'center' });
+        txt('Amount (₹)', cx + 2, y + 4, amtW - 4, { size: 7, bold: true, color: BLK, align: 'center' });
       }
     }
     drawColHeaders(y);

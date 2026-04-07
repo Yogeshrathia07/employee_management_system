@@ -29,10 +29,10 @@ exports.getTasks = async (req, res) => {
 // ── POST /tasks ───────────────────────────────────────────────────────────────
 exports.createTask = async (req, res) => {
   try {
-    const { title, description, assignedTo, dueDate, priority } = req.body;
+    const { title, description, assignedTo, dueDate, priority, projectName } = req.body;
     if (!title || !assignedTo) return res.status(400).json({ message: 'Title and assignedTo are required' });
     const task = await Task.create({
-      title, description: description || '',
+      title, description: description || '', projectName: projectName || '',
       assignedTo, assignedBy: req.user.id,
       companyId: req.user.companyId,
       dueDate: dueDate || null,
@@ -49,8 +49,9 @@ exports.updateTask = async (req, res) => {
   try {
     const task = await Task.findByPk(req.params.id);
     if (!task) return res.status(404).json({ message: 'Task not found' });
-    const { title, description, assignedTo, dueDate, priority } = req.body;
+    const { title, description, assignedTo, dueDate, priority, projectName } = req.body;
     if (title)                     task.title       = title;
+    if (projectName !== undefined) task.projectName = projectName;
     if (description !== undefined) task.description = description;
     if (assignedTo)                task.assignedTo  = assignedTo;
     if (dueDate !== undefined)     task.dueDate     = dueDate || null;

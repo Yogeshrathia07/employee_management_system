@@ -40,8 +40,8 @@
         </select>
         <input type="text" id="f-search" class="form-control" style="width:200px" placeholder="Search employee..." oninput="filterSalaries()">
         <button class="btn btn-ghost" onclick="exportCSV()"><i class="bx bx-download"></i> Export CSV</button>
-        <button class="btn btn-ghost" onclick="openModal('gen-modal')"><i class="bx bx-plus"></i> Single Generate</button>
-        <button class="btn btn-primary" onclick="openModal('bulk-modal')"><i class="bx bxs-magic-wand"></i> Generate All</button>
+        <button class="btn btn-ghost" onclick="openSingleGenerateModal()"><i class="bx bx-plus"></i> Single Generate</button>
+        <button class="btn btn-primary" onclick="openBulkGenerateModal()"><i class="bx bxs-magic-wand"></i> Generate All</button>
       </div>
 
       <div id="salary-grid" class="salary-card-grid">
@@ -152,8 +152,21 @@
           <div style="font-size:11px;color:var(--text-muted);margin-top:3px;">Auto from components</div>
         </div>
       </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Payroll Working Days</label>
+          <input type="number" id="g-workdays" class="form-control" min="0" step="1" oninput="syncGenWorkdaySummary()">
+          <div style="font-size:11px;color:var(--text-muted);margin-top:3px;">You can change this and salary will be calculated on this basis.</div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Expected Hours</label>
+          <input type="number" id="g-expected-hours" class="form-control" min="0" step="0.5">
+        </div>
+      </div>
       <!-- hidden leave value still submitted -->
       <input type="hidden" id="g-leave" value="0">
+      <input type="hidden" id="g-present-days" value="0">
+      <input type="hidden" id="g-actual-hours" value="0">
       <span id="g-leave-loading" style="display:none;"></span>
 
       <div class="section-divider-label">Earnings Components</div>
@@ -249,7 +262,19 @@
           <div style="font-size:11px;color:var(--text-muted);margin-top:3px;">Auto from components</div>
         </div>
       </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Payroll Working Days</label>
+          <input type="number" id="e-workdays" class="form-control" min="0" step="1" oninput="syncEditWorkdaySummary()">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Expected Hours</label>
+          <input type="number" id="e-expected-hours" class="form-control" min="0" step="0.5">
+        </div>
+      </div>
       <input type="hidden" id="e-leave" value="0">
+      <input type="hidden" id="e-present-days" value="0">
+      <input type="hidden" id="e-actual-hours" value="0">
 
       <div class="section-divider-label">Earnings Components</div>
       <div class="form-row" style="grid-template-columns:1fr 1fr 1fr">
@@ -313,6 +338,28 @@ let editSalId = null;
 
 function isSuperPayrollView() { return getUser()?.role === 'superadmin'; }
 
+function payrollCompanySelectionRequired() {
+  if (!isSuperPayrollView()) return false;
+  const bulkWrap = document.getElementById('b-company-wrap');
+  const singleWrap = document.getElementById('g-company-wrap');
+  const activeWrap =
+    (document.getElementById('bulk-modal')?.classList.contains('show') && bulkWrap) ||
+    (document.getElementById('gen-modal')?.classList.contains('show') && singleWrap) ||
+    bulkWrap || singleWrap;
+  return !!(activeWrap && activeWrap.style.display !== 'none');
+}
+
+async function ensurePayrollCompaniesLoaded() {
+  if (!isSuperPayrollView()) return [];
+  if (Array.isArray(_allCompanies) && _allCompanies.length) return _allCompanies;
+  try {
+    _allCompanies = await api('GET', '/companies');
+  } catch (e) {
+    _allCompanies = [];
+  }
+  return _allCompanies;
+}
+
 function syncPayrollCompanySelection(companyId) {
   if (!isSuperPayrollView()) return;
   const value = companyId || '';
@@ -323,7 +370,10 @@ function syncPayrollCompanySelection(companyId) {
 }
 
 function getPayrollSelectedCompanyId() {
-  if (!isSuperPayrollView()) return '';
+  if (!isSuperPayrollView()) {
+    const user = getUser();
+    return String(user?.companyId || user?.company?.id || '');
+  }
   const bulkModal   = document.getElementById('bulk-modal');
   const singleModal = document.getElementById('gen-modal');
   if (bulkModal   && bulkModal.classList.contains('show'))   return document.getElementById('b-company')?.value || '';
@@ -331,8 +381,9 @@ function getPayrollSelectedCompanyId() {
   return getSelectedCompanyId();
 }
 
-function setupPayrollCompanySelectors() {
+async function setupPayrollCompanySelectors() {
   if (!isSuperPayrollView()) return;
+  await ensurePayrollCompaniesLoaded();
   const options = '<option value="">Select company...</option>' + (_allCompanies || []).map(c => `<option value="${c.id}">${c.name}</option>`).join('');
   ['b-company-wrap','g-company-wrap'].forEach(wid => {
     const wrap = document.getElementById(wid);
@@ -340,6 +391,17 @@ function setupPayrollCompanySelectors() {
     if (wrap && sel) { wrap.style.display = ''; sel.innerHTML = options; }
   });
   syncPayrollCompanySelection(getSelectedCompanyId());
+}
+
+async function openBulkGenerateModal() {
+  await setupPayrollCompanySelectors();
+  openModal('bulk-modal');
+}
+
+async function openSingleGenerateModal() {
+  await setupPayrollCompanySelectors();
+  await loadUsers();
+  openModal('gen-modal');
 }
 
 // Populate month selects
@@ -363,6 +425,48 @@ function calcEditCTC() {
   const ids = ['e-basic','e-hra','e-conv','e-med','e-special','e-bonus','e-ta'];
   const total = ids.reduce((s,id) => s + (parseFloat(document.getElementById(id).value)||0), 0);
   document.getElementById('e-ctc').value = total;
+}
+
+function syncGenWorkdaySummary() {
+  const calDays = parseFloat(document.getElementById('g-att-caldays').textContent) || 0;
+  const workdayInput = document.getElementById('g-workdays');
+  let workdays = parseFloat(workdayInput.value) || 0;
+  if (calDays && workdays > calDays) {
+    workdays = calDays;
+    workdayInput.value = calDays;
+  }
+  const present = parseFloat(document.getElementById('g-present-days').value) || 0;
+  const leaves = parseFloat(document.getElementById('g-leave').value) || 0;
+  const actualHours = parseFloat(document.getElementById('g-actual-hours').value) || 0;
+  const expectedHoursInput = document.getElementById('g-expected-hours');
+  const absent = Math.max(0, workdays - present - leaves);
+  document.getElementById('g-att-workdays').textContent = (workdays || 0) + ' days';
+  document.getElementById('g-att-absent').textContent = absent;
+  if (expectedHoursInput && document.activeElement !== expectedHoursInput) {
+    expectedHoursInput.value = workdays > 0 ? (workdays * 8) : 0;
+  }
+  document.getElementById('g-att-hours').textContent = (actualHours || 0) + ' hrs';
+}
+
+function syncEditWorkdaySummary() {
+  const calDays = parseFloat(document.getElementById('e-att-caldays').textContent) || 0;
+  const workdayInput = document.getElementById('e-workdays');
+  let workdays = parseFloat(workdayInput.value) || 0;
+  if (calDays && workdays > calDays) {
+    workdays = calDays;
+    workdayInput.value = calDays;
+  }
+  const present = parseFloat(document.getElementById('e-present-days').value) || 0;
+  const leaves = parseFloat(document.getElementById('e-leave').value) || 0;
+  const actualHours = parseFloat(document.getElementById('e-actual-hours').value) || 0;
+  const expectedHoursInput = document.getElementById('e-expected-hours');
+  const absent = Math.max(0, workdays - present - leaves);
+  document.getElementById('e-att-workdays').textContent = (workdays || 0) + ' days';
+  document.getElementById('e-att-absent').textContent = absent;
+  if (expectedHoursInput && document.activeElement !== expectedHoursInput) {
+    expectedHoursInput.value = workdays > 0 ? (workdays * 8) : 0;
+  }
+  document.getElementById('e-att-hours').textContent = (actualHours || 0) + (actualHours != null ? ' hrs' : '');
 }
 
 // Load employees for single generate
@@ -417,6 +521,8 @@ function onEmployeeOrPeriodChange() {
     try {
       const preview = await api('GET', `/salary/preview?userId=${uid}&month=${month}&year=${year}`);
       document.getElementById('g-leave').value = preview.leaveTaken || 0;
+      document.getElementById('g-present-days').value = preview.presentDays || 0;
+      document.getElementById('g-actual-hours').value = preview.actualHours || 0;
       // Update salary structure with fresh server data
       document.getElementById('g-basic').value   = preview.basicSalary       || document.getElementById('g-basic').value;
       document.getElementById('g-hra').value     = preview.hra               || document.getElementById('g-hra').value;
@@ -436,8 +542,12 @@ function onEmployeeOrPeriodChange() {
       document.getElementById('g-att-absent').textContent   = preview.absentDays    ?? '—';
       document.getElementById('g-att-leaves').textContent   = preview.leaveTaken    ?? '—';
       document.getElementById('g-att-holidays').textContent = preview.holidayDays   ?? '—';
+      document.getElementById('g-workdays').value           = preview.totalWorkDays ?? 0;
+      document.getElementById('g-workdays').max             = preview.calDays ?? '';
       document.getElementById('g-att-workdays').textContent = (preview.totalWorkDays ?? '—') + ' days';
+      document.getElementById('g-expected-hours').value     = preview.expectedHours ?? ((preview.totalWorkDays || 0) * 8);
       document.getElementById('g-att-hours').textContent    = (preview.actualHours   ?? '—') + ' hrs';
+      syncGenWorkdaySummary();
 
       const noData = !preview.presentDays && !preview.leaveTaken && !preview.actualHours;
       document.getElementById('g-att-nodata').style.display = noData ? '' : 'none';
@@ -526,7 +636,7 @@ async function bulkGenerate() {
   const year      = document.getElementById('b-year').value;
   const companyId = getPayrollSelectedCompanyId();
   if (!month || !year) return toast('Select month and year', 'error');
-  if (getUser()?.role === 'superadmin' && !companyId) return toast('Select a company first', 'error');
+  if (payrollCompanySelectionRequired() && !companyId) return toast('Select a company first', 'error');
   const btn = document.getElementById('bulk-btn');
   btn.disabled = true; btn.innerHTML = '<span class="spinner" style="width:16px;height:16px"></span> Generating...';
   try {
@@ -540,13 +650,15 @@ async function bulkGenerate() {
 
 async function genSingle() {
   const companyId = getPayrollSelectedCompanyId();
-  if (getUser()?.role === 'superadmin' && !companyId) return toast('Select a company first', 'error');
+  if (payrollCompanySelectionRequired() && !companyId) return toast('Select a company first', 'error');
   const body = {
     userId:          document.getElementById('g-user').value,
     month:           document.getElementById('g-month').value,
     year:            document.getElementById('g-year').value,
     companyId,
     leaveTaken:      parseFloat(document.getElementById('g-leave').value)  || 0,
+    totalWorkDays:   parseFloat(document.getElementById('g-workdays').value) || 0,
+    expectedHours:   parseFloat(document.getElementById('g-expected-hours').value) || 0,
     basicSalary:     parseFloat(document.getElementById('g-basic').value)  || 0,
     hra:             parseFloat(document.getElementById('g-hra').value)    || 0,
     conveyance:      parseFloat(document.getElementById('g-conv').value)   || 0,
@@ -604,6 +716,12 @@ function openEdit(id) {
   document.getElementById('e-att-hours').textContent    = (s.actualHours  ?? '—') + (s.actualHours != null ? ' hrs' : '');
   document.getElementById('e-att-workdays').textContent = (s.totalWorkDays ?? '—') + (s.totalWorkDays != null ? ' days' : '');
   document.getElementById('e-att-emp').textContent      = s.user?.name || '—';
+  document.getElementById('e-workdays').value           = s.totalWorkDays || 0;
+  document.getElementById('e-workdays').max             = calDays || '';
+  document.getElementById('e-expected-hours').value     = s.expectedHours || 0;
+  document.getElementById('e-present-days').value       = s.presentDays || 0;
+  document.getElementById('e-actual-hours').value       = s.actualHours || 0;
+  syncEditWorkdaySummary();
 
   openModal('edit-modal');
 }
@@ -611,6 +729,8 @@ function openEdit(id) {
 async function updateSalary() {
   const body = {
     leaveTaken:      parseFloat(document.getElementById('e-leave').value)   || 0,
+    totalWorkDays:   parseFloat(document.getElementById('e-workdays').value) || 0,
+    expectedHours:   parseFloat(document.getElementById('e-expected-hours').value) || 0,
     basicSalary:     parseFloat(document.getElementById('e-basic').value)   || 0,
     hra:             parseFloat(document.getElementById('e-hra').value)     || 0,
     conveyance:      parseFloat(document.getElementById('e-conv').value)    || 0,
@@ -662,8 +782,18 @@ function exportCSV() {
   window.open(url, '_blank');
 }
 
-function reloadPageData() { setupPayrollCompanySelectors(); loadSalaries(); loadUsers(); }
-initCompanyFilter().then(function() { setupPayrollCompanySelectors(); loadUsers(); loadSalaries(); });
+function reloadPageData() {
+  setupPayrollCompanySelectors().then(function() {
+    loadSalaries();
+    loadUsers();
+  });
+}
+initCompanyFilter().then(function() {
+  setupPayrollCompanySelectors().then(function() {
+    loadUsers();
+    loadSalaries();
+  });
+});
 
 // ── Populate currency selects ──
 (function() {

@@ -50,55 +50,97 @@
 
 <!-- Timesheet Modal -->
 <div class="modal-overlay" id="ts-modal">
-  <div class="modal modal-lg">
+  <div class="modal employee-timesheet-modal">
     <div class="modal-header">
-      <span class="modal-title" id="ts-modal-title">Log Work Hours</span>
-      <button class="modal-close" onclick="closeModal('ts-modal')">×</button>
+      <span class="modal-title" id="ts-modal-title">Weekly Timesheet</span>
+      <button class="modal-close" onclick="closeModal('ts-modal')">�</button>
     </div>
-    <div class="modal-body">
-      <p style="font-size:13px;color:var(--text-muted);margin-bottom:16px;">Select days and enter hours. You can fill the entire current week in advance.</p>
-      <div class="form-group">
-        <label class="form-label">Week</label>
-        <div class="toggle-group">
-          <button class="toggle-btn active" id="toggle-curr" onclick="setWeek('current')">Current Week</button>
-          <button class="toggle-btn" id="toggle-prev" onclick="setWeek('previous')">Previous Week</button>
+    <div class="modal-body employee-timesheet-body">
+      <div class="timesheet-sheet-topbar">
+        <div class="timesheet-sheet-weekbox">
+          <div class="timesheet-sheet-meta-label">Timesheet For</div>
+          <div class="timesheet-sheet-weeklabel" id="ts-week-label">Week Ending �</div>
+        </div>
+        <div class="timesheet-sheet-top-actions">
+          <button class="btn btn-ghost" type="button" onclick="addTimesheetRow()"><i class="bx bx-plus"></i> Add Entry</button>
         </div>
       </div>
-      <div class="form-group"><label class="form-label">Select Days</label><div id="day-picker" class="day-picker-grid"></div></div>
-      <div class="form-row">
-        <div class="form-group">
-          <label class="form-label">Hours per day</label>
-          <input type="number" id="ts-hours" class="form-control" min="0.5" max="24" step="0.5" value="8" oninput="updateSummary()">
-        </div>
-        <div class="form-group">
-          <label class="form-label">Work Type</label>
-          <select id="ts-worktype" class="form-control">
-            <option value="work">Work</option>
-            <option value="leave">Leave</option>
-            <option value="holiday">Holiday</option>
-            <option value="half-day">Half Day</option>
-          </select>
-        </div>
+
+      <div class="ts-status-banner" id="ts-edit-banner">
+        <i class="bx bxs-info-circle"></i>
+        <span id="ts-edit-banner-text"></span>
       </div>
-      <div class="form-row">
-        <div class="form-group"><label class="form-label">Project</label><input type="text" id="ts-project" class="form-control" placeholder="Project name"></div>
-        <div class="form-group"><label class="form-label">Task</label><input type="text" id="ts-desc" class="form-control" placeholder="What did you work on?"></div>
+      <div class="timesheet-sheet-assigned" id="assigned-work-note">Loading assigned work...</div>
+
+      <div class="timesheet-sheet-scroll">
+        <table class="timesheet-sheet-table">
+          <thead id="ts-sheet-head"></thead>
+          <tbody id="ts-sheet-body"></tbody>
+          <tfoot id="ts-sheet-foot"></tfoot>
+        </table>
       </div>
-      <div class="form-group"><label class="form-label">Notes</label><textarea id="ts-notes" class="form-control" rows="2"></textarea></div>
+
+      <div class="ts-notes-area form-group" style="margin-bottom:0">
+        <label class="form-label">Notes</label>
+        <textarea id="ts-notes" class="form-control" rows="1" placeholder="Any notes for this week..."></textarea>
+      </div>
+
       <div class="ts-summary">
-        <span><strong id="sum-days">0</strong> days</span>
-        <span style="color:var(--text-muted)">×</span>
-        <span><strong id="sum-hrs">8</strong>h each</span>
-        <span style="color:var(--text-muted)">=</span>
+        <span><strong id="sum-days">0</strong> active days</span>
+        <span style="color:var(--border)">|</span>
+        <span><strong id="sum-rows">0</strong> row(s)</span>
+        <span style="color:var(--border)">|</span>
         <span class="ts-summary-total"><strong id="sum-total">0</strong>h total</span>
       </div>
     </div>
-    <div class="modal-footer">
+    <div class="modal-footer modal-footer-ts">
       <button class="btn btn-ghost" onclick="closeModal('ts-modal')">Cancel</button>
       <button class="btn btn-primary" id="ts-submit-btn" onclick="submitTimesheet()">Submit Timesheet</button>
     </div>
   </div>
 </div>
+
+<style>
+.employee-timesheet-modal{width:min(96vw,960px);max-width:min(96vw,960px);height:min(90vh,700px);display:flex;flex-direction:column;border-radius:20px}
+.employee-timesheet-body{flex:1;display:flex;flex-direction:column;gap:8px;overflow:hidden;padding:12px 20px 0}
+.timesheet-sheet-topbar{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.timesheet-sheet-weekbox{display:flex;flex-direction:column;gap:2px}
+.timesheet-sheet-meta-label{font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--text-muted)}
+.timesheet-sheet-weeklabel{font-size:16px;font-weight:800;color:var(--text-primary)}
+.timesheet-sheet-top-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.timesheet-sheet-assigned{padding:9px 13px;border-radius:10px;background:linear-gradient(135deg,#eef4ff,#f0f4ff);border:1px solid #c7d7f8;font-size:12px;color:#4a6194}
+.ts-status-banner{padding:8px 13px;border-radius:10px;font-size:12px;font-weight:600;display:none;align-items:center;gap:8px}
+.ts-status-banner.pending{background:#fef3c7;border:1px solid #fde68a;color:#92400e;display:flex}
+.ts-status-banner.approved{background:#d1fae5;border:1px solid #a7f3d0;color:#065f46;display:flex}
+.ts-status-banner.rejected{background:#fee2e2;border:1px solid #fecaca;color:#991b1b;display:flex}
+.timesheet-sheet-scroll{flex:1;overflow:auto;border:1px solid var(--border);border-radius:14px;background:#fff;min-height:140px}
+.timesheet-sheet-table{width:100%;min-width:880px;border-collapse:collapse}
+.timesheet-sheet-table th,.timesheet-sheet-table td{padding:8px 6px;border-bottom:1px solid #edf0f7;vertical-align:middle}
+.timesheet-sheet-table thead th{position:sticky;top:0;background:#f0f4ff;color:#5871a4;font-size:11px;font-weight:700;z-index:2;white-space:nowrap}
+.timesheet-sheet-table thead th.ts-day-head{text-align:center;min-width:52px}
+.timesheet-sheet-table .sheet-col-project{min-width:200px}
+.timesheet-sheet-table .sheet-col-billing{min-width:100px}
+.timesheet-sheet-table .sheet-col-desc{min-width:160px}
+.timesheet-sheet-table .sheet-col-total{min-width:52px;text-align:center;font-weight:800;color:var(--accent)}
+.timesheet-sheet-table .sheet-col-actions{min-width:44px;text-align:center}
+.timesheet-sheet-table select,.timesheet-sheet-table input{width:100%;min-height:34px;border-radius:8px;border:1px solid #d4dcee;padding:0 8px;background:#fff;font-family:inherit;font-size:12px;color:var(--text-primary)}
+.timesheet-sheet-table select:focus,.timesheet-sheet-table input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 2px rgba(99,102,241,.1)}
+.timesheet-sheet-table input[type=number]{text-align:center;padding:0 4px}
+.timesheet-sheet-task-meta{display:block;margin-top:3px;font-size:10px;color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:195px}
+.timesheet-sheet-total-row td{background:#f5f7ff;font-weight:700;border-bottom:none;font-size:12px}
+.timesheet-delete-btn{width:30px;height:30px;border:none;border-radius:8px;background:#fee2e2;color:#ef4444;cursor:pointer;font-size:13px;display:flex;align-items:center;justify-content:center;margin:auto}
+.timesheet-delete-btn:hover{background:#fecaca}
+.ts-summary{display:flex;align-items:center;gap:10px;font-size:12px;color:var(--text-secondary);padding:7px 12px;background:var(--bg-input);border-radius:10px;flex-wrap:wrap;flex-shrink:0}
+.ts-summary-total{margin-left:auto;font-weight:700;font-size:13px;color:var(--text-primary)}
+.ts-notes-area{flex-shrink:0}
+.ts-notes-area .form-label{font-size:11px;margin-bottom:3px}
+.ts-notes-area .form-control{font-size:12px;resize:none;min-height:unset}
+.modal-footer-ts{padding:10px 20px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:10px;flex-shrink:0}
+@media (max-width:768px){
+  .employee-timesheet-modal{width:100vw;max-width:100vw;max-height:100vh;border-radius:0}
+  .timesheet-sheet-weeklabel{font-size:14px}
+}
+</style>
 
 <script src="/js/api.js"></script>
 <script>
@@ -112,6 +154,9 @@ var navDate       = new Date();
 var selectedDates = new Set();
 var activeWeek    = 'current';
 var editingTsId   = null;
+var assignedTasks = [];
+var timesheetRows = [];
+var tsRowSeed = 1;
 
 /* ── helpers ────────────────────────────────────────────── */
 function getMondayOf(date) {
@@ -172,10 +217,15 @@ function renderWeekView() {
   var sunday = addDays(monday, 6);
   document.getElementById('nav-label').textContent = 'Week of ' + fmtRange(monday, sunday);
 
-  // Build date→{entry,ts} map
+  // Build date→{hours, entries[], ts} map — aggregate multiple entries on same day
   var dayMap = {};
   allTimesheets.forEach(function(ts) {
-    (ts.entries || []).forEach(function(e) { dayMap[e.date] = { entry: e, ts: ts }; });
+    (ts.entries || []).forEach(function(e) {
+      if (!dayMap[e.date]) { dayMap[e.date] = { hours: 0, entries: [], ts: ts }; }
+      dayMap[e.date].hours += Number(e.hours || 0);
+      dayMap[e.date].entries.push(e);
+      dayMap[e.date].ts = ts;
+    });
   });
 
   var todayISO = fmtISO(new Date());
@@ -205,14 +255,19 @@ function renderWeekView() {
         '</div>' +
       '</td>' +
       '<td style="padding:11px 14px;text-align:center;">' +
-        (hit ? '<span style="font-size:15px;font-weight:800;color:var(--accent);">' + hit.entry.hours + '<span style="font-size:11px;font-weight:400;">h</span></span>'
+        (hit ? '<span style="font-size:15px;font-weight:800;color:var(--accent);">' + hit.hours.toFixed(1) + '<span style="font-size:11px;font-weight:400;">h</span></span>'
              : '<span style="color:var(--border);font-size:18px;">—</span>') +
+        (hit && hit.entries.length > 1 ? '<div style="font-size:10px;color:var(--text-muted);">' + hit.entries.length + ' entries</div>' : '') +
       '</td>' +
       '<td style="padding:11px 14px;">' +
-        (hit && hit.entry.workType ? '<span style="font-size:11px;background:var(--bg-input);border-radius:6px;padding:3px 8px;text-transform:capitalize;color:var(--text-secondary);">' + hit.entry.workType + '</span>' : '') +
+        (hit ? hit.entries.map(function(e){ return e.workType; }).filter(function(v,i,a){return v&&a.indexOf(v)===i;}).map(function(wt){ return '<span style="font-size:11px;background:var(--bg-input);border-radius:6px;padding:2px 7px;text-transform:capitalize;color:var(--text-secondary);margin-right:3px;">' + wt + '</span>'; }).join('') : '') +
       '</td>' +
-      '<td style="padding:11px 14px;font-size:13px;color:var(--text-secondary);">' + (hit && hit.entry.project ? hit.entry.project : '') + '</td>' +
-      '<td style="padding:11px 14px;font-size:12px;color:var(--text-muted);max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + (hit && hit.entry.description ? hit.entry.description : '') + '</td>' +
+      '<td style="padding:11px 14px;font-size:12px;color:var(--text-secondary);max-width:150px;">' +
+        (hit ? hit.entries.map(function(e){ return e.project || ''; }).filter(function(v,i,a){return v&&a.indexOf(v)===i;}).join(', ') : '') +
+      '</td>' +
+      '<td style="padding:11px 14px;font-size:12px;color:var(--text-muted);max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' +
+        (hit ? hit.entries.map(function(e){ return e.description || ''; }).filter(Boolean).join(' / ') : '') +
+      '</td>' +
       '<td style="padding:11px 14px;">' +
         (hit ? '<span style="font-size:11px;font-weight:600;background:' + st.b + ';color:' + st.c + ';border-radius:12px;padding:2px 9px;text-transform:capitalize;">' + hit.ts.status + '</span>' : '') +
       '</td>' +
@@ -221,7 +276,7 @@ function renderWeekView() {
           '<button class="btn btn-ghost btn-sm" onclick="openEditTs(' + hit.ts.id + ')"><i class="bx bx-edit"></i></button>' : '') +
       '</td>' +
     '</tr>';
-    if (hit) totalH += (hit.entry.hours || 0);
+    if (hit) totalH += (hit.hours || 0);
   }
 
   var hasWeekEntries = Object.keys(dayMap).some(function(k) {
@@ -424,8 +479,6 @@ function getWeekDates(which) {
 function setWeek(which) {
   activeWeek = which;
   selectedDates.clear();
-  document.getElementById('toggle-curr').classList.toggle('active', which==='current');
-  document.getElementById('toggle-prev').classList.toggle('active', which==='previous');
   buildDayPicker(); updateSummary();
 }
 
@@ -461,8 +514,6 @@ function openNewTs() {
   document.getElementById('ts-modal-title').textContent = 'Log Work Hours';
   document.getElementById('ts-submit-btn').textContent  = 'Submit Timesheet';
   selectedDates.clear(); activeWeek = 'current';
-  document.getElementById('toggle-curr').classList.add('active');
-  document.getElementById('toggle-prev').classList.remove('active');
   document.getElementById('ts-hours').value    = 8;
   document.getElementById('ts-worktype').value = 'work';
   document.getElementById('ts-project').value  = '';
@@ -483,8 +534,6 @@ function openEditTs(id) {
     var thisMon  = getMondayOf(new Date());
     var entryMon = getMondayOf(new Date(entries[0].date));
     activeWeek = entryMon.getTime() === thisMon.getTime() ? 'current' : 'previous';
-    document.getElementById('toggle-curr').classList.toggle('active', activeWeek==='current');
-    document.getElementById('toggle-prev').classList.toggle('active', activeWeek==='previous');
     entries.forEach(function(e){ selectedDates.add(e.date); });
     document.getElementById('ts-hours').value    = entries[0].hours    || 8;
     document.getElementById('ts-worktype').value = entries[0].workType || 'work';
@@ -525,6 +574,328 @@ async function deleteTs(id) {
   catch(e) { toast(e.message, 'error'); }
 }
 
+function getSheetWeekDates() {
+  return getWeekDates(activeWeek);
+}
+
+function getAssignedTaskLabel(task) {
+  if (!task) return 'General Work';
+  var due = task.dueDate ? (' � Due ' + fmtFull(task.dueDate)) : '';
+  return task.title + due;
+}
+
+function getAssignedTaskNote(task) {
+  if (!task) return 'No assigned work selected. You can still log general work.';
+  return (task.description || 'Assigned by ' + ((task.assigner && task.assigner.name) || 'manager'));
+}
+
+async function loadAssignedTasks() {
+  try {
+    assignedTasks = await api('GET', '/tasks');
+  } catch(e) {
+    assignedTasks = [];
+  }
+  assignedTasks = (assignedTasks || []).filter(function(t) { return t.approvalStatus !== 'refused'; });
+  updateAssignedWorkNote();
+}
+
+function updateAssignedWorkNote() {
+  var note = document.getElementById('assigned-work-note');
+  if (!note) return;
+  if (!assignedTasks.length) {
+    note.innerHTML = '<strong>No assigned work found.</strong> You can still add a timesheet using the general work option.';
+    return;
+  }
+  note.innerHTML = '<strong>' + assignedTasks.length + ' assigned work item(s)</strong> are available in the project list. Choose one to auto-link your timesheet entry, or use <strong>No assigned work</strong> when needed.';
+}
+
+function createDefaultRow() {
+  var firstTask = assignedTasks[0] || null;
+  return {
+    rowId: tsRowSeed++,
+    projectId: firstTask ? String(firstTask.id) : '__manual__',
+    taskId: firstTask ? String(firstTask.id) : '__manual__',
+    billingType: 'Billable',
+    description: firstTask ? (firstTask.description || firstTask.title) : '',
+    hours: [0,0,0,0,0,0,0]
+  };
+}
+
+function findAssignedTask(id) {
+  return assignedTasks.find(function(t) { return String(t.id) === String(id); }) || null;
+}
+
+function getRowById(rowId) {
+  return timesheetRows.find(function(r) { return r.rowId === rowId; }) || null;
+}
+
+function ensureSheetRows() {
+  if (!timesheetRows.length) timesheetRows.push(createDefaultRow());
+}
+
+function setWeek(which) {
+  activeWeek = which;
+  renderTimesheetSheet();
+}
+
+function renderTimesheetSheet() {
+  ensureSheetRows();
+  updateAssignedWorkNote();
+  var dates = getSheetWeekDates();
+  var weekEnd = dates[6];
+  document.getElementById('ts-week-label').textContent = 'Week Ending ' + fmtFull(weekEnd);
+
+  document.getElementById('ts-sheet-head').innerHTML = '<tr>' +
+    '<th class="sheet-col-project">Project / Work</th>' +
+    '<th class="sheet-col-billing">Billing</th>' +
+    '<th class="sheet-col-desc">Description</th>' +
+    dates.map(function(d, idx){ return '<th class="ts-day-head">' + DAYNAMES[idx] + '<br><span style="font-weight:500;color:#8ca0c6;font-size:10px;">' + String(d.getDate()).padStart(2,'0') + '/' + String(d.getMonth()+1).padStart(2,'0') + '</span></th>'; }).join('') +
+    '<th class="sheet-col-total">Hrs</th>' +
+    '<th class="sheet-col-actions"></th>' +
+  '</tr>';
+
+  var body = document.getElementById('ts-sheet-body');
+  body.innerHTML = timesheetRows.map(function(row) {
+    var task = findAssignedTask(row.taskId);
+    var taskOptions = assignedTasks.length
+      ? assignedTasks.map(function(t) {
+          return '<option value="' + t.id + '" ' + (String(row.taskId) === String(t.id) ? 'selected' : '') + '>' + escHtml(t.title) + '</option>';
+        }).join('')
+      : '';
+    var taskNote = task ? (task.projectName ? task.projectName + ' · ' : '') + (task.description || task.title) : 'General work';
+    return '<tr>' +
+      '<td class="sheet-col-project">' +
+        '<select onchange="changeProject(' + row.rowId + ', this.value)">' +
+          '<option value="__manual__" ' + (row.projectId === '__manual__' ? 'selected' : '') + '>No assigned work</option>' +
+          assignedTasks.map(function(t) {
+            var lbl = t.projectName ? escHtml(t.projectName) + ' — ' + escHtml(t.title) : escHtml(t.title);
+            return '<option value="' + t.id + '" ' + (String(row.projectId) === String(t.id) ? 'selected' : '') + '>' + lbl + '</option>';
+          }).join('') +
+        '</select>' +
+        '<span class="timesheet-sheet-task-meta">' + escHtml(taskNote) + '</span>' +
+      '</td>' +
+      '<td class="sheet-col-billing">' +
+        '<select onchange="changeBilling(' + row.rowId + ', this.value)">' +
+          '<option ' + (row.billingType === 'Billable' ? 'selected' : '') + '>Billable</option>' +
+          '<option ' + (row.billingType === 'Non-Billable' ? 'selected' : '') + '>Non-Billable</option>' +
+          '<option ' + (row.billingType === 'Internal' ? 'selected' : '') + '>Internal</option>' +
+        '</select>' +
+      '</td>' +
+      '<td class="sheet-col-desc"><input type="text" value="' + escAttr(row.description || '') + '" placeholder="Describe work done" oninput="changeDescription(' + row.rowId + ', this.value)"></td>' +
+      row.hours.map(function(val, idx) {
+        return '<td><input type="number" min="0" max="24" step="0.5" value="' + (val || 0) + '" oninput="changeDayHours(' + row.rowId + ',' + idx + ', this.value)"></td>';
+      }).join('') +
+      '<td class="sheet-col-total" id="row-total-' + row.rowId + '">' + getRowHoursTotal(row).toFixed(1) + '</td>' +
+      '<td class="sheet-col-actions"><button type="button" class="timesheet-delete-btn" onclick="removeTimesheetRow(' + row.rowId + ')"><i class="bx bx-trash"></i></button></td>' +
+    '</tr>';
+  }).join('');
+
+  var dayTotals = [0,0,0,0,0,0,0];
+  var weekTotal = 0;
+  timesheetRows.forEach(function(row) {
+    row.hours.forEach(function(v, idx) { dayTotals[idx] += Number(v || 0); });
+    weekTotal += getRowHoursTotal(row);
+  });
+  document.getElementById('ts-sheet-foot').innerHTML = '<tr class="timesheet-sheet-total-row">' +
+    '<td colspan="3">Weekly Totals</td>' +
+    dayTotals.map(function(v){ return '<td style="text-align:center;">' + v.toFixed(1) + '</td>'; }).join('') +
+    '<td class="sheet-col-total">' + weekTotal.toFixed(1) + '</td>' +
+    '<td></td>' +
+  '</tr>';
+
+  updateSummary();
+}
+
+function getRowHoursTotal(row) {
+  return (row.hours || []).reduce(function(sum, v) { return sum + (Number(v) || 0); }, 0);
+}
+
+function addTimesheetRow() {
+  timesheetRows.push(createDefaultRow());
+  renderTimesheetSheet();
+}
+
+function removeTimesheetRow(rowId) {
+  timesheetRows = timesheetRows.filter(function(r) { return r.rowId !== rowId; });
+  if (!timesheetRows.length) timesheetRows = [createDefaultRow()];
+  renderTimesheetSheet();
+}
+
+function changeProject(rowId, value) {
+  var row = getRowById(rowId);
+  if (!row) return;
+  row.projectId = value;
+  if (value !== '__manual__') {
+    row.taskId = value;
+    var task = findAssignedTask(value);
+    if (task && !row.description) row.description = task.description || task.title;
+  }
+  renderTimesheetSheet();
+}
+
+function changeTask(rowId, value) {
+  var row = getRowById(rowId);
+  if (!row) return;
+  row.taskId = value;
+  if (value !== '__manual__') {
+    row.projectId = value;
+    var task = findAssignedTask(value);
+    if (task && !row.description) row.description = task.description || task.title;
+  }
+  renderTimesheetSheet();
+}
+
+function changeBilling(rowId, value) {
+  var row = getRowById(rowId);
+  if (!row) return;
+  row.billingType = value;
+}
+
+function changeDescription(rowId, value) {
+  var row = getRowById(rowId);
+  if (!row) return;
+  row.description = value;
+}
+
+function changeDayHours(rowId, dayIndex, value) {
+  var row = getRowById(rowId);
+  if (!row) return;
+  var num = Math.max(0, Math.min(24, Number(value || 0)));
+  row.hours[dayIndex] = num;
+  var totalEl = document.getElementById('row-total-' + rowId);
+  if (totalEl) totalEl.textContent = getRowHoursTotal(row).toFixed(1);
+  updateSummary();
+}
+
+function updateSummary() {
+  var dates = getSheetWeekDates();
+  var activeDays = 0;
+  for (var i = 0; i < 7; i++) {
+    var total = timesheetRows.reduce(function(sum, row) { return sum + (Number(row.hours[i]) || 0); }, 0);
+    if (total > 0) activeDays++;
+  }
+  var totalHours = timesheetRows.reduce(function(sum, row) { return sum + getRowHoursTotal(row); }, 0);
+  document.getElementById('sum-days').textContent = activeDays;
+  document.getElementById('sum-rows').textContent = timesheetRows.length;
+  document.getElementById('sum-total').textContent = totalHours.toFixed(1);
+}
+
+function escHtml(str) {
+  return String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+function escAttr(str) {
+  return escHtml(str).replace(/"/g,'&quot;');
+}
+
+function openNewTs() {
+  // If a timesheet already exists for the current week, open it for editing
+  var monday = getMondayOf(new Date());
+  var sunday = addDays(monday, 6);
+  var monISO = fmtISO(monday), sunISO = fmtISO(sunday);
+  var existing = allTimesheets.find(function(ts) { return ts.weekEnd >= monISO && ts.weekStart <= sunISO; });
+  if (existing) {
+    if (existing.status === 'approved') {
+      toast('This week\'s timesheet is already approved — it cannot be modified.', 'info'); return;
+    }
+    toast('You already have a timesheet for this week — editing it.', 'info');
+    openEditTs(existing.id); return;
+  }
+  editingTsId = null;
+  var banner = document.getElementById('ts-edit-banner');
+  banner.className = 'ts-status-banner'; banner.style.display = 'none';
+  document.getElementById('ts-modal-title').textContent = 'Weekly Timesheet';
+  document.getElementById('ts-submit-btn').textContent  = 'Submit Timesheet';
+  activeWeek = 'current';
+  timesheetRows = [createDefaultRow()];
+  document.getElementById('ts-notes').value = '';
+  renderTimesheetSheet();
+  openModal('ts-modal');
+}
+
+function openEditTs(id) {
+  var t = allTimesheets.find(function(x){ return x.id === id; });
+  if (!t) return;
+  editingTsId = id;
+  document.getElementById('ts-modal-title').textContent = 'Edit Timesheet';
+  document.getElementById('ts-submit-btn').textContent  = 'Update & Resubmit';
+  var banner = document.getElementById('ts-edit-banner');
+  var statusLabels = { pending: 'Currently pending approval — you can update and resubmit', approved: 'This timesheet was approved — editing will reset it to pending', rejected: 'Rejected — fix and resubmit' };
+  banner.className = 'ts-status-banner ' + (t.status || 'pending');
+  document.getElementById('ts-edit-banner-text').textContent = statusLabels[t.status] || ('Status: ' + t.status);
+  banner.style.display = '';
+
+  var entries = t.entries || [];
+  if (entries.length) {
+    var thisMon  = getMondayOf(new Date());
+    var entryMon = getMondayOf(new Date(entries[0].date));
+    activeWeek = entryMon.getTime() === thisMon.getTime() ? 'current' : 'previous';
+  } else {
+    activeWeek = 'current';
+  }
+  var grouped = {};
+  entries.forEach(function(e) {
+    var key = [e.taskId || '', e.project || '', e.description || '', e.billingType || 'Billable'].join('||');
+    if (!grouped[key]) {
+      grouped[key] = {
+        rowId: tsRowSeed++,
+        projectId: e.taskId ? String(e.taskId) : '__manual__',
+        taskId: e.taskId ? String(e.taskId) : '__manual__',
+        billingType: e.billingType || 'Billable',
+        description: e.description || '',
+        hours: [0,0,0,0,0,0,0]
+      };
+    }
+    grouped[key].hours[dayIndex(e.date)] = Number(e.hours || 0);
+  });
+  timesheetRows = Object.keys(grouped).map(function(k) { return grouped[k]; });
+  if (!timesheetRows.length) timesheetRows = [createDefaultRow()];
+  document.getElementById('ts-notes').value = t.notes || '';
+  renderTimesheetSheet();
+  openModal('ts-modal');
+}
+
+async function submitTimesheet() {
+  var dates = getSheetWeekDates();
+  var entries = [];
+  timesheetRows.forEach(function(row) {
+    var linkedTask = findAssignedTask(row.taskId);
+    var projectName = linkedTask ? linkedTask.title : 'General Work';
+    for (var i = 0; i < 7; i++) {
+      var hrs = Number(row.hours[i] || 0);
+      if (hrs <= 0) continue;
+      entries.push({
+        date: fmtISO(dates[i]),
+        hours: hrs,
+        workType: 'work',
+        billingType: row.billingType,
+        taskId: linkedTask ? linkedTask.id : null,
+        project: projectName,
+        description: row.description || (linkedTask ? (linkedTask.description || linkedTask.title) : 'General work')
+      });
+    }
+  });
+
+  if (!entries.length) return toast('Enter hours for at least one day', 'error');
+
+  var sortedDates = entries.map(function(e){ return e.date; }).sort();
+  var notes = document.getElementById('ts-notes').value;
+  try {
+    if (editingTsId) {
+      await api('PUT', '/timesheets/' + editingTsId, { entries: entries, notes: notes });
+      toast('Timesheet updated and resubmitted!', 'success');
+    } else {
+      await api('POST', '/timesheets', { weekStart: sortedDates[0], weekEnd: sortedDates[sortedDates.length - 1], entries: entries, notes: notes });
+      toast('Timesheet submitted!', 'success');
+    }
+    closeModal('ts-modal');
+    loadTimesheets();
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+loadAssignedTasks();
 loadTimesheets();
 </script>
 </body></html>
+
+
+

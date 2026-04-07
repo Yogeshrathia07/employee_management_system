@@ -173,6 +173,34 @@ function fmtCurrency(n) {
   }
 }
 
+// Currency formatter override for cleaner INR symbol rendering
+function fmtCurrency(n) {
+  var user = getUser();
+  var code = (user && user.company && user.company.currency) || 'INR';
+  var num  = Number(n || 0);
+
+  if (code === 'INR') {
+    return '<span style="font-family:Arial,sans-serif;font-weight:700;">₹</span>' +
+      num.toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+  }
+
+  try {
+    var parts = new Intl.NumberFormat(undefined, {
+      style: 'currency', currency: code,
+      minimumFractionDigits: 0, maximumFractionDigits: 0
+    }).formatToParts(num);
+    var html = '';
+    parts.forEach(function(p) {
+      if (p.type === 'currency') html += '<span style="font-family:Arial,sans-serif;font-weight:700;">' + p.value + '</span>';
+      else html += p.value;
+    });
+    return html;
+  } catch (e) {
+    return '<span style="font-family:Arial,sans-serif;font-weight:700;">₹</span>' +
+      num.toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+  }
+}
+
 // List of supported currencies for dropdowns
 var CURRENCY_LIST = [
   { code:'INR', name:'Indian Rupee (₹)' },
@@ -221,12 +249,12 @@ function userAvatar(user, size) {
   var fs = size < 30 ? 11 : size < 44 ? 14 : size < 60 ? 18 : 24;
   var name = (user && user.name) ? user.name : 'U';
   var initial = name.charAt(0).toUpperCase();
-  var initialsHtml = '<div style="width:'+size+'px;height:'+size+'px;border-radius:50%;background:linear-gradient(135deg,var(--accent),#7c3aed);display:flex;align-items:center;justify-content:center;font-size:'+fs+'px;font-weight:700;color:white;flex-shrink:0;">'+initial+'</div>';
+  var initialsHtml = '<div style="width:'+size+'px;height:'+size+'px;border-radius:50%;background:linear-gradient(135deg,#1f2937,#334155);display:flex;align-items:center;justify-content:center;font-size:'+fs+'px;font-weight:700;color:white;flex-shrink:0;">'+initial+'</div>';
   
   // Only show img if profilePhoto is a non-empty string
   if (user && user.profilePhoto && user.profilePhoto.length > 0) {
     return '<div style="width:'+size+'px;height:'+size+'px;border-radius:50%;overflow:hidden;flex-shrink:0;position:relative;">' +
-      '<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:'+fs+'px;font-weight:700;color:white;background:linear-gradient(135deg,var(--accent),#7c3aed);">'+initial+'</div>' +
+      '<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:'+fs+'px;font-weight:700;color:white;background:linear-gradient(135deg,#1f2937,#334155);">'+initial+'</div>' +
       '<img src="/api/users/'+user.id+'/photo" style="position:relative;z-index:1;width:100%;height:100%;object-fit:cover;display:block;" onload="this.previousElementSibling.style.display=\'none\'" onerror="this.style.display=\'none\'">' +
     '</div>';
   }
@@ -237,7 +265,7 @@ function userAvatar(user, size) {
 function initialsAvatar(name, size) {
   size = size || 36;
   var fs = size < 30 ? 11 : size < 44 ? 14 : 18;
-  return '<div style="width:'+size+'px;height:'+size+'px;border-radius:50%;background:linear-gradient(135deg,var(--accent),#7c3aed);display:flex;align-items:center;justify-content:center;font-size:'+fs+'px;font-weight:700;color:white;flex-shrink:0;">'+((name||'U').charAt(0))+'</div>';
+  return '<div style="width:'+size+'px;height:'+size+'px;border-radius:50%;background:linear-gradient(135deg,#1f2937,#334155);display:flex;align-items:center;justify-content:center;font-size:'+fs+'px;font-weight:700;color:white;flex-shrink:0;">'+((name||'U').charAt(0))+'</div>';
 }
 
 // ─── Date Formatting ───

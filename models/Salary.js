@@ -72,7 +72,10 @@ function calcNetSalary(salary) {
   const calDays = (salary.month && salary.year)
     ? new Date(salary.year, salary.month, 0).getDate()
     : 30;
-  const workedDays = Math.max(0, calDays - (salary.leaveTaken || 0));
+  const payrollDays = (salary.totalWorkDays && Number(salary.totalWorkDays) > 0)
+    ? Number(salary.totalWorkDays)
+    : calDays;
+  const workedDays = Math.max(0, payrollDays - (salary.leaveTaken || 0));
 
   // CTC = sum of all fixed salary components
   salary.baseSalary = (salary.basicSalary || 0) + (salary.hra || 0)
@@ -81,12 +84,12 @@ function calcNetSalary(salary) {
 
   // Proportional CTC → used for DA
   const ctc = salary.baseSalary;
-  const propCtc = calDays > 0 ? r10(ctc / calDays * workedDays) : 0;
+  const propCtc = payrollDays > 0 ? r10(ctc / payrollDays * workedDays) : 0;
 
   // Auto-calculated earnings
   salary.da                 = r10(propCtc * 0.10);
-  salary.conveyanceWorking  = calDays > 0 ? r10((salary.conveyance || 0) / calDays * workedDays) : (salary.conveyance || 0);
-  salary.medicalWorking     = calDays > 0 ? r10((salary.medicalExpenses || 0) / calDays * workedDays) : (salary.medicalExpenses || 0);
+  salary.conveyanceWorking  = payrollDays > 0 ? r10((salary.conveyance || 0) / payrollDays * workedDays) : (salary.conveyance || 0);
+  salary.medicalWorking     = payrollDays > 0 ? r10((salary.medicalExpenses || 0) / payrollDays * workedDays) : (salary.medicalExpenses || 0);
 
   // Gross = basic + DA + HRA + conv(working) + medical(working) + special + bonus + TA
   salary.grossSalary = (salary.basicSalary || 0) + salary.da + (salary.hra || 0)

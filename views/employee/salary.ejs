@@ -150,20 +150,20 @@ function showBreakdown(s) {
 
   // Earnings
   document.getElementById('bd-basic').innerHTML = fmt(s.basicSalary);
-  document.getElementById('bd-da').textContent      = fmtPlus(s.da);
-  document.getElementById('bd-hra').textContent     = fmtPlus(s.hra);
-  document.getElementById('bd-conv').textContent    = fmtPlus(s.conveyanceWorking);
-  document.getElementById('bd-med').textContent     = fmtPlus(s.medicalWorking);
-  document.getElementById('bd-special').textContent = fmtPlus(s.specialAllowance);
-  document.getElementById('bd-bonus').textContent   = fmtPlus(s.bonus);
-  document.getElementById('bd-ta').textContent      = fmtPlus(s.ta);
+  document.getElementById('bd-da').innerHTML        = fmtPlus(s.da);
+  document.getElementById('bd-hra').innerHTML       = fmtPlus(s.hra);
+  document.getElementById('bd-conv').innerHTML      = fmtPlus(s.conveyanceWorking);
+  document.getElementById('bd-med').innerHTML       = fmtPlus(s.medicalWorking);
+  document.getElementById('bd-special').innerHTML   = fmtPlus(s.specialAllowance);
+  document.getElementById('bd-bonus').innerHTML     = fmtPlus(s.bonus);
+  document.getElementById('bd-ta').innerHTML        = fmtPlus(s.ta);
   document.getElementById('bd-gross').innerHTML = fmt(s.grossSalary);
 
   // Deductions
-  document.getElementById('bd-pf').textContent      = fmtMinus(s.pfContribution);
-  document.getElementById('bd-ptax').textContent    = fmtMinus(s.professionTax);
-  document.getElementById('bd-tds').textContent     = fmtMinus(s.tds);
-  document.getElementById('bd-advance').textContent = fmtMinus(s.salaryAdvance);
+  document.getElementById('bd-pf').innerHTML        = fmtMinus(s.pfContribution);
+  document.getElementById('bd-ptax').innerHTML      = fmtMinus(s.professionTax);
+  document.getElementById('bd-tds').innerHTML       = fmtMinus(s.tds);
+  document.getElementById('bd-advance').innerHTML   = fmtMinus(s.salaryAdvance);
   document.getElementById('bd-total-ded').innerHTML = '-' + fmt(s.deductions);
 
   // Summary
@@ -230,3 +230,4 @@ function viewCurrent()     { if (currentSalary) dlPayslip(currentSalary.id, 'vie
 loadSalary();
 </script>
 </body></html>
+

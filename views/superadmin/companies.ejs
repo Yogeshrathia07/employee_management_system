@@ -32,9 +32,9 @@
 </div>
 
 <div class="modal-overlay" id="co-modal">
-  <div class="modal">
+  <div class="modal" style="max-width:700px;width:96vw;">
     <div class="modal-header"><span class="modal-title" id="co-modal-title">Add Company</span><button class="modal-close" onclick="closeModal('co-modal')"><i class="bx bx-x"></i></button></div>
-    <div class="modal-body">
+    <div class="modal-body" style="max-height:80vh;overflow-y:auto;">
       <div class="company-logo-panel">
         <div class="company-logo-preview-wrap">
           <img id="company-logo-preview" class="company-logo-preview" alt="Company logo preview">
@@ -58,9 +58,27 @@
       </div>
       <div class="form-group"><label class="form-label">Address</label><textarea id="c-address" class="form-control" rows="2"></textarea></div>
       <div class="form-row">
-        <div class="form-group"><label class="form-label">PAN No.</label><input type="text" id="c-pan" class="form-control"></div>
-        <div class="form-group"><label class="form-label">GST No.</label><input type="text" id="c-gst" class="form-control"></div>
+        <div class="form-group"><label class="form-label">State</label><input type="text" id="c-state" class="form-control" placeholder="e.g. Maharashtra"></div>
+        <div class="form-group"><label class="form-label">State Code</label><input type="text" id="c-state-code" class="form-control" maxlength="2" placeholder="e.g. 27"></div>
       </div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">PAN No.</label><input type="text" id="c-pan" class="form-control" style="text-transform:uppercase;"></div>
+        <div class="form-group"><label class="form-label">GST No.</label><input type="text" id="c-gst" class="form-control" style="text-transform:uppercase;" maxlength="15"></div>
+      </div>
+      <div style="border-top:1px solid var(--border);margin:12px 0 4px;padding-top:4px;font-size:12px;font-weight:600;color:var(--text-muted);">Bank Details <span style="font-weight:400;">(for invoices &amp; payslips)</span></div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Bank Name</label><input type="text" id="c-bank-name" class="form-control" placeholder="e.g. State Bank of India"></div>
+        <div class="form-group"><label class="form-label">Account Holder Name</label><input type="text" id="c-bank-acname" class="form-control" placeholder="Name on account"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Account Number</label><input type="text" id="c-bank-ac" class="form-control"></div>
+        <div class="form-group"><label class="form-label">IFSC Code</label><input type="text" id="c-bank-ifsc" class="form-control" style="text-transform:uppercase;" placeholder="SBIN0001234"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Branch</label><input type="text" id="c-bank-branch" class="form-control"></div>
+        <div class="form-group"></div>
+      </div>
+      <div style="border-top:1px solid var(--border);margin:12px 0 4px;padding-top:4px;"></div>
       <div class="form-row">
         <div class="form-group"><label class="form-label">Status</label><select id="c-status" class="form-control"><option value="active">Active</option><option value="inactive">Inactive</option></select></div>
         <div class="form-group"><label class="form-label">Currency</label><select id="c-currency" class="form-control"></select></div>
@@ -193,7 +211,8 @@ function openCreate() {
   editId = null;
   currentLogoCompany = null;
   document.getElementById('co-modal-title').textContent = 'Add Company';
-  ['c-name','c-email','c-phone','c-industry','c-address','c-signatory','c-pan','c-gst'].forEach(id => document.getElementById(id).value = '');
+  ['c-name','c-email','c-phone','c-industry','c-address','c-signatory','c-pan','c-gst',
+   'c-state','c-state-code','c-bank-name','c-bank-acname','c-bank-ac','c-bank-ifsc','c-bank-branch'].forEach(id => document.getElementById(id).value = '');
   document.getElementById('c-status').value = 'active';
   document.getElementById('c-currency').value = 'INR';
   document.getElementById('c-logo').value = '';
@@ -211,10 +230,17 @@ async function editCompany(id) {
   document.getElementById('c-phone').value = c.phone || '';
   document.getElementById('c-industry').value = c.industry || '';
   document.getElementById('c-address').value = c.address || '';
+  document.getElementById('c-state').value = c.state || '';
+  document.getElementById('c-state-code').value = c.stateCode || '';
   document.getElementById('c-status').value = c.status;
   document.getElementById('c-signatory').value = c.authorizedSignatory || '';
   document.getElementById('c-pan').value = c.panNo || '';
   document.getElementById('c-gst').value = c.gstNo || '';
+  document.getElementById('c-bank-name').value = c.bankName || '';
+  document.getElementById('c-bank-acname').value = c.bankAcName || '';
+  document.getElementById('c-bank-ac').value = c.bankAccount || '';
+  document.getElementById('c-bank-ifsc').value = c.bankIfsc || '';
+  document.getElementById('c-bank-branch').value = c.bankBranch || '';
   document.getElementById('c-currency').value = c.currency || 'INR';
   document.getElementById('c-logo').value = '';
   setCompanyLogoPreview(c);
@@ -228,9 +254,16 @@ async function saveCompany() {
     phone: document.getElementById('c-phone').value,
     industry: document.getElementById('c-industry').value,
     address: document.getElementById('c-address').value,
+    state: document.getElementById('c-state').value || '',
+    stateCode: document.getElementById('c-state-code').value || '',
     status: document.getElementById('c-status').value,
-    panNo: document.getElementById('c-pan').value || '',
-    gstNo: document.getElementById('c-gst').value || '',
+    panNo: document.getElementById('c-pan').value.toUpperCase() || '',
+    gstNo: document.getElementById('c-gst').value.toUpperCase() || '',
+    bankName: document.getElementById('c-bank-name').value || '',
+    bankAcName: document.getElementById('c-bank-acname').value || '',
+    bankAccount: document.getElementById('c-bank-ac').value || '',
+    bankIfsc: document.getElementById('c-bank-ifsc').value.toUpperCase() || '',
+    bankBranch: document.getElementById('c-bank-branch').value || '',
     authorizedSignatory: document.getElementById('c-signatory').value,
     currency: document.getElementById('c-currency').value || 'INR',
   };

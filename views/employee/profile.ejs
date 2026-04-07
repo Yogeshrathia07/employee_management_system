@@ -243,7 +243,7 @@
   width: 80px;
   height: 80px;
   border-radius: 50%;
-  background: linear-gradient(135deg, var(--accent), #7c3aed);
+  background: linear-gradient(135deg, #111111, #000000);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -476,7 +476,9 @@ let allSalaries = [];
 let currentSalary = null;
 let salaryLoaded = false;
 
-function fmt(n) { return '₹' + (n||0).toLocaleString('en-IN'); }
+function fmt(n) { return fmtCurrency(n); }
+function fmtPlus(n) { return '+' + fmt(n); }
+function fmtMinus(n) { return '-' + fmt(n); }
 
 function showBreakdown(s) {
   currentSalary = s;
@@ -494,12 +496,12 @@ function showBreakdown(s) {
   document.getElementById('hero-dl-btns').style.display = (s.status==='paid' || s.status==='finalized') ? '' : 'none';
 
   document.getElementById('bd-base').innerHTML = fmt(s.baseSalary);
-  document.getElementById('bd-allow').innerHTML     = '+' + fmt(s.allowances);
-  document.getElementById('bd-otpay').innerHTML     = '+' + fmt(s.overtimePay);
+  document.getElementById('bd-allow').innerHTML     = fmtPlus(s.allowances);
+  document.getElementById('bd-otpay').innerHTML     = fmtPlus(s.overtimePay);
   document.getElementById('bd-gross').innerHTML     = fmt(s.grossSalary);
-  document.getElementById('bd-ded').innerHTML       = '-' + fmt(s.deductions);
-  document.getElementById('bd-absent').innerHTML    = '-' + fmt(s.absentDeduction);
-  document.getElementById('bd-total-ded').innerHTML = '-' + fmt(s.deductions + (s.absentDeduction||0));
+  document.getElementById('bd-ded').innerHTML       = fmtMinus(s.deductions);
+  document.getElementById('bd-absent').innerHTML    = fmtMinus(s.absentDeduction);
+  document.getElementById('bd-total-ded').innerHTML = fmtMinus(s.deductions + (s.absentDeduction||0));
   document.getElementById('bd-workdays').textContent  = s.totalWorkDays || 0;
   document.getElementById('bd-present').textContent   = s.presentDays || 0;
   document.getElementById('bd-absentd').textContent   = s.absentDays || 0;
@@ -509,7 +511,7 @@ function showBreakdown(s) {
   document.getElementById('bd-bar').className = 'progress-bar-fill' + (rate >= 90 ? ' green' : rate >= 70 ? '' : ' red');
   document.getElementById('bd-net').innerHTML = fmt(s.netSalary);
   document.getElementById('bd-period').textContent    = MONTHS[s.month-1] + ' ' + s.year;
-  document.getElementById('bd-hourly').textContent    = '₹' + hourly + '/hr';
+  document.getElementById('bd-hourly').innerHTML      = fmt(hourly) + '/hr';
 }
 
 async function loadSalary() {
@@ -552,3 +554,4 @@ function viewCurrent()     { if (currentSalary) downloadPayslip(currentSalary.id
 loadProfile();
 </script>
 </body></html>
+

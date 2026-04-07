@@ -10,72 +10,91 @@
           <div class="page-subtitle">Review team timesheets and manage your own</div>
         </div>
       </div>
-      <div class="header-actions">
-        <button class="btn btn-primary" onclick="openNewTs()"><i class="bx bx-plus"></i> My Timesheet</button>
-      </div>
+      <div class="header-actions"></div>
     </header>
     <div class="page-body">
-      <div class="tabs">
-        <button class="tab-btn active" onclick="switchTab('team')"><i class="bx bxs-group"></i> Team</button>
-        <button class="tab-btn" onclick="switchTab('own')"><i class="bx bxs-user-circle"></i> Mine</button>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
+        <div class="tabs" style="margin-bottom:0;">
+          <button class="tab-btn active" onclick="switchTab('team')"><i class="bx bxs-group"></i> Team</button>
+          <button class="tab-btn" onclick="switchTab('own')"><i class="bx bxs-user-circle"></i> Mine</button>
+        </div>
+        <button id="add-ts-btn" class="btn btn-primary btn-sm" onclick="openNewTs()" style="display:none;"><i class="bx bx-plus"></i> Add Timesheet</button>
       </div>
-      <div id="ts-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px;">
-        <div style="grid-column:1/-1;display:flex;justify-content:center;padding:40px;"><span class="spinner"></span></div>
+      <div id="ts-grid">
+        <div style="display:flex;justify-content:center;padding:40px;"><span class="spinner"></span></div>
       </div>
     </div>
   </div>
 </div>
 
-<!-- New Timesheet Modal -->
+<!-- ── Spreadsheet Timesheet Modal (same as employee) ── -->
 <div class="modal-overlay" id="ts-modal">
-  <div class="modal modal-lg">
-    <div class="modal-header"><span class="modal-title">Log Work Hours</span><button class="modal-close" onclick="closeModal('ts-modal')">×</button></div>
-    <div class="modal-body">
-      <p style="font-size:13px;color:var(--text-muted);margin-bottom:16px;">Select one or more days. Hours entered will apply to all selected days. Only current and previous week allowed.</p>
-
-      <div class="form-group">
-        <label class="form-label">Week</label>
-        <div class="toggle-group">
-          <button class="toggle-btn active" id="toggle-curr" onclick="setWeek('current')">Current Week</button>
-          <button class="toggle-btn" id="toggle-prev" onclick="setWeek('previous')">Previous Week</button>
+  <div class="modal mgr-ts-modal">
+    <div class="modal-header">
+      <span class="modal-title" id="ts-modal-title">Weekly Timesheet</span>
+      <button class="modal-close" onclick="closeModal('ts-modal')">×</button>
+    </div>
+    <div class="modal-body mgr-ts-body">
+      <div class="ts-sheet-topbar">
+        <div>
+          <div class="ts-meta-label">Timesheet For</div>
+          <div class="ts-week-label" id="ts-week-label">Week Ending —</div>
+        </div>
+        <div class="ts-top-actions">
+          <button class="btn btn-ghost" type="button" onclick="addRow()"><i class="bx bx-plus"></i> Add Entry</button>
         </div>
       </div>
 
-      <div class="form-group">
-        <label class="form-label">Select Days</label>
-        <div id="day-picker" class="day-picker-grid"></div>
+      <div class="ts-status-banner" id="ts-edit-banner">
+        <i class="bx bxs-info-circle"></i>
+        <span id="ts-edit-banner-text"></span>
       </div>
 
-      <div class="form-row">
-        <div class="form-group"><label class="form-label">Hours per day</label><input type="number" id="ts-hours" class="form-control" min="0.5" max="24" step="0.5" value="8" oninput="updateSummary()"></div>
-        <div class="form-group"><label class="form-label">Work Type</label>
-          <select id="ts-worktype" class="form-control"><option value="work">Work</option><option value="leave">Leave</option><option value="holiday">Holiday</option><option value="half-day">Half Day</option></select>
-        </div>
+      <div class="ts-sheet-scroll">
+        <table class="ts-sheet-table">
+          <thead id="ts-sheet-head"></thead>
+          <tbody id="ts-sheet-body"></tbody>
+          <tfoot id="ts-sheet-foot"></tfoot>
+        </table>
       </div>
-      <div class="form-row">
-        <div class="form-group"><label class="form-label">Project</label><input type="text" id="ts-project" class="form-control" placeholder="Project name"></div>
-        <div class="form-group"><label class="form-label">Task Description</label><input type="text" id="ts-desc" class="form-control" placeholder="What did you work on?"></div>
-      </div>
-      <div class="form-group"><label class="form-label">Notes</label><textarea id="ts-notes" class="form-control" rows="2" placeholder="Additional notes..."></textarea></div>
 
-      <div class="ts-summary">
-        <span><strong id="sum-days">0</strong> days</span>
-        <span style="color:var(--text-muted)">×</span>
-        <span><strong id="sum-hrs">8</strong>h each</span>
-        <span style="color:var(--text-muted)">=</span>
-        <span class="ts-summary-total"><strong id="sum-total">0</strong>h total</span>
+      <div class="ts-notes-wrap">
+        <label class="form-label" style="font-size:11px;margin-bottom:3px;">Notes</label>
+        <textarea id="ts-notes" class="form-control" rows="1" style="font-size:12px;resize:none;" placeholder="Any notes for this week..."></textarea>
+      </div>
+
+      <div class="ts-summary-bar">
+        <span><strong id="sum-days">0</strong> active days</span>
+        <span style="color:var(--border)">|</span>
+        <span><strong id="sum-rows">0</strong> row(s)</span>
+        <span style="color:var(--border)">|</span>
+        <span style="margin-left:auto;font-weight:700;font-size:13px;color:var(--text-primary);"><strong id="sum-total">0</strong>h total</span>
       </div>
     </div>
-    <div class="modal-footer">
+    <div class="modal-footer" style="padding:10px 20px;">
       <button class="btn btn-ghost" onclick="closeModal('ts-modal')">Cancel</button>
-      <button class="btn btn-primary" onclick="submitTs()">Submit</button>
+      <button class="btn btn-primary" id="ts-submit-btn" onclick="submitSheet()">Submit Timesheet</button>
     </div>
   </div>
 </div>
 
-<!-- Reject Modal -->
+<!-- ── View Timesheet Details Modal ── -->
+<div class="modal-overlay" id="view-modal">
+  <div class="modal" style="width:min(96vw,820px);max-width:min(96vw,820px);max-height:90vh;display:flex;flex-direction:column;">
+    <div class="modal-header">
+      <span class="modal-title" id="view-modal-title">Timesheet Details</span>
+      <button class="modal-close" onclick="closeModal('view-modal')">×</button>
+    </div>
+    <div class="modal-body" id="view-modal-body" style="overflow:auto;"></div>
+    <div class="modal-footer" id="view-modal-footer" style="padding:12px 20px;">
+      <button class="btn btn-ghost" onclick="closeModal('view-modal')">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Reject Modal ── -->
 <div class="modal-overlay" id="reject-modal">
-  <div class="modal" style="max-width:400px">
+  <div class="modal" style="max-width:420px">
     <div class="modal-header"><span class="modal-title">Reject Timesheet</span><button class="modal-close" onclick="closeModal('reject-modal')">×</button></div>
     <div class="modal-body">
       <div class="form-group"><label class="form-label">Reason for Rejection</label><textarea id="reject-reason" class="form-control" rows="3" placeholder="Optional reason..."></textarea></div>
@@ -87,183 +106,511 @@
   </div>
 </div>
 
+<style>
+/* ── Spreadsheet Modal ── */
+.mgr-ts-modal{width:min(96vw,960px);max-width:min(96vw,960px);height:min(90vh,700px);display:flex;flex-direction:column;border-radius:20px}
+.mgr-ts-body{flex:1;display:flex;flex-direction:column;gap:8px;overflow:hidden;padding:12px 20px 0}
+.ts-sheet-topbar{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;flex-shrink:0}
+.ts-meta-label{font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--text-muted)}
+.ts-week-label{font-size:16px;font-weight:800;color:var(--text-primary)}
+.ts-top-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.ts-status-banner{padding:8px 13px;border-radius:10px;font-size:12px;font-weight:600;display:none;align-items:center;gap:8px;flex-shrink:0}
+.ts-status-banner.pending{background:#fef3c7;border:1px solid #fde68a;color:#92400e;display:flex}
+.ts-status-banner.approved{background:#d1fae5;border:1px solid #a7f3d0;color:#065f46;display:flex}
+.ts-status-banner.rejected{background:#fee2e2;border:1px solid #fecaca;color:#991b1b;display:flex}
+.ts-sheet-scroll{flex:1;overflow:auto;border:1px solid var(--border);border-radius:14px;background:#fff;min-height:140px}
+.ts-sheet-table{width:100%;min-width:880px;border-collapse:collapse}
+.ts-sheet-table th,.ts-sheet-table td{padding:8px 6px;border-bottom:1px solid #edf0f7;vertical-align:middle}
+.ts-sheet-table thead th{position:sticky;top:0;background:#f0f4ff;color:#5871a4;font-size:11px;font-weight:700;z-index:2;white-space:nowrap}
+.ts-sheet-table thead th.ts-day-head{text-align:center;min-width:52px}
+.ts-sheet-table .col-project{min-width:200px}
+.ts-sheet-table .col-billing{min-width:100px}
+.ts-sheet-table .col-desc{min-width:160px}
+.ts-sheet-table .col-total{min-width:52px;text-align:center;font-weight:800;color:var(--accent)}
+.ts-sheet-table .col-actions{min-width:44px;text-align:center}
+.ts-sheet-table select,.ts-sheet-table input{width:100%;min-height:34px;border-radius:8px;border:1px solid #d4dcee;padding:0 8px;background:#fff;font-family:inherit;font-size:12px;color:var(--text-primary)}
+.ts-sheet-table select:focus,.ts-sheet-table input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 2px rgba(99,102,241,.1)}
+.ts-sheet-table input[type=number]{text-align:center;padding:0 4px}
+.ts-task-meta{display:block;margin-top:3px;font-size:10px;color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:195px}
+.ts-total-row td{background:#f5f7ff;font-weight:700;border-bottom:none;font-size:12px}
+.ts-del-btn{width:30px;height:30px;border:none;border-radius:8px;background:#fee2e2;color:#ef4444;cursor:pointer;font-size:13px;display:flex;align-items:center;justify-content:center;margin:auto}
+.ts-del-btn:hover{background:#fecaca}
+.ts-notes-wrap{flex-shrink:0}
+.ts-summary-bar{display:flex;align-items:center;gap:10px;font-size:12px;color:var(--text-secondary);padding:7px 12px;background:var(--bg-input);border-radius:10px;flex-shrink:0}
+</style>
+
 <script src="/js/api.js"></script>
 <script>
-let currentTab = 'team';
-let rejectId = null;
+var currentTab = 'team';
+var rejectId = null;
+var allOwnTs = [];
+var assignedTasks = [];
+var timesheetRows = [];
+var tsRowSeed = 1;
+var editingTsId = null;
+var sheetActiveWeek = 'current';
 
-/* ── Day Picker Logic (shared pattern) ── */
-const DAYNAMES = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
-let selectedDates = new Set();
-let activeWeek = 'current';
+var MO = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+var DN = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
 
+/* ── Date helpers ── */
 function getMondayOf(date) {
-  const d = new Date(date); const day = d.getDay();
-  d.setDate(d.getDate() - day + (day === 0 ? -6 : 1));
-  d.setHours(0,0,0,0); return d;
+  var d = new Date(date); d.setHours(0,0,0,0);
+  var day = d.getDay(); d.setDate(d.getDate() - day + (day===0?-6:1)); return d;
 }
-function getWeekDates(which) {
-  const today = new Date(); today.setHours(0,0,0,0);
-  let monday = getMondayOf(today);
-  if (which === 'previous') monday.setDate(monday.getDate() - 7);
-  const dates = [];
-  for (let i = 0; i < 7; i++) { const d = new Date(monday); d.setDate(d.getDate() + i); dates.push(d); }
-  return dates;
-}
-function fmtISO(d) { return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
-function fmtShort(d) { return d.toLocaleDateString('en-US',{day:'2-digit',month:'short'}); }
+function addDays(d,n){ var r=new Date(d); r.setDate(r.getDate()+n); return r; }
+function fmtISO(d){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+function fmtShortD(d){ var x=new Date(d); return x.toLocaleDateString('en-US',{day:'2-digit',month:'short',year:'numeric'}); }
+function dayIdx(d){ var x=new Date(d).getDay(); return x===0?6:x-1; }
 
-function setWeek(which) {
-  activeWeek = which; selectedDates.clear();
-  document.getElementById('toggle-curr').classList.toggle('active', which==='current');
-  document.getElementById('toggle-prev').classList.toggle('active', which==='previous');
-  buildDayPicker(); updateSummary();
+/* ── Sheet week helpers ── */
+function getSheetWeekDates() {
+  var today = new Date(); today.setHours(0,0,0,0);
+  var mon = getMondayOf(today);
+  if (sheetActiveWeek==='previous') mon = addDays(mon,-7);
+  return Array.from({length:7}, function(_,i){ return addDays(mon,i); });
 }
-function buildDayPicker() {
-  const dates = getWeekDates(activeWeek);
-  // Allow all days of the selected week (including future days of current week)
-  document.getElementById('day-picker').innerHTML = dates.map((d,i) => {
-    const iso = fmtISO(d), isSelected = selectedDates.has(iso);
-    return `<button type="button" class="day-chip${isSelected?' selected':''}" data-date="${iso}" onclick="toggleDay(this)">
-      <span class="day-chip-name">${DAYNAMES[i]}</span>
-      <span class="day-chip-date">${fmtShort(d)}</span>
-    </button>`;
+function setSheetWeek(which) {
+  sheetActiveWeek = which;
+  renderSheet();
+}
+
+/* ── Row management ── */
+function createDefaultRow() {
+  return { rowId: tsRowSeed++, projectId:'__manual__', billingType:'Billable', description:'', hours:[0,0,0,0,0,0,0] };
+}
+function getRowById(id){ return timesheetRows.find(function(r){ return r.rowId===id; })||null; }
+function getRowTotal(row){ return (row.hours||[]).reduce(function(s,v){ return s+Number(v||0); },0); }
+
+function escH(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function escA(s){ return escH(s).replace(/"/g,'&quot;'); }
+
+/* ── Render spreadsheet ── */
+function renderSheet() {
+  if (!timesheetRows.length) timesheetRows = [createDefaultRow()];
+  var dates = getSheetWeekDates();
+  var weekEnd = dates[6];
+  document.getElementById('ts-week-label').textContent = 'Week Ending ' + weekEnd.toLocaleDateString('en-US',{day:'2-digit',month:'short',year:'numeric'});
+
+  document.getElementById('ts-sheet-head').innerHTML = '<tr>' +
+    '<th class="col-project">Project / Work</th>' +
+    '<th class="col-billing">Billing</th>' +
+    '<th class="col-desc">Description</th>' +
+    dates.map(function(d,i){ return '<th class="ts-day-head">' + DN[i] + '<br><span style="font-weight:500;color:#8ca0c6;font-size:10px;">' + String(d.getDate()).padStart(2,'0') + '/' + String(d.getMonth()+1).padStart(2,'0') + '</span></th>'; }).join('') +
+    '<th class="col-total">Hrs</th>' +
+    '<th class="col-actions"></th></tr>';
+
+  document.getElementById('ts-sheet-body').innerHTML = timesheetRows.map(function(row) {
+    var taskNote = 'General work';
+    return '<tr>' +
+      '<td class="col-project">' +
+        '<select onchange="rowChangeProject(' + row.rowId + ',this.value)">' +
+          '<option value="__manual__" ' + (row.projectId==='__manual__'?'selected':'') + '>No assigned work</option>' +
+          assignedTasks.map(function(t){
+            var lbl = t.projectName ? escH(t.projectName)+' — '+escH(t.title) : escH(t.title);
+            return '<option value="'+t.id+'" '+(String(row.projectId)===String(t.id)?'selected':'')+'>'+lbl+'</option>';
+          }).join('') +
+        '</select>' +
+        '<span class="ts-task-meta">' + escH(taskNote) + '</span>' +
+      '</td>' +
+      '<td class="col-billing"><select onchange="rowChangeBilling(' + row.rowId + ',this.value)">' +
+        '<option '+(row.billingType==='Billable'?'selected':'')+'>Billable</option>' +
+        '<option '+(row.billingType==='Non-Billable'?'selected':'')+'>Non-Billable</option>' +
+        '<option '+(row.billingType==='Internal'?'selected':'')+'>Internal</option>' +
+      '</select></td>' +
+      '<td class="col-desc"><input type="text" value="'+escA(row.description||'')+'" placeholder="Describe work done" oninput="rowChangeDesc('+row.rowId+',this.value)"></td>' +
+      row.hours.map(function(v,i){ return '<td><input type="number" min="0" max="24" step="0.5" value="'+(v||0)+'" oninput="rowChangeHours('+row.rowId+','+i+',this.value)"></td>'; }).join('') +
+      '<td class="col-total" id="rt-'+row.rowId+'">' + getRowTotal(row).toFixed(1) + '</td>' +
+      '<td class="col-actions"><button type="button" class="ts-del-btn" onclick="removeRow('+row.rowId+')"><i class="bx bx-trash"></i></button></td>' +
+    '</tr>';
   }).join('');
+
+  var dayTotals=[0,0,0,0,0,0,0], weekTotal=0;
+  timesheetRows.forEach(function(row){
+    row.hours.forEach(function(v,i){ dayTotals[i]+=Number(v||0); });
+    weekTotal+=getRowTotal(row);
+  });
+  document.getElementById('ts-sheet-foot').innerHTML = '<tr class="ts-total-row">' +
+    '<td colspan="3">Weekly Totals</td>' +
+    dayTotals.map(function(v){ return '<td style="text-align:center;">'+v.toFixed(1)+'</td>'; }).join('') +
+    '<td class="col-total">' + weekTotal.toFixed(1) + '</td><td></td></tr>';
+
+  updateSheetSummary();
 }
-function toggleDay(btn) {
-  const date = btn.dataset.date;
-  if (selectedDates.has(date)) { selectedDates.delete(date); btn.classList.remove('selected'); }
-  else { selectedDates.add(date); btn.classList.add('selected'); }
-  updateSummary();
+
+function updateSheetSummary() {
+  var activeDays=0, totalHours=0;
+  for (var i=0;i<7;i++){
+    var daySum = timesheetRows.reduce(function(s,r){ return s+Number(r.hours[i]||0); },0);
+    if (daySum>0) activeDays++;
+  }
+  totalHours = timesheetRows.reduce(function(s,r){ return s+getRowTotal(r); },0);
+  document.getElementById('sum-days').textContent = activeDays;
+  document.getElementById('sum-rows').textContent = timesheetRows.length;
+  document.getElementById('sum-total').textContent = totalHours.toFixed(1);
 }
-function updateSummary() {
-  const hrs = parseFloat(document.getElementById('ts-hours').value)||0;
-  document.getElementById('sum-days').textContent = selectedDates.size;
-  document.getElementById('sum-hrs').textContent = hrs;
-  document.getElementById('sum-total').textContent = (selectedDates.size * hrs).toFixed(1);
+
+function addRow() { timesheetRows.push(createDefaultRow()); renderSheet(); }
+function removeRow(id) {
+  timesheetRows = timesheetRows.filter(function(r){ return r.rowId!==id; });
+  if (!timesheetRows.length) timesheetRows=[createDefaultRow()];
+  renderSheet();
 }
+function rowChangeProject(id,v){ var r=getRowById(id); if(r){ r.projectId=v; renderSheet(); } }
+function rowChangeBilling(id,v){ var r=getRowById(id); if(r) r.billingType=v; }
+function rowChangeDesc(id,v){ var r=getRowById(id); if(r) r.description=v; }
+function rowChangeHours(id,di,v) {
+  var r=getRowById(id); if(!r) return;
+  r.hours[di]=Math.max(0,Math.min(24,Number(v||0)));
+  var el=document.getElementById('rt-'+id); if(el) el.textContent=getRowTotal(r).toFixed(1);
+  updateSheetSummary();
+}
+
+/* ── Open / Edit own timesheet ── */
 function openNewTs() {
-  selectedDates.clear(); activeWeek = 'current';
-  document.getElementById('toggle-curr').classList.add('active');
-  document.getElementById('toggle-prev').classList.remove('active');
-  document.getElementById('ts-hours').value = 8;
-  document.getElementById('ts-worktype').value = 'work';
-  document.getElementById('ts-project').value = '';
-  document.getElementById('ts-desc').value = '';
+  // Detect if current week already has a timesheet
+  var monday = getMondayOf(new Date()), sunday = addDays(monday,6);
+  var monISO = fmtISO(monday), sunISO = fmtISO(sunday);
+  var existing = allOwnTs.find(function(ts){ return ts.weekEnd>=monISO && ts.weekStart<=sunISO; });
+  if (existing) {
+    if (existing.status === 'approved') {
+      toast('This week\'s timesheet is already approved — it cannot be modified.', 'info'); return;
+    }
+    toast('You already have a timesheet for this week — editing it.', 'info');
+    openEditTs(existing.id); return;
+  }
+  editingTsId = null;
+  var banner = document.getElementById('ts-edit-banner');
+  banner.className = 'ts-status-banner'; banner.style.display = 'none';
+  document.getElementById('ts-modal-title').textContent = 'Weekly Timesheet';
+  document.getElementById('ts-submit-btn').textContent = 'Submit Timesheet';
+  sheetActiveWeek = 'current';
+  timesheetRows = [createDefaultRow()];
   document.getElementById('ts-notes').value = '';
-  buildDayPicker(); updateSummary(); openModal('ts-modal');
+  renderSheet();
+  openModal('ts-modal');
+}
+
+function openEditTs(id) {
+  var t = allOwnTs.find(function(x){ return x.id===id; });
+  if (!t) return;
+  editingTsId = id;
+  document.getElementById('ts-modal-title').textContent = 'Edit Timesheet';
+  document.getElementById('ts-submit-btn').textContent = 'Update & Resubmit';
+  var banner = document.getElementById('ts-edit-banner');
+  var labels = { pending:'Currently pending approval — you can update and resubmit', approved:'This timesheet was approved — editing will reset it to pending', rejected:'Rejected — fix and resubmit' };
+  banner.className = 'ts-status-banner '+(t.status||'pending');
+  document.getElementById('ts-edit-banner-text').textContent = labels[t.status]||('Status: '+t.status);
+  banner.style.display = '';
+  var entries = t.entries||[];
+  if (entries.length) {
+    var thisMon = getMondayOf(new Date()), entryMon = getMondayOf(new Date(entries[0].date));
+    sheetActiveWeek = entryMon.getTime()===thisMon.getTime() ? 'current' : 'previous';
+  } else { sheetActiveWeek='current'; }
+  var grouped={};
+  entries.forEach(function(e){
+    var key=[e.project||'',e.description||'',e.billingType||'Billable'].join('||');
+    if (!grouped[key]) grouped[key]={ rowId:tsRowSeed++, projectId:'__manual__', billingType:e.billingType||'Billable', description:e.description||'', hours:[0,0,0,0,0,0,0] };
+    grouped[key].hours[dayIdx(e.date)] = Number(e.hours||0);
+  });
+  timesheetRows = Object.values(grouped);
+  if (!timesheetRows.length) timesheetRows=[createDefaultRow()];
+  document.getElementById('ts-notes').value = t.notes||'';
+  renderSheet();
+  openModal('ts-modal');
+}
+
+async function submitSheet() {
+  var dates = getSheetWeekDates();
+  var entries = [];
+  timesheetRows.forEach(function(row){
+    var task = assignedTasks.find(function(t){ return String(t.id)===String(row.projectId); })||null;
+    var proj = task ? (task.projectName||task.title) : 'General Work';
+    for (var i=0;i<7;i++){
+      var h=Number(row.hours[i]||0); if(h<=0) continue;
+      entries.push({ date:fmtISO(dates[i]), hours:h, workType:'work', billingType:row.billingType, project:proj, description:row.description||(task?task.title:'General work'), taskId:task?task.id:null });
+    }
+  });
+  if (!entries.length) return toast('Enter hours for at least one day','error');
+  var sorted=entries.map(function(e){ return e.date; }).sort();
+  var notes=document.getElementById('ts-notes').value;
+  try {
+    if (editingTsId) {
+      await api('PUT','/timesheets/'+editingTsId,{entries,notes});
+      toast('Timesheet updated and resubmitted!','success');
+    } else {
+      await api('POST','/timesheets',{weekStart:sorted[0],weekEnd:sorted[sorted.length-1],entries,notes});
+      toast('Timesheet submitted!','success');
+    }
+    closeModal('ts-modal'); loadTs();
+  } catch(e){ toast(e.message,'error'); }
 }
 
 /* ── Tab switching ── */
 function switchTab(tab) {
-  currentTab = tab;
-  document.querySelectorAll('.tab-btn').forEach((b,i) => b.classList.toggle('active',(i===0)===(tab==='team')));
+  currentTab=tab;
+  document.querySelectorAll('.tab-btn').forEach(function(b,i){ b.classList.toggle('active',(i===0)===(tab==='team')); });
+  var addBtn = document.getElementById('add-ts-btn');
+  if (addBtn) addBtn.style.display = tab==='own' ? '' : 'none';
   loadTs();
+}
+
+/* ── Table helpers ── */
+const DAYNAMES_S=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+function getMondayOfTS(date){ var d=new Date(date),day=d.getDay(); d.setDate(d.getDate()-day+(day===0?-6:1)); d.setHours(0,0,0,0); return d; }
+function getDayHours(t){
+  var h=[0,0,0,0,0,0,0];
+  (t.entries||[]).forEach(function(e){ var d=new Date(e.date+'T00:00:00'),di=d.getDay()-1; if(di<0)di=6; if(di>=0&&di<7)h[di]+=Number(e.hours||0); });
+  return h;
+}
+function getDayEntries(t,di){
+  return (t.entries||[]).filter(function(e){ var d=new Date(e.date+'T00:00:00'),x=d.getDay()-1; if(x<0)x=6; return x===di; });
+}
+function getDayProjects(t,di){
+  return [...new Set(getDayEntries(t,di).map(function(e){ return e.project||''; }).filter(Boolean))].join(', ');
+}
+function statusChip(s){
+  var c=s==='approved'?'#22c55e':s==='rejected'?'#ef4444':'#f59e0b';
+  var b=s==='approved'?'#dcfce7':s==='rejected'?'#fee2e2':'#fef3c7';
+  return '<span style="font-size:11px;font-weight:700;background:'+b+';color:'+c+';border-radius:20px;padding:2px 9px;text-transform:capitalize;white-space:nowrap;">'+s+'</span>';
 }
 
 /* ── Load timesheets ── */
 async function loadTs() {
   try {
-    const scope = currentTab === 'team' ? '?scope=team' : '?scope=own';
-    const ts = await api('GET','/timesheets'+scope);
-    const grid = document.getElementById('ts-grid');
+    var scope = currentTab==='team' ? '?scope=team' : '?scope=own';
+    var ts = await api('GET','/timesheets'+scope);
+    if (currentTab==='own') allOwnTs = ts;
+    var grid = document.getElementById('ts-grid');
     if (!ts.length) {
-      grid.innerHTML = '<div style="grid-column:1/-1;"><div class="empty-state"><div class="empty-icon"><i class="bx bxs-time-five"></i></div><p>' + (currentTab==='team'?'No team timesheets':'No timesheets') + '</p></div></div>';
+      grid.innerHTML = '<div class="empty-state"><div class="empty-icon"><i class="bx bxs-time-five"></i></div><p>'+(currentTab==='team'?'No team timesheets yet':'No timesheets yet')+'</p></div>';
       return;
     }
-    if (currentTab === 'team') {
-      grid.innerHTML = ts.map(t => {
-        const e=(t.entries||[]).length;
-        const sc=t.status==='approved'?'#22c55e':t.status==='rejected'?'#ef4444':'#f59e0b';
-        const sb=t.status==='approved'?'#dcfce7':t.status==='rejected'?'#fee2e2':'#fef3c7';
-        return `<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:18px;display:flex;flex-direction:column;gap:12px;transition:box-shadow 0.2s;" onmouseover="this.style.boxShadow='var(--shadow-lg)'" onmouseout="this.style.boxShadow=''">
-          <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
-            <div style="display:flex;align-items:center;gap:10px;min-width:0;">
-              ${userAvatar(t.user,36)}
-              <div style="min-width:0;"><div style="font-weight:700;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${t.user?.name||'—'}</div></div>
-            </div>
-            <span style="font-size:11px;font-weight:700;background:${sb};color:${sc};border-radius:20px;padding:3px 10px;flex-shrink:0;text-transform:capitalize;">${t.status}</span>
-          </div>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
-            <div style="background:var(--bg-input);border-radius:10px;padding:12px;text-align:center;">
-              <div style="font-size:22px;font-weight:900;color:var(--accent);">${t.totalHours}h</div>
-              <div style="font-size:11px;color:var(--text-muted);">Hours</div>
-            </div>
-            <div style="background:var(--bg-input);border-radius:10px;padding:12px;text-align:center;">
-              <div style="font-size:22px;font-weight:900;color:var(--text-primary);">${e}</div>
-              <div style="font-size:11px;color:var(--text-muted);">Entries</div>
-            </div>
-          </div>
-          <div style="font-size:12px;color:var(--text-muted);"><i class="bx bx-calendar"></i> ${fmtDate(t.weekStart)} – ${fmtDate(t.weekEnd)}</div>
-          ${t.status==='pending'?`<div style="display:flex;gap:6px;">
-            <button class="btn btn-success btn-sm" onclick="actTs(${t.id},'approve')" style="flex:1;justify-content:center;"><i class="bx bx-check"></i> Approve</button>
-            <button class="btn btn-danger btn-sm" onclick="openReject(${t.id})"><i class="bx bx-x"></i></button>
-          </div>`:''}
-        </div>`;
+
+    if (currentTab==='team') {
+      var pending=ts.filter(function(t){ return t.status==='pending'; }).length;
+      var approved=ts.filter(function(t){ return t.status==='approved'; }).length;
+      var totalH=ts.reduce(function(s,t){ return s+(t.totalHours||0); },0);
+
+      var statsBar = '<div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px;">' +
+        '<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:10px 18px;display:flex;align-items:center;gap:10px;"><span style="font-size:20px;font-weight:800;color:var(--accent);">'+totalH+'h</span><span style="font-size:11px;color:var(--text-muted);">Total logged</span></div>' +
+        '<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:10px 18px;display:flex;align-items:center;gap:10px;"><span style="font-size:20px;font-weight:800;color:#f59e0b;">'+pending+'</span><span style="font-size:11px;color:var(--text-muted);">Pending</span></div>' +
+        '<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:10px 18px;display:flex;align-items:center;gap:10px;"><span style="font-size:20px;font-weight:800;color:#22c55e;">'+approved+'</span><span style="font-size:11px;color:var(--text-muted);">Approved</span></div>' +
+      '</div>';
+
+      var thead = '<thead><tr style="background:#f0f4ff;">' +
+        '<th style="padding:10px 14px;text-align:left;font-size:11px;font-weight:700;color:#5871a4;border-bottom:2px solid #dde6fb;white-space:nowrap;">Employee</th>' +
+        DAYNAMES_S.map(function(d){ return '<th style="padding:10px 6px;text-align:center;font-size:11px;font-weight:700;color:#5871a4;border-bottom:2px solid #dde6fb;min-width:58px;">'+d+'</th>'; }).join('') +
+        '<th style="padding:10px 10px;text-align:center;font-size:11px;font-weight:700;color:#5871a4;border-bottom:2px solid #dde6fb;">Total</th>' +
+        '<th style="padding:10px 10px;text-align:left;font-size:11px;font-weight:700;color:#5871a4;border-bottom:2px solid #dde6fb;">Status</th>' +
+        '<th style="padding:10px 10px;text-align:left;font-size:11px;font-weight:700;color:#5871a4;border-bottom:2px solid #dde6fb;">Actions</th>' +
+      '</tr></thead>';
+
+      var tableRows = ts.map(function(t) {
+        var dh=getDayHours(t);
+        var weekMon=getMondayOfTS(t.weekStart),weekSun=new Date(weekMon); weekSun.setDate(weekSun.getDate()+6);
+        var weekLabel=weekMon.toLocaleDateString('en-US',{month:'short',day:'numeric'})+'–'+weekSun.toLocaleDateString('en-US',{month:'short',day:'numeric'});
+        var dayCells=dh.map(function(h,di){
+          var proj=getDayProjects(t,di);
+          var cs=h>0?'font-weight:700;color:var(--accent);':'color:var(--border);';
+          return '<td style="padding:7px 5px;text-align:center;font-size:13px;'+cs+'border-bottom:1px solid #edf0f7;" title="'+proj+'">' +
+            (h>0 ? h.toFixed(1)+'<span style="font-size:10px;font-weight:400;">h</span>' : '—') +
+            (proj ? '<div style="font-size:9px;color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:54px;margin:0 auto;">'+proj+'</div>' : '') +
+          '</td>';
+        }).join('');
+        var tData = JSON.stringify(t).replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+        return '<tr style="background:var(--bg-card);" onmouseover="this.style.background=\'var(--bg-input)\'" onmouseout="this.style.background=\'var(--bg-card)\'">' +
+          '<td style="padding:9px 14px;border-bottom:1px solid #edf0f7;white-space:nowrap;">' +
+            '<div style="display:flex;align-items:center;gap:8px;">' +
+              userAvatar(t.user,28) +
+              '<div><div style="font-weight:600;font-size:13px;">'+(t.user&&t.user.name||'—')+'</div><div style="font-size:10px;color:var(--text-muted);">'+weekLabel+'</div></div>' +
+            '</div>' +
+          '</td>' +
+          dayCells +
+          '<td style="padding:7px 10px;text-align:center;font-size:14px;font-weight:800;color:var(--text-primary);border-bottom:1px solid #edf0f7;">'+t.totalHours+'h</td>' +
+          '<td style="padding:7px 10px;border-bottom:1px solid #edf0f7;">'+statusChip(t.status)+'</td>' +
+          '<td style="padding:7px 10px;border-bottom:1px solid #edf0f7;white-space:nowrap;">' +
+            '<div style="display:flex;gap:5px;align-items:center;">' +
+              '<button class="btn btn-ghost btn-sm" onclick="openViewTs('+t.id+')" style="padding:3px 8px;" title="View Details"><i class="bx bx-expand-alt"></i> View</button>' +
+              (t.status==='pending' ?
+                '<button class="btn btn-success btn-sm" onclick="actTs('+t.id+',\'approve\')" style="padding:3px 8px;"><i class="bx bx-check"></i></button>' +
+                '<button class="btn btn-danger btn-sm" onclick="openReject('+t.id+')" style="padding:3px 7px;"><i class="bx bx-x"></i></button>'
+              : (t.approver ? '<span style="font-size:11px;color:var(--text-muted);">✓ '+t.approver.name+'</span>' : '')) +
+            '</div>' +
+            (t.rejectionReason ? '<div style="font-size:11px;color:#ef4444;margin-top:2px;">'+t.rejectionReason.slice(0,35)+'…</div>' : '') +
+          '</td>' +
+        '</tr>';
       }).join('');
+
+      grid.innerHTML = statsBar + '<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:14px;overflow:auto;"><table style="width:100%;border-collapse:collapse;min-width:780px;">'+thead+'<tbody>'+tableRows+'</tbody></table></div>';
+
+      // store ts for view modal lookup
+      window._teamTs = ts;
+
     } else {
-      grid.innerHTML = ts.map(t => {
-        const sc=t.status==='approved'?'#22c55e':t.status==='rejected'?'#ef4444':'#f59e0b';
-        const sb=t.status==='approved'?'#dcfce7':t.status==='rejected'?'#fee2e2':'#fef3c7';
-        return `<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:18px;display:flex;flex-direction:column;gap:12px;transition:box-shadow 0.2s;" onmouseover="this.style.boxShadow='var(--shadow-lg)'" onmouseout="this.style.boxShadow=''">
-          <div style="display:flex;align-items:center;justify-content:space-between;">
-            <div style="font-size:13px;font-weight:600;"><i class="bx bx-calendar" style="color:var(--accent)"></i> ${fmtDate(t.weekStart)} – ${fmtDate(t.weekEnd)}</div>
-            <span style="font-size:11px;font-weight:700;background:${sb};color:${sc};border-radius:20px;padding:3px 10px;text-transform:capitalize;">${t.status}</span>
-          </div>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
-            <div style="background:var(--bg-input);border-radius:10px;padding:12px;text-align:center;">
-              <div style="font-size:22px;font-weight:900;color:var(--accent);">${t.totalHours}h</div>
-              <div style="font-size:11px;color:var(--text-muted);">Hours</div>
-            </div>
-            <div style="background:var(--bg-input);border-radius:10px;padding:12px;text-align:center;">
-              <div style="font-size:22px;font-weight:900;color:var(--text-primary);">${(t.entries||[]).length}</div>
-              <div style="font-size:11px;color:var(--text-muted);">Entries</div>
-            </div>
-          </div>
-          ${t.approver?`<div style="font-size:12px;color:var(--text-muted);"><i class="bx bx-check-circle" style="color:#22c55e"></i> Approved by <strong>${t.approver.name}</strong></div>`:''}
-          ${t.status==='pending'?`<button class="btn btn-danger btn-sm" onclick="delTs(${t.id})" style="align-self:flex-start;"><i class="bx bx-trash"></i> Delete</button>`:''}
-        </div>`;
+      // ── Own timesheets table ──
+      var thead = '<thead><tr style="background:#f0f4ff;">' +
+        '<th style="padding:10px 14px;text-align:left;font-size:11px;font-weight:700;color:#5871a4;border-bottom:2px solid #dde6fb;">Week</th>' +
+        DAYNAMES_S.map(function(d){ return '<th style="padding:10px 6px;text-align:center;font-size:11px;font-weight:700;color:#5871a4;border-bottom:2px solid #dde6fb;min-width:58px;">'+d+'</th>'; }).join('') +
+        '<th style="padding:10px 10px;text-align:center;font-size:11px;font-weight:700;color:#5871a4;border-bottom:2px solid #dde6fb;">Total</th>' +
+        '<th style="padding:10px 10px;text-align:left;font-size:11px;font-weight:700;color:#5871a4;border-bottom:2px solid #dde6fb;">Status</th>' +
+        '<th style="padding:10px 10px;font-size:11px;font-weight:700;color:#5871a4;border-bottom:2px solid #dde6fb;"></th>' +
+      '</tr></thead>';
+
+      var tableRows = ts.map(function(t) {
+        var dh=getDayHours(t);
+        var weekMon=getMondayOfTS(t.weekStart),weekSun=new Date(weekMon); weekSun.setDate(weekSun.getDate()+6);
+        var weekLabel=weekMon.toLocaleDateString('en-US',{month:'short',day:'numeric'})+'–'+weekSun.toLocaleDateString('en-US',{month:'short',day:'numeric'});
+        var dayCells=dh.map(function(h,di){
+          var proj=getDayProjects(t,di);
+          var cs=h>0?'font-weight:700;color:var(--accent);':'color:var(--border);';
+          return '<td style="padding:7px 5px;text-align:center;font-size:13px;'+cs+'border-bottom:1px solid #edf0f7;" title="'+proj+'">' +
+            (h>0 ? h.toFixed(1)+'<span style="font-size:10px;font-weight:400;">h</span>' : '—') +
+            (proj ? '<div style="font-size:9px;color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:54px;margin:0 auto;">'+proj+'</div>' : '') +
+          '</td>';
+        }).join('');
+        return '<tr style="background:var(--bg-card);" onmouseover="this.style.background=\'var(--bg-input)\'" onmouseout="this.style.background=\'var(--bg-card)\'">' +
+          '<td style="padding:9px 14px;border-bottom:1px solid #edf0f7;">' +
+            '<div style="font-weight:600;font-size:13px;">'+weekLabel+'</div>' +
+            '<div style="font-size:11px;color:var(--text-muted);">Submitted '+fmtShortD(t.createdAt)+'</div>' +
+          '</td>' +
+          dayCells +
+          '<td style="padding:7px 10px;text-align:center;font-size:14px;font-weight:800;color:var(--text-primary);border-bottom:1px solid #edf0f7;">'+t.totalHours+'h</td>' +
+          '<td style="padding:7px 10px;border-bottom:1px solid #edf0f7;">'+statusChip(t.status)+'</td>' +
+          '<td style="padding:7px 10px;border-bottom:1px solid #edf0f7;white-space:nowrap;">' +
+            '<div style="display:flex;gap:5px;align-items:center;">' +
+              '<button class="btn btn-ghost btn-sm" onclick="openViewOwnTs('+t.id+')" style="padding:3px 8px;"><i class="bx bx-expand-alt"></i> View</button>' +
+              (t.status==='pending'||t.status==='rejected' ? '<button class="btn btn-ghost btn-sm" onclick="openEditTs('+t.id+')" style="padding:3px 8px;"><i class="bx bx-edit"></i></button>' : '') +
+              (t.status==='pending' ? '<button class="btn btn-danger btn-sm" onclick="delTs('+t.id+')" style="padding:3px 7px;"><i class="bx bx-trash"></i></button>' : '') +
+            '</div>' +
+            (t.approver ? '<div style="font-size:11px;color:var(--text-muted);margin-top:2px;"><i class="bx bx-check-circle" style="color:#22c55e;"></i> '+t.approver.name+'</div>' : '') +
+          '</td>' +
+        '</tr>';
       }).join('');
+
+      grid.innerHTML = '<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:14px;overflow:auto;"><table style="width:100%;border-collapse:collapse;min-width:780px;">'+thead+'<tbody>'+tableRows+'</tbody></table></div>';
     }
-  } catch(e) { toast(e.message,'error'); }
+  } catch(e){ toast(e.message,'error'); }
+}
+
+/* ── View details modal ── */
+function openViewTs(id) {
+  var t = (window._teamTs||[]).find(function(x){ return x.id===id; });
+  if (!t) return;
+  _renderViewModal(t, true);
+}
+function openViewOwnTs(id) {
+  var t = allOwnTs.find(function(x){ return x.id===id; });
+  if (!t) return;
+  _renderViewModal(t, false);
+}
+
+function _renderViewModal(t, isTeam) {
+  var weekMon=getMondayOfTS(t.weekStart), weekSun=new Date(weekMon); weekSun.setDate(weekSun.getDate()+6);
+  var weekLabel=weekMon.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})+'–'+weekSun.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
+  var sc=t.status==='approved'?'#22c55e':t.status==='rejected'?'#ef4444':'#f59e0b';
+  var sb=t.status==='approved'?'#dcfce7':t.status==='rejected'?'#fee2e2':'#fef3c7';
+
+  // Header
+  var header = '<div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding-bottom:16px;border-bottom:1px solid var(--border);margin-bottom:16px;">';
+  if (isTeam && t.user) header += userAvatar(t.user,44);
+  header += '<div style="flex:1;">' +
+    '<div style="font-weight:800;font-size:16px;color:var(--text-primary);">'+(isTeam && t.user ? t.user.name : 'My Timesheet')+'</div>' +
+    '<div style="font-size:12px;color:var(--text-muted);margin-top:2px;"><i class="bx bx-calendar"></i> '+weekLabel+'</div>' +
+  '</div>' +
+  '<div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;">' +
+    '<span style="font-size:11px;font-weight:700;background:'+sb+';color:'+sc+';border-radius:20px;padding:3px 12px;text-transform:capitalize;">'+t.status+'</span>' +
+    '<span style="font-size:14px;font-weight:800;color:var(--accent);">'+t.totalHours+'h total</span>' +
+  '</div>' +
+  '</div>';
+
+  // Per-day breakdown
+  var dayRows = '';
+  var entries = t.entries||[];
+  if (entries.length) {
+    // Sort entries by date
+    var sorted = [...entries].sort(function(a,b){ return a.date>b.date?1:-1; });
+    sorted.forEach(function(e) {
+      var d = new Date(e.date+'T00:00:00');
+      var di = d.getDay()-1; if(di<0) di=6;
+      var dayName = DN[di];
+      var dateStr = d.toLocaleDateString('en-US',{day:'2-digit',month:'short'});
+      dayRows += '<tr style="border-bottom:1px solid #edf0f7;">' +
+        '<td style="padding:9px 12px;white-space:nowrap;">' +
+          '<span style="font-weight:600;font-size:13px;color:var(--text-primary);">'+dayName+'</span>' +
+          '<span style="font-size:11px;color:var(--text-muted);margin-left:6px;">'+dateStr+'</span>' +
+        '</td>' +
+        '<td style="padding:9px 12px;font-size:12px;color:var(--accent);font-weight:700;">'+(e.project||'—')+'</td>' +
+        '<td style="padding:9px 12px;font-size:11px;"><span style="background:var(--bg-input);border-radius:6px;padding:2px 8px;text-transform:capitalize;color:var(--text-secondary);">'+(e.billingType||'Billable')+'</span></td>' +
+        '<td style="padding:9px 12px;font-size:12px;color:var(--text-secondary);max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+(e.description||'—')+'</td>' +
+        '<td style="padding:9px 12px;text-align:center;font-weight:800;font-size:14px;color:var(--text-primary);">'+Number(e.hours||0).toFixed(1)+'<span style="font-size:11px;font-weight:400;">h</span></td>' +
+      '</tr>';
+    });
+  } else {
+    dayRows = '<tr><td colspan="5" style="padding:24px;text-align:center;color:var(--text-muted);">No entries</td></tr>';
+  }
+
+  var table = '<div style="overflow:auto;border:1px solid var(--border);border-radius:12px;margin-bottom:14px;">' +
+    '<table style="width:100%;border-collapse:collapse;min-width:560px;">' +
+    '<thead><tr style="background:#f0f4ff;">' +
+      '<th style="padding:9px 12px;text-align:left;font-size:11px;font-weight:700;color:#5871a4;border-bottom:2px solid #dde6fb;">Day</th>' +
+      '<th style="padding:9px 12px;text-align:left;font-size:11px;font-weight:700;color:#5871a4;border-bottom:2px solid #dde6fb;">Project</th>' +
+      '<th style="padding:9px 12px;text-align:left;font-size:11px;font-weight:700;color:#5871a4;border-bottom:2px solid #dde6fb;">Billing</th>' +
+      '<th style="padding:9px 12px;text-align:left;font-size:11px;font-weight:700;color:#5871a4;border-bottom:2px solid #dde6fb;">Description</th>' +
+      '<th style="padding:9px 12px;text-align:center;font-size:11px;font-weight:700;color:#5871a4;border-bottom:2px solid #dde6fb;">Hours</th>' +
+    '</tr></thead>' +
+    '<tbody>'+dayRows+'</tbody>' +
+    '</table></div>';
+
+  // Notes
+  var notesHtml = t.notes ? '<div style="background:var(--bg-input);border-radius:10px;padding:10px 14px;font-size:12px;color:var(--text-secondary);"><strong>Notes:</strong> '+t.notes+'</div>' : '';
+
+  // Rejection reason
+  var rejHtml = t.rejectionReason ? '<div style="background:#fee2e2;border:1px solid #fecaca;border-radius:10px;padding:10px 14px;font-size:12px;color:#991b1b;"><i class="bx bx-x-circle"></i> <strong>Rejection reason:</strong> '+t.rejectionReason+'</div>' : '';
+
+  // Approver info
+  var approverHtml = t.approver ? '<div style="font-size:12px;color:var(--text-muted);"><i class="bx bx-check-circle" style="color:#22c55e;"></i> Approved by <strong>'+t.approver.name+'</strong></div>' : '';
+
+  document.getElementById('view-modal-title').textContent = isTeam ? ((t.user&&t.user.name)||'Employee') + "'s Timesheet" : 'My Timesheet — '+weekLabel;
+  document.getElementById('view-modal-body').innerHTML = header + table + notesHtml + rejHtml + approverHtml;
+
+  // Footer actions
+  var footerHtml = '<button class="btn btn-ghost" onclick="closeModal(\'view-modal\')">Close</button>';
+  if (isTeam && t.status==='pending') {
+    footerHtml = '<button class="btn btn-ghost" onclick="closeModal(\'view-modal\')">Close</button>' +
+      '<div style="display:flex;gap:8px;">' +
+        '<button class="btn btn-success" onclick="actTs('+t.id+',\'approve\');closeModal(\'view-modal\')"><i class="bx bx-check"></i> Approve</button>' +
+        '<button class="btn btn-danger" onclick="closeModal(\'view-modal\');openReject('+t.id+')"><i class="bx bx-x"></i> Reject</button>' +
+      '</div>';
+  }
+  document.getElementById('view-modal-footer').innerHTML = footerHtml;
+  openModal('view-modal');
 }
 
 /* ── Approve / Reject ── */
-async function actTs(id, action) {
+async function actTs(id,action) {
   try { await api('PATCH','/timesheets/'+id+'/action',{action}); toast('Timesheet '+action+'d','success'); loadTs(); }
-  catch(e) { toast(e.message,'error'); }
+  catch(e){ toast(e.message,'error'); }
 }
-
-function openReject(id) { rejectId = id; document.getElementById('reject-reason').value = ''; openModal('reject-modal'); }
+function openReject(id){ rejectId=id; document.getElementById('reject-reason').value=''; openModal('reject-modal'); }
 async function confirmReject() {
-  const reason = document.getElementById('reject-reason').value;
+  var reason=document.getElementById('reject-reason').value;
   try { await api('PATCH','/timesheets/'+rejectId+'/action',{action:'reject',rejectionReason:reason}); toast('Timesheet rejected','success'); closeModal('reject-modal'); loadTs(); }
-  catch(e) { toast(e.message,'error'); }
-}
-
-/* ── Submit own timesheet ── */
-async function submitTs() {
-  if (!selectedDates.size) return toast('Select at least one day','error');
-  const hrs = parseFloat(document.getElementById('ts-hours').value)||0;
-  if (hrs <= 0) return toast('Enter valid hours','error');
-  const workType = document.getElementById('ts-worktype').value;
-  const project = document.getElementById('ts-project').value;
-  const description = document.getElementById('ts-desc').value;
-  const notes = document.getElementById('ts-notes').value;
-  const sorted = [...selectedDates].sort();
-  const entries = sorted.map(d => ({date:d, hours:hrs, workType, project, description}));
-  try {
-    await api('POST','/timesheets',{weekStart:sorted[0], weekEnd:sorted[sorted.length-1], entries, notes});
-    toast('Timesheet submitted!','success'); closeModal('ts-modal'); loadTs();
-  } catch(e) { toast(e.message,'error'); }
+  catch(e){ toast(e.message,'error'); }
 }
 
 async function delTs(id) {
   if (!confirm('Delete this timesheet?')) return;
   try { await api('DELETE','/timesheets/'+id); toast('Deleted','success'); loadTs(); }
-  catch(e) { toast(e.message,'error'); }
+  catch(e){ toast(e.message,'error'); }
 }
 
+async function loadAssignedTasks() {
+  try { assignedTasks = (await api('GET','/tasks'))||[]; }
+  catch(e){ assignedTasks=[]; }
+}
+
+loadAssignedTasks();
 loadTs();
 </script>
 </body></html>

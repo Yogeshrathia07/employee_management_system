@@ -2,7 +2,7 @@
 const PDFDocument = require('pdfkit');
 
 function fmtINR(n) {
-  return 'Rs.' + Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return '₹ ' + Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 function fmtDate(s) {
   if (!s) return '';
@@ -152,13 +152,13 @@ exports.generatePDF = async (req, res) => {
       const th=(label,w)=>{ vLine(cx,y,y+ROW_H,LBD); txt(label,cx+2,y+4,w-4,{size:7,bold:true,color:BLK,align:'center'}); cx+=w; };
       if(useIGST){
         th('Sl.',COL.sl);th('Item Code',COL.code);th('Description',COL.desc);
-        th('HSN/SAC',COL.hsn);th('Unit',COL.unit);th('Rate (Rs.)',COL.rate);th('Qty',COL.qty);th('Amount (Rs.)',COL.amt);
+        th('HSN/SAC',COL.hsn);th('Unit',COL.unit);th('Rate (₹)',COL.rate);th('Qty',COL.qty);th('Amount (₹)',COL.amt);
       } else {
         th('Sl.',COL.sl);th('Item Code',COL.code);th('Description',COL.desc);
-        th('HSN/SAC',COL.hsn);th('Unit',COL.unit);th('Rate (Rs.)',COL.rate);th('Qty',COL.qty);
+        th('HSN/SAC',COL.hsn);th('Unit',COL.unit);th('Rate (₹)',COL.rate);th('Qty',COL.qty);
         th('CGST%',COL.cgstP);th('CGST',COL.cgst);th('SGST%',COL.sgstP);th('SGST',COL.sgst);
         const amtW=W-(COL.sl+COL.code+COL.desc+COL.hsn+COL.unit+COL.rate+COL.qty+COL.cgstP+COL.cgst+COL.sgstP+COL.sgst);
-        vLine(cx,y,y+ROW_H,LBD); txt('Amount (Rs.)',cx+2,y+4,amtW-4,{size:7,bold:true,color:BLK,align:'center'});
+        vLine(cx,y,y+ROW_H,LBD); txt('Amount (₹)',cx+2,y+4,amtW-4,{size:7,bold:true,color:BLK,align:'center'});
       }
     })(y);
     y+=ROW_H;

@@ -3,6 +3,7 @@ const sequelize = require('../config/database');
 
 const Task = sequelize.define('Task', {
   title:       { type: DataTypes.STRING, allowNull: false },
+  projectName: { type: DataTypes.STRING(200), defaultValue: '' },
   description: { type: DataTypes.TEXT, defaultValue: '' },
   assignedTo:  { type: DataTypes.INTEGER, allowNull: false },
   assignedBy:  { type: DataTypes.INTEGER, allowNull: false },

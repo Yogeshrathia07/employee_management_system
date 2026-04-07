@@ -1,6 +1,13 @@
 const { Op } = require('sequelize');
 const { Salary, Timesheet, Leave, User, Company } = require('../models');
 
+async function resolveActorCompanyId(req) {
+  if (req.user.companyId) return req.user.companyId;
+  if (req.user.company && req.user.company.id) return req.user.company.id;
+  const actor = await User.findByPk(req.user.id, { attributes: ['id', 'companyId'] });
+  return actor?.companyId || null;
+}
+
 // ─── Helper: actual hours from approved timesheets ────────────────────────────
 async function getActualHours(userId, month, year) {
   const monthStart = new Date(year, month - 1, 1);
@@ -197,18 +204,29 @@ exports.createSalary = async (req, res) => {
     const user = await User.findByPk(userId);
     if (!user) return res.status(404).json({ message: 'Employee not found' });
 
-    let targetCompanyId = req.user.companyId || user.companyId || null;
+    const actorCompanyId = await resolveActorCompanyId(req);
+    const requestedCompany = Number(requestedCompanyId || 0) || null;
+    let targetCompanyId = actorCompanyId || user.companyId || null;
     if (req.user.role === 'superadmin') {
       targetCompanyId = Number(requestedCompanyId || user.companyId || 0) || null;
       if (!targetCompanyId) return res.status(400).json({ message: 'Select a company first' });
+    } else if (!targetCompanyId && requestedCompany) {
+      targetCompanyId = requestedCompany;
     }
-    if (req.user.role !== 'superadmin' && req.user.companyId && user.companyId !== req.user.companyId) {
+    if (req.user.role !== 'superadmin' && actorCompanyId && user.companyId !== actorCompanyId) {
       return res.status(403).json({ message: 'You can only generate payroll for your own company' });
     }
 
     const { totalHours, presentDays } = await getActualHours(userId, Number(month), Number(year));
-    const workingDays   = getWorkingDays(Number(month), Number(year));
+    const defaultWorkingDays = getWorkingDays(Number(month), Number(year));
+    const calDays = new Date(Number(year), Number(month), 0).getDate();
+    const requestedWorkDays = parseInt(req.body.totalWorkDays, 10);
+    const workingDays = Math.min(calDays, Math.max(0, requestedWorkDays || defaultWorkingDays));
     const leaveTakenAuto = await getLeaveTaken(userId, Number(month), Number(year));
+    const leaveTakenValue = req.body.leaveTaken !== undefined ? parseFloat(req.body.leaveTaken) || 0 : leaveTakenAuto;
+    const expectedHours = req.body.expectedHours !== undefined
+      ? parseFloat(req.body.expectedHours) || 0
+      : workingDays * 8;
 
     // Use request value if provided, else fall back to user's salary structure
     const p = (field, userField) =>
@@ -221,7 +239,7 @@ exports.createSalary = async (req, res) => {
       year:  Number(year),
       // CTC & attendance
       baseSalary:   p('baseSalary',  'baseSalary'),
-      leaveTaken:   req.body.leaveTaken !== undefined ? parseFloat(req.body.leaveTaken) || 0 : leaveTakenAuto,
+      leaveTaken:   leaveTakenValue,
       allowedLeave: p('allowedLeave', 'allowedLeavePerMonth'),
       // Earnings
       basicSalary:      p('basicSalary',      'basicSalary'),
@@ -237,12 +255,12 @@ exports.createSalary = async (req, res) => {
       tds:             p('tds'),
       salaryAdvance:   p('salaryAdvance'),
       // Hours
-      expectedHours: parseFloat(req.body.expectedHours) || workingDays * 8,
+      expectedHours,
       actualHours:   totalHours,
       // Days
       totalWorkDays: workingDays,
       presentDays,
-      absentDays: Math.max(0, workingDays - presentDays),
+      absentDays: Math.max(0, workingDays - presentDays - leaveTakenValue),
       notes:        req.body.notes || '',
       generatedBy:  req.user.id,
     });
@@ -264,16 +282,18 @@ exports.generateBulk = async (req, res) => {
     if (month < 1 || month > 12) return res.status(400).json({ message: 'Valid month (1-12) is required' });
     if (year < 2000 || year > 2100) return res.status(400).json({ message: 'Valid year is required' });
 
+    const actorCompanyId = await resolveActorCompanyId(req);
+    const requestedCompany = Number(requestedCompanyId || 0) || null;
     const companyId = req.user.role === 'superadmin'
       ? Number(requestedCompanyId || 0)
-      : req.user.companyId;
+      : (actorCompanyId || requestedCompany);
     if (!companyId) return res.status(400).json({ message: 'Select a company before generating payroll' });
 
     const users = await User.findAll({
       where: { companyId, status: 'active', role: { [Op.in]: ['employee', 'manager'] } },
     });
 
-    const workingDays = getWorkingDays(Number(month), Number(year));
+    const defaultWorkingDays = getWorkingDays(Number(month), Number(year));
     let created = 0, skipped = 0;
 
     for (const user of users) {
@@ -282,6 +302,7 @@ exports.generateBulk = async (req, res) => {
 
       const { totalHours, presentDays } = await getActualHours(user.id, Number(month), Number(year));
       const leaveTakenAuto = await getLeaveTaken(user.id, Number(month), Number(year));
+      const workingDays = defaultWorkingDays;
 
       await Salary.create({
         userId:    user.id,
@@ -306,7 +327,7 @@ exports.generateBulk = async (req, res) => {
         actualHours:      totalHours,
         totalWorkDays:    workingDays,
         presentDays,
-        absentDays: Math.max(0, workingDays - presentDays),
+        absentDays: Math.max(0, workingDays - presentDays - leaveTakenAuto),
         generatedBy: req.user.id,
       });
       created++;
@@ -329,9 +350,20 @@ exports.updateSalary = async (req, res) => {
       'baseSalary', 'leaveTaken', 'allowedLeave',
       'basicSalary', 'hra', 'conveyance', 'medicalExpenses', 'specialAllowance', 'bonus', 'ta',
       'pfContribution', 'professionTax', 'tds', 'salaryAdvance',
-      'expectedHours', 'notes', 'status',
+      'expectedHours', 'totalWorkDays', 'notes', 'status',
     ];
     editableFields.forEach(f => { if (req.body[f] !== undefined) salary[f] = req.body[f]; });
+
+    if (req.body.totalWorkDays !== undefined || req.body.leaveTaken !== undefined || req.body.expectedHours !== undefined) {
+      const calDays = new Date(salary.year, salary.month, 0).getDate();
+      const workDays = Math.min(calDays, Math.max(0, parseInt(salary.totalWorkDays, 10) || 0));
+      salary.totalWorkDays = workDays;
+      const leaveTaken = parseFloat(salary.leaveTaken) || 0;
+      salary.absentDays = Math.max(0, workDays - (salary.presentDays || 0) - leaveTaken);
+      if (!req.body.expectedHours && workDays > 0) {
+        salary.expectedHours = workDays * 8;
+      }
+    }
 
     if (req.body.status === 'finalized' && salary.changed('status')) {
       salary.finalizedBy = req.user.id;
@@ -456,6 +488,7 @@ exports.generatePayslip = async (req, res) => {
     }
 
     const PDFDocument = require('pdfkit');
+    const path = require('path');
     const doc = new PDFDocument({ size: 'A4', margin: 50 });
 
     const mode = req.query.mode || 'download';
@@ -476,18 +509,20 @@ exports.generatePayslip = async (req, res) => {
     const red    = '#dc2626';
     const green  = '#16a34a';
     const gray   = '#f3f4f6';
+    const fontRegular = path.join('C:', 'Windows', 'Fonts', 'arial.ttf');
+    const fontBold = path.join('C:', 'Windows', 'Fonts', 'arialbd.ttf');
 
     // ── Header ─────────────────────────────────────────────────────────
-    doc.fontSize(16).font('Helvetica-Bold').fillColor(black)
+    doc.fontSize(16).font(fontBold).fillColor(black)
        .text(company.name || 'Company', mL, 50, { width: cW, align: 'center' });
-    doc.fontSize(8).font('Helvetica').fillColor(muted)
+    doc.fontSize(8).font(fontRegular).fillColor(muted)
        .text(company.address || '', mL, 70, { width: cW, align: 'center' })
        .text([company.phone, company.email].filter(Boolean).join('  |  '), { width: cW, align: 'center' });
 
     doc.moveTo(mL, 98).lineTo(pageW - 50, 98).strokeColor('#cccccc').lineWidth(1).stroke();
-    doc.fontSize(12).font('Helvetica-Bold').fillColor(black)
+    doc.fontSize(12).font(fontBold).fillColor(black)
        .text('SALARY SLIP', mL, 108, { width: cW, align: 'center' });
-    doc.fontSize(9).font('Helvetica').fillColor(muted)
+    doc.fontSize(9).font(fontRegular).fillColor(muted)
        .text(`For the month of ${MONTHS[salary.month - 1]} ${salary.year}`, mL, 124, { width: cW, align: 'center' });
 
     // ── Employee info ───────────────────────────────────────────────────
@@ -495,11 +530,11 @@ exports.generatePayslip = async (req, res) => {
     const c1 = mL, c2 = mL + 110, c3 = 320, c4 = 430;
 
     function infoRow(y, l1, v1, l2, v2) {
-      doc.font('Helvetica').fontSize(8).fillColor(muted).text(l1, c1, y);
-      doc.font('Helvetica-Bold').fillColor(black).text(String(v1 || '—'), c2, y);
+      doc.font(fontRegular).fontSize(8).fillColor(muted).text(l1, c1, y);
+      doc.font(fontBold).fillColor(black).text(String(v1 || '—'), c2, y);
       if (l2) {
-        doc.font('Helvetica').fillColor(muted).text(l2, c3, y);
-        doc.font('Helvetica-Bold').fillColor(black).text(String(v2 || '—'), c4, y);
+        doc.font(fontRegular).fillColor(muted).text(l2, c3, y);
+        doc.font(fontBold).fillColor(black).text(String(v2 || '—'), c4, y);
       }
     }
 
@@ -517,8 +552,8 @@ exports.generatePayslip = async (req, res) => {
 
     function attBox(x, label, val) {
       doc.rect(x, attY, 110, 32).fillColor(gray).fill();
-      doc.fontSize(7).font('Helvetica').fillColor(muted).text(label, x + 6, attY + 5);
-      doc.fontSize(12).font('Helvetica-Bold').fillColor(black).text(String(val), x + 6, attY + 16);
+      doc.fontSize(7).font(fontRegular).fillColor(muted).text(label, x + 6, attY + 5);
+      doc.fontSize(12).font(fontBold).fillColor(black).text(String(val), x + 6, attY + 16);
     }
 
     attBox(mL,         'Total Days',   calDays);
@@ -533,7 +568,7 @@ exports.generatePayslip = async (req, res) => {
     // Headers
     doc.rect(mL,              tableY, halfW, 20).fillColor('#111111').fill();
     doc.rect(mL + halfW + 10, tableY, halfW, 20).fillColor('#111111').fill();
-    doc.fontSize(9).font('Helvetica-Bold').fillColor('#ffffff')
+    doc.fontSize(9).font(fontBold).fillColor('#ffffff')
        .text('EARNINGS',   mL + 10,              tableY + 5)
        .text('DEDUCTIONS', mL + halfW + 20,      tableY + 5);
 
@@ -566,12 +601,12 @@ exports.generatePayslip = async (req, res) => {
       doc.rect(mL + halfW + 10, y, halfW, rowH).fillColor(bg).fill();
 
       if (earnings[i]) {
-        doc.fontSize(8).font('Helvetica').fillColor(muted).text(earnings[i][0], mL + 8, y + 5);
-        doc.font('Helvetica-Bold').fillColor(black).text(cur(earnings[i][1]), mL + halfW - 80, y + 5, { width: 72, align: 'right' });
+        doc.fontSize(8).font(fontRegular).fillColor(muted).text(earnings[i][0], mL + 8, y + 5);
+        doc.font(fontBold).fillColor(black).text(cur(earnings[i][1]), mL + halfW - 80, y + 5, { width: 72, align: 'right' });
       }
       if (deductions[i]) {
-        doc.fontSize(8).font('Helvetica').fillColor(muted).text(deductions[i][0], mL + halfW + 18, y + 5);
-        doc.font('Helvetica-Bold').fillColor(red).text(cur(deductions[i][1]), mL + cW - 80, y + 5, { width: 72, align: 'right' });
+        doc.fontSize(8).font(fontRegular).fillColor(muted).text(deductions[i][0], mL + halfW + 18, y + 5);
+        doc.font(fontBold).fillColor(red).text(cur(deductions[i][1]), mL + cW - 80, y + 5, { width: 72, align: 'right' });
       }
     }
 
@@ -579,7 +614,7 @@ exports.generatePayslip = async (req, res) => {
     const totY = tableY + 20 + maxRows * rowH;
     doc.rect(mL,              totY, halfW, 22).fillColor('#e5e7eb').fill();
     doc.rect(mL + halfW + 10, totY, halfW, 22).fillColor('#fde8e8').fill();
-    doc.fontSize(9).font('Helvetica-Bold').fillColor(black)
+    doc.fontSize(9).font(fontBold).fillColor(black)
        .text('Gross Salary', mL + 8, totY + 6)
        .text(cur(salary.grossSalary), mL + halfW - 80, totY + 6, { width: 72, align: 'right' });
     doc.fillColor(red)
@@ -589,7 +624,7 @@ exports.generatePayslip = async (req, res) => {
     // ── Net Pay ─────────────────────────────────────────────────────────
     const netY = totY + 30;
     doc.rect(mL, netY, cW, 38).fillColor('#111111').fill();
-    doc.fontSize(13).font('Helvetica-Bold').fillColor('#ffffff')
+    doc.fontSize(13).font(fontBold).fillColor('#ffffff')
        .text('NET PAY', mL + 16, netY + 11)
        .text(cur(salary.netSalary), mL + cW - 170, netY + 11, { width: 154, align: 'right' });
 
@@ -598,18 +633,18 @@ exports.generatePayslip = async (req, res) => {
     doc.moveTo(mL, footY).lineTo(pageW - 50, footY).strokeColor('#cccccc').stroke();
 
     if (company.authorizedSignatory) {
-      doc.fontSize(8).font('Helvetica').fillColor(muted)
+      doc.fontSize(8).font(fontRegular).fillColor(muted)
          .text('Authorized by', pageW - 200, footY + 12, { width: 150, align: 'center' });
-      doc.fontSize(9).font('Helvetica-Bold').fillColor(black)
+      doc.fontSize(9).font(fontBold).fillColor(black)
          .text(company.authorizedSignatory, pageW - 200, footY + 24, { width: 150, align: 'center' });
     }
 
-    doc.fontSize(7).font('Helvetica').fillColor('#999999')
+    doc.fontSize(7).font(fontRegular).fillColor('#999999')
        .text(`Generated on ${new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'long', year: 'numeric' })}`, mL, footY + 12)
        .text('This is a computer-generated document.', mL, footY + 23);
 
     if (salary.notes) {
-      doc.fontSize(8).font('Helvetica').fillColor(muted)
+      doc.fontSize(8).font(fontRegular).fillColor(muted)
          .text(`Note: ${salary.notes}`, mL, footY + 38, { width: cW });
     }
 
@@ -620,5 +655,5 @@ exports.generatePayslip = async (req, res) => {
 };
 
 function cur(n) {
-  return 'Rs. ' + Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return '₹ ' + Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
