@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Salary Slip Preview</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: Arial, Helvetica, sans-serif; font-size: 12px; background: #f0f0f0; }
+
+    .print-toolbar {
+      background: #1e3a8a; color: #fff;
+      padding: 12px 24px;
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 12px;
+    }
+    .print-toolbar h2 { font-size: 16px; }
+    .print-toolbar button {
+      padding: 7px 20px; border-radius: 6px; border: none; cursor: pointer;
+      font-size: 13px; font-weight: 600;
+    }
+    .btn-print { background: #fff; color: #1e3a8a; }
+    .btn-close  { background: transparent; color: #fff; border: 1px solid rgba(255,255,255,0.4) !important; }
+
+    .slips-container {
+      max-width: 900px; margin: 24px auto;
+      display: flex; flex-direction: column; gap: 24px;
+      padding-bottom: 40px;
+    }
+
+    /* ── Slip card ── */
+    .slip {
+      background: #fff;
+      border-radius: 4px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.12);
+      overflow: hidden;
+      page-break-inside: avoid;
+    }
+
+    .slip-header {
+      background: #1e3a8a; color: #fff;
+      padding: 16px 20px;
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .slip-header h1 { font-size: 20px; font-weight: 800; }
+    .slip-header .period { font-size: 12px; opacity: 0.85; }
+
+    .slip-emp {
+      padding: 12px 20px;
+      border-bottom: 1px solid #e5e7eb;
+      display: grid; grid-template-columns: 1fr 1fr; gap: 6px;
+    }
+    .slip-emp div { font-size: 12px; }
+    .slip-emp .label { color: #6b7280; font-size: 11px; }
+    .slip-emp .value { font-weight: 600; color: #1f2937; }
+
+    .attendance-row {
+      display: grid; grid-template-columns: repeat(4,1fr); gap: 0;
+      border-bottom: 1px solid #e5e7eb;
+    }
+    .att-box {
+      padding: 10px 16px; text-align: center;
+      border-right: 1px solid #e5e7eb;
+    }
+    .att-box:last-child { border-right: none; }
+    .att-box .att-val { font-size: 22px; font-weight: 800; color: #1e3a8a; }
+    .att-box .att-lbl { font-size: 10px; color: #6b7280; margin-top: 2px; }
+
+    .earnings-section {
+      display: grid; grid-template-columns: 1fr 1fr; border-bottom: 1px solid #e5e7eb;
+    }
+    .earn-col { padding: 14px 20px; }
+    .earn-col:first-child { border-right: 1px solid #e5e7eb; }
+    .earn-col h3 { font-size: 11px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.08em; color: #6b7280; margin-bottom: 10px; }
+    .earn-row {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 4px 0; border-bottom: 1px dashed #f3f4f6;
+      font-size: 12px;
+    }
+    .earn-row:last-child { border-bottom: none; }
+    .earn-row .earn-lbl { color: #374151; }
+    .earn-row .earn-amt { font-weight: 600; color: #1f2937; font-variant-numeric: tabular-nums; }
+    .earn-row.total { border-top: 2px solid #e5e7eb; margin-top: 4px; padding-top: 8px; font-weight: 700; }
+    .earn-row.deduction .earn-amt { color: #dc2626; }
+
+    .slip-net {
+      background: #1e3a8a; color: #fff;
+      padding: 14px 20px;
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .slip-net .net-label { font-size: 13px; opacity: 0.9; }
+    .slip-net .net-amt { font-size: 26px; font-weight: 800; font-variant-numeric: tabular-nums; }
+
+    .slip-footer {
+      padding: 10px 20px;
+      font-size: 10px; color: #9ca3af; text-align: center;
+      border-top: 1px solid #f3f4f6;
+    }
+
+    @media print {
+      .print-toolbar { display: none; }
+      body { background: #fff; }
+      .slips-container { margin: 0; max-width: 100%; padding: 0; gap: 0; }
+      .slip { box-shadow: none; border-radius: 0; margin-bottom: 0; }
+      .slip + .slip { page-break-before: always; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="print-toolbar">
+  <h2>Salary Slip Preview</h2>
+  <div style="display:flex;gap:8px;">
+    <button class="btn-print" onclick="window.print()">🖨 Print All Slips</button>
+    <button class="btn-close" onclick="window.close()">✕ Close</button>
+  </div>
+</div>
+
+<div class="slips-container" id="slips-container">
+  <div style="text-align:center;padding:40px;color:#9ca3af;">Loading salary data…</div>
+</div>
+
+<script>
+  function fmt(v) {
+    const n = parseFloat(v);
+    if (isNaN(n)) return v || '—';
+    return '₹ ' + n.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+  function fmtN(v) {
+    const n = parseFloat(v);
+    return isNaN(n) ? (v || '0') : n.toLocaleString('en-IN', { maximumFractionDigits: 2 });
+  }
+
+  const data = (() => {
+    try { return JSON.parse(sessionStorage.getItem('ss_salary_export') || '[]'); }
+    catch (e) { return []; }
+  })();
+
+  const container = document.getElementById('slips-container');
+
+  if (!data.length) {
+    container.innerHTML = '<div style="text-align:center;padding:40px;color:#dc2626;">No salary data found. Please open from the Payroll Spreadsheet page.</div>';
+  } else {
+    container.innerHTML = data.map((e, i) => `
+      <div class="slip">
+        <div class="slip-header">
+          <div>
+            <h1>SALARY SLIP</h1>
+            <div class="period">${e.month || 'Current Month'}</div>
+          </div>
+          <div style="text-align:right;font-size:11px;opacity:0.8;">
+            Generated: ${new Date().toLocaleDateString('en-IN')}<br>
+            Employee ${i + 1} of ${data.length}
+          </div>
+        </div>
+
+        <div class="slip-emp">
+          <div>
+            <div class="label">Employee Name</div>
+            <div class="value">${e.name || '—'}</div>
+          </div>
+          <div>
+            <div class="label">CTC (Monthly)</div>
+            <div class="value">${fmt(e.ctc)}</div>
+          </div>
+          <div>
+            <div class="label">Pay Period</div>
+            <div class="value">${e.month || '—'}</div>
+          </div>
+          <div>
+            <div class="label">Per Day Rate</div>
+            <div class="value">${fmt(e.perDay)}</div>
+          </div>
+        </div>
+
+        <div class="attendance-row">
+          <div class="att-box">
+            <div class="att-val">${fmtN(e.totalDays)}</div>
+            <div class="att-lbl">Total Days</div>
+          </div>
+          <div class="att-box">
+            <div class="att-val">${fmtN(e.leavesTaken)}</div>
+            <div class="att-lbl">Leaves Taken</div>
+          </div>
+          <div class="att-box">
+            <div class="att-val">${fmtN(e.workedDays)}</div>
+            <div class="att-lbl">Worked Days</div>
+          </div>
+          <div class="att-box" style="background:#f0fdf4;">
+            <div class="att-val" style="color:#16a34a;">${fmt(e.gross)}</div>
+            <div class="att-lbl">Gross Salary</div>
+          </div>
+        </div>
+
+        <div class="earnings-section">
+          <div class="earn-col">
+            <h3>Earnings</h3>
+            <div class="earn-row"><span class="earn-lbl">Basic Salary (50%)</span><span class="earn-amt">${fmt(e.basic)}</span></div>
+            <div class="earn-row"><span class="earn-lbl">DA (10%)</span><span class="earn-amt">${fmt(e.da)}</span></div>
+            <div class="earn-row"><span class="earn-lbl">HRA (25%)</span><span class="earn-amt">${fmt(e.hra)}</span></div>
+            <div class="earn-row total"><span class="earn-lbl">Gross Salary</span><span class="earn-amt" style="color:#16a34a;">${fmt(e.gross)}</span></div>
+          </div>
+          <div class="earn-col">
+            <h3>Deductions</h3>
+            <div class="earn-row"><span class="earn-lbl">PF Contribution</span><span class="earn-amt deduction">${fmt(e.pf)}</span></div>
+            <div class="earn-row"><span class="earn-lbl">Other Deductions</span><span class="earn-amt deduction">${fmt(e.deductions)}</span></div>
+            <div class="earn-row total deduction"><span class="earn-lbl">Total Deductions</span><span class="earn-amt">${fmt((parseFloat(e.pf)||0) + (parseFloat(e.deductions)||0))}</span></div>
+          </div>
+        </div>
+
+        <div class="slip-net">
+          <div class="net-label">Net Take-Home Salary</div>
+          <div class="net-amt">${fmt(e.net)}</div>
+        </div>
+
+        <div class="slip-footer">
+          This is a computer-generated salary slip. No signature required.
+        </div>
+      </div>
+    `).join('');
+  }
+</script>
+</body>
+</html>

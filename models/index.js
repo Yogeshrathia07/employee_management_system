@@ -10,8 +10,9 @@ const NotificationRead= require('./NotificationRead');
 const RecycleBin      = require('./RecycleBin');
 const Task            = require('./Task');
 const CompanyPolicy   = require('./CompanyPolicy');
-const AppSetting      = require('./AppSetting');
-const Invoice         = require('./Invoice');
+const AppSetting            = require('./AppSetting');
+const Invoice               = require('./Invoice');
+const SpreadsheetWorkbook   = require('./SpreadsheetWorkbook');
 
 // ─── User <-> Company ───
 User.belongsTo(Company, { foreignKey: 'companyId', as: 'company' });
@@ -64,8 +65,11 @@ CompanyPolicy.belongsTo(User,    { foreignKey: 'createdBy', as: 'creator' });
 // ─── Invoice ───
 // Invoice is standalone (no FK to Company/User required for superadmin use)
 
+// ─── SpreadsheetWorkbook ───
+SpreadsheetWorkbook.belongsTo(User, { foreignKey: 'userId', as: 'owner' });
+
 module.exports = {
   sequelize, Company, User, Leave, Timesheet, Salary,
   Document, Notification, NotificationRead, RecycleBin,
-  Task, CompanyPolicy, AppSetting, Invoice,
+  Task, CompanyPolicy, AppSetting, Invoice, SpreadsheetWorkbook,
 };

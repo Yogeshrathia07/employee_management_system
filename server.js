@@ -59,7 +59,9 @@ app.get('/admin/users',         (req, res) => res.render('admin/users',         
 app.get('/admin/leaves',        (req, res) => res.render('admin/leaves',        { title: 'Leave Management' }));
 app.get('/admin/leave-calendar',(req, res) => res.render('admin/leave-calendar',{ title: 'Leave Calendar' }));
 app.get('/admin/timesheets',    (req, res) => res.render('admin/timesheets',    { title: 'Timesheets' }));
-app.get('/admin/salary',        (req, res) => res.render('admin/salary',        { title: 'Payroll' }));
+app.get('/admin/salary',               (req, res) => res.render('admin/salary',               { title: 'Payroll' }));
+app.get('/admin/payroll-spreadsheet',  (req, res) => res.render('admin/payroll_spreadsheet',  { title: 'Payroll Spreadsheet' }));
+app.get('/admin/salary-slip-preview',  (req, res) => res.render('admin/salary_slip_preview',  { title: 'Salary Slip Preview' }));
 app.get('/admin/documents',     (req, res) => res.render('admin/documents',     { title: 'Documents' }));
 app.get('/admin/notifications', (req, res) => res.render('admin/notifications', { title: 'Notifications' }));
 app.get('/admin/policies',      (req, res) => res.render('admin/policies',      { title: 'Company Policy' }));
@@ -102,7 +104,7 @@ async function dropExcessIndexes(tableName) {
 const TABLE_NAMES = [
   'Users', 'Leaves', 'Timesheets', 'Salaries', 'Documents',
   'Notifications', 'NotificationReads', 'RecycleBins', 'Tasks', 'CompanyPolicies', 'Companies',
-  'Invoices',
+  'Invoices', 'SpreadsheetWorkbooks',
 ];
 
 // ─── Database & Server Start ───

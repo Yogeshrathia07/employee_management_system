@@ -179,6 +179,14 @@ router.patch('/invoices/:id/pay',    auth, requireRole('superadmin'), invoiceCtr
 router.get('/invoices/:id/pdf',      auth, requireRole('superadmin'), invoiceCtrl.downloadPDF);
 router.delete('/invoices/:id',       auth, requireRole('superadmin'), invoiceCtrl.deleteInvoice);
 
+// ─── Spreadsheet Workbooks ────────────────────────────────────────────────────
+const ssCtrl = require('../controllers/spreadsheetController');
+router.get('/spreadsheet',        auth, requireRole('admin', 'superadmin'), ssCtrl.getWorkbooks);
+router.get('/spreadsheet/:id',    auth, requireRole('admin', 'superadmin'), ssCtrl.getWorkbook);
+router.post('/spreadsheet',       auth, requireRole('admin', 'superadmin'), ssCtrl.createWorkbook);
+router.put('/spreadsheet/:id',    auth, requireRole('admin', 'superadmin'), ssCtrl.updateWorkbook);
+router.delete('/spreadsheet/:id', auth, requireRole('admin', 'superadmin'), ssCtrl.deleteWorkbook);
+
 // ─── Company Policies ─────────────────────────────────────────────────────────
 const policyCtrl = require('../controllers/policyController');
 router.get('/policies',                   auth, policyCtrl.getPolicies);
