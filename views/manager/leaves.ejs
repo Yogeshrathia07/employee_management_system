@@ -3,63 +3,112 @@
   <%- include('../partials/sidebar-manager') %>
   <div class="main-content">
     <header class="page-header">
+      <div class="flex items-center gap-3">
         <button class="mobile-menu-btn" onclick="openSidebar()"><i class="bx bx-menu"></i></button>
-      <div><div class="page-title"><i class="bx bxs-plane-alt"></i> Leaves</div><div class="page-subtitle">Manage team leaves and your own</div></div>
+        <div>
+          <div class="page-title">Leaves</div>
+          <div class="page-subtitle">Manage team leaves and your own</div>
+        </div>
+      </div>
       <div class="header-actions"></div>
     </header>
-    <div class="page-body">
-      <div style="display:flex;align-items:center;justify-content:flex-end;margin-bottom:16px;">
-        <button class="btn btn-primary" onclick="openModal('apply-modal')"><i class="bx bx-plus"></i> Apply My Leave</button>
-      </div>
-      <div class="tabs">
-        <button class="tab-btn active" onclick="switchTab('team')"><i class="bx bxs-group"></i> Team Leaves</button>
-        <button class="tab-btn" onclick="switchTab('own')"><i class="bx bxs-user-circle"></i> My Leaves</button>
-      </div>
+    <div class="page-body admin-employees-page employee-shared-page">
+      <div class="employee-directory-shell">
 
-      <div class="card">
-        <div class="card-body">
+        <!-- ── TABS ── -->
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:4px;">
+          <div class="tabs" style="margin-bottom:0;border-bottom:none;">
+            <button class="tab-btn active" id="tab-team" onclick="switchTab('team')"><i class="bx bxs-group"></i> Team Leaves</button>
+            <button class="tab-btn" id="tab-own" onclick="switchTab('own')"><i class="bx bxs-user-circle"></i> My Leaves</button>
+          </div>
+          <button class="btn btn-primary" onclick="openModal('apply-modal')"><i class="bx bx-plus"></i> Apply My Leave</button>
+        </div>
+
+        <!-- ── FILTERS ── -->
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:14px 0 12px;">
+          <div class="toggle-group mb-0" id="status-filters">
+            <button class="toggle-btn active" onclick="setStatusFilter('',this)">All</button>
+            <button class="toggle-btn" onclick="setStatusFilter('pending',this)">Pending</button>
+            <button class="toggle-btn" onclick="setStatusFilter('approved',this)">Approved</button>
+            <button class="toggle-btn" onclick="setStatusFilter('rejected',this)">Rejected</button>
+          </div>
+          <select id="type-filter" class="form-control" style="max-width:180px;" onchange="renderLeaves()">
+            <option value="">All Types</option>
+            <option value="earned">Earned Leave</option>
+            <option value="casual">Casual Leave</option>
+            <option value="sick">Sick Leave</option>
+            <option value="maternity">Maternity Leave</option>
+            <option value="paternity">Paternity Leave</option>
+            <option value="unpaid">Unpaid Leave</option>
+            <option value="other">Other Leave</option>
+          </select>
+          <span style="font-size:13px;color:var(--text-muted);" id="leaves-count"></span>
+        </div>
+
+        <!-- ── TABLE ── -->
+        <div class="card">
           <div class="table-wrapper">
             <table>
               <thead id="table-head"></thead>
-              <tbody id="leaves-tbody"><tr><td colspan="8" style="text-align:center;padding:40px"><span class="spinner"></span></td></tr></tbody>
+              <tbody id="leaves-tbody"><tr><td colspan="9" style="text-align:center;padding:40px"><span class="spinner"></span></td></tr></tbody>
             </table>
           </div>
         </div>
+
       </div>
     </div>
   </div>
 </div>
 
-<!-- Apply Leave Modal -->
+<!-- ══ Apply Leave Modal (matches employee style) ══ -->
 <div class="modal-overlay" id="apply-modal">
-  <div class="modal">
-    <div class="modal-header"><span class="modal-title">Apply for My Leave</span><button class="modal-close" onclick="closeModal('apply-modal')">×</button></div>
-    <div class="modal-body">
+  <div class="modal" style="max-width:520px;">
+    <div class="modal-header"><span class="modal-title">Apply for Leave</span><button class="modal-close" onclick="closeModal('apply-modal')">×</button></div>
+    <div class="modal-body" style="max-height:78vh;overflow-y:auto;">
       <div class="toggle-group">
-        <button class="toggle-btn active" id="t-single" onclick="toggleMode('single')">Single Day</button>
-        <button class="toggle-btn" id="t-range" onclick="toggleMode('range')">Date Range</button>
+        <button class="toggle-btn active" id="toggle-single" onclick="toggleMode('single')">Single Day</button>
+        <button class="toggle-btn" id="toggle-range" onclick="toggleMode('range')">Date Range</button>
       </div>
-      <div class="form-group"><label class="form-label">Leave Type</label>
+      <div class="form-group">
+        <label class="form-label">Leave Type</label>
         <select id="l-type" class="form-control"></select>
       </div>
-      <div class="form-row">
-        <div class="form-group mb-0"><label class="form-label">Start Date</label><input type="date" id="l-start" class="form-control"></div>
-        <div class="form-group mb-0" id="end-grp"><label class="form-label">End Date</label><input type="date" id="l-end" class="form-control"></div>
+
+      <!-- Mini Calendar -->
+      <div id="mini-cal-wrap" style="margin-bottom:14px;">
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-muted);margin-bottom:8px;">Select Date</div>
+        <div id="mini-cal"></div>
       </div>
-      <div class="form-group" style="margin-top:20px"><label class="form-label">Reason</label><textarea id="l-reason" class="form-control" rows="2"></textarea></div>
+
+      <div id="date-error" class="alert alert-danger" style="display:none;"></div>
+      <div class="form-row">
+        <div class="form-group mb-0">
+          <label class="form-label">Start Date</label>
+          <input type="date" id="l-start" class="form-control" onchange="onDateInputChange()">
+        </div>
+        <div class="form-group mb-0" id="end-grp" style="display:none;">
+          <label class="form-label">End Date</label>
+          <input type="date" id="l-end" class="form-control" onchange="onDateInputChange()">
+        </div>
+      </div>
+      <div class="form-group mt-3">
+        <label class="form-label">Reason <span class="text-muted">(optional)</span></label>
+        <textarea id="l-reason" class="form-control" rows="2" placeholder="Briefly describe the reason..."></textarea>
+      </div>
     </div>
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="closeModal('apply-modal')">Cancel</button>
-      <button class="btn btn-primary" onclick="applyLeave()">Submit</button>
+      <button class="btn btn-primary" onclick="applyLeave()">Submit Request</button>
     </div>
   </div>
 </div>
 
-<!-- Leave Detail Modal -->
+<!-- View Modal -->
 <div class="modal-overlay" id="detail-modal">
-  <div class="modal" style="max-width:500px">
-    <div class="modal-header"><span class="modal-title">Leave Request Details</span><button class="modal-close" onclick="closeModal('detail-modal')">×</button></div>
+  <div class="modal" style="max-width:520px">
+    <div class="modal-header"><span class="modal-title">Leave Details</span><button class="modal-close" onclick="closeModal('detail-modal')">×</button></div>
     <div class="modal-body" id="detail-body"></div>
+    <div class="modal-footer"><button class="btn btn-ghost" onclick="closeModal('detail-modal')">Close</button></div>
   </div>
 </div>
 
@@ -77,93 +126,247 @@
   </div>
 </div>
 
+<style>
+.mini-cal-grid { display:grid; grid-template-columns:repeat(7,1fr); gap:3px; }
+.mini-cal-dow  { text-align:center; font-size:10px; font-weight:700; color:var(--text-muted); padding:3px 0; }
+.mini-cal-day  { text-align:center; font-size:12px; font-weight:500; padding:6px 2px; border-radius:6px; cursor:pointer; transition:background 0.15s, color 0.15s; color:var(--text-primary); }
+.mini-cal-day:hover:not(.past) { background:var(--accent-light); color:var(--accent); }
+.mini-cal-day.today { font-weight:800; color:var(--accent); }
+.mini-cal-day.past  { color:var(--text-muted); opacity:0.4; cursor:not-allowed; }
+.mini-cal-day.sel-start, .mini-cal-day.sel-end { background:var(--accent); color:#fff; font-weight:700; }
+.mini-cal-day.sel-range { background:var(--accent-light); color:var(--accent); }
+</style>
+
 <script src="/js/api.js"></script>
 <script>
+// ── State ──────────────────────────────────────────────────────
 let currentTab = 'team';
 let rejectId = null;
 let singleMode = true;
 let currentUserGender = 'unspecified';
+let allLeaveData = [];
+let activeStatus = '';
+
 const leaveTypeLabels = {
-  earned: 'Earned Leave',
-  casual: 'Casual Leave',
-  sick: 'Sick Leave',
-  maternity: 'Maternity Leave',
-  paternity: 'Paternity Leave',
-  unpaid: 'Unpaid Leave',
-  other: 'Other Leave'
+  earned:'Earned Leave', casual:'Casual Leave', sick:'Sick Leave',
+  maternity:'Maternity Leave', paternity:'Paternity Leave', unpaid:'Unpaid Leave', other:'Other Leave'
 };
 
-function toggleMode(m) {
-  singleMode = m === 'single';
-  document.getElementById('t-single').classList.toggle('active', singleMode);
-  document.getElementById('t-range').classList.toggle('active', !singleMode);
-  document.getElementById('end-grp').style.display = singleMode ? 'none' : '';
+// ── Mini Calendar ──────────────────────────────────────────────
+const MINI_CAL_MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+const todayISO = new Date().toISOString().slice(0, 10);
+let miniCalYear  = new Date().getFullYear();
+let miniCalMonth = new Date().getMonth();
+
+function getMinAllowedDate() {
+  const now = new Date();
+  const dow = now.getDay();
+  const daysToThisMon = dow === 0 ? 6 : dow - 1;
+  const prevMon = new Date(now);
+  prevMon.setDate(now.getDate() - daysToThisMon - 7);
+  return prevMon.toISOString().slice(0, 10);
 }
-toggleMode('single');
-const managerTodayISO = new Date().toISOString().split('T')[0];
-document.getElementById('l-start').min = managerTodayISO;
-document.getElementById('l-end').min = managerTodayISO;
+
+function miniCalNav(delta) {
+  miniCalMonth += delta;
+  if (miniCalMonth > 11) { miniCalMonth = 0;  miniCalYear++; }
+  if (miniCalMonth < 0)  { miniCalMonth = 11; miniCalYear--; }
+  buildMiniCal();
+}
+
+function buildMiniCal() {
+  const start = document.getElementById('l-start').value;
+  const end   = singleMode ? start : document.getElementById('l-end').value;
+  const minDs = getMinAllowedDate();
+  const DOW   = ['Mo','Tu','We','Th','Fr','Sa','Su'];
+
+  const firstDay = new Date(miniCalYear, miniCalMonth, 1);
+  const lastDay  = new Date(miniCalYear, miniCalMonth + 1, 0);
+  let startOffset = firstDay.getDay() - 1;
+  if (startOffset < 0) startOffset = 6;
+
+  let html = `
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+    <button type="button" onclick="miniCalNav(-1)" style="background:none;border:1px solid var(--border);border-radius:6px;padding:3px 8px;cursor:pointer;color:var(--text-primary);font-size:14px;">‹</button>
+    <span style="font-size:13px;font-weight:700;color:var(--text-primary);">${MINI_CAL_MONTHS[miniCalMonth]} ${miniCalYear}</span>
+    <button type="button" onclick="miniCalNav(1)"  style="background:none;border:1px solid var(--border);border-radius:6px;padding:3px 8px;cursor:pointer;color:var(--text-primary);font-size:14px;">›</button>
+  </div>
+  <div class="mini-cal-grid">`;
+
+  DOW.forEach(d => { html += `<div class="mini-cal-dow">${d}</div>`; });
+  for (let i = 0; i < startOffset; i++) html += '<div></div>';
+
+  for (let d = 1; d <= lastDay.getDate(); d++) {
+    const ds = miniCalYear + '-' + String(miniCalMonth + 1).padStart(2,'0') + '-' + String(d).padStart(2,'0');
+    const isPast  = ds < minDs;
+    const isToday = ds === todayISO;
+    const isStart = ds === start;
+    const isEnd   = ds === end;
+    const isRange = !singleMode && start && end && ds > start && ds < end;
+    let cls = 'mini-cal-day';
+    if (isPast)         cls += ' past';
+    if (isToday)        cls += ' today';
+    if (isStart)        cls += ' sel-start';
+    else if (isEnd)     cls += ' sel-end';
+    else if (isRange)   cls += ' sel-range';
+    html += `<div class="${cls}" onclick="minicalClick('${ds}')">${d}</div>`;
+  }
+  html += '</div>';
+  document.getElementById('mini-cal').innerHTML = html;
+}
+
+function minicalClick(ds) {
+  if (ds < getMinAllowedDate()) return;
+  if (singleMode) {
+    document.getElementById('l-start').value = ds;
+    document.getElementById('l-end').value   = ds;
+  } else {
+    const cur    = document.getElementById('l-start').value;
+    const curEnd = document.getElementById('l-end').value;
+    if (!cur || (cur && curEnd)) {
+      document.getElementById('l-start').value = ds;
+      document.getElementById('l-end').value   = '';
+    } else {
+      if (ds >= cur) { document.getElementById('l-end').value = ds; }
+      else { document.getElementById('l-start').value = ds; document.getElementById('l-end').value = cur; }
+    }
+  }
+  buildMiniCal();
+  validateDates();
+}
+
+function onDateInputChange() {
+  const val = document.getElementById('l-start').value;
+  if (val) { const [y, m] = val.split('-').map(Number); miniCalYear = y; miniCalMonth = m - 1; }
+  buildMiniCal();
+  validateDates();
+}
+
+function validateDates() {
+  const start = document.getElementById('l-start').value;
+  const end   = document.getElementById('l-end').value;
+  const errEl = document.getElementById('date-error');
+  errEl.style.display = 'none';
+  if (!singleMode && end && start && end < start) {
+    errEl.textContent   = 'End date must be on or after start date';
+    errEl.style.display = '';
+    return false;
+  }
+  return true;
+}
+
+// ── Apply Modal ────────────────────────────────────────────────
+function toggleMode(mode) {
+  singleMode = mode === 'single';
+  document.getElementById('toggle-single').classList.toggle('active', singleMode);
+  document.getElementById('toggle-range').classList.toggle('active', !singleMode);
+  document.getElementById('end-grp').style.display = singleMode ? 'none' : '';
+  if (singleMode) document.getElementById('l-end').value = document.getElementById('l-start').value;
+  buildMiniCal();
+}
 
 function renderOwnLeaveOptions() {
   const options = [
-    { value: 'earned', label: 'Earned Leave' },
-    { value: 'casual', label: 'Casual Leave' },
-    { value: 'sick', label: 'Sick Leave' }
+    { value:'earned', label:'Earned Leave' },
+    { value:'casual', label:'Casual Leave' },
+    { value:'sick',   label:'Sick Leave' }
   ];
-  if (currentUserGender === 'female') options.push({ value: 'maternity', label: 'Maternity Leave' });
-  if (currentUserGender === 'male') options.push({ value: 'paternity', label: 'Paternity Leave' });
-  options.push({ value: 'unpaid', label: 'Unpaid Leave' });
-  options.push({ value: 'other', label: 'Other' });
-  document.getElementById('l-type').innerHTML = options.map(function(opt) {
-    return '<option value="' + opt.value + '">' + opt.label + '</option>';
+  if (currentUserGender === 'female') options.push({ value:'maternity', label:'Maternity Leave' });
+  if (currentUserGender === 'male')   options.push({ value:'paternity', label:'Paternity Leave' });
+  options.push({ value:'unpaid', label:'Unpaid Leave' });
+  options.push({ value:'other',  label:'Other' });
+  document.getElementById('l-type').innerHTML = options.map(function(o){
+    return '<option value="' + o.value + '">' + o.label + '</option>';
   }).join('');
 }
 
+// ── Tab / Filter ───────────────────────────────────────────────
 function switchTab(tab) {
   currentTab = tab;
-  document.querySelectorAll('.tab-btn').forEach((b,i) => b.classList.toggle('active', (i===0) === (tab==='team')));
+  document.getElementById('tab-team').classList.toggle('active', tab === 'team');
+  document.getElementById('tab-own').classList.toggle('active',  tab === 'own');
+  // reset status filter buttons
+  document.querySelectorAll('#status-filters .toggle-btn').forEach(function(b, i){ b.classList.toggle('active', i === 0); });
+  activeStatus = '';
+  document.getElementById('type-filter').value = '';
   loadLeaves();
 }
 
-let allLeaveData = [];
+function setStatusFilter(f, btn) {
+  activeStatus = f;
+  document.querySelectorAll('#status-filters .toggle-btn').forEach(function(b){ b.classList.remove('active'); });
+  btn.classList.add('active');
+  renderLeaves();
+}
 
+// ── Render Table ───────────────────────────────────────────────
+function renderLeaves() {
+  var typeFilter = document.getElementById('type-filter').value;
+  var data = allLeaveData.filter(function(l){
+    if (activeStatus && l.status !== activeStatus) return false;
+    if (typeFilter && l.type !== typeFilter) return false;
+    return true;
+  });
+
+  var countEl = document.getElementById('leaves-count');
+  if (countEl) countEl.textContent = data.length + ' record' + (data.length !== 1 ? 's' : '');
+
+  var thead = document.getElementById('table-head');
+  var tbody = document.getElementById('leaves-tbody');
+
+  if (currentTab === 'team') {
+    thead.innerHTML = '<tr><th>Employee</th><th>Dept / Role</th><th>Leave Type</th><th>From</th><th>To</th><th>Days</th><th>Status</th><th>Applied On</th><th>Actions</th></tr>';
+    tbody.innerHTML = data.length ? data.map(function(l){
+      var dept = l.user ? (l.user.department || l.user.role || 'Employee') : '—';
+      return '<tr>' +
+        '<td><strong>' + (l.user ? l.user.name : '—') + '</strong></td>' +
+        '<td style="font-size:12px;color:var(--text-muted);">' + dept + '</td>' +
+        '<td>' + (leaveTypeLabels[l.type] || l.type) + '</td>' +
+        '<td>' + fmtDate(l.startDate) + '</td>' +
+        '<td>' + fmtDate(l.endDate) + '</td>' +
+        '<td>' + l.days + '</td>' +
+        '<td>' + statusBadge(l.status) + '</td>' +
+        '<td style="font-size:12px;color:var(--text-muted);">' + fmtDate(l.createdAt) + '</td>' +
+        '<td>' +
+          '<button class="btn btn-ghost btn-sm" onclick="viewLeaveDetail(' + l.id + ')" title="View"><i class="bx bx-show"></i></button>' +
+          (l.status === 'pending' ?
+            '<button class="btn btn-success btn-sm" onclick="actLeave(' + l.id + ',\'approve\')"><i class="bx bx-check"></i></button>' +
+            '<button class="btn btn-danger btn-sm" onclick="openReject(' + l.id + ')"><i class="bx bx-x"></i></button>'
+          : '') +
+        '</td>' +
+      '</tr>';
+    }).join('') : '<tr><td colspan="9"><div class="empty-state"><div class="empty-icon"><i class="bx bxs-group"></i></div><h3>No team leaves</h3><p>No records match the selected filters</p></div></td></tr>';
+  } else {
+    thead.innerHTML = '<tr><th>Leave Type</th><th>From</th><th>To</th><th>Days</th><th>Status</th><th>Approved By</th><th>Applied On</th><th>Actions</th></tr>';
+    tbody.innerHTML = data.length ? data.map(function(l){
+      return '<tr>' +
+        '<td>' + (leaveTypeLabels[l.type] || l.type) + '</td>' +
+        '<td>' + fmtDate(l.startDate) + '</td>' +
+        '<td>' + fmtDate(l.endDate) + '</td>' +
+        '<td>' + l.days + '</td>' +
+        '<td>' + statusBadge(l.status) + '</td>' +
+        '<td style="font-size:12px;color:var(--text-muted);">' + (l.approver ? l.approver.name : '—') + '</td>' +
+        '<td style="font-size:12px;color:var(--text-muted);">' + fmtDate(l.createdAt) + '</td>' +
+        '<td>' +
+          '<button class="btn btn-ghost btn-sm" onclick="viewLeaveDetail(' + l.id + ')" title="View"><i class="bx bx-show"></i></button>' +
+          (l.status === 'pending' ? '<button class="btn btn-danger btn-sm" onclick="deleteLeave(' + l.id + ')"><i class="bx bx-trash"></i></button>' : '') +
+        '</td>' +
+      '</tr>';
+    }).join('') : '<tr><td colspan="8"><div class="empty-state"><div class="empty-icon"><i class="bx bxs-user-circle"></i></div><h3>No personal leaves</h3><p>No records match the selected filters</p></div></td></tr>';
+  }
+}
+
+// ── Load ───────────────────────────────────────────────────────
 async function loadLeaves() {
   try {
     const scope = currentTab === 'team' ? '?scope=team' : '?scope=own';
     const leaves = await api('GET', '/leaves' + scope);
     allLeaveData = leaves;
-    const thead = document.getElementById('table-head');
-    const tbody = document.getElementById('leaves-tbody');
-
-    if (currentTab === 'team') {
-      thead.innerHTML = '<tr><th>Employee</th><th>Type</th><th>From</th><th>To</th><th>Days</th><th>Status</th><th>Applied</th><th>Actions</th></tr>';
-      tbody.innerHTML = leaves.length ? leaves.map(l => `<tr>
-        <td><strong>${l.user?.name||'—'}</strong></td>
-        <td>${leaveTypeLabels[l.type] || l.type}</td>
-        <td>${fmtDate(l.startDate)}</td><td>${fmtDate(l.endDate)}</td>
-        <td>${l.days}</td>
-        <td>${statusBadge(l.status)}</td>
-        <td style="font-size:12px;color:var(--text-muted)">${fmtDate(l.createdAt)}</td>
-        <td>${l.status==='pending' ? `
-          <button class="btn btn-ghost btn-sm" onclick="viewLeaveDetail(${l.id})" title="View Detail"><i class="bx bx-show"></i></button>
-          <button class="btn btn-success btn-sm" onclick="actLeave(${l.id},'approve')"><i class="bx bx-check"></i> Approve</button>
-          <button class="btn btn-danger btn-sm" onclick="openReject(${l.id})"><i class="bx bx-x"></i> Reject</button>` : '—'}</td>
-      </tr>`).join('') : '<tr><td colspan="8"><div class="empty-state"><div class="empty-icon"><i class="bx bxs-plane-alt"></i></div><p>No team leaves</p></div></td></tr>';
-    } else {
-      thead.innerHTML = '<tr><th>Type</th><th>From</th><th>To</th><th>Days</th><th>Status</th><th>Approved By</th><th>Applied</th><th>Action</th></tr>';
-      tbody.innerHTML = leaves.length ? leaves.map(l => `<tr>
-        <td>${leaveTypeLabels[l.type] || l.type}</td>
-        <td>${fmtDate(l.startDate)}</td><td>${fmtDate(l.endDate)}</td>
-        <td>${l.days}</td>
-        <td>${statusBadge(l.status)}</td>
-        <td class="text-sm">${l.approver ? l.approver.name : '—'}</td>
-        <td style="font-size:12px;color:var(--text-muted)">${fmtDate(l.createdAt)}</td>
-        <td>${l.status==='pending' ? `<button class="btn btn-danger btn-sm" onclick="deleteLeave(${l.id})"><i class="bx bx-trash"></i> Delete</button>` : '—'}</td>
-      </tr>`).join('') : '<tr><td colspan="8"><div class="empty-state"><div class="empty-icon"><i class="bx bxs-plane-alt"></i></div><p>No personal leaves</p></div></td></tr>';
-    }
+    renderLeaves();
   } catch(e) { toast(e.message, 'error'); }
 }
 
+// ── Actions ────────────────────────────────────────────────────
 async function actLeave(id, action) {
   try { await api('PATCH', '/leaves/'+id+'/action', { action }); toast('Leave '+action+'d', 'success'); loadLeaves(); }
   catch(e) { toast(e.message, 'error'); }
@@ -172,60 +375,65 @@ async function actLeave(id, action) {
 function openReject(id) { rejectId = id; document.getElementById('reject-reason').value = ''; openModal('reject-modal'); }
 async function confirmReject() {
   const reason = document.getElementById('reject-reason').value;
-  try { await api('PATCH', '/leaves/'+rejectId+'/action', { action: 'reject', rejectionReason: reason }); toast('Leave rejected', 'success'); closeModal('reject-modal'); loadLeaves(); }
+  try { await api('PATCH', '/leaves/'+rejectId+'/action', { action:'reject', rejectionReason:reason }); toast('Leave rejected', 'success'); closeModal('reject-modal'); loadLeaves(); }
   catch(e) { toast(e.message, 'error'); }
 }
 
 async function applyLeave() {
-  const type = document.getElementById('l-type').value;
-  const start = document.getElementById('l-start').value;
-  const end = singleMode ? start : document.getElementById('l-end').value;
+  if (!validateDates()) return;
+  const type   = document.getElementById('l-type').value;
+  const start  = document.getElementById('l-start').value;
+  const end    = singleMode ? start : document.getElementById('l-end').value;
   const reason = document.getElementById('l-reason').value;
-  if (!start) return toast('Select a date', 'error');
-  if (!singleMode && !end) return toast('Select an end date', 'error');
+  if (!start) return toast('Please select a start date', 'error');
+  if (!singleMode && !end) return toast('Please select an end date', 'error');
   if (type === 'other' && !reason.trim()) return toast('Please enter a reason for Other leave', 'error');
   try {
     await api('POST', '/leaves', { type, startDate: start, endDate: end, reason });
-    toast('Leave applied!', 'success'); closeModal('apply-modal'); loadLeaves();
+    toast('Leave request submitted!', 'success');
+    closeModal('apply-modal');
+    if (currentTab === 'own') loadLeaves();
   } catch(e) { toast(e.message, 'error'); }
 }
 
 async function deleteLeave(id) {
-  if (!confirm('Delete this leave?')) return;
+  if (!confirm('Delete this leave request?')) return;
   try { await api('DELETE', '/leaves/'+id); toast('Deleted', 'success'); loadLeaves(); }
   catch(e) { toast(e.message, 'error'); }
 }
 
 function viewLeaveDetail(id) {
-  const l = allLeaveData.find(x => x.id === id);
+  const l = allLeaveData.find(function(x){ return x.id === id; });
   if (!l) return;
-  document.getElementById('detail-body').innerHTML = `
-    <div style="display:flex;flex-direction:column;gap:16px;">
-      <div style="display:flex;align-items:center;gap:12px;">
-        <div style="width:48px;height:48px;border-radius:50%;background:var(--accent-light);display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:700;color:var(--accent);">${(l.user?.name||'?').charAt(0)}</div>
-        <div><div style="font-weight:700;font-size:16px;">${l.user?.name||'Unknown'}</div><div style="font-size:12px;color:var(--text-muted);">${l.user?.email||''} · ${l.user?.role||''}</div></div>
-      </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
-        <div><div style="font-size:11px;color:var(--text-muted);font-weight:600;text-transform:uppercase;">Leave Type</div><div style="font-weight:600;margin-top:4px;">${leaveTypeLabels[l.type] || l.type}</div></div>
-        <div><div style="font-size:11px;color:var(--text-muted);font-weight:600;text-transform:uppercase;">Duration</div><div style="font-weight:600;margin-top:4px;">${l.days} day${l.days!==1?'s':''}</div></div>
-        <div><div style="font-size:11px;color:var(--text-muted);font-weight:600;text-transform:uppercase;">From</div><div style="font-weight:600;margin-top:4px;">${fmtDate(l.startDate)}</div></div>
-        <div><div style="font-size:11px;color:var(--text-muted);font-weight:600;text-transform:uppercase;">To</div><div style="font-weight:600;margin-top:4px;">${fmtDate(l.endDate)}</div></div>
-        <div><div style="font-size:11px;color:var(--text-muted);font-weight:600;text-transform:uppercase;">Status</div><div style="margin-top:4px;">${statusBadge(l.status)}</div></div>
-        <div><div style="font-size:11px;color:var(--text-muted);font-weight:600;text-transform:uppercase;">Applied On</div><div style="font-weight:600;margin-top:4px;">${fmtDate(l.createdAt)}</div></div>
-      </div>
-      ${l.reason ? '<div><div style="font-size:11px;color:var(--text-muted);font-weight:600;text-transform:uppercase;">Reason</div><div style="margin-top:4px;font-size:13px;color:var(--text-secondary);">'+l.reason+'</div></div>' : ''}
-      ${l.approver ? '<div><div style="font-size:11px;color:var(--text-muted);font-weight:600;text-transform:uppercase;">Reviewed By</div><div style="font-weight:600;margin-top:4px;">'+l.approver.name+'</div></div>' : ''}
-    </div>
-  `;
+  document.getElementById('detail-body').innerHTML =
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">' +
+      (currentTab === 'team' ?
+        '<div style="background:var(--bg-input);border-radius:12px;padding:12px;grid-column:1/-1;display:flex;align-items:center;gap:12px;">' +
+          '<div style="width:42px;height:42px;border-radius:50%;background:var(--accent-light);display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:700;color:var(--accent);">' + ((l.user?.name||'?').charAt(0)) + '</div>' +
+          '<div><div style="font-weight:700;">' + (l.user?.name||'Unknown') + '</div><div style="font-size:12px;color:var(--text-muted);">' + (l.user?.department || l.user?.role || 'Employee') + '</div></div>' +
+        '</div>'
+      : '') +
+      '<div style="background:var(--bg-input);border-radius:12px;padding:12px;"><div class="detail-label">Leave Type</div><div class="detail-value">' + (leaveTypeLabels[l.type] || l.type) + '</div></div>' +
+      '<div style="background:var(--bg-input);border-radius:12px;padding:12px;"><div class="detail-label">Status</div><div class="detail-value">' + statusBadge(l.status) + '</div></div>' +
+      '<div style="background:var(--bg-input);border-radius:12px;padding:12px;"><div class="detail-label">From</div><div class="detail-value">' + fmtDate(l.startDate) + '</div></div>' +
+      '<div style="background:var(--bg-input);border-radius:12px;padding:12px;"><div class="detail-label">To</div><div class="detail-value">' + fmtDate(l.endDate) + '</div></div>' +
+      '<div style="background:var(--bg-input);border-radius:12px;padding:12px;"><div class="detail-label">Days</div><div class="detail-value">' + l.days + '</div></div>' +
+      '<div style="background:var(--bg-input);border-radius:12px;padding:12px;"><div class="detail-label">Applied On</div><div class="detail-value">' + fmtDate(l.createdAt) + '</div></div>' +
+      (l.approver ? '<div style="background:var(--bg-input);border-radius:12px;padding:12px;grid-column:1/-1;"><div class="detail-label">Approved / Reviewed By</div><div class="detail-value">' + l.approver.name + '</div></div>' : '') +
+    '</div>' +
+    (l.reason ? '<div style="margin-top:14px;background:var(--bg-input);border-radius:12px;padding:12px;"><div class="detail-label">Reason</div><div class="detail-value">' + l.reason + '</div></div>' : '') +
+    (l.rejectionReason ? '<div style="margin-top:12px;background:var(--danger-light);border-radius:12px;padding:12px;"><div class="detail-label" style="color:var(--danger);">Rejection Reason</div><div class="detail-value">' + l.rejectionReason + '</div></div>' : '');
   openModal('detail-modal');
 }
 
-(async function initLeaves() {
+// ── Init ───────────────────────────────────────────────────────
+(async function init() {
   try {
     const me = await api('GET', '/users/me');
     currentUserGender = me?.gender || 'unspecified';
-  } catch (e) {}
+  } catch(e) {}
   renderOwnLeaveOptions();
+  buildMiniCal();
   loadLeaves();
 })();
 </script>

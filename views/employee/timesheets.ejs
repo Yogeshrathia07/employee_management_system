@@ -12,14 +12,6 @@
     <div class="page-body admin-employees-page employee-shared-page">
       <div class="employee-directory-shell">
 
-      <!-- Stats -->
-      <div class="stats-grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:24px;">
-        <div class="stat-card"><div class="stat-icon blue"><i class="bx bxs-time-five"></i></div><div><div class="stat-value" id="total-hours">0h</div><div class="stat-label">Approved Hours</div></div></div>
-        <div class="stat-card"><div class="stat-icon green"><i class="bx bxs-check-circle"></i></div><div><div class="stat-value" id="approved-sheets">0</div><div class="stat-label">Approved</div></div></div>
-        <div class="stat-card"><div class="stat-icon orange"><i class="bx bxs-hourglass"></i></div><div><div class="stat-value" id="pending-sheets">0</div><div class="stat-label">Pending</div></div></div>
-        <div class="stat-card"><div class="stat-icon" style="background:#fee2e2;color:#ef4444;"><i class="bx bxs-x-circle"></i></div><div><div class="stat-value" id="rejected-sheets">0</div><div class="stat-label">Rejected</div></div></div>
-      </div>
-
       <!-- Toolbar -->
       <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:16px;">
         <div class="toggle-group">
@@ -39,7 +31,7 @@
       </div>
 
       <!-- View content -->
-      <div id="ts-content">
+      <div id="ts-content" style="overflow-x:auto;max-width:100%;">
         <div style="display:flex;justify-content:center;padding:40px;"><span class="spinner"></span></div>
       </div>
 
@@ -242,7 +234,7 @@ function renderWeekView() {
 
     rows += '<tr style="border-bottom:1px solid var(--border);' +
       (isToday ? 'background:rgba(99,102,241,0.05);' : isWeekend ? 'opacity:0.55;' : '') + '">' +
-      '<td style="padding:11px 14px;white-space:nowrap;">' +
+      '<td style="padding:8px 10px;white-space:nowrap;overflow:hidden;">' +
         '<div style="display:flex;align-items:center;gap:8px;">' +
           '<span style="display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:8px;font-size:11px;font-weight:700;' +
             (isToday ? 'background:var(--accent);color:white;' : 'background:var(--bg-input);color:var(--text-muted);') + '">' +
@@ -254,7 +246,7 @@ function renderWeekView() {
           '</div>' +
         '</div>' +
       '</td>' +
-      '<td style="padding:11px 14px;text-align:center;">' +
+      '<td style="padding:8px 6px;text-align:center;">' +
         (hit ? '<span style="font-size:15px;font-weight:800;color:var(--accent);">' + hit.hours.toFixed(1) + '<span style="font-size:11px;font-weight:400;">h</span></span>'
              : '<span style="color:var(--border);font-size:18px;">—</span>') +
         (hit && hit.entries.length > 1 ? '<div style="font-size:10px;color:var(--text-muted);">' + hit.entries.length + ' entries</div>' : '') +
@@ -262,16 +254,16 @@ function renderWeekView() {
       '<td style="padding:11px 14px;">' +
         (hit ? hit.entries.map(function(e){ return e.workType; }).filter(function(v,i,a){return v&&a.indexOf(v)===i;}).map(function(wt){ return '<span style="font-size:11px;background:var(--bg-input);border-radius:6px;padding:2px 7px;text-transform:capitalize;color:var(--text-secondary);margin-right:3px;">' + wt + '</span>'; }).join('') : '') +
       '</td>' +
-      '<td style="padding:11px 14px;font-size:12px;color:var(--text-secondary);max-width:150px;">' +
+      '<td style="padding:8px 8px;font-size:12px;color:var(--text-secondary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' +
         (hit ? hit.entries.map(function(e){ return e.project || ''; }).filter(function(v,i,a){return v&&a.indexOf(v)===i;}).join(', ') : '') +
       '</td>' +
-      '<td style="padding:11px 14px;font-size:12px;color:var(--text-muted);max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' +
+      '<td style="padding:8px 8px;font-size:12px;color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' +
         (hit ? hit.entries.map(function(e){ return e.description || ''; }).filter(Boolean).join(' / ') : '') +
       '</td>' +
       '<td style="padding:11px 14px;">' +
         (hit ? '<span style="font-size:11px;font-weight:600;background:' + st.b + ';color:' + st.c + ';border-radius:12px;padding:2px 9px;text-transform:capitalize;">' + hit.ts.status + '</span>' : '') +
       '</td>' +
-      '<td style="padding:11px 10px;text-align:right;">' +
+      '<td style="padding:8px 6px;text-align:right;">' +
         (hit && (hit.ts.status==='pending'||hit.ts.status==='rejected') ?
           '<button class="btn btn-ghost btn-sm" onclick="openEditTs(' + hit.ts.id + ')"><i class="bx bx-edit"></i></button>' : '') +
       '</td>' +
@@ -284,20 +276,21 @@ function renderWeekView() {
   });
 
   var html = '<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;">' +
-    '<table style="width:100%;border-collapse:collapse;">' +
+    '<table style="width:100%;border-collapse:collapse;table-layout:fixed;">' +
+    '<colgroup><col style="width:120px"><col style="width:70px"><col style="width:100px"><col style="width:130px"><col style="width:130px"><col style="width:80px"><col style="width:44px"></colgroup>' +
     '<thead><tr style="background:var(--bg-input);border-bottom:1px solid var(--border);">' +
-      '<th style="padding:10px 14px;text-align:left;font-size:11px;font-weight:600;color:var(--text-muted);letter-spacing:.5px;text-transform:uppercase;">Day</th>' +
-      '<th style="padding:10px 14px;text-align:center;font-size:11px;font-weight:600;color:var(--text-muted);letter-spacing:.5px;text-transform:uppercase;">Hours</th>' +
-      '<th style="padding:10px 14px;text-align:left;font-size:11px;font-weight:600;color:var(--text-muted);letter-spacing:.5px;text-transform:uppercase;">Type</th>' +
-      '<th style="padding:10px 14px;text-align:left;font-size:11px;font-weight:600;color:var(--text-muted);letter-spacing:.5px;text-transform:uppercase;">Project</th>' +
-      '<th style="padding:10px 14px;text-align:left;font-size:11px;font-weight:600;color:var(--text-muted);letter-spacing:.5px;text-transform:uppercase;">Task</th>' +
-      '<th style="padding:10px 14px;text-align:left;font-size:11px;font-weight:600;color:var(--text-muted);letter-spacing:.5px;text-transform:uppercase;">Status</th>' +
+      '<th style="padding:8px 10px;text-align:left;font-size:11px;font-weight:600;color:var(--text-muted);letter-spacing:.5px;text-transform:uppercase;">Day</th>' +
+      '<th style="padding:8px 6px;text-align:center;font-size:11px;font-weight:600;color:var(--text-muted);letter-spacing:.5px;text-transform:uppercase;">Hours</th>' +
+      '<th style="padding:8px 8px;text-align:left;font-size:11px;font-weight:600;color:var(--text-muted);letter-spacing:.5px;text-transform:uppercase;">Type</th>' +
+      '<th style="padding:8px 8px;text-align:left;font-size:11px;font-weight:600;color:var(--text-muted);letter-spacing:.5px;text-transform:uppercase;">Project</th>' +
+      '<th style="padding:8px 8px;text-align:left;font-size:11px;font-weight:600;color:var(--text-muted);letter-spacing:.5px;text-transform:uppercase;">Task</th>' +
+      '<th style="padding:8px 6px;text-align:left;font-size:11px;font-weight:600;color:var(--text-muted);letter-spacing:.5px;text-transform:uppercase;">Status</th>' +
       '<th></th>' +
     '</tr></thead>' +
     '<tbody>' + rows + '</tbody>' +
     '<tfoot><tr style="background:var(--bg-input);border-top:2px solid var(--border);">' +
-      '<td style="padding:10px 14px;font-weight:700;font-size:13px;color:var(--text-primary);">Weekly Total</td>' +
-      '<td style="padding:10px 14px;text-align:center;font-size:18px;font-weight:800;color:var(--accent);">' + totalH + '<span style="font-size:12px;font-weight:400;">h</span></td>' +
+      '<td style="padding:8px 10px;font-weight:700;font-size:13px;color:var(--text-primary);">Weekly Total</td>' +
+      '<td style="padding:8px 6px;text-align:center;font-size:18px;font-weight:800;color:var(--accent);">' + totalH + '<span style="font-size:12px;font-weight:400;">h</span></td>' +
       '<td colspan="5"></td>' +
     '</tr></tfoot>' +
     '</table>' +
@@ -398,66 +391,65 @@ function renderYearView() {
     return new Date(ts.weekStart).getFullYear() === yr;
   });
   var totalYearH = yearSheets.reduce(function(s,t){ return s+(t.totalHours||0); },0);
+  var totalApprH = yearSheets.filter(function(t){return t.status==='approved';}).reduce(function(s,t){return s+(t.totalHours||0);},0);
 
   var monthData = MONTHS_FULL.map(function(name, mi) {
     var ms = yearSheets.filter(function(ts){ return new Date(ts.weekStart).getMonth() === mi; });
     return {
-      name: name, short: MONTHS_SHORT[mi], mi: mi,
-      sheets: ms,
+      name: name, mi: mi,
+      sheets: ms.length,
       hours: ms.reduce(function(s,t){ return s+(t.totalHours||0); },0),
       approvedH: ms.filter(function(t){return t.status==='approved';}).reduce(function(s,t){return s+(t.totalHours||0);},0),
       pending: ms.filter(function(t){return t.status==='pending';}).length,
       rejected: ms.filter(function(t){return t.status==='rejected';}).length
     };
   });
-  var maxH = Math.max.apply(null, monthData.map(function(m){ return m.hours; })) || 1;
-
-  var html = '<div style="background:linear-gradient(135deg,var(--accent),#7c3aed);border-radius:var(--radius);padding:18px 22px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:16px;margin-bottom:20px;">' +
-    '<div style="color:white;"><div style="font-size:28px;font-weight:800;line-height:1;">' + totalYearH + 'h</div><div style="font-size:12px;opacity:.75;margin-top:2px;">Total in ' + yr + '</div></div>' +
-    '<div style="color:white;"><div style="font-size:28px;font-weight:800;line-height:1;">' + yearSheets.filter(function(t){return t.status==='approved';}).length + '</div><div style="font-size:12px;opacity:.75;margin-top:2px;">Approved sheets</div></div>' +
-    '<div style="color:white;"><div style="font-size:28px;font-weight:800;line-height:1;">' + yearSheets.length + '</div><div style="font-size:12px;opacity:.75;margin-top:2px;">Total sheets</div></div>' +
-    '</div>';
 
   var now = new Date();
-  html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px;">';
-  monthData.forEach(function(m) {
-    var isCurrMonth = m.mi === now.getMonth() && yr === now.getFullYear();
-    var barW = Math.round((m.hours / maxH) * 100);
-
-    html += '<div style="background:var(--bg-card);border:1px solid ' + (isCurrMonth?'var(--accent)':'var(--border)') + ';border-radius:var(--radius);padding:14px 16px;cursor:pointer;transition:box-shadow .2s;" ' +
-      'onclick="navDate=new Date(' + yr + ',' + m.mi + ',1);setView(\'month\')" ' +
-      'onmouseover="this.style.boxShadow=\'var(--shadow-lg)\'" onmouseout="this.style.boxShadow=\'\'">' +
-      '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">' +
-        '<div style="font-weight:600;font-size:14px;color:' + (isCurrMonth?'var(--accent)':'var(--text-primary)') + ';">' + m.name + '</div>' +
-        (m.pending ? '<span style="font-size:10px;background:#fef3c7;color:#b45309;border-radius:10px;padding:1px 7px;font-weight:700;">' + m.pending + ' pending</span>' : '') +
-        (m.rejected && !m.pending ? '<span style="font-size:10px;background:#fee2e2;color:#ef4444;border-radius:10px;padding:1px 7px;font-weight:700;">' + m.rejected + ' rejected</span>' : '') +
-      '</div>' +
-      '<div style="font-size:24px;font-weight:800;color:' + (m.hours?'var(--text-primary)':'var(--text-muted)') + ';line-height:1;margin-bottom:8px;">' +
-        m.hours + '<span style="font-size:14px;font-weight:400;color:var(--text-muted);">h</span>' +
-      '</div>' +
-      '<div style="height:5px;background:var(--bg-input);border-radius:5px;overflow:hidden;margin-bottom:8px;">' +
-        '<div style="width:' + barW + '%;height:100%;background:var(--accent);border-radius:5px;"></div>' +
-      '</div>' +
-      '<div style="font-size:11px;color:var(--text-muted);">' +
-        (m.sheets.length
-          ? m.sheets.length + ' sheet' + (m.sheets.length>1?'s':'') + (m.approvedH ? ' · ' + m.approvedH + 'h approved' : '')
-          : 'No entries') +
-      '</div>' +
+  var html = '<div style="background:linear-gradient(135deg,var(--accent),#7c3aed);border-radius:var(--radius);padding:16px 20px;display:flex;align-items:center;gap:32px;flex-wrap:wrap;margin-bottom:16px;">' +
+    '<div style="color:white;"><div style="font-size:26px;font-weight:800;line-height:1;">' + totalYearH + 'h</div><div style="font-size:11px;opacity:.75;margin-top:2px;">Total in ' + yr + '</div></div>' +
+    '<div style="color:white;"><div style="font-size:26px;font-weight:800;line-height:1;">' + totalApprH + 'h</div><div style="font-size:11px;opacity:.75;margin-top:2px;">Approved</div></div>' +
+    '<div style="color:white;"><div style="font-size:26px;font-weight:800;line-height:1;">' + yearSheets.length + '</div><div style="font-size:11px;opacity:.75;margin-top:2px;">Timesheets</div></div>' +
     '</div>';
+
+  html += '<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;">' +
+    '<table style="width:100%;border-collapse:collapse;table-layout:fixed;">' +
+    '<colgroup><col style="width:110px"><col><col><col style="width:60px"><col style="width:70px"><col style="width:70px"><col style="width:80px"></colgroup>' +
+    '<thead><tr style="background:var(--bg-input);border-bottom:1px solid var(--border);">' +
+      '<th style="padding:10px 12px;text-align:left;font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;">Month</th>' +
+      '<th style="padding:10px 12px;text-align:right;font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;">Hours</th>' +
+      '<th style="padding:10px 12px;text-align:right;font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;">Approved</th>' +
+      '<th style="padding:10px 12px;text-align:center;font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;">Sheets</th>' +
+      '<th style="padding:10px 12px;text-align:center;font-size:11px;font-weight:600;color:#f59e0b;text-transform:uppercase;letter-spacing:.5px;">Pending</th>' +
+      '<th style="padding:10px 12px;text-align:center;font-size:11px;font-weight:600;color:#ef4444;text-transform:uppercase;letter-spacing:.5px;">Rejected</th>' +
+      '<th style="padding:10px 12px;text-align:center;font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;">View</th>' +
+    '</tr></thead><tbody>';
+
+  monthData.forEach(function(m) {
+    var isCurr = m.mi === now.getMonth() && yr === now.getFullYear();
+    var isFuture = (yr > now.getFullYear()) || (yr === now.getFullYear() && m.mi > now.getMonth());
+    html += '<tr style="border-bottom:1px solid var(--border);' + (isCurr?'background:rgba(99,102,241,0.05);':'') + (isFuture?'opacity:0.45;':'') + '">' +
+      '<td style="padding:11px 12px;font-weight:' + (isCurr?'700':'600') + ';font-size:13px;color:' + (isCurr?'var(--accent)':'var(--text-primary)') + ';">' +
+        m.name + (isCurr ? ' <span style="font-size:10px;background:var(--accent);color:white;border-radius:8px;padding:1px 6px;vertical-align:middle;">Now</span>' : '') +
+      '</td>' +
+      '<td style="padding:11px 12px;text-align:right;font-size:14px;font-weight:800;color:' + (m.hours?'var(--text-primary)':'var(--text-muted)') + ';">' + (m.hours ? m.hours + '<span style="font-size:11px;font-weight:400;">h</span>' : '—') + '</td>' +
+      '<td style="padding:11px 12px;text-align:right;font-size:13px;font-weight:700;color:#22c55e;">' + (m.approvedH ? m.approvedH + '<span style="font-size:11px;font-weight:400;">h</span>' : '—') + '</td>' +
+      '<td style="padding:11px 12px;text-align:center;font-size:13px;color:var(--text-secondary);">' + (m.sheets || '—') + '</td>' +
+      '<td style="padding:11px 12px;text-align:center;">' + (m.pending ? '<span style="font-size:12px;font-weight:700;color:#b45309;background:#fef3c7;border-radius:10px;padding:2px 8px;">' + m.pending + '</span>' : '<span style="color:var(--border);">—</span>') + '</td>' +
+      '<td style="padding:11px 12px;text-align:center;">' + (m.rejected ? '<span style="font-size:12px;font-weight:700;color:#ef4444;background:#fee2e2;border-radius:10px;padding:2px 8px;">' + m.rejected + '</span>' : '<span style="color:var(--border);">—</span>') + '</td>' +
+      '<td style="padding:11px 12px;text-align:center;">' +
+        (m.sheets && !isFuture ? '<button class="btn btn-ghost btn-sm" onclick="navDate=new Date(' + yr + ',' + m.mi + ',1);setView(\'month\')" title="View ' + m.name + '"><i class="bx bx-chevron-right"></i></button>' : '') +
+      '</td>' +
+    '</tr>';
   });
-  html += '</div>';
+
+  html += '</tbody></table></div>';
   document.getElementById('ts-content').innerHTML = html;
 }
 
 /* ── stats ──────────────────────────────────────────────── */
 function updateStats() {
-  var approved = allTimesheets.filter(function(t){return t.status==='approved';});
-  var pending  = allTimesheets.filter(function(t){return t.status==='pending';});
-  var rejected = allTimesheets.filter(function(t){return t.status==='rejected';});
-  document.getElementById('total-hours').textContent    = approved.reduce(function(s,t){return s+t.totalHours;},0).toFixed(1) + 'h';
-  document.getElementById('approved-sheets').textContent = approved.length;
-  document.getElementById('pending-sheets').textContent  = pending.length;
-  document.getElementById('rejected-sheets').textContent = rejected.length;
+  // stats panel removed — nothing to update
 }
 
 async function loadTimesheets() {
@@ -595,7 +587,7 @@ async function loadAssignedTasks() {
   } catch(e) {
     assignedTasks = [];
   }
-  assignedTasks = (assignedTasks || []).filter(function(t) { return t.approvalStatus !== 'refused'; });
+  assignedTasks = (assignedTasks || []).filter(function(t) { return t.approvalStatus !== 'refused' && t.approvalStatus !== 'approved'; });
   updateAssignedWorkNote();
 }
 

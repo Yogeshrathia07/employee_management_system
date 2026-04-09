@@ -13,12 +13,23 @@
       <div class="header-actions"></div>
     </header>
     <div class="page-body">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:4px;">
         <div class="tabs" style="margin-bottom:0;">
-          <button class="tab-btn active" onclick="switchTab('team')"><i class="bx bxs-group"></i> Team</button>
-          <button class="tab-btn" onclick="switchTab('own')"><i class="bx bxs-user-circle"></i> Mine</button>
+          <button class="tab-btn active" id="tab-team-btn" onclick="switchTab('team')"><i class="bx bxs-group"></i> Team</button>
+          <button class="tab-btn" id="tab-own-btn" onclick="switchTab('own')"><i class="bx bxs-user-circle"></i> Mine</button>
         </div>
-        <button id="add-ts-btn" class="btn btn-primary btn-sm" onclick="openNewTs()" style="display:none;"><i class="bx bx-plus"></i> Add Timesheet</button>
+        <div id="own-nav-bar" style="display:none;align-items:center;gap:8px;">
+          <div class="toggle-group mb-0">
+            <button class="toggle-btn active" id="ov-week"  onclick="setOwnView('week')"><i class="bx bx-calendar-week"></i> Week</button>
+            <button class="toggle-btn"        id="ov-month" onclick="setOwnView('month')"><i class="bx bx-calendar"></i> Month</button>
+            <button class="toggle-btn"        id="ov-year"  onclick="setOwnView('year')"><i class="bx bx-bar-chart-alt-2"></i> Year</button>
+          </div>
+          <button class="btn btn-ghost btn-sm" onclick="ownNavPrev()"><i class="bx bx-chevron-left"></i></button>
+          <div style="font-weight:600;font-size:13px;min-width:160px;text-align:center;color:var(--text-primary);" id="own-nav-label">—</div>
+          <button class="btn btn-ghost btn-sm" onclick="ownNavNext()"><i class="bx bx-chevron-right"></i></button>
+          <button class="btn btn-ghost btn-sm" style="font-size:12px;" onclick="ownNavToday()">Today</button>
+        </div>
+        <button id="add-ts-btn" class="btn btn-primary btn-sm" onclick="openNewTs()" style="display:none;"><i class="bx bx-plus"></i> New Timesheet</button>
       </div>
       <div id="ts-grid">
         <div style="display:flex;justify-content:center;padding:40px;"><span class="spinner"></span></div>
@@ -145,6 +156,7 @@ var currentTab = 'team';
 var rejectId = null;
 var allOwnTs = [];
 var assignedTasks = [];
+var assignedProjects = [];
 var timesheetRows = [];
 var tsRowSeed = 1;
 var editingTsId = null;
@@ -205,11 +217,19 @@ function renderSheet() {
     return '<tr>' +
       '<td class="col-project">' +
         '<select onchange="rowChangeProject(' + row.rowId + ',this.value)">' +
-          '<option value="__manual__" ' + (row.projectId==='__manual__'?'selected':'') + '>No assigned work</option>' +
-          assignedTasks.map(function(t){
-            var lbl = t.projectName ? escH(t.projectName)+' — '+escH(t.title) : escH(t.title);
-            return '<option value="'+t.id+'" '+(String(row.projectId)===String(t.id)?'selected':'')+'>'+lbl+'</option>';
-          }).join('') +
+          '<option value="__manual__" ' + (row.projectId==='__manual__'?'selected':'') + '>— General Work —</option>' +
+          (assignedProjects.length ? '<optgroup label="Assigned Projects">' +
+            assignedProjects.map(function(p){
+              var val = 'proj_' + p.id;
+              return '<option value="'+val+'" '+(row.projectId===val?'selected':'')+'>'+escH(p.name)+'</option>';
+            }).join('') +
+          '</optgroup>' : '') +
+          (assignedTasks.length ? '<optgroup label="Assigned Tasks">' +
+            assignedTasks.map(function(t){
+              var lbl = t.projectName ? escH(t.projectName)+' — '+escH(t.title) : escH(t.title);
+              return '<option value="'+t.id+'" '+(String(row.projectId)===String(t.id)?'selected':'')+'>'+lbl+'</option>';
+            }).join('') +
+          '</optgroup>' : '') +
         '</select>' +
         '<span class="ts-task-meta">' + escH(taskNote) + '</span>' +
       '</td>' +
@@ -324,11 +344,19 @@ async function submitSheet() {
   var dates = getSheetWeekDates();
   var entries = [];
   timesheetRows.forEach(function(row){
-    var task = assignedTasks.find(function(t){ return String(t.id)===String(row.projectId); })||null;
-    var proj = task ? (task.projectName||task.title) : 'General Work';
+    var proj, taskId = null;
+    if (row.projectId && String(row.projectId).startsWith('proj_')) {
+      var pid = Number(String(row.projectId).replace('proj_',''));
+      var pr  = assignedProjects.find(function(p){ return p.id===pid; });
+      proj    = pr ? pr.name : 'General Work';
+    } else {
+      var task = assignedTasks.find(function(t){ return String(t.id)===String(row.projectId); })||null;
+      proj     = task ? (task.projectName||task.title) : 'General Work';
+      taskId   = task ? task.id : null;
+    }
     for (var i=0;i<7;i++){
       var h=Number(row.hours[i]||0); if(h<=0) continue;
-      entries.push({ date:fmtISO(dates[i]), hours:h, workType:'work', billingType:row.billingType, project:proj, description:row.description||(task?task.title:'General work'), taskId:task?task.id:null });
+      entries.push({ date:fmtISO(dates[i]), hours:h, workType:'work', billingType:row.billingType, project:proj, description:row.description||proj, taskId:taskId });
     }
   });
   if (!entries.length) return toast('Enter hours for at least one day','error');
@@ -346,12 +374,207 @@ async function submitSheet() {
   } catch(e){ toast(e.message,'error'); }
 }
 
+/* ── Own-tab view state ── */
+var ownView = 'week';
+var ownNavDate = new Date();
+
+function setOwnView(v) {
+  ownView = v;
+  ['week','month','year'].forEach(function(x){
+    var el = document.getElementById('ov-'+x); if(el) el.classList.toggle('active', x===v);
+  });
+  renderOwnView();
+}
+function ownNavPrev() {
+  if (ownView==='week')       ownNavDate = addDays(getMondayOf(ownNavDate),-7);
+  else if (ownView==='month') ownNavDate = new Date(ownNavDate.getFullYear(), ownNavDate.getMonth()-1, 1);
+  else                        ownNavDate = new Date(ownNavDate.getFullYear()-1, 0, 1);
+  renderOwnView();
+}
+function ownNavNext() {
+  if (ownView==='week')       ownNavDate = addDays(getMondayOf(ownNavDate), 7);
+  else if (ownView==='month') ownNavDate = new Date(ownNavDate.getFullYear(), ownNavDate.getMonth()+1, 1);
+  else                        ownNavDate = new Date(ownNavDate.getFullYear()+1, 0, 1);
+  renderOwnView();
+}
+function ownNavToday() { ownNavDate = new Date(); renderOwnView(); }
+
+function renderOwnView() {
+  var label = document.getElementById('own-nav-label');
+  var grid  = document.getElementById('ts-grid');
+  var MO_S  = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  var MO_F  = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+
+  if (ownView === 'week') {
+    var monday = getMondayOf(ownNavDate);
+    var sunday = addDays(monday, 6);
+    var monLbl = monday.getDate()+' '+MO_S[monday.getMonth()];
+    var sunLbl = sunday.getDate()+' '+MO_S[sunday.getMonth()]+' '+sunday.getFullYear();
+    if (label) label.textContent = 'Week: ' + monLbl + ' – ' + sunLbl;
+
+    var dayMap = {};
+    allOwnTs.forEach(function(ts){
+      (ts.entries||[]).forEach(function(e){
+        if (!dayMap[e.date]) dayMap[e.date]={hours:0,entries:[],ts:ts};
+        dayMap[e.date].hours += Number(e.hours||0);
+        dayMap[e.date].entries.push(e);
+        dayMap[e.date].ts = ts;
+      });
+    });
+
+    var todayISO2 = fmtISO(new Date());
+    var totalH = 0;
+    var rows = '';
+    for (var i=0;i<7;i++) {
+      var d = addDays(monday,i);
+      var iso = fmtISO(d);
+      var hit = dayMap[iso];
+      var isToday2 = iso===todayISO2;
+      var isWknd = i>=5;
+      var sc2 = hit ? (hit.ts.status==='approved'?'#22c55e':hit.ts.status==='rejected'?'#ef4444':'#f59e0b') : null;
+      var sb2 = hit ? (hit.ts.status==='approved'?'#dcfce7':hit.ts.status==='rejected'?'#fee2e2':'#fef3c7') : null;
+      rows += '<tr style="border-bottom:1px solid var(--border);' + (isToday2?'background:rgba(99,102,241,0.05);':isWknd?'opacity:0.55;':'') + '">' +
+        '<td style="padding:8px 10px;white-space:nowrap;overflow:hidden;">' +
+          '<div style="display:flex;align-items:center;gap:8px;">' +
+            '<span style="display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:8px;font-size:11px;font-weight:700;'+(isToday2?'background:var(--accent);color:white;':'background:var(--bg-input);color:var(--text-muted);')+'">' + DAYNAMES_S[i].charAt(0) + '</span>' +
+            '<div><div style="font-weight:'+(isToday2?'700':'500')+';font-size:13px;">' + DAYNAMES_S[i] + '</div><div style="font-size:11px;color:var(--text-muted);">' + d.getDate()+' '+MO_S[d.getMonth()] + '</div></div>' +
+          '</div>' +
+        '</td>' +
+        '<td style="padding:8px 6px;text-align:center;">' +
+          (hit ? '<span style="font-size:15px;font-weight:800;color:var(--accent);">'+hit.hours.toFixed(1)+'<span style="font-size:11px;font-weight:400;">h</span></span>' : '<span style="color:var(--border);font-size:18px;">—</span>') +
+        '</td>' +
+        '<td style="padding:8px 8px;font-size:12px;color:var(--text-secondary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' +
+          (hit ? [...new Set((hit.entries||[]).map(function(e){return e.project||'';}).filter(Boolean))].join(', ') : '') +
+        '</td>' +
+        '<td style="padding:8px 6px;">' +
+          (hit ? '<span style="font-size:11px;font-weight:600;background:'+sb2+';color:'+sc2+';border-radius:12px;padding:2px 9px;text-transform:capitalize;">'+hit.ts.status+'</span>' : '') +
+        '</td>' +
+        '<td style="padding:8px 6px;text-align:right;">' +
+          (hit && (hit.ts.status==='pending'||hit.ts.status==='rejected') ? '<button class="btn btn-ghost btn-sm" onclick="openEditTs('+hit.ts.id+')"><i class="bx bx-edit"></i></button>' : '') +
+          (hit ? '<button class="btn btn-ghost btn-sm" onclick="openViewOwnTs('+hit.ts.id+')"><i class="bx bx-show"></i></button>' : '') +
+        '</td>' +
+      '</tr>';
+      if (hit) totalH += hit.hours;
+    }
+    var hasEntries = Object.keys(dayMap).some(function(k){ var dd=new Date(k); return dd>=monday&&dd<=sunday; });
+    var html = '<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;">' +
+      '<table style="width:100%;border-collapse:collapse;table-layout:fixed;">' +
+      '<colgroup><col style="width:130px"><col style="width:70px"><col><col style="width:80px"><col style="width:44px"></colgroup>' +
+      '<thead><tr style="background:var(--bg-input);border-bottom:1px solid var(--border);">' +
+        '<th style="padding:8px 10px;text-align:left;font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;">Day</th>' +
+        '<th style="padding:8px 6px;text-align:center;font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;">Hours</th>' +
+        '<th style="padding:8px 8px;text-align:left;font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;">Project</th>' +
+        '<th style="padding:8px 6px;text-align:left;font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;">Status</th>' +
+        '<th></th>' +
+      '</tr></thead><tbody>'+rows+'</tbody>' +
+      '<tfoot><tr style="background:var(--bg-input);border-top:2px solid var(--border);">' +
+        '<td style="padding:8px 10px;font-weight:700;font-size:13px;">Weekly Total</td>' +
+        '<td style="padding:8px 6px;text-align:center;font-size:18px;font-weight:800;color:var(--accent);">'+totalH.toFixed(1)+'<span style="font-size:12px;font-weight:400;">h</span></td>' +
+        '<td colspan="3"></td>' +
+      '</tr></tfoot></table></div>';
+    if (!hasEntries) {
+      html += '<div style="margin-top:14px;text-align:center;padding:20px 24px;background:var(--bg-input);border-radius:var(--radius);border:1px dashed var(--border);">' +
+        '<div style="font-size:13px;color:var(--text-muted);margin-bottom:10px;">No timesheet entries for this week</div>' +
+        '<button class="btn btn-primary btn-sm" onclick="openNewTs()"><i class="bx bx-plus"></i> Log This Week</button></div>';
+    }
+    grid.innerHTML = html;
+
+  } else if (ownView === 'month') {
+    var yr2 = ownNavDate.getFullYear(), mo2 = ownNavDate.getMonth();
+    if (label) label.textContent = MO_F[mo2] + ' ' + yr2;
+    var sheets = allOwnTs.filter(function(ts){ var d=new Date(ts.weekStart); return d.getFullYear()===yr2&&d.getMonth()===mo2; })
+      .sort(function(a,b){ return new Date(a.weekStart)-new Date(b.weekStart); });
+    if (!sheets.length) {
+      grid.innerHTML = '<div style="text-align:center;padding:48px 24px;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);">' +
+        '<i class="bx bxs-calendar-x" style="font-size:48px;color:var(--text-muted);display:block;margin-bottom:12px;"></i>' +
+        '<div style="color:var(--text-muted);margin-bottom:16px;">No timesheets for '+MO_F[mo2]+' '+yr2+'</div>' +
+        '<button class="btn btn-primary" onclick="openNewTs()"><i class="bx bx-plus"></i> Add Timesheet</button></div>';
+      return;
+    }
+    var totalHM = sheets.reduce(function(s,t){ return s+(t.totalHours||0); },0);
+    var approvedHM = sheets.filter(function(t){ return t.status==='approved'; }).reduce(function(s,t){ return s+(t.totalHours||0); },0);
+    var html2 = '<div style="background:linear-gradient(135deg,var(--accent),#7c3aed);border-radius:var(--radius);padding:16px 20px;display:flex;gap:24px;flex-wrap:wrap;margin-bottom:14px;">' +
+      '<div style="color:white;"><div style="font-size:26px;font-weight:800;">'+totalHM+'h</div><div style="font-size:11px;opacity:.75;">Total logged</div></div>' +
+      '<div style="color:white;"><div style="font-size:26px;font-weight:800;">'+approvedHM+'h</div><div style="font-size:11px;opacity:.75;">Approved</div></div>' +
+      '<div style="color:white;"><div style="font-size:26px;font-weight:800;">'+sheets.length+'</div><div style="font-size:11px;opacity:.75;">Timesheets</div></div>' +
+      '</div><div style="display:flex;flex-direction:column;gap:12px;">';
+    sheets.forEach(function(ts){
+      var wm=getMondayOf(new Date(ts.weekStart)); var ws=addDays(wm,6);
+      var wl=wm.toLocaleDateString('en-US',{month:'short',day:'numeric'})+' – '+ws.toLocaleDateString('en-US',{month:'short',day:'numeric'});
+      var sc3=ts.status==='approved'?'#22c55e':ts.status==='rejected'?'#ef4444':'#f59e0b';
+      var sb3=ts.status==='approved'?'#dcfce7':ts.status==='rejected'?'#fee2e2':'#fef3c7';
+      var canEdit = ts.status==='pending'||ts.status==='rejected';
+      html2 += '<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px;">' +
+        '<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">' +
+          '<div><div style="font-weight:600;font-size:14px;"><i class="bx bx-calendar" style="color:var(--accent);"></i> '+wl+'</div>' +
+              '<div style="font-size:11px;color:var(--text-muted);">'+ts.totalHours+'h · '+(ts.entries||[]).length+' entries</div></div>' +
+          '<div style="display:flex;align-items:center;gap:8px;">' +
+            '<span style="font-size:11px;font-weight:700;background:'+sb3+';color:'+sc3+';border-radius:20px;padding:2px 10px;text-transform:capitalize;">'+ts.status+'</span>' +
+            '<button class="btn btn-ghost btn-sm" onclick="openViewOwnTs('+ts.id+')"><i class="bx bx-show"></i> View</button>' +
+            (canEdit?'<button class="btn btn-ghost btn-sm" onclick="openEditTs('+ts.id+')"><i class="bx bx-edit"></i></button>':'') +
+            (ts.status==='pending'?'<button class="btn btn-danger btn-sm" onclick="delTs('+ts.id+')"><i class="bx bx-trash"></i></button>':'') +
+          '</div>' +
+        '</div></div>';
+    });
+    html2 += '</div>';
+    grid.innerHTML = html2;
+
+  } else {
+    // Year view — row-wise table (same as employee)
+    var yr3 = ownNavDate.getFullYear();
+    if (label) label.textContent = String(yr3);
+    var yearSheets3 = allOwnTs.filter(function(ts){ return new Date(ts.weekStart).getFullYear()===yr3; });
+    var totalYH = yearSheets3.reduce(function(s,t){return s+(t.totalHours||0);},0);
+    var totalAH = yearSheets3.filter(function(t){return t.status==='approved';}).reduce(function(s,t){return s+(t.totalHours||0);},0);
+    var mData = MO_F.map(function(name,mi){
+      var ms=yearSheets3.filter(function(ts){return new Date(ts.weekStart).getMonth()===mi;});
+      return {name:name,mi:mi,sheets:ms.length,hours:ms.reduce(function(s,t){return s+(t.totalHours||0);},0),approvedH:ms.filter(function(t){return t.status==='approved';}).reduce(function(s,t){return s+(t.totalHours||0);},0),pending:ms.filter(function(t){return t.status==='pending';}).length,rejected:ms.filter(function(t){return t.status==='rejected';}).length};
+    });
+    var now3=new Date();
+    var html3='<div style="background:linear-gradient(135deg,var(--accent),#7c3aed);border-radius:var(--radius);padding:16px 20px;display:flex;align-items:center;gap:32px;flex-wrap:wrap;margin-bottom:16px;">'+
+      '<div style="color:white;"><div style="font-size:26px;font-weight:800;line-height:1;">'+totalYH+'h</div><div style="font-size:11px;opacity:.75;margin-top:2px;">Total in '+yr3+'</div></div>'+
+      '<div style="color:white;"><div style="font-size:26px;font-weight:800;line-height:1;">'+totalAH+'h</div><div style="font-size:11px;opacity:.75;margin-top:2px;">Approved</div></div>'+
+      '<div style="color:white;"><div style="font-size:26px;font-weight:800;line-height:1;">'+yearSheets3.length+'</div><div style="font-size:11px;opacity:.75;margin-top:2px;">Timesheets</div></div>'+
+      '</div>'+
+      '<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;">'+
+      '<table style="width:100%;border-collapse:collapse;table-layout:fixed;">'+
+      '<colgroup><col style="width:110px"><col><col><col style="width:60px"><col style="width:70px"><col style="width:70px"><col style="width:80px"></colgroup>'+
+      '<thead><tr style="background:var(--bg-input);border-bottom:1px solid var(--border);">'+
+        '<th style="padding:10px 12px;text-align:left;font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;">Month</th>'+
+        '<th style="padding:10px 12px;text-align:right;font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;">Hours</th>'+
+        '<th style="padding:10px 12px;text-align:right;font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;">Approved</th>'+
+        '<th style="padding:10px 12px;text-align:center;font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;">Sheets</th>'+
+        '<th style="padding:10px 12px;text-align:center;font-size:11px;font-weight:600;color:#f59e0b;text-transform:uppercase;letter-spacing:.5px;">Pending</th>'+
+        '<th style="padding:10px 12px;text-align:center;font-size:11px;font-weight:600;color:#ef4444;text-transform:uppercase;letter-spacing:.5px;">Rejected</th>'+
+        '<th style="padding:10px 12px;text-align:center;font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;">View</th>'+
+      '</tr></thead><tbody>';
+    mData.forEach(function(m){
+      var isCurr=m.mi===now3.getMonth()&&yr3===now3.getFullYear();
+      var isFuture=(yr3>now3.getFullYear())||(yr3===now3.getFullYear()&&m.mi>now3.getMonth());
+      html3+='<tr style="border-bottom:1px solid var(--border);'+(isCurr?'background:rgba(99,102,241,0.05);':'')+(isFuture?'opacity:0.45;':'')+'">' +
+        '<td style="padding:11px 12px;font-weight:'+(isCurr?'700':'600')+';font-size:13px;color:'+(isCurr?'var(--accent)':'var(--text-primary)')+';">'+m.name+(isCurr?' <span style="font-size:10px;background:var(--accent);color:white;border-radius:8px;padding:1px 6px;vertical-align:middle;">Now</span>':'')+'</td>'+
+        '<td style="padding:11px 12px;text-align:right;font-size:14px;font-weight:800;color:'+(m.hours?'var(--text-primary)':'var(--text-muted)')+';">'+(m.hours?m.hours+'<span style="font-size:11px;font-weight:400;">h</span>':'—')+'</td>'+
+        '<td style="padding:11px 12px;text-align:right;font-size:13px;font-weight:700;color:#22c55e;">'+(m.approvedH?m.approvedH+'<span style="font-size:11px;font-weight:400;">h</span>':'—')+'</td>'+
+        '<td style="padding:11px 12px;text-align:center;font-size:13px;color:var(--text-secondary);">'+(m.sheets||'—')+'</td>'+
+        '<td style="padding:11px 12px;text-align:center;">'+(m.pending?'<span style="font-size:12px;font-weight:700;color:#b45309;background:#fef3c7;border-radius:10px;padding:2px 8px;">'+m.pending+'</span>':'<span style="color:var(--border);">—</span>')+'</td>'+
+        '<td style="padding:11px 12px;text-align:center;">'+(m.rejected?'<span style="font-size:12px;font-weight:700;color:#ef4444;background:#fee2e2;border-radius:10px;padding:2px 8px;">'+m.rejected+'</span>':'<span style="color:var(--border);">—</span>')+'</td>'+
+        '<td style="padding:11px 12px;text-align:center;">'+(m.sheets&&!isFuture?'<button class="btn btn-ghost btn-sm" onclick="ownNavDate=new Date('+yr3+','+m.mi+',1);setOwnView(\'month\')" title="View '+m.name+'"><i class="bx bx-chevron-right"></i></button>':'')+'</td>'+
+      '</tr>';
+    });
+    html3+='</tbody></table></div>';
+    grid.innerHTML=html3;
+  }
+}
+
 /* ── Tab switching ── */
 function switchTab(tab) {
   currentTab=tab;
-  document.querySelectorAll('.tab-btn').forEach(function(b,i){ b.classList.toggle('active',(i===0)===(tab==='team')); });
+  document.getElementById('tab-team-btn').classList.toggle('active', tab==='team');
+  document.getElementById('tab-own-btn').classList.toggle('active',  tab==='own');
   var addBtn = document.getElementById('add-ts-btn');
+  var navBar  = document.getElementById('own-nav-bar');
   if (addBtn) addBtn.style.display = tab==='own' ? '' : 'none';
+  if (navBar) navBar.style.display = tab==='own' ? 'flex' : 'none';
   loadTs();
 }
 
@@ -398,12 +621,13 @@ async function loadTs() {
         '<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:10px 18px;display:flex;align-items:center;gap:10px;"><span style="font-size:20px;font-weight:800;color:#22c55e;">'+approved+'</span><span style="font-size:11px;color:var(--text-muted);">Approved</span></div>' +
       '</div>';
 
-      var thead = '<thead><tr style="background:#f0f4ff;">' +
-        '<th style="padding:10px 14px;text-align:left;font-size:11px;font-weight:700;color:#5871a4;border-bottom:2px solid #dde6fb;white-space:nowrap;">Employee</th>' +
-        DAYNAMES_S.map(function(d){ return '<th style="padding:10px 6px;text-align:center;font-size:11px;font-weight:700;color:#5871a4;border-bottom:2px solid #dde6fb;min-width:58px;">'+d+'</th>'; }).join('') +
-        '<th style="padding:10px 10px;text-align:center;font-size:11px;font-weight:700;color:#5871a4;border-bottom:2px solid #dde6fb;">Total</th>' +
-        '<th style="padding:10px 10px;text-align:left;font-size:11px;font-weight:700;color:#5871a4;border-bottom:2px solid #dde6fb;">Status</th>' +
-        '<th style="padding:10px 10px;text-align:left;font-size:11px;font-weight:700;color:#5871a4;border-bottom:2px solid #dde6fb;">Actions</th>' +
+      var colgroup = '<colgroup><col style="width:160px">' + DAYNAMES_S.map(function(){ return '<col style="width:40px">'; }).join('') + '<col style="width:50px"><col style="width:70px"><col style="width:110px"></colgroup>';
+      var thead = colgroup + '<thead><tr style="background:#f0f4ff;">' +
+        '<th style="padding:8px 10px;text-align:left;font-size:11px;font-weight:700;color:#5871a4;border-bottom:2px solid #dde6fb;white-space:nowrap;">Employee</th>' +
+        DAYNAMES_S.map(function(d){ return '<th style="padding:8px 4px;text-align:center;font-size:11px;font-weight:700;color:#5871a4;border-bottom:2px solid #dde6fb;">'+d+'</th>'; }).join('') +
+        '<th style="padding:8px 6px;text-align:center;font-size:11px;font-weight:700;color:#5871a4;border-bottom:2px solid #dde6fb;">Total</th>' +
+        '<th style="padding:8px 6px;text-align:left;font-size:11px;font-weight:700;color:#5871a4;border-bottom:2px solid #dde6fb;">Status</th>' +
+        '<th style="padding:8px 6px;text-align:left;font-size:11px;font-weight:700;color:#5871a4;border-bottom:2px solid #dde6fb;">Actions</th>' +
       '</tr></thead>';
 
       var tableRows = ts.map(function(t) {
@@ -413,23 +637,23 @@ async function loadTs() {
         var dayCells=dh.map(function(h,di){
           var proj=getDayProjects(t,di);
           var cs=h>0?'font-weight:700;color:var(--accent);':'color:var(--border);';
-          return '<td style="padding:7px 5px;text-align:center;font-size:13px;'+cs+'border-bottom:1px solid #edf0f7;" title="'+proj+'">' +
+          return '<td style="padding:6px 3px;text-align:center;font-size:12px;'+cs+'border-bottom:1px solid #edf0f7;" title="'+proj+'">' +
             (h>0 ? h.toFixed(1)+'<span style="font-size:10px;font-weight:400;">h</span>' : '—') +
             (proj ? '<div style="font-size:9px;color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:54px;margin:0 auto;">'+proj+'</div>' : '') +
           '</td>';
         }).join('');
         var tData = JSON.stringify(t).replace(/\\/g,'\\\\').replace(/'/g,"\\'");
         return '<tr style="background:var(--bg-card);" onmouseover="this.style.background=\'var(--bg-input)\'" onmouseout="this.style.background=\'var(--bg-card)\'">' +
-          '<td style="padding:9px 14px;border-bottom:1px solid #edf0f7;white-space:nowrap;">' +
+          '<td style="padding:8px 10px;border-bottom:1px solid #edf0f7;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' +
             '<div style="display:flex;align-items:center;gap:8px;">' +
               userAvatar(t.user,28) +
               '<div><div style="font-weight:600;font-size:13px;">'+(t.user&&t.user.name||'—')+'</div><div style="font-size:10px;color:var(--text-muted);">'+weekLabel+'</div></div>' +
             '</div>' +
           '</td>' +
           dayCells +
-          '<td style="padding:7px 10px;text-align:center;font-size:14px;font-weight:800;color:var(--text-primary);border-bottom:1px solid #edf0f7;">'+t.totalHours+'h</td>' +
-          '<td style="padding:7px 10px;border-bottom:1px solid #edf0f7;">'+statusChip(t.status)+'</td>' +
-          '<td style="padding:7px 10px;border-bottom:1px solid #edf0f7;white-space:nowrap;">' +
+          '<td style="padding:6px 8px;text-align:center;font-size:14px;font-weight:800;color:var(--text-primary);border-bottom:1px solid #edf0f7;">'+t.totalHours+'h</td>' +
+          '<td style="padding:6px 8px;border-bottom:1px solid #edf0f7;">'+statusChip(t.status)+'</td>' +
+          '<td style="padding:6px 8px;border-bottom:1px solid #edf0f7;white-space:nowrap;">' +
             '<div style="display:flex;gap:5px;align-items:center;">' +
               '<button class="btn btn-ghost btn-sm" onclick="openViewTs('+t.id+')" style="padding:3px 8px;" title="View Details"><i class="bx bx-expand-alt"></i> View</button>' +
               (t.status==='pending' ?
@@ -442,53 +666,14 @@ async function loadTs() {
         '</tr>';
       }).join('');
 
-      grid.innerHTML = statsBar + '<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:14px;overflow:auto;"><table style="width:100%;border-collapse:collapse;min-width:780px;">'+thead+'<tbody>'+tableRows+'</tbody></table></div>';
+      grid.innerHTML = statsBar + '<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:14px;overflow-x:auto;"><table style="width:100%;border-collapse:collapse;table-layout:fixed;">'+thead+'<tbody>'+tableRows+'</tbody></table></div>';
 
       // store ts for view modal lookup
       window._teamTs = ts;
 
     } else {
-      // ── Own timesheets table ──
-      var thead = '<thead><tr style="background:#f0f4ff;">' +
-        '<th style="padding:10px 14px;text-align:left;font-size:11px;font-weight:700;color:#5871a4;border-bottom:2px solid #dde6fb;">Week</th>' +
-        DAYNAMES_S.map(function(d){ return '<th style="padding:10px 6px;text-align:center;font-size:11px;font-weight:700;color:#5871a4;border-bottom:2px solid #dde6fb;min-width:58px;">'+d+'</th>'; }).join('') +
-        '<th style="padding:10px 10px;text-align:center;font-size:11px;font-weight:700;color:#5871a4;border-bottom:2px solid #dde6fb;">Total</th>' +
-        '<th style="padding:10px 10px;text-align:left;font-size:11px;font-weight:700;color:#5871a4;border-bottom:2px solid #dde6fb;">Status</th>' +
-        '<th style="padding:10px 10px;font-size:11px;font-weight:700;color:#5871a4;border-bottom:2px solid #dde6fb;"></th>' +
-      '</tr></thead>';
-
-      var tableRows = ts.map(function(t) {
-        var dh=getDayHours(t);
-        var weekMon=getMondayOfTS(t.weekStart),weekSun=new Date(weekMon); weekSun.setDate(weekSun.getDate()+6);
-        var weekLabel=weekMon.toLocaleDateString('en-US',{month:'short',day:'numeric'})+'–'+weekSun.toLocaleDateString('en-US',{month:'short',day:'numeric'});
-        var dayCells=dh.map(function(h,di){
-          var proj=getDayProjects(t,di);
-          var cs=h>0?'font-weight:700;color:var(--accent);':'color:var(--border);';
-          return '<td style="padding:7px 5px;text-align:center;font-size:13px;'+cs+'border-bottom:1px solid #edf0f7;" title="'+proj+'">' +
-            (h>0 ? h.toFixed(1)+'<span style="font-size:10px;font-weight:400;">h</span>' : '—') +
-            (proj ? '<div style="font-size:9px;color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:54px;margin:0 auto;">'+proj+'</div>' : '') +
-          '</td>';
-        }).join('');
-        return '<tr style="background:var(--bg-card);" onmouseover="this.style.background=\'var(--bg-input)\'" onmouseout="this.style.background=\'var(--bg-card)\'">' +
-          '<td style="padding:9px 14px;border-bottom:1px solid #edf0f7;">' +
-            '<div style="font-weight:600;font-size:13px;">'+weekLabel+'</div>' +
-            '<div style="font-size:11px;color:var(--text-muted);">Submitted '+fmtShortD(t.createdAt)+'</div>' +
-          '</td>' +
-          dayCells +
-          '<td style="padding:7px 10px;text-align:center;font-size:14px;font-weight:800;color:var(--text-primary);border-bottom:1px solid #edf0f7;">'+t.totalHours+'h</td>' +
-          '<td style="padding:7px 10px;border-bottom:1px solid #edf0f7;">'+statusChip(t.status)+'</td>' +
-          '<td style="padding:7px 10px;border-bottom:1px solid #edf0f7;white-space:nowrap;">' +
-            '<div style="display:flex;gap:5px;align-items:center;">' +
-              '<button class="btn btn-ghost btn-sm" onclick="openViewOwnTs('+t.id+')" style="padding:3px 8px;"><i class="bx bx-expand-alt"></i> View</button>' +
-              (t.status==='pending'||t.status==='rejected' ? '<button class="btn btn-ghost btn-sm" onclick="openEditTs('+t.id+')" style="padding:3px 8px;"><i class="bx bx-edit"></i></button>' : '') +
-              (t.status==='pending' ? '<button class="btn btn-danger btn-sm" onclick="delTs('+t.id+')" style="padding:3px 7px;"><i class="bx bx-trash"></i></button>' : '') +
-            '</div>' +
-            (t.approver ? '<div style="font-size:11px;color:var(--text-muted);margin-top:2px;"><i class="bx bx-check-circle" style="color:#22c55e;"></i> '+t.approver.name+'</div>' : '') +
-          '</td>' +
-        '</tr>';
-      }).join('');
-
-      grid.innerHTML = '<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:14px;overflow:auto;"><table style="width:100%;border-collapse:collapse;min-width:780px;">'+thead+'<tbody>'+tableRows+'</tbody></table></div>';
+      // ── Own timesheets: use week/month/year view ──
+      renderOwnView();
     }
   } catch(e){ toast(e.message,'error'); }
 }
@@ -550,14 +735,15 @@ function _renderViewModal(t, isTeam) {
     dayRows = '<tr><td colspan="5" style="padding:24px;text-align:center;color:var(--text-muted);">No entries</td></tr>';
   }
 
-  var table = '<div style="overflow:auto;border:1px solid var(--border);border-radius:12px;margin-bottom:14px;">' +
-    '<table style="width:100%;border-collapse:collapse;min-width:560px;">' +
+  var table = '<div style="overflow-x:auto;border:1px solid var(--border);border-radius:12px;margin-bottom:14px;">' +
+    '<table style="width:100%;border-collapse:collapse;table-layout:fixed;">' +
+    '<colgroup><col style="width:80px"><col style="width:120px"><col style="width:80px"><col><col style="width:60px"></colgroup>' +
     '<thead><tr style="background:#f0f4ff;">' +
-      '<th style="padding:9px 12px;text-align:left;font-size:11px;font-weight:700;color:#5871a4;border-bottom:2px solid #dde6fb;">Day</th>' +
-      '<th style="padding:9px 12px;text-align:left;font-size:11px;font-weight:700;color:#5871a4;border-bottom:2px solid #dde6fb;">Project</th>' +
-      '<th style="padding:9px 12px;text-align:left;font-size:11px;font-weight:700;color:#5871a4;border-bottom:2px solid #dde6fb;">Billing</th>' +
-      '<th style="padding:9px 12px;text-align:left;font-size:11px;font-weight:700;color:#5871a4;border-bottom:2px solid #dde6fb;">Description</th>' +
-      '<th style="padding:9px 12px;text-align:center;font-size:11px;font-weight:700;color:#5871a4;border-bottom:2px solid #dde6fb;">Hours</th>' +
+      '<th style="padding:8px 10px;text-align:left;font-size:11px;font-weight:700;color:#5871a4;border-bottom:2px solid #dde6fb;">Day</th>' +
+      '<th style="padding:8px 10px;text-align:left;font-size:11px;font-weight:700;color:#5871a4;border-bottom:2px solid #dde6fb;">Project</th>' +
+      '<th style="padding:8px 10px;text-align:left;font-size:11px;font-weight:700;color:#5871a4;border-bottom:2px solid #dde6fb;">Billing</th>' +
+      '<th style="padding:8px 10px;text-align:left;font-size:11px;font-weight:700;color:#5871a4;border-bottom:2px solid #dde6fb;">Description</th>' +
+      '<th style="padding:8px 8px;text-align:center;font-size:11px;font-weight:700;color:#5871a4;border-bottom:2px solid #dde6fb;">Hours</th>' +
     '</tr></thead>' +
     '<tbody>'+dayRows+'</tbody>' +
     '</table></div>';
@@ -608,6 +794,9 @@ async function delTs(id) {
 async function loadAssignedTasks() {
   try { assignedTasks = (await api('GET','/tasks'))||[]; }
   catch(e){ assignedTasks=[]; }
+  assignedTasks = assignedTasks.filter(function(t){ return t.approvalStatus !== 'approved' && t.approvalStatus !== 'refused'; });
+  try { assignedProjects = (await api('GET','/projects?status=active'))||[]; }
+  catch(e){ assignedProjects=[]; }
 }
 
 loadAssignedTasks();

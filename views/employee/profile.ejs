@@ -102,78 +102,32 @@
 
       <!-- ══════════ SALARY TAB ══════════ -->
       <div id="panel-salary" style="display:none;">
-        <!-- Current Month Hero -->
-        <div class="salary-hero" id="salary-hero" style="display:none;">
-          <div style="position:relative;z-index:1;">
-            <div class="salary-hero-label">Net Salary</div>
-            <div class="salary-hero-amount" id="hero-net">₹0</div>
-            <div class="salary-hero-month" id="hero-month">—</div>
-            <div style="display:flex;gap:12px;margin-top:16px;flex-wrap:wrap;">
-              <div style="background:rgba(255,255,255,0.12);border-radius:10px;padding:10px 16px;">
-                <div style="font-size:11px;color:rgba(255,255,255,0.6);">Present / Working</div>
-                <div style="font-size:18px;font-weight:800;" id="hero-days">—</div>
-              </div>
-              <div style="background:rgba(255,255,255,0.12);border-radius:10px;padding:10px 16px;">
-                <div style="font-size:11px;color:rgba(255,255,255,0.6);">Actual Hours</div>
-                <div style="font-size:18px;font-weight:800;" id="hero-hrs">—</div>
-              </div>
-              <div style="background:rgba(255,255,255,0.12);border-radius:10px;padding:10px 16px;">
-                <div style="font-size:11px;color:rgba(255,255,255,0.6);">Status</div>
-                <div style="font-size:18px;font-weight:800;text-transform:uppercase;" id="hero-status">—</div>
-              </div>
-            </div>
-            <div style="display:flex;gap:8px;margin-top:16px;" id="hero-dl-btns">
-              <button class="btn" style="background:rgba(255,255,255,0.15);color:white;border:1px solid rgba(255,255,255,0.25);" onclick="viewCurrent()"><i class="bx bx-show"></i> View Payslip</button>
-              <button class="btn" style="background:rgba(255,255,255,0.15);color:white;border:1px solid rgba(255,255,255,0.25);" onclick="downloadCurrent()"><i class="bx bx-download"></i> Download</button>
-            </div>
-          </div>
-        </div>
-
         <div id="salary-loading" style="text-align:center;padding:40px;"><span class="spinner"></span></div>
-
-        <!-- Breakdown Grid (small boxes) -->
-        <div class="salary-breakdown-grid" id="breakdown-grid" style="display:none;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px;margin-bottom:24px;">
-          <div class="breakdown-card">
-            <div class="breakdown-title"><div class="breakdown-title-dot" style="background:#5b6abf;"></div>Earnings</div>
-            <div class="breakdown-item"><span class="breakdown-item-label">Base Salary</span><span class="breakdown-item-value" id="bd-base">₹0</span></div>
-            <div class="breakdown-item"><span class="breakdown-item-label">Allowances</span><span class="breakdown-item-value green" id="bd-allow">+₹0</span></div>
-            <div class="breakdown-item"><span class="breakdown-item-label">Overtime Pay</span><span class="breakdown-item-value green" id="bd-otpay">+₹0</span></div>
-            <div class="breakdown-total"><span>Gross Earnings</span><span id="bd-gross">₹0</span></div>
-          </div>
-          <div class="breakdown-card">
-            <div class="breakdown-title"><div class="breakdown-title-dot" style="background:#dc2626;"></div>Deductions</div>
-            <div class="breakdown-item"><span class="breakdown-item-label">Other Deductions</span><span class="breakdown-item-value red" id="bd-ded">-₹0</span></div>
-            <div class="breakdown-item"><span class="breakdown-item-label">Absent Deduction</span><span class="breakdown-item-value red" id="bd-absent">-₹0</span></div>
-            <div class="breakdown-total"><span>Total Deductions</span><span id="bd-total-ded" style="color:#dc2626;">₹0</span></div>
-          </div>
-          <div class="breakdown-card">
-            <div class="breakdown-title"><div class="breakdown-title-dot" style="background:#22c55e;"></div>Attendance</div>
-            <div class="breakdown-item"><span class="breakdown-item-label">Working Days</span><span class="breakdown-item-value" id="bd-workdays">0</span></div>
-            <div class="breakdown-item"><span class="breakdown-item-label">Present Days</span><span class="breakdown-item-value" id="bd-present">0</span></div>
-            <div class="breakdown-item"><span class="breakdown-item-label">Absent Days</span><span class="breakdown-item-value red" id="bd-absentd">0</span></div>
-            <div class="breakdown-item"><span class="breakdown-item-label">Overtime Hours</span><span class="breakdown-item-value" id="bd-othrs">0h</span></div>
-            <div class="breakdown-item" style="margin-top:8px;"><span class="breakdown-item-label">Attendance Rate</span><span class="breakdown-item-value" id="bd-rate">0%</span></div>
-            <div class="progress-bar-wrap mt-2"><div class="progress-bar-fill" id="bd-bar" style="width:0%"></div></div>
-          </div>
-          <div class="breakdown-card" style="background:linear-gradient(135deg,#1e293b,#334155);color:white;border:none;">
-            <div class="breakdown-title" style="color:rgba(255,255,255,0.6);"><div class="breakdown-title-dot" style="background:white;"></div>Summary</div>
-            <div style="text-align:center;padding:20px 0;">
-              <div style="font-size:13px;color:rgba(255,255,255,0.6);margin-bottom:8px;">Take Home Pay</div>
-              <div style="font-size:42px;font-weight:900;letter-spacing:-2px;" id="bd-net">₹0</div>
-              <div style="font-size:12px;color:rgba(255,255,255,0.5);margin-top:4px;" id="bd-period">—</div>
-            </div>
-            <div style="border-top:1px solid rgba(255,255,255,0.15);padding-top:12px;margin-top:8px;">
-              <div class="breakdown-item" style="border:none;color:rgba(255,255,255,0.7);"><span>Hourly Rate</span><span id="bd-hourly" style="color:white;font-weight:700;">₹0/hr</span></div>
-            </div>
-          </div>
-        </div>
 
         <!-- History Table -->
         <div class="card">
           <div class="card-header">
             <div><div class="card-title">Salary History</div><div class="card-subtitle">All your payroll records</div></div>
           </div>
-          <div style="padding:0;">
+          <div style="padding:16px 16px 0;">
+            <div style="display:flex;gap:10px;flex-wrap:wrap;">
+              <select id="salary-filter-month" class="form-control" style="max-width:180px;" onchange="renderSalaryHistory()">
+                <option value="">All Months</option>
+              </select>
+              <select id="salary-filter-year" class="form-control" style="max-width:160px;" onchange="renderSalaryHistory()">
+                <option value="">All Years</option>
+              </select>
+              <select id="salary-filter-status" class="form-control" style="max-width:180px;" onchange="renderSalaryHistory()">
+                <option value="">All Status</option>
+                <option value="draft">Draft</option>
+                <option value="frozen">Frozen</option>
+                <option value="finalized">Finalized</option>
+                <option value="paid">Paid</option>
+              </select>
+              <button class="btn btn-ghost" onclick="clearSalaryFilters()">Clear</button>
+            </div>
+          </div>
+          <div style="padding:12px 0 0;">
             <div class="table-wrapper">
               <table>
                 <thead><tr><th>Period</th><th>Base</th><th>Gross</th><th>Deductions</th><th>Net Salary</th><th>Hours</th><th>Days</th><th>Status</th><th>Payslip</th></tr></thead>
@@ -473,45 +427,67 @@ async function resetPhoto() {
 // ─── SALARY ──────────────────────────────────────────────────
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 let allSalaries = [];
-let currentSalary = null;
 let salaryLoaded = false;
 
 function fmt(n) { return fmtCurrency(n); }
-function fmtPlus(n) { return '+' + fmt(n); }
-function fmtMinus(n) { return '-' + fmt(n); }
 
-function showBreakdown(s) {
-  currentSalary = s;
-  const rate   = s.expectedHours > 0 ? Math.min(100, Math.round((s.actualHours / s.expectedHours) * 100)) : 0;
-  const hourly = s.expectedHours > 0 ? (s.baseSalary / s.expectedHours).toFixed(2) : 0;
+function populateSalaryFilters(salaries) {
+  const monthSel = document.getElementById('salary-filter-month');
+  const yearSel = document.getElementById('salary-filter-year');
+  if (!monthSel || !yearSel) return;
 
-  document.getElementById('salary-hero').style.display    = '';
-  document.getElementById('breakdown-grid').style.display = '';
+  const selectedMonth = monthSel.value;
+  const selectedYear = yearSel.value;
+  const years = Array.from(new Set((salaries || []).map(s => String(s.year)))).sort((a, b) => Number(b) - Number(a));
 
-  document.getElementById('hero-net').innerHTML = fmt(s.netSalary);
-  document.getElementById('hero-month').textContent  = MONTHS[s.month-1] + ' ' + s.year;
-  document.getElementById('hero-days').textContent   = (s.presentDays||0) + '/' + (s.totalWorkDays||0);
-  document.getElementById('hero-hrs').textContent    = (s.actualHours||0) + 'h';
-  document.getElementById('hero-status').textContent = s.status;
-  document.getElementById('hero-dl-btns').style.display = (s.status==='paid' || s.status==='finalized') ? '' : 'none';
+  monthSel.innerHTML = '<option value="">All Months</option>' + MONTHS.map((m, i) => `<option value="${i + 1}">${m}</option>`).join('');
+  yearSel.innerHTML = '<option value="">All Years</option>' + years.map(y => `<option value="${y}">${y}</option>`).join('');
 
-  document.getElementById('bd-base').innerHTML = fmt(s.baseSalary);
-  document.getElementById('bd-allow').innerHTML     = fmtPlus(s.allowances);
-  document.getElementById('bd-otpay').innerHTML     = fmtPlus(s.overtimePay);
-  document.getElementById('bd-gross').innerHTML     = fmt(s.grossSalary);
-  document.getElementById('bd-ded').innerHTML       = fmtMinus(s.deductions);
-  document.getElementById('bd-absent').innerHTML    = fmtMinus(s.absentDeduction);
-  document.getElementById('bd-total-ded').innerHTML = fmtMinus(s.deductions + (s.absentDeduction||0));
-  document.getElementById('bd-workdays').textContent  = s.totalWorkDays || 0;
-  document.getElementById('bd-present').textContent   = s.presentDays || 0;
-  document.getElementById('bd-absentd').textContent   = s.absentDays || 0;
-  document.getElementById('bd-othrs').textContent     = (s.overtime||0) + 'h';
-  document.getElementById('bd-rate').textContent      = rate + '%';
-  document.getElementById('bd-bar').style.width       = rate + '%';
-  document.getElementById('bd-bar').className = 'progress-bar-fill' + (rate >= 90 ? ' green' : rate >= 70 ? '' : ' red');
-  document.getElementById('bd-net').innerHTML = fmt(s.netSalary);
-  document.getElementById('bd-period').textContent    = MONTHS[s.month-1] + ' ' + s.year;
-  document.getElementById('bd-hourly').innerHTML      = fmt(hourly) + '/hr';
+  monthSel.value = selectedMonth;
+  yearSel.value = selectedYear;
+}
+
+function renderSalaryHistory() {
+  const tbody = document.getElementById('salary-tbody');
+  if (!tbody) return;
+
+  const monthFilter = document.getElementById('salary-filter-month')?.value || '';
+  const yearFilter = document.getElementById('salary-filter-year')?.value || '';
+  const statusFilter = (document.getElementById('salary-filter-status')?.value || '').toLowerCase();
+
+  const rows = allSalaries.filter(s => {
+    if (monthFilter && String(s.month) !== String(monthFilter)) return false;
+    if (yearFilter && String(s.year) !== String(yearFilter)) return false;
+    if (statusFilter && String(s.status || '').toLowerCase() !== statusFilter) return false;
+    return true;
+  });
+
+  if (!rows.length) {
+    tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:32px;color:var(--text-muted);">No salary records found for the selected filters.</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = rows.map(s => `<tr>
+    <td><strong>${MONTHS[s.month-1]} ${s.year}</strong></td>
+    <td>${fmt(s.baseSalary)}</td>
+    <td>${fmt(s.grossSalary)}</td>
+    <td style="color:var(--danger)">${fmt(s.deductions || 0)}</td>
+    <td><strong>${fmt(s.netSalary)}</strong></td>
+    <td style="font-size:12px">${s.actualHours||0}/${s.expectedHours||0}h</td>
+    <td style="font-size:12px">${s.presentDays||0}/${s.totalWorkDays||0}d</td>
+    <td>${statusBadge(s.status)}</td>
+    <td>${(s.status==='paid'||s.status==='finalized')?`<button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();downloadPayslip(${s.id},'view')" title="View"><i class="bx bx-show"></i></button><button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();downloadPayslip(${s.id},'download')" title="Download"><i class="bx bx-download"></i></button>`:`<span style="color:var(--text-muted);font-size:11px;">${s.status}</span>`}</td>
+  </tr>`).join('');
+}
+
+function clearSalaryFilters() {
+  const monthSel = document.getElementById('salary-filter-month');
+  const yearSel = document.getElementById('salary-filter-year');
+  const statusSel = document.getElementById('salary-filter-status');
+  if (monthSel) monthSel.value = '';
+  if (yearSel) yearSel.value = '';
+  if (statusSel) statusSel.value = '';
+  renderSalaryHistory();
 }
 
 async function loadSalary() {
@@ -527,29 +503,14 @@ async function loadSalary() {
       return;
     }
 
-    const now    = new Date();
-    const latest = salaries.find(s => s.month === now.getMonth()+1 && s.year === now.getFullYear()) || salaries[0];
-    if (latest) showBreakdown(latest);
-
-    tbody.innerHTML = salaries.map(s => `<tr onclick="showBreakdown(allSalaries.find(x=>x.id===${s.id}))" style="cursor:pointer;">
-      <td><strong>${MONTHS[s.month-1]} ${s.year}</strong></td>
-      <td>${fmt(s.baseSalary)}</td>
-      <td>${fmt(s.grossSalary)}</td>
-      <td style="color:var(--danger)">${fmt(s.deductions + (s.absentDeduction||0))}</td>
-      <td><strong>${fmt(s.netSalary)}</strong></td>
-      <td style="font-size:12px">${s.actualHours}/${s.expectedHours}h</td>
-      <td style="font-size:12px">${s.presentDays||0}/${s.totalWorkDays||0}d</td>
-      <td>${statusBadge(s.status)}</td>
-      <td>${(s.status==='paid'||s.status==='finalized')?`<button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();downloadPayslip(${s.id},'view')" title="View"><i class="bx bx-show"></i></button><button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();downloadPayslip(${s.id},'download')" title="Download"><i class="bx bx-download"></i></button>`:'—'}</td>
-    </tr>`).join('');
+    populateSalaryFilters(salaries);
+    renderSalaryHistory();
   } catch(e) { toast(e.message,'error'); }
 }
 
 function downloadPayslip(id, mode) {
   window.open('/api/salary/'+id+'/payslip?token='+getToken()+'&mode='+mode, '_blank');
 }
-function downloadCurrent() { if (currentSalary) downloadPayslip(currentSalary.id, 'download'); }
-function viewCurrent()     { if (currentSalary) downloadPayslip(currentSalary.id, 'view'); }
 
 loadProfile();
 </script>

@@ -140,7 +140,7 @@
   const container = document.getElementById('slips-container');
 
   if (!data.length) {
-    container.innerHTML = '<div style="text-align:center;padding:40px;color:#dc2626;">No salary data found. Please open from the Payroll Spreadsheet page.</div>';
+    container.innerHTML = '<div style="text-align:center;padding:40px;color:#dc2626;">No salary data found. Please open from the Payroll page.</div>';
   } else {
     container.innerHTML = data.map((e, i) => `
       <div class="slip">

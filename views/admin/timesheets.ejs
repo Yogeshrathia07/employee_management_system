@@ -18,19 +18,34 @@
         <!-- Toolbar -->
         <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:18px;">
           <span id="company-filter-container"></span>
-          <select id="filter-status" class="form-control" style="width:150px" onchange="reloadPageData()">
+          <select id="filter-status" class="form-control" style="width:130px" onchange="applyFilters()">
             <option value="">All Status</option>
             <option value="pending">Pending</option>
             <option value="approved">Approved</option>
             <option value="rejected">Rejected</option>
           </select>
+          <select id="filter-month" class="form-control" style="width:120px" onchange="applyFilters()">
+            <option value="">All Months</option>
+            <option value="0">January</option><option value="1">February</option><option value="2">March</option>
+            <option value="3">April</option><option value="4">May</option><option value="5">June</option>
+            <option value="6">July</option><option value="7">August</option><option value="8">September</option>
+            <option value="9">October</option><option value="10">November</option><option value="11">December</option>
+          </select>
+          <select id="filter-year" class="form-control" style="width:100px" onchange="applyFilters()">
+            <option value="">All Years</option>
+          </select>
+          <div style="margin-left:auto;display:flex;gap:8px;">
+            <button class="btn btn-ghost btn-sm" onclick="exportFiltered()" title="Export current filtered view to CSV">
+              <i class="bx bxs-file-export"></i> Export CSV
+            </button>
+          </div>
         </div>
 
         <!-- Stats -->
         <div id="ts-stats" style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:16px;"></div>
 
         <!-- Table -->
-        <div id="ts-grid">
+        <div id="ts-grid" style="overflow-x:auto;max-width:100%;">
           <div style="display:flex;justify-content:center;padding:40px;"><span class="spinner"></span></div>
         </div>
 
@@ -69,7 +84,8 @@
 <script src="/js/sidebar-fix.js"></script>
 <script src="/js/admin-company-filter.js"></script>
 <script>
-var allTs = [], rejectId = null;
+var allTs = [], rejectId = null, filteredTs = [];
+var MO_FULL_TS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 
 var DN = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
 
@@ -101,6 +117,91 @@ function statusChip(s) {
 }
 function fmtShortD(d) { return new Date(d).toLocaleDateString('en-US',{day:'2-digit',month:'short',year:'numeric'}); }
 
+/* ── Filters ── */
+function populateTsYearFilter() {
+  var years = [...new Set(allTs.map(function(t){ return new Date(t.weekStart).getFullYear(); }))].sort(function(a,b){return b-a;});
+  var sel = document.getElementById('filter-year');
+  var cur = sel.value;
+  sel.innerHTML = '<option value="">All Years</option>' + years.map(function(y){ return '<option value="'+y+'"'+(String(y)===cur?' selected':'')+'>'+y+'</option>'; }).join('');
+}
+
+function applyFilters() {
+  var fStatus = document.getElementById('filter-status').value;
+  var fMonth  = document.getElementById('filter-month').value;
+  var fYear   = document.getElementById('filter-year').value;
+  filteredTs = allTs.filter(function(t){
+    if (fStatus && t.status !== fStatus) return false;
+    if (fMonth !== '' || fYear !== '') {
+      var d = new Date(t.weekStart);
+      if (fMonth !== '' && d.getMonth() !== Number(fMonth)) return false;
+      if (fYear  !== '' && d.getFullYear() !== Number(fYear))  return false;
+    }
+    return true;
+  });
+  renderTs(filteredTs);
+}
+
+/* ── Render table ── */
+function renderTs(ts) {
+  var grid = document.getElementById('ts-grid');
+  if (!ts.length) {
+    grid.innerHTML = '<div class="empty-state"><div class="empty-icon"><i class="bx bxs-time-five"></i></div><p>No timesheets found</p></div>';
+    return;
+  }
+
+  var thead = '<thead><tr style="background:#f0f4ff;">' +
+    '<th style="padding:8px 12px;text-align:left;font-size:11px;font-weight:700;color:#5871a4;border-bottom:2px solid #dde6fb;">Employee</th>' +
+    DN.map(function(d){ return '<th style="padding:8px 4px;text-align:center;font-size:11px;font-weight:700;color:#5871a4;border-bottom:2px solid #dde6fb;width:40px;">'+d+'</th>'; }).join('') +
+    '<th style="padding:8px 8px;text-align:center;font-size:11px;font-weight:700;color:#5871a4;border-bottom:2px solid #dde6fb;width:50px;">Total</th>' +
+    '<th style="padding:8px 8px;text-align:left;font-size:11px;font-weight:700;color:#5871a4;border-bottom:2px solid #dde6fb;width:80px;">Status</th>' +
+    '<th style="padding:8px 8px;text-align:left;font-size:11px;font-weight:700;color:#5871a4;border-bottom:2px solid #dde6fb;width:110px;">Actions</th>' +
+  '</tr></thead>';
+
+  var tableRows = ts.map(function(t) {
+    var dh = getDayHours(t);
+    var weekMon = getMondayOfTS(t.weekStart), weekSun = new Date(weekMon);
+    weekSun.setDate(weekSun.getDate()+6);
+    var weekLabel = weekMon.toLocaleDateString('en-US',{month:'short',day:'numeric'}) + '–' + weekSun.toLocaleDateString('en-US',{month:'short',day:'numeric'});
+
+    var dayCells = dh.map(function(h, di) {
+      var proj = getDayProjects(t, di);
+      var cs = h>0 ? 'font-weight:700;color:var(--accent);' : 'color:var(--border);';
+      return '<td style="padding:6px 3px;text-align:center;font-size:12px;'+cs+'border-bottom:1px solid #edf0f7;" title="'+(proj||'No entries')+'">' +
+        (h>0 ? h.toFixed(1)+'<span style="font-size:9px;font-weight:400;">h</span>' : '—') +
+      '</td>';
+    }).join('');
+
+    return '<tr style="background:var(--bg-card);" onmouseover="this.style.background=\'var(--bg-input)\'" onmouseout="this.style.background=\'var(--bg-card)\'">' +
+      '<td style="padding:8px 12px;border-bottom:1px solid #edf0f7;max-width:180px;">' +
+        '<div style="display:flex;align-items:center;gap:8px;">' +
+          userAvatar(t.user, 26) +
+          '<div style="min-width:0;">' +
+            '<div style="font-weight:600;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+(t.user&&t.user.name||'—')+'</div>' +
+            '<div style="font-size:10px;color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+weekLabel+'</div>' +
+          '</div>' +
+        '</div>' +
+      '</td>' +
+      dayCells +
+      '<td style="padding:6px 8px;text-align:center;font-size:13px;font-weight:800;color:var(--text-primary);border-bottom:1px solid #edf0f7;">'+t.totalHours+'h</td>' +
+      '<td style="padding:6px 8px;border-bottom:1px solid #edf0f7;">'+statusChip(t.status)+'</td>' +
+      '<td style="padding:6px 8px;border-bottom:1px solid #edf0f7;">' +
+        '<div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap;">' +
+          '<button class="btn btn-ghost btn-sm" onclick="openViewTs('+t.id+')" style="padding:3px 6px;" title="View"><i class="bx bx-show"></i></button>' +
+          (t.status==='pending' ?
+            '<button class="btn btn-success btn-sm" onclick="actTs('+t.id+',\'approve\')" style="padding:3px 6px;" title="Approve"><i class="bx bx-check"></i></button>' +
+            '<button class="btn btn-danger btn-sm" onclick="openReject('+t.id+')" style="padding:3px 6px;" title="Reject"><i class="bx bx-x"></i></button>'
+          : (t.approver ? '<span style="font-size:10px;color:var(--text-muted);">✓ '+t.approver.name+'</span>' : '')) +
+        '</div>' +
+        (t.rejectionReason ? '<div style="font-size:10px;color:#ef4444;margin-top:2px;">'+t.rejectionReason.slice(0,30)+'…</div>' : '') +
+      '</td>' +
+    '</tr>';
+  }).join('');
+
+  grid.innerHTML = '<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:14px;">' +
+    '<table style="width:100%;border-collapse:collapse;table-layout:fixed;">' + thead + '<tbody>' + tableRows + '</tbody></table>' +
+  '</div>';
+}
+
 /* ── Load ── */
 async function reloadPageData() { await loadTs(); }
 async function loadTs() {
@@ -108,10 +209,9 @@ async function loadTs() {
     var url = '/timesheets';
     var cid = getSelectedCompanyId(); if (cid) url += '?companyId='+cid;
     allTs = await api('GET', url);
-    var f = document.getElementById('filter-status').value;
-    var ts = f ? allTs.filter(function(t){ return t.status===f; }) : allTs;
+    populateTsYearFilter();
 
-    // Stats bar
+    // Stats bar (always from full allTs)
     var pending  = allTs.filter(function(t){ return t.status==='pending'; }).length;
     var approved = allTs.filter(function(t){ return t.status==='approved'; }).length;
     var rejected = allTs.filter(function(t){ return t.status==='rejected'; }).length;
@@ -122,65 +222,7 @@ async function loadTs() {
       stat(approved,   'Approved',    '#22c55e') +
       stat(rejected,   'Rejected',    '#ef4444');
 
-    var grid = document.getElementById('ts-grid');
-    if (!ts.length) {
-      grid.innerHTML = '<div class="empty-state"><div class="empty-icon"><i class="bx bxs-time-five"></i></div><p>No timesheets found</p></div>';
-      return;
-    }
-
-    var thead = '<thead><tr style="background:#f0f4ff;">' +
-      '<th style="padding:10px 14px;text-align:left;font-size:11px;font-weight:700;color:#5871a4;border-bottom:2px solid #dde6fb;white-space:nowrap;">Employee</th>' +
-      DN.map(function(d){ return '<th style="padding:10px 6px;text-align:center;font-size:11px;font-weight:700;color:#5871a4;border-bottom:2px solid #dde6fb;min-width:58px;">'+d+'</th>'; }).join('') +
-      '<th style="padding:10px 10px;text-align:center;font-size:11px;font-weight:700;color:#5871a4;border-bottom:2px solid #dde6fb;">Total</th>' +
-      '<th style="padding:10px 10px;text-align:left;font-size:11px;font-weight:700;color:#5871a4;border-bottom:2px solid #dde6fb;">Status</th>' +
-      '<th style="padding:10px 10px;text-align:left;font-size:11px;font-weight:700;color:#5871a4;border-bottom:2px solid #dde6fb;">Actions</th>' +
-    '</tr></thead>';
-
-    var tableRows = ts.map(function(t) {
-      var dh = getDayHours(t);
-      var weekMon = getMondayOfTS(t.weekStart), weekSun = new Date(weekMon);
-      weekSun.setDate(weekSun.getDate()+6);
-      var weekLabel = weekMon.toLocaleDateString('en-US',{month:'short',day:'numeric'}) + '–' + weekSun.toLocaleDateString('en-US',{month:'short',day:'numeric'});
-
-      var dayCells = dh.map(function(h, di) {
-        var proj = getDayProjects(t, di);
-        var cs = h>0 ? 'font-weight:700;color:var(--accent);' : 'color:var(--border);';
-        return '<td style="padding:7px 5px;text-align:center;font-size:13px;'+cs+'border-bottom:1px solid #edf0f7;" title="'+proj+'">' +
-          (h>0 ? h.toFixed(1)+'<span style="font-size:10px;font-weight:400;">h</span>' : '—') +
-          (proj ? '<div style="font-size:9px;color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:54px;margin:0 auto;">'+proj+'</div>' : '') +
-        '</td>';
-      }).join('');
-
-      return '<tr style="background:var(--bg-card);" onmouseover="this.style.background=\'var(--bg-input)\'" onmouseout="this.style.background=\'var(--bg-card)\'">' +
-        '<td style="padding:9px 14px;border-bottom:1px solid #edf0f7;white-space:nowrap;">' +
-          '<div style="display:flex;align-items:center;gap:8px;">' +
-            userAvatar(t.user, 28) +
-            '<div>' +
-              '<div style="font-weight:600;font-size:13px;">'+(t.user&&t.user.name||'—')+'</div>' +
-              '<div style="font-size:10px;color:var(--text-muted);">'+weekLabel+' · '+(t.user&&t.user.role||'')+'</div>' +
-            '</div>' +
-          '</div>' +
-        '</td>' +
-        dayCells +
-        '<td style="padding:7px 10px;text-align:center;font-size:14px;font-weight:800;color:var(--text-primary);border-bottom:1px solid #edf0f7;">'+t.totalHours+'h</td>' +
-        '<td style="padding:7px 10px;border-bottom:1px solid #edf0f7;">'+statusChip(t.status)+'</td>' +
-        '<td style="padding:7px 10px;border-bottom:1px solid #edf0f7;white-space:nowrap;">' +
-          '<div style="display:flex;gap:5px;align-items:center;">' +
-            '<button class="btn btn-ghost btn-sm" onclick="openViewTs('+t.id+')" style="padding:3px 8px;" title="View Details"><i class="bx bx-expand-alt"></i> View</button>' +
-            (t.status==='pending' ?
-              '<button class="btn btn-success btn-sm" onclick="actTs('+t.id+',\'approve\')" style="padding:3px 8px;" title="Approve"><i class="bx bx-check"></i></button>' +
-              '<button class="btn btn-danger btn-sm" onclick="openReject('+t.id+')" style="padding:3px 7px;" title="Reject"><i class="bx bx-x"></i></button>'
-            : (t.approver ? '<span style="font-size:11px;color:var(--text-muted);">✓ '+t.approver.name+'</span>' : '')) +
-          '</div>' +
-          (t.rejectionReason ? '<div style="font-size:11px;color:#ef4444;margin-top:2px;">'+t.rejectionReason.slice(0,35)+'…</div>' : '') +
-        '</td>' +
-      '</tr>';
-    }).join('');
-
-    grid.innerHTML = '<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:14px;overflow:auto;">' +
-      '<table style="width:100%;border-collapse:collapse;min-width:820px;">' + thead + '<tbody>' + tableRows + '</tbody></table>' +
-    '</div>';
-
+    applyFilters();
   } catch(e) { toast(e.message,'error'); }
 }
 
@@ -276,6 +318,48 @@ async function confirmReject() {
     await api('PATCH','/timesheets/'+rejectId+'/action',{action:'reject',rejectionReason:document.getElementById('reject-reason').value});
     toast('Rejected','success'); closeModal('reject-modal'); loadTs();
   } catch(e){ toast(e.message,'error'); }
+}
+
+/* ── Excel Export (exports current filtered view) ── */
+function exportFiltered() {
+  var data = filteredTs;
+  if (!data.length) return toast('No timesheets to export', 'error');
+
+  var fMonth = document.getElementById('filter-month').value;
+  var fYear  = document.getElementById('filter-year').value;
+  var fStatus= document.getElementById('filter-status').value;
+  var label  = 'timesheets';
+  if (fYear)   label += '_' + fYear;
+  if (fMonth !== '') label += '_' + MO_FULL_TS[Number(fMonth)];
+  if (fStatus) label += '_' + fStatus;
+  label += '_' + new Date().toISOString().slice(0,10);
+
+  function csvCell(v) { var s = String(v||''); return s.includes(',') || s.includes('"') || s.includes('\n') ? '"' + s.replace(/"/g,'""') + '"' : s; }
+  var rows = [['Employee','Email','Role','Department','Week Start','Week End','Mon','Tue','Wed','Thu','Fri','Sat','Sun','Total Hours','Status','Approver','Projects','Notes','Submitted On']];
+  data.forEach(function(t) {
+    var dh = getDayHours(t);
+    var projects = [...new Set((t.entries||[]).map(function(e){ return e.project||''; }).filter(Boolean))].join(', ');
+    rows.push([
+      (t.user&&t.user.name)||'',
+      (t.user&&t.user.email)||'',
+      (t.user&&t.user.role)||'',
+      (t.user&&t.user.department)||'',
+      t.weekStart||'', t.weekEnd||'',
+      dh[0],dh[1],dh[2],dh[3],dh[4],dh[5],dh[6],
+      t.totalHours||0,
+      t.status||'',
+      t.approver?t.approver.name:'',
+      projects,
+      (t.notes||'').replace(/\n/g,' '),
+      t.createdAt?fmtShortD(t.createdAt):''
+    ]);
+  });
+
+  var csv = '\uFEFF' + rows.map(function(r){ return r.map(csvCell).join(','); }).join('\r\n');
+  var blob = new Blob([csv], {type:'text/csv;charset=utf-8'});
+  var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = label + '.csv';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  toast('Exported ' + data.length + ' timesheet(s)', 'success');
 }
 
 initCompanyFilter().then(reloadPageData);

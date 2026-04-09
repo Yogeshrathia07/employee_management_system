@@ -11,34 +11,85 @@
     </header>
     <div class="page-body admin-employees-page employee-shared-page">
       <div class="employee-directory-shell">
-      <div class="leave-toolbar">
-        <div class="toggle-group mb-0">
-          <button class="toggle-btn active" onclick="setFilter('',this)">All</button>
-          <button class="toggle-btn" onclick="setFilter('pending',this)">Pending</button>
-          <button class="toggle-btn" onclick="setFilter('approved',this)">Approved</button>
-          <button class="toggle-btn" onclick="setFilter('rejected',this)">Rejected</button>
+
+        <!-- Toolbar -->
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:20px;">
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+            <div class="toggle-group mb-0">
+              <button class="toggle-btn active" onclick="setStatusFilter('',this)">All</button>
+              <button class="toggle-btn" onclick="setStatusFilter('pending',this)">Pending</button>
+              <button class="toggle-btn" onclick="setStatusFilter('approved',this)">Approved</button>
+              <button class="toggle-btn" onclick="setStatusFilter('rejected',this)">Rejected</button>
+            </div>
+            <select id="type-filter" class="form-control" style="width:150px;" onchange="renderLeaves()">
+              <option value="">All Types</option>
+              <option value="earned">Earned Leave</option>
+              <option value="casual">Casual Leave</option>
+              <option value="sick">Sick Leave</option>
+              <option value="maternity">Maternity Leave</option>
+              <option value="paternity">Paternity Leave</option>
+              <option value="unpaid">Unpaid Leave</option>
+              <option value="other">Other Leave</option>
+            </select>
+            <select id="month-filter" class="form-control" style="width:120px;" onchange="renderLeaves()">
+              <option value="">All Months</option>
+              <option value="0">January</option><option value="1">February</option><option value="2">March</option>
+              <option value="3">April</option><option value="4">May</option><option value="5">June</option>
+              <option value="6">July</option><option value="7">August</option><option value="8">September</option>
+              <option value="9">October</option><option value="10">November</option><option value="11">December</option>
+            </select>
+            <select id="year-filter" class="form-control" style="width:100px;" onchange="renderLeaves()">
+              <option value="">All Years</option>
+            </select>
+            <span id="company-filter-container" style="display:none;"></span>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px;flex-shrink:0;">
+            <span style="font-size:13px;color:var(--text-muted);" id="leaves-count"></span>
+            <button class="btn btn-ghost btn-sm" onclick="exportLeaves()" title="Export filtered leaves to CSV"><i class="bx bxs-file-export"></i> Export CSV</button>
+          </div>
         </div>
-        <span id="company-filter-container" style="display:none;"></span>
-      </div>
-      <div id="leaves-grid" class="leave-card-grid">
-        <div style="grid-column:1/-1;text-align:center;padding:60px;"><span class="spinner"></span></div>
-      </div>
+
+        <div class="card">
+          <div class="table-wrapper">
+            <table>
+              <thead>
+                <tr>
+                  <th>Employee</th>
+                  <th>Dept / Role</th>
+                  <th>Leave Type</th>
+                  <th>From</th>
+                  <th>To</th>
+                  <th>Days</th>
+                  <th>Status</th>
+                  <th>Applied On</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="leaves-tbody">
+                <tr><td colspan="9" style="text-align:center;padding:60px;"><span class="spinner"></span></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
       </div>
     </div>
   </div>
 </div>
 
+<!-- Reject Modal -->
 <div class="modal-overlay" id="reject-modal">
   <div class="modal" style="max-width:400px">
-    <div class="modal-header"><span class="modal-title">Reject Leave</span><button class="modal-close" onclick="closeModal('reject-modal')">x</button></div>
-    <div class="modal-body"><div class="form-group"><label class="form-label">Reason</label><textarea id="reject-reason" class="form-control" rows="3"></textarea></div></div>
+    <div class="modal-header"><span class="modal-title">Reject Leave</span><button class="modal-close" onclick="closeModal('reject-modal')">×</button></div>
+    <div class="modal-body"><div class="form-group"><label class="form-label">Reason for Rejection</label><textarea id="reject-reason" class="form-control" rows="3" placeholder="Optional reason..."></textarea></div></div>
     <div class="modal-footer"><button class="btn btn-ghost" onclick="closeModal('reject-modal')">Cancel</button><button class="btn btn-danger" onclick="confirmReject()">Reject</button></div>
   </div>
 </div>
 
+<!-- View Modal -->
 <div class="modal-overlay" id="leave-view-modal">
   <div class="modal" style="max-width:560px">
-    <div class="modal-header"><span class="modal-title">Leave Details</span><button class="modal-close" onclick="closeModal('leave-view-modal')">x</button></div>
+    <div class="modal-header"><span class="modal-title">Leave Details</span><button class="modal-close" onclick="closeModal('leave-view-modal')">×</button></div>
     <div class="modal-body" id="leave-view-body"></div>
     <div class="modal-footer"><button class="btn btn-ghost" onclick="closeModal('leave-view-modal')">Close</button></div>
   </div>
@@ -48,56 +99,66 @@
 <script src="/js/sidebar-fix.js"></script>
 <script src="/js/admin-company-filter.js"></script>
 <script>
-var rejectId = null, allLeaves = [], activeFilter = '';
+var rejectId = null, allLeaves = [], activeStatus = '';
 
-var leaveColors = { earned:'indigo', casual:'teal', sick:'orange', maternity:'pink', paternity:'blue', unpaid:'slate', other:'indigo' };
-var leaveIcons = { earned:'bxs-calendar-check', casual:'bxs-briefcase', sick:'bxs-thermometer', maternity:'bxs-baby-carriage', paternity:'bxs-user-voice', unpaid:'bxs-calendar-x', other:'bxs-calendar' };
 var leaveTypeLabels = { earned:'Earned Leave', casual:'Casual Leave', sick:'Sick Leave', maternity:'Maternity Leave', paternity:'Paternity Leave', unpaid:'Unpaid Leave', other:'Other Leave' };
+var MO_FULL = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 
-function setFilter(f, btn) {
-  activeFilter = f;
+function populateYearFilter() {
+  var years = [...new Set(allLeaves.map(function(l){ return new Date(l.startDate).getFullYear(); }))].sort(function(a,b){return b-a;});
+  var sel = document.getElementById('year-filter');
+  var cur = sel.value;
+  sel.innerHTML = '<option value="">All Years</option>' + years.map(function(y){ return '<option value="'+y+'"'+(String(y)===cur?' selected':'')+'>'+y+'</option>'; }).join('');
+}
+
+function setStatusFilter(f, btn) {
+  activeStatus = f;
   document.querySelectorAll('.toggle-group .toggle-btn').forEach(function(b){ b.classList.remove('active'); });
   btn.classList.add('active');
   renderLeaves();
 }
 
 function renderLeaves() {
-  var data = activeFilter ? allLeaves.filter(function(l){ return l.status === activeFilter; }) : allLeaves;
-  var grid = document.getElementById('leaves-grid');
+  var typeFilter  = document.getElementById('type-filter').value;
+  var monthFilter = document.getElementById('month-filter').value;
+  var yearFilter  = document.getElementById('year-filter').value;
+  var data = allLeaves.filter(function(l){
+    if (activeStatus && l.status !== activeStatus) return false;
+    if (typeFilter && l.type !== typeFilter) return false;
+    if (monthFilter !== '' || yearFilter !== '') {
+      var d = new Date(l.startDate);
+      if (monthFilter !== '' && d.getMonth() !== Number(monthFilter)) return false;
+      if (yearFilter  !== '' && d.getFullYear() !== Number(yearFilter))  return false;
+    }
+    return true;
+  });
+
+  var countEl = document.getElementById('leaves-count');
+  if (countEl) countEl.textContent = data.length + ' record' + (data.length !== 1 ? 's' : '');
+
+  var tbody = document.getElementById('leaves-tbody');
   if (!data.length) {
-    grid.innerHTML = '<div style="grid-column:1/-1;" class="empty-state"><div class="empty-icon"><i class="bx bxs-calendar-check"></i></div><h3>No leaves found</h3><p>Try a different filter</p></div>';
+    tbody.innerHTML = '<tr><td colspan="9"><div class="empty-state"><div class="empty-icon"><i class="bx bxs-calendar-check"></i></div><h3>No leaves found</h3><p>Try a different filter</p></div></td></tr>';
     return;
   }
-  grid.innerHTML = data.map(function(l){
-    var tone = leaveColors[l.type] || leaveColors.other;
+  tbody.innerHTML = data.map(function(l){
     var typeLabel = leaveTypeLabels[l.type] || 'Other Leave';
     var isPending = l.status === 'pending';
-    return '<div class="leave-review-card leave-tone-'+tone+'">'+
-      '<div class="leave-review-top">'+
-        '<div class="leave-review-user-row leave-review-user-row-top">'+
-          userAvatar(l.user,36)+
-          '<div class="leave-review-user-copy">'+
-            '<div class="leave-review-user-name">'+(l.user ? l.user.name : '-')+'</div>'+
-            '<div class="leave-review-user-sub">'+(l.user ? (l.user.department || l.user.role || 'Employee') : 'Employee')+'</div>'+
-          '</div>'+
-        '</div>'+
-        '<span class="leave-status-pill status-'+l.status+'">'+l.status+'</span>'+
-      '</div>'+
-      '<div class="leave-review-body">'+
-        '<div class="leave-review-detail-row">'+
-          '<div class="leave-review-title">'+typeLabel+'</div>'+
-          '<div class="leave-review-days">'+l.days+' day'+(l.days!==1?'s':'')+'</div>'+
-        '</div>'+
-        '<div class="leave-review-meta">'+fmtDate(l.startDate)+' to '+fmtDate(l.endDate)+'</div>'+
-        '<div class="leave-review-role-pill">'+roleBadge(l.user ? l.user.role : 'employee')+'</div>'+
-        (l.reason ? '<div class="leave-review-note">'+l.reason+'</div>' : '')+
-        (l.approver ? '<div class="leave-review-by"><i class="bx bxs-user-check"></i> By '+l.approver.name+'</div>' : '')+
-        '<div class="leave-review-actions">'+
-          '<button class="btn btn-ghost btn-sm" onclick="viewLeave('+l.id+')" title="View"><i class="bx bx-show"></i></button>'+
-          (isPending ? '<button class="btn btn-success btn-sm" onclick="act('+l.id+',\'approve\')" title="Approve"><i class="bx bx-check"></i></button><button class="btn btn-danger btn-sm" onclick="openReject('+l.id+')" title="Reject"><i class="bx bx-x"></i></button>' : '')+
-        '</div>'+
-      '</div>'+
-    '</div>';
+    var dept = l.user ? (l.user.department || l.user.role || 'Employee') : '—';
+    return '<tr>' +
+      '<td><strong>' + (l.user ? l.user.name : '—') + '</strong></td>' +
+      '<td style="font-size:12px;color:var(--text-muted);">' + dept + '</td>' +
+      '<td>' + typeLabel + '</td>' +
+      '<td>' + fmtDate(l.startDate) + '</td>' +
+      '<td>' + fmtDate(l.endDate) + '</td>' +
+      '<td>' + l.days + '</td>' +
+      '<td>' + statusBadge(l.status) + '</td>' +
+      '<td style="font-size:12px;color:var(--text-muted);">' + fmtDate(l.createdAt) + '</td>' +
+      '<td>' +
+        '<button class="btn btn-ghost btn-sm" onclick="viewLeave(' + l.id + ')" title="View"><i class="bx bx-show"></i></button>' +
+        (isPending ? '<button class="btn btn-success btn-sm" onclick="act(' + l.id + ',\'approve\')" title="Approve"><i class="bx bx-check"></i></button><button class="btn btn-danger btn-sm" onclick="openReject(' + l.id + ')" title="Reject"><i class="bx bx-x"></i></button>' : '') +
+      '</td>' +
+    '</tr>';
   }).join('');
 }
 
@@ -107,26 +168,71 @@ async function reloadPageData() {
     var cid = getSelectedCompanyId();
     if (cid) url += '?companyId=' + cid;
     allLeaves = await api('GET', url);
+    populateYearFilter();
     renderLeaves();
   } catch(e) { toast(e.message, 'error'); }
+}
+
+function exportLeaves() {
+  var typeFilter  = document.getElementById('type-filter').value;
+  var monthFilter = document.getElementById('month-filter').value;
+  var yearFilter  = document.getElementById('year-filter').value;
+  var data = allLeaves.filter(function(l){
+    if (activeStatus && l.status !== activeStatus) return false;
+    if (typeFilter && l.type !== typeFilter) return false;
+    if (monthFilter !== '' || yearFilter !== '') {
+      var d = new Date(l.startDate);
+      if (monthFilter !== '' && d.getMonth() !== Number(monthFilter)) return false;
+      if (yearFilter  !== '' && d.getFullYear() !== Number(yearFilter))  return false;
+    }
+    return true;
+  });
+  if (!data.length) return toast('No data to export', 'error');
+
+  var label = 'Leaves';
+  if (yearFilter)  label += '_' + yearFilter;
+  if (monthFilter !== '') label += '_' + MO_FULL[Number(monthFilter)];
+  if (activeStatus) label += '_' + activeStatus;
+  if (typeFilter)  label += '_' + typeFilter;
+
+  function csvCell(v) { var s = String(v||''); return s.includes(',') || s.includes('"') || s.includes('\n') ? '"' + s.replace(/"/g,'""') + '"' : s; }
+  var rows = [['Employee','Department/Role','Leave Type','From','To','Days','Status','Applied On','Approved By','Reason']];
+  data.forEach(function(l){
+    rows.push([
+      l.user ? l.user.name : '',
+      l.user ? (l.user.department || l.user.role || 'Employee') : '',
+      leaveTypeLabels[l.type] || l.type,
+      fmtDate(l.startDate),
+      fmtDate(l.endDate),
+      l.days,
+      l.status,
+      fmtDate(l.createdAt),
+      l.approver ? l.approver.name : '',
+      l.reason || ''
+    ]);
+  });
+  var csv = '\uFEFF' + rows.map(function(r){ return r.map(csvCell).join(','); }).join('\r\n');
+  var blob = new Blob([csv], {type:'text/csv;charset=utf-8'});
+  var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = label + '.csv'; a.click();
+  toast('Exported ' + data.length + ' records', 'success');
 }
 
 function viewLeave(id) {
   var l = allLeaves.find(function(x){ return x.id === id; });
   if (!l) return toast('Leave not found', 'error');
   document.getElementById('leave-view-body').innerHTML =
-    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">'+
-      '<div style="background:var(--bg-input);border-radius:12px;padding:12px;"><div class="detail-label">Employee</div><div class="detail-value">'+(l.user ? l.user.name : '-')+'</div></div>'+
-      '<div style="background:var(--bg-input);border-radius:12px;padding:12px;"><div class="detail-label">Role</div><div class="detail-value">'+(l.user ? l.user.role : 'employee')+'</div></div>'+
-      '<div style="background:var(--bg-input);border-radius:12px;padding:12px;"><div class="detail-label">Leave Type</div><div class="detail-value" style="text-transform:capitalize;">'+(l.type || '-')+'</div></div>'+
-      '<div style="background:var(--bg-input);border-radius:12px;padding:12px;"><div class="detail-label">Status</div><div class="detail-value" style="text-transform:capitalize;">'+(l.status || '-')+'</div></div>'+
-      '<div style="background:var(--bg-input);border-radius:12px;padding:12px;"><div class="detail-label">From</div><div class="detail-value">'+fmtDate(l.startDate)+'</div></div>'+
-      '<div style="background:var(--bg-input);border-radius:12px;padding:12px;"><div class="detail-label">To</div><div class="detail-value">'+fmtDate(l.endDate)+'</div></div>'+
-      '<div style="background:var(--bg-input);border-radius:12px;padding:12px;"><div class="detail-label">Days</div><div class="detail-value">'+(l.days || 0)+'</div></div>'+
-      '<div style="background:var(--bg-input);border-radius:12px;padding:12px;"><div class="detail-label">Approver</div><div class="detail-value">'+(l.approver ? l.approver.name : '-')+'</div></div>'+
-    '</div>'+
-    '<div style="margin-top:14px;background:var(--bg-input);border-radius:12px;padding:12px;"><div class="detail-label">Reason</div><div class="detail-value">'+(l.reason || 'No reason provided')+'</div></div>'+
-    (l.rejectionReason ? '<div style="margin-top:12px;background:var(--danger-light);border-radius:12px;padding:12px;"><div class="detail-label" style="color:var(--danger);">Rejection Reason</div><div class="detail-value">'+l.rejectionReason+'</div></div>' : '');
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">' +
+      '<div style="background:var(--bg-input);border-radius:12px;padding:12px;"><div class="detail-label">Employee</div><div class="detail-value">' + (l.user ? l.user.name : '—') + '</div></div>' +
+      '<div style="background:var(--bg-input);border-radius:12px;padding:12px;"><div class="detail-label">Dept / Role</div><div class="detail-value">' + (l.user ? (l.user.department || l.user.role || 'Employee') : '—') + '</div></div>' +
+      '<div style="background:var(--bg-input);border-radius:12px;padding:12px;"><div class="detail-label">Leave Type</div><div class="detail-value">' + (leaveTypeLabels[l.type] || 'Other Leave') + '</div></div>' +
+      '<div style="background:var(--bg-input);border-radius:12px;padding:12px;"><div class="detail-label">Status</div><div class="detail-value">' + statusBadge(l.status) + '</div></div>' +
+      '<div style="background:var(--bg-input);border-radius:12px;padding:12px;"><div class="detail-label">From</div><div class="detail-value">' + fmtDate(l.startDate) + '</div></div>' +
+      '<div style="background:var(--bg-input);border-radius:12px;padding:12px;"><div class="detail-label">To</div><div class="detail-value">' + fmtDate(l.endDate) + '</div></div>' +
+      '<div style="background:var(--bg-input);border-radius:12px;padding:12px;"><div class="detail-label">Days</div><div class="detail-value">' + (l.days || 0) + '</div></div>' +
+      '<div style="background:var(--bg-input);border-radius:12px;padding:12px;"><div class="detail-label">Approver</div><div class="detail-value">' + (l.approver ? l.approver.name : '—') + '</div></div>' +
+    '</div>' +
+    '<div style="margin-top:14px;background:var(--bg-input);border-radius:12px;padding:12px;"><div class="detail-label">Reason</div><div class="detail-value">' + (l.reason || 'No reason provided') + '</div></div>' +
+    (l.rejectionReason ? '<div style="margin-top:12px;background:var(--danger-light);border-radius:12px;padding:12px;"><div class="detail-label" style="color:var(--danger);">Rejection Reason</div><div class="detail-value">' + l.rejectionReason + '</div></div>' : '');
   openModal('leave-view-modal');
 }
 

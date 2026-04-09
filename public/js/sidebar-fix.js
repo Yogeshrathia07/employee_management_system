@@ -20,7 +20,7 @@
       {href:'/superadmin/users', icon:'bxs-group', label:'All Users'},
       {href:'/admin/leaves', icon:'bxs-calendar-check', label:'All Leaves', section:'Company Data'},
       {href:'/admin/timesheets', icon:'bxs-time-five', label:'All Timesheets'},
-      {href:'/admin/salary', icon:'bxs-wallet', label:'All Payroll'},
+      {href:'/superadmin/salary', icon:'bxs-wallet', label:'All Payroll'},
       {href:'/admin/documents', icon:'bxs-file-doc', label:'All Documents'},
       {href:'/superadmin/accounts', icon:'bxs-credit-card', label:'Accounts', section:'Finance'},
       {href:'/superadmin/recycle-bin', icon:'bxs-trash', label:'Recycle Bin', section:'System'},

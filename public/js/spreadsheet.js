@@ -34,17 +34,26 @@ class PayrollApp {
     this.activeTab = 'database';
     this._nextId   = 1;
     this._employees     = [];
+    this._companies     = [];
     this._aeEntries     = [];
     this._tsCache       = [];
     this._leaveCache    = [];
     this._dbFilterMonth = '';
     this._dbFilterYear  = '';
+    this._dbFilterStatus = '';
+    this.currentUser    = null;
+    this.currentCompanyId = null;
+    this._slipRows = [];
+    this._activeSlipId = null;
   }
 
   async init() {
+    this.currentUser = typeof getUser === 'function' ? getUser() : null;
     this.renderDB(); // empty state initially
     await this._loadEmployees();
-    this._loadData(); // populates rows from saved data
+    await this._loadCompanies();
+    this._initGenerateDefaults();
+    await this._loadData(); // populates rows from salary data
     document.addEventListener('keydown', e => { if (e.key === 'Escape') this.closeAddModal(); });
     document.getElementById('add-emp-modal')?.addEventListener('click', e => {
       if (e.target.id === 'add-emp-modal') this.closeAddModal();
@@ -59,14 +68,125 @@ class PayrollApp {
     } catch(e) { this._employees = []; }
   }
 
+  async _loadCompanies() {
+    const companySelect = document.getElementById('payroll-company-filter');
+    if (!companySelect) {
+      this.currentCompanyId = this.currentUser?.companyId || this.currentUser?.company?.id || null;
+      return;
+    }
+    try {
+      const list = await api('GET', '/companies');
+      this._companies = Array.isArray(list) ? list : [];
+      companySelect.innerHTML = '<option value="">Select company</option>' +
+        this._companies.map(c => `<option value="${c.id}">${this._esc(c.name || `Company ${c.id}`)}</option>`).join('');
+      this.currentCompanyId = this.currentUser?.companyId || this.currentUser?.company?.id || (this._companies[0]?.id || null);
+      if (this.currentCompanyId) companySelect.value = String(this.currentCompanyId);
+    } catch (e) {
+      this._companies = [];
+      this.currentCompanyId = null;
+    }
+  }
+
+  _initGenerateDefaults() {
+    const now = new Date();
+    const monthEl = document.getElementById('generate-month');
+    const yearEl = document.getElementById('generate-year');
+    if (monthEl) monthEl.value = String(now.getMonth() + 1);
+    if (yearEl) yearEl.value = String(now.getFullYear());
+  }
+
+  setCompany(companyId) {
+    this.currentCompanyId = companyId ? Number(companyId) : null;
+    this._loadData();
+  }
+
+  _isSuperadmin() {
+    return (window.PAYROLL_PAGE_ROLE || this.currentUser?.role) === 'superadmin';
+  }
+
+  _esc(v) {
+    return String(v ?? '').replace(/[&<>"']/g, ch => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;', "'":'&#39;' }[ch]));
+  }
+
+  _monthNameToNumber(month) {
+    const months = ['january','february','march','april','may','june','july','august','september','october','november','december'];
+    const idx = months.indexOf(String(month || '').toLowerCase());
+    return idx >= 0 ? idx + 1 : null;
+  }
+
+  _monthNumberToName(month) {
+    const months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+    return months[(Number(month) || 1) - 1] || '';
+  }
+
+  _getCheckedStatuses(containerId) {
+    const container = document.getElementById(containerId);
+    if (!container) return [];
+    return Array.from(container.querySelectorAll('input[type="checkbox"]:checked'))
+      .map(cb => String(cb.value || '').toLowerCase())
+      .filter(Boolean);
+  }
+
+  _matchesStatusFilter(status, selectedStatuses) {
+    if (!Array.isArray(selectedStatuses) || !selectedStatuses.length) return true;
+    return selectedStatuses.includes(String(status || 'draft').toLowerCase());
+  }
+
+  _salaryToRow(salary) {
+    const user = salary.user || this._employees.find(e => e.id === salary.userId) || {};
+    return {
+      id: salary.id,
+      salaryId: salary.id,
+      userId: salary.userId,
+      name: user.name || '',
+      designation: user.position || user.role || '',
+      month: this._monthNumberToName(salary.month),
+      year: salary.year,
+      totalDays: new Date(salary.year, salary.month, 0).getDate(),
+      allowedLeave: salary.allowedLeave || 0,
+      leaveTaken: salary.leaveTaken || 0,
+      workedDays: salary.totalWorkDays || 0,
+      ctc: salary.baseSalary || 0,
+      basic: salary.basicSalary || 0,
+      da: salary.da || 0,
+      hra: salary.hra || 0,
+      conveyance: salary.conveyance || 0,
+      medicalExpenses: salary.medicalExpenses || 0,
+      special: salary.specialAllowance || 0,
+      bonus: salary.bonus || 0,
+      ta: salary.ta || 0,
+      pfContribution: salary.pfContribution || 0,
+      professionTax: salary.professionTax || 0,
+      tds: salary.tds || 0,
+      salaryAdvance: salary.salaryAdvance || 0,
+      manualDeductionDays: salary.manualDeductionDays || 0,
+      manualDeductionAmount: salary.manualDeductionAmount || 0,
+      absentDeduction: salary.absentDeduction || 0,
+      applyAbsentDeduction: salary.applyAbsentDeduction !== false,
+      presentDays: salary.presentDays || 0,
+      absentDays: salary.absentDays || 0,
+      gender: user.gender ? user.gender.charAt(0).toUpperCase() + user.gender.slice(1) : '',
+      prefix: user.gender === 'female' ? 'Ms' : 'Mr',
+      authorizedSignatory: user.company?.authorizedSignatory || 'Director',
+      pfApplicable: user.pfApplicable ? 'Yes' : 'No',
+      medicalBillSubmitted: salary.medicalBillAmount > 0 ? 'Yes' : 'No',
+      medicalBillAmount: salary.medicalBillAmount || 0,
+      companyName: user.company?.name || user.companyName || 'DHPE',
+      status: salary.status || 'draft',
+    };
+  }
+
   _updateDatalist() {
+    const source = this._isSuperadmin() && this.currentCompanyId
+      ? this._employees.filter(e => Number(e.companyId || e.company?.id || 0) === Number(this.currentCompanyId))
+      : this._employees;
     let dl = document.getElementById('emp-datalist');
     if (!dl) {
       dl = document.createElement('datalist');
       dl.id = 'emp-datalist';
       document.body.appendChild(dl);
     }
-    dl.innerHTML = this._employees.map(e => `<option value="${e.name}">`).join('');
+    dl.innerHTML = source.map(e => `<option value="${this._esc(e.name)}">`).join('');
   }
 
   // ── Row factory ─────────────────────────────────────────────────────────
@@ -78,6 +198,8 @@ class PayrollApp {
       basic: 0, da: 0, hra: 0, conveyance: 0,
       medicalExpenses: 0, special: 0, bonus: 0, ta: 0,
       pfContribution: 0, professionTax: 0, tds: 0, salaryAdvance: 0,
+      manualDeductionAmount: 0, absentDeduction: 0,
+      presentDays: 0, absentDays: 0,
       gender: '', prefix: 'Mr', authorizedSignatory: 'Director',
       pfApplicable: 'Yes', medicalBillSubmitted: 'No',
       medicalBillAmount: 0, companyName: 'DHPE',
@@ -107,7 +229,20 @@ class PayrollApp {
           +(+r.medicalExpenses||0)+(+r.special||0)+(+r.bonus||0)+(+r.ta||0);
   }
   _td(r)  {
-    return (+r.pfContribution||0)+(+r.professionTax||0)+(+r.tds||0)+(+r.salaryAdvance||0);
+    return (+r.pfContribution||0)+(+r.professionTax||0)+(+r.tds||0)+(+r.salaryAdvance||0)+this._ad(r);
+  }
+  _r10(n) { return Math.round((n || 0) / 10) * 10; }
+  _ad(r)  {
+    // If admin entered a manual amount, use it directly; otherwise auto-calc from absent days
+    const manualAmt = Math.max(0, parseFloat(r.manualDeductionAmount) || 0);
+    if (manualAmt > 0) return this._r10(manualAmt);
+
+    const totalDays  = +r.totalDays || 0;
+    const workedDays = +this._wd(r) || 0;
+    const paidLeave  = Math.min(+r.leaveTaken || 0, +r.allowedLeave || 0);
+    const absentDays = Math.max(0, totalDays - workedDays - paidLeave);
+    const perDayRate = totalDays > 0 ? (+r.ctc || 0) / totalDays : 0;
+    return totalDays > 0 ? this._r10(perDayRate * absentDays) : 0;
   }
   _net(r) { return this._tg(r) - this._td(r); }
 
@@ -117,7 +252,8 @@ class PayrollApp {
     if (!r) return;
     const NUM = ['totalDays','allowedLeave','leaveTaken','workedDays','ctc','basic','da','hra',
       'conveyance','medicalExpenses','special','bonus','ta','pfContribution',
-      'professionTax','tds','salaryAdvance','medicalBillAmount','year'];
+      'professionTax','tds','salaryAdvance','manualDeductionAmount',
+      'medicalBillAmount','year'];
     r[field] = NUM.includes(field) ? (parseFloat(value)||0) : value;
 
     // Clamp workedDays to its max immediately on manual edit
@@ -181,7 +317,7 @@ class PayrollApp {
       if (el) el.value = r[f] ?? '';
     }
     // Update selects
-    for (const f of ['pfApplicable','gender']) {
+    for (const f of ['pfApplicable','gender','applyAbsentDeduction']) {
       const el = document.querySelector(`select[data-row="${r.id}"][data-field="${f}"]`);
       if (el) el.value = r[f] ?? '';
     }
@@ -206,6 +342,7 @@ class PayrollApp {
     }
     set('convWorking', this._cw(r));
     set('totalGross',  this._tg(r));
+    set('absentDeduction', this._ad(r));
     set('totalDed',    this._td(r));
     set('netPay',      this._net(r));
   }
@@ -236,6 +373,7 @@ class PayrollApp {
       <td>${n('designation')}</td>
       <td>${monthSel()}</td>
       <td>${n('year','number',r.year)}</td>
+      <td class="db-status-cell"><span class="db-status-pill status-${String(r.status || 'draft').toLowerCase()}">${String(r.status || 'draft').toLowerCase() === 'finalized' ? 'Frozen' : this._esc(r.status || 'draft')}</span></td>
       <td>${n('totalDays','number',r.totalDays)}</td>
       <td>${n('allowedLeave','number',r.allowedLeave)}</td>
       <td>${n('leaveTaken','number',r.leaveTaken)}</td>
@@ -255,6 +393,8 @@ class PayrollApp {
       <td class="ded-zone">${n('professionTax','number',r.professionTax)}</td>
       <td class="ded-zone">${n('tds','number',r.tds)}</td>
       <td class="ded-zone">${n('salaryAdvance','number',r.salaryAdvance)}</td>
+      <td class="ded-zone">${n('manualDeductionAmount','number',r.manualDeductionAmount)}</td>
+      <td class="ded-zone">${au('absentDeduction',this._ad(r),'auto-red')}</td>
       <td class="ded-zone">${au('totalDed',this._td(r),'auto-red')}</td>
       <td>${au('netPay',this._net(r),'auto-net')}</td>
       <td>${sel('gender',['','Male','Female','Other'])}</td>
@@ -305,14 +445,22 @@ class PayrollApp {
   }
 
   // ── Delete a row from the database ──────────────────────────────────────
-  deleteRow(rowId) {
+  async deleteRow(rowId) {
     const id = String(rowId);
     const idx = this.rows.findIndex(x => String(x.id) === id);
     if (idx === -1) return;
-    const name = this.rows[idx].name || 'this entry';
+    const row = this.rows[idx];
+    const name = row.name || 'this entry';
+    if (row.salaryId) {
+      try {
+        await api('DELETE', `/salary/${row.salaryId}`);
+      } catch (e) {
+        toast(e.message || 'Failed to delete payroll entry', 'error');
+        return;
+      }
+    }
     this.rows.splice(idx, 1);
     this.renderDB();
-    this._scheduleSave();
     this._renderSlipSelector();
     toast(`Deleted payroll entry for ${name}`, 'info');
   }
@@ -326,9 +474,11 @@ class PayrollApp {
 
     const fm = (this._dbFilterMonth || '').toLowerCase();
     const fy = this._dbFilterYear  || '';
+    const fs = this._getCheckedStatuses('db-status-filter');
     const visible = this.rows.filter(r => {
       if (fm && (r.month||'').toLowerCase() !== fm) return false;
       if (fy && String(r.year) !== fy) return false;
+      if (!this._matchesStatusFilter(r.status, fs)) return false;
       return true;
     });
 
@@ -383,6 +533,10 @@ class PayrollApp {
     this.renderDB();
   }
 
+  setDbStatus(status) {
+    this.renderDB();
+  }
+
   clearDbFilter() {
     this._dbFilterMonth = '';
     this._dbFilterYear  = '';
@@ -391,6 +545,7 @@ class PayrollApp {
     );
     const sel = document.getElementById('db-year-filter');
     if (sel) sel.value = '';
+    document.querySelectorAll('#db-status-filter input[type="checkbox"]').forEach(cb => cb.checked = false);
     this.renderDB();
   }
 
@@ -445,7 +600,10 @@ class PayrollApp {
       dl.innerHTML = this._employees.map(e => `<option value="${e.name}">`).join('');
       return;
     }
-    const filtered = this._employees.filter(e =>
+    const source = this._isSuperadmin() && this.currentCompanyId
+      ? this._employees.filter(e => Number(e.companyId || e.company?.id || 0) === Number(this.currentCompanyId))
+      : this._employees;
+    const filtered = source.filter(e =>
       (e.name || '').toLowerCase().includes(q) ||
       (e.position || '').toLowerCase().includes(q) ||
       (e.email || '').toLowerCase().includes(q)
@@ -508,7 +666,7 @@ class PayrollApp {
   _aeAddEntry() {
     const days = this._aeTotalDays();
     const idx  = this._aeEntries.length;
-    this._aeEntries.push({ name:'', designation:'', totalDays:days, leaveTaken:0, workedDays:days, salaryAdvance:0, tds:0, ctc:0, _emp:null });
+    this._aeEntries.push({ name:'', designation:'', totalDays:days, leaveTaken:0, workedDays:days, pfContribution:0, professionTax:0, salaryAdvance:0, tds:0, manualDeductionAmount:0, ctc:0, _emp:null });
     document.getElementById('ae-banner').style.display = 'none';
     document.getElementById('ae-totals-row').style.display = '';
 
@@ -539,12 +697,24 @@ class PayrollApp {
                value="${days||0}" min="0" max="${days||0}">
       </td>
       <td>
+        <input type="number" class="ae-ci ae-ci-num" data-ae="${idx}" data-f="pfContribution"
+               value="0" min="0">
+      </td>
+      <td>
+        <input type="number" class="ae-ci ae-ci-num" data-ae="${idx}" data-f="professionTax"
+               value="0" min="0">
+      </td>
+      <td>
         <input type="number" class="ae-ci ae-ci-num" data-ae="${idx}" data-f="salaryAdvance"
                value="0" min="0">
       </td>
       <td>
         <input type="number" class="ae-ci ae-ci-num" data-ae="${idx}" data-f="tds"
                value="0" min="0">
+      </td>
+      <td>
+        <input type="number" class="ae-ci ae-ci-num" data-ae="${idx}" data-f="manualDeductionAmount"
+               value="0" min="0" placeholder="0" title="Deduction amount (₹). Leave 0 to auto-calculate from absent days.">
       </td>
       <td>
         <input type="number" class="ae-ci ae-ci-num ae-ci-auto" data-ae="${idx}" data-f="ctc"
@@ -564,7 +734,8 @@ class PayrollApp {
         const i = +el.dataset.ae, f = el.dataset.f;
         if (f === 'name') { this._aeNameFill(i, el.value); }
         else {
-          this._aeEntries[i][f] = f==='designation' ? el.value : (+el.value||0);
+          if (f === 'designation') this._aeEntries[i][f] = el.value;
+          else this._aeEntries[i][f] = (+el.value||0);
           // When leaveTaken or totalDays changes, update workedDays max and clamp
           if (f === 'leaveTaken' || f === 'totalDays') {
             this._aeRefreshWd(i);
@@ -760,8 +931,11 @@ class PayrollApp {
     setEl('ae-tot-days',  entries.length ? this._aeTotalDays()||'—' : '—');
     setEl('ae-tot-leave', sum('leaveTaken'));
     setEl('ae-tot-wd',    entries.length ? sum('workedDays') : '—');
+    setEl('ae-tot-pf',    sum('pfContribution'));
+    setEl('ae-tot-pt',    sum('professionTax'));
     setEl('ae-tot-adv',   sum('salaryAdvance'));
     setEl('ae-tot-tds',   sum('tds'));
+    setEl('ae-tot-ded',   sum('manualDeductionAmount'));
     setEl('ae-tot-ctc',   sum('ctc').toLocaleString('en-IN'));
   }
 
@@ -774,7 +948,7 @@ class PayrollApp {
     setEl('ae-stat-ctc',  `₹${entries.reduce((s,e)=>s+(+e.ctc||0),0).toLocaleString('en-IN')} total CTC`);
   }
 
-  submitAddEmployee() {
+  async submitAddEmployee() {
     const month = document.getElementById('ae-month').value;
     const year  = +document.getElementById('ae-year').value || new Date().getFullYear();
     const valid = this._aeEntries.filter(Boolean).filter(e => e.name.trim());
@@ -824,12 +998,18 @@ class PayrollApp {
         totalDays: e.totalDays || this._aeTotalDays() || 0,
         leaveTaken: e.leaveTaken || 0,
         workedDays: e.workedDays !== undefined ? e.workedDays : null,
+        pfContribution: e.pfContribution || 0,
+        professionTax: e.professionTax || 0,
         salaryAdvance: e.salaryAdvance || 0,
+        manualDeductionAmount: e.manualDeductionAmount || 0,
+        absentDeduction: 0,
+        applyAbsentDeduction: true,
         tds: e.tds || 0,
         designation: e.designation || '',
         ctc: e.ctc || 0,
         basic:0, da:0, hra:0, conveyance:0, medicalExpenses:0, special:0, bonus:0, ta:0,
-        allowedLeave:2, pfContribution:0, professionTax:0,
+        allowedLeave:2,
+        presentDays: 0, absentDays: 0,
         gender:'', prefix:'Mr', authorizedSignatory:'Director',
         pfApplicable:'Yes', medicalBillSubmitted:'No',
         medicalBillAmount:0, companyName:'DHPE',
@@ -855,8 +1035,8 @@ class PayrollApp {
 
     this.closeAddModal();
     this.renderDB();
-    this._scheduleSave();
     this._renderSlipSelector();
+    await this._saveNow();
   }
 
   // ── Tab navigation ───────────────────────────────────────────────────────
@@ -877,11 +1057,13 @@ class PayrollApp {
 
     const fm = (document.getElementById('cons-filter-month')?.value || '').trim().toLowerCase();
     const fy = (document.getElementById('cons-filter-year')?.value  || '').trim();
+    const fs = this._getCheckedStatuses('cons-filter-status');
 
     const data = this.rows.filter(r => {
       if (!r.name) return false;
       if (fm && (r.month||'').toLowerCase() !== fm) return false;
       if (fy && String(r.year) !== fy) return false;
+      if (!this._matchesStatusFilter(r.status, fs)) return false;
       return true;
     });
 
@@ -889,7 +1071,7 @@ class PayrollApp {
     const totalNet = data.reduce((s, r) => s + this._net(r), 0);
 
     const EMPTY_ROWS = Math.max(0, 20 - data.length);
-    const empty16 = '<td>&nbsp;</td>'.repeat(16);
+    const empty17 = '<td>&nbsp;</td>'.repeat(17);
 
     el.innerHTML = `
       <table class="cons-table" id="cons-print-table">
@@ -899,7 +1081,7 @@ class PayrollApp {
             <th rowspan="2" class="hdr-plain" style="min-width:120px;">Name of Employee</th>
             <th rowspan="2" class="hdr-plain">CTC</th>
             <th colspan="8" class="hdr-gross">TOTAL GROSS SALARY</th>
-            <th colspan="4" class="hdr-ded">TOTAL DEDUCTIONS</th>
+            <th colspan="5" class="hdr-ded">TOTAL DEDUCTIONS</th>
             <th colspan="1" class="hdr-net">NET PAY</th>
           </tr>
           <tr>
@@ -915,13 +1097,14 @@ class PayrollApp {
             <th class="hdr-ded">Prof.<br>Tax</th>
             <th class="hdr-ded">TDS</th>
             <th class="hdr-ded">Salary<br>Adv.</th>
+            <th class="hdr-ded">Absent<br>Ded.</th>
             <th class="hdr-net">NET<br>PAY</th>
           </tr>
         </thead>
         <tbody>
-          ${data.map((r,i) => `<tr>
-            <td class="num">${i+1}</td>
-            <td style="text-align:left;padding-left:6px;">${r.name}</td>
+          ${data.map((r,i) => `<tr style="color:#111827;">
+            <td class="num" style="color:#111827;">${i+1}</td>
+            <td style="text-align:left;padding-left:6px;color:#111827;">${r.name}</td>
             <td class="num">${r.ctc||0}</td>
             <td class="num">${r.basic||0}</td>
             <td class="num">${r.da||0}</td>
@@ -935,9 +1118,10 @@ class PayrollApp {
             <td class="num">${r.professionTax||0}</td>
             <td class="num">${r.tds||0}</td>
             <td class="num">${r.salaryAdvance||0}</td>
+            <td class="num">${this._ad(r)}</td>
             <td class="num net-val">${this._net(r)}</td>
           </tr>`).join('')}
-          ${Array(EMPTY_ROWS).fill(`<tr>${empty16}</tr>`).join('')}
+          ${Array(EMPTY_ROWS).fill(`<tr>${empty17}</tr>`).join('')}
         </tbody>
         <tfoot>
           <tr class="cons-total-row">
@@ -955,6 +1139,7 @@ class PayrollApp {
             <td class="num">${sum('professionTax')}</td>
             <td class="num">${sum('tds')}</td>
             <td class="num">${sum('salaryAdvance')}</td>
+            <td class="num">${data.reduce((s,r)=>s+this._ad(r),0)}</td>
             <td class="num net-val"><strong>${totalNet}</strong></td>
           </tr>
         </tfoot>
@@ -973,27 +1158,64 @@ class PayrollApp {
 
   // ── Salary Slip selector ─────────────────────────────────────────────────
   _renderSlipSelector() {
-    const sel = document.getElementById('slip-emp-select');
-    if (!sel) return;
+    const listView = document.getElementById('slip-emp-list-view');
+    const meta = document.getElementById('slip-emp-meta');
+    if (!listView) return;
 
     const fm = (document.getElementById('slip-filter-month')?.value || '').trim().toLowerCase();
     const fy = (document.getElementById('slip-filter-year')?.value || '').trim();
+    const fs = this._getCheckedStatuses('slip-filter-status');
 
     const dataRows = this.rows.filter(r => {
       if (!r.name) return false;
       if (fm && (r.month||'').toLowerCase() !== fm) return false;
       if (fy && String(r.year) !== fy) return false;
+      if (!this._matchesStatusFilter(r.status, fs)) return false;
       return true;
     });
-
-    sel.innerHTML = '<option value="">— Select Employee —</option>'
-      + dataRows.map(r => `<option value="${r.id}">${r.name} (${r.month||'—'} ${r.year||''})</option>`).join('');
+    this._slipRows = dataRows;
+    if (meta) {
+      meta.textContent = dataRows.length
+        ? `${dataRows.length} employee${dataRows.length !== 1 ? 's' : ''} found`
+        : 'No employees found for the selected month/year';
+    }
+    listView.innerHTML = dataRows.length
+      ? dataRows.map(r => this._renderSlipListItem(r)).join('')
+      : '<div class="slip-empty-msg" style="padding:30px 16px;">No payroll entries match the selected filters.</div>';
+    listView.querySelectorAll('[data-slip-open]').forEach(card => {
+      card.addEventListener('click', () => this.showSlip(card.dataset.slipOpen));
+    });
+    listView.querySelectorAll('[data-slip-download]').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.downloadPayslip(btn.dataset.slipDownload);
+      });
+    });
+    listView.querySelectorAll('[data-slip-finalize]').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.finalizePayroll(btn.dataset.slipFinalize);
+      });
+    });
+    listView.querySelectorAll('[data-slip-unfreeze]').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.unfreezePayroll(btn.dataset.slipUnfreeze);
+      });
+    });
+    listView.querySelectorAll('[data-slip-pay]').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.markPayrollPaid(btn.dataset.slipPay);
+      });
+    });
 
     // Auto-select first result and show slip
     if (dataRows.length > 0) {
-      sel.value = String(dataRows[0].id);
+      this._activeSlipId = String(dataRows[0].id);
       this.showSlip(dataRows[0].id);
     } else {
+      this._activeSlipId = null;
       document.getElementById('slip-display').innerHTML =
         '<div class="slip-empty-msg">No payroll entries match the selected filter.</div>';
     }
@@ -1003,18 +1225,137 @@ class PayrollApp {
     this._renderSlipSelector();
   }
 
+  filterSlipList(query) {
+    const q = String(query || '').trim().toLowerCase();
+    const listView = document.getElementById('slip-emp-list-view');
+    const meta = document.getElementById('slip-emp-meta');
+    if (!listView) return;
+    const rows = !q ? this._slipRows : this._slipRows.filter(r =>
+      String(r.name || '').toLowerCase().includes(q) ||
+      String(r.designation || '').toLowerCase().includes(q) ||
+      String(r.month || '').toLowerCase().includes(q) ||
+      String(r.year || '').includes(q)
+    );
+    listView.innerHTML = rows.length
+      ? rows.map(r => this._renderSlipListItem(r)).join('')
+      : '<div class="slip-empty-msg" style="padding:30px 16px;">No employee matched your search.</div>';
+    if (meta) {
+      meta.textContent = rows.length
+        ? `${rows.length} employee${rows.length !== 1 ? 's' : ''} found`
+        : 'No employees found';
+    }
+    listView.querySelectorAll('[data-slip-open]').forEach(card => {
+      card.addEventListener('click', () => this.showSlip(card.dataset.slipOpen));
+    });
+    listView.querySelectorAll('[data-slip-download]').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.downloadPayslip(btn.dataset.slipDownload);
+      });
+    });
+    listView.querySelectorAll('[data-slip-finalize]').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.finalizePayroll(btn.dataset.slipFinalize);
+      });
+    });
+    listView.querySelectorAll('[data-slip-unfreeze]').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.unfreezePayroll(btn.dataset.slipUnfreeze);
+      });
+    });
+    listView.querySelectorAll('[data-slip-pay]').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.markPayrollPaid(btn.dataset.slipPay);
+      });
+    });
+  }
+
+  _renderSlipListItem(r) {
+    const status = String(r.status || 'draft').toLowerCase();
+    return `
+      <div class="slip-emp-item ${String(r.id) === String(this._activeSlipId) ? 'active' : ''}" data-slip-open="${r.id}">
+        <div class="slip-emp-top">
+          <div>
+            <div class="slip-emp-name">${this._esc(r.name)}</div>
+            <div class="slip-emp-sub">${this._esc(r.designation || 'Employee')} · ${this._esc(r.month || '')} ${this._esc(r.year || '')}</div>
+          </div>
+          <span class="slip-status-badge status-${status}">${status === 'finalized' ? 'Frozen' : this._esc(status)}</span>
+        </div>
+        <div class="slip-emp-actions">
+          <button class="slip-action-btn" data-slip-download="${r.id}" title="Download payslip"><i class="bx bx-download"></i></button>
+          ${status === 'draft' ? `<button class="slip-action-btn info" data-slip-finalize="${r.id}" title="Freeze payroll"><i class="bx bx-lock-alt"></i></button>` : ''}
+          ${status === 'finalized' ? `<button class="slip-action-btn" data-slip-unfreeze="${r.id}" title="Unfreeze payroll"><i class="bx bx-lock-open-alt"></i></button>` : ''}
+          ${status === 'finalized' ? `<button class="slip-action-btn success" data-slip-pay="${r.id}" title="Mark payroll paid"><i class="bx bx-check-circle"></i></button>` : ''}
+        </div>
+      </div>
+    `;
+  }
+
+  async finalizePayroll(id) {
+    try {
+      await api('PUT', `/salary/${id}`, { status: 'finalized' });
+      toast('Payroll frozen successfully', 'success');
+      await this._loadData();
+      this._applySlipFilter();
+    } catch (e) {
+      toast(e.message || 'Failed to freeze payroll', 'error');
+    }
+  }
+
+  async unfreezePayroll(id) {
+    try {
+      await api('PUT', `/salary/${id}`, { status: 'draft' });
+      toast('Payroll moved back to draft', 'success');
+      await this._loadData();
+      this._applySlipFilter();
+    } catch (e) {
+      toast(e.message || 'Failed to unfreeze payroll', 'error');
+    }
+  }
+
+  async markPayrollPaid(id) {
+    try {
+      await api('PATCH', `/salary/${id}/pay`, {});
+      toast('Payroll marked paid', 'success');
+      await this._loadData();
+      this._applySlipFilter();
+    } catch (e) {
+      toast(e.message || 'Failed to mark payroll paid', 'error');
+    }
+  }
+
+  downloadPayslip(id) {
+    const token = typeof getToken === 'function' ? getToken() : localStorage.getItem('ems_token');
+    if (!token) {
+      toast('Please log in again', 'error');
+      return;
+    }
+    window.open(`/api/salary/${id}/payslip?token=${encodeURIComponent(token)}`, '_blank');
+  }
+
   showSlip(rowId) {
     const r = this.rows.find(x => x.id === +rowId || String(x.id) === String(rowId));
     const el = document.getElementById('slip-display');
     if (!el) return;
     if (!r) { el.innerHTML = '<div class="slip-empty-msg">Select an employee to view their salary slip.</div>'; return; }
+    this._activeSlipId = String(r.id);
+    const listView = document.getElementById('slip-emp-list-view');
+    if (listView) {
+      listView.querySelectorAll('.slip-emp-item').forEach(card => card.classList.remove('active'));
+      const items = Array.from(listView.querySelectorAll('.slip-emp-item'));
+      const idx = this._slipRows.findIndex(x => String(x.id) === String(r.id));
+      if (idx >= 0 && items[idx]) items[idx].classList.add('active');
+    }
 
-    const wd    = this._wd(r);
-    const cw    = this._cw(r);
-    const tg    = this._tg(r);
-    const td    = this._td(r);
-    const np    = this._net(r);
-    const present = wd;
+    const wd      = this._wd(r);
+    const cw      = this._cw(r);
+    const tg      = this._tg(r);
+    const td      = this._td(r);
+    const np      = this._net(r);
+    const present = r.presentDays || wd;
     const fmt    = (v) => `₹ ${(+v||0).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2})}`;
     const fmtAmt = fmt;
     const fmtDed = fmt;
@@ -1067,23 +1408,22 @@ class PayrollApp {
         </div>
       </div>
 
-      <!-- Attendance Stats Boxes -->
-      <div class="ss-att-boxes">
-        <div class="ss-att-box">
-          <div class="ss-att-label">Total Days</div>
-          <div class="ss-att-val">${r.totalDays || 0}</div>
+      <div class="ss-att-flat">
+        <div class="ss-att-flat-item">
+          <div class="ss-att-flat-label">TOTAL DAY</div>
+          <div class="ss-att-flat-val">${r.totalDays || 0}</div>
         </div>
-        <div class="ss-att-box">
-          <div class="ss-att-label">Leave Taken</div>
-          <div class="ss-att-val">${r.leaveTaken || 0}</div>
+        <div class="ss-att-flat-item">
+          <div class="ss-att-flat-label">LEAVE TAKEN</div>
+          <div class="ss-att-flat-val">${r.leaveTaken || 0}</div>
         </div>
-        <div class="ss-att-box">
-          <div class="ss-att-label">Worked Days</div>
-          <div class="ss-att-val">${wd}</div>
+        <div class="ss-att-flat-item">
+          <div class="ss-att-flat-label">WORKED DAY</div>
+          <div class="ss-att-flat-val">${wd}</div>
         </div>
-        <div class="ss-att-box">
-          <div class="ss-att-label">Present Days</div>
-          <div class="ss-att-val">${present}</div>
+        <div class="ss-att-flat-item">
+          <div class="ss-att-flat-label">PRESENT DAY</div>
+          <div class="ss-att-flat-val">${present}</div>
         </div>
       </div>
 
@@ -1107,7 +1447,7 @@ class PayrollApp {
             <tr><td>Dearness Allow. (DA)</td>   <td class="ss-ea">${fmtAmt(r.da)}</td>              <td class="ss-dl">Profession Tax</td>   <td class="ss-da">${fmtDed(r.professionTax)}</td></tr>
             <tr><td>House Rent Allow. (HRA)</td><td class="ss-ea">${fmtAmt(r.hra)}</td>             <td class="ss-dl">TDS</td>              <td class="ss-da">${fmtDed(r.tds)}</td></tr>
             <tr><td>Conveyance</td>             <td class="ss-ea">${fmtAmt(cw)}</td>                <td class="ss-dl">Salary Advance</td>   <td class="ss-da">${fmtDed(r.salaryAdvance)}</td></tr>
-            <tr><td>Medical Expenses</td>       <td class="ss-ea">${fmtAmt(r.medicalExpenses)}</td> <td class="ss-dl"></td>                 <td class="ss-da"></td></tr>
+            <tr><td>Medical Expenses</td>       <td class="ss-ea">${fmtAmt(r.medicalExpenses)}</td> <td class="ss-dl">${(+r.manualDeductionAmount>0)?'Deduction (Admin set)':'Absent Deduction'}</td> <td class="ss-da">${fmtDed(this._ad(r))}</td></tr>
             <tr><td>Special Allowance</td>      <td class="ss-ea">${fmtAmt(r.special)}</td>         <td class="ss-dl"></td>                 <td class="ss-da"></td></tr>
             <tr><td>Bonus</td>                  <td class="ss-ea">${fmtAmt(r.bonus)}</td>           <td class="ss-dl"></td>                 <td class="ss-da"></td></tr>
             <tr><td>Travel Allow. (TA)</td>     <td class="ss-ea">${fmtAmt(r.ta)}</td>              <td class="ss-dl"></td>                 <td class="ss-da"></td></tr>
@@ -1153,34 +1493,33 @@ class PayrollApp {
     w.document.write(`<!DOCTYPE html><html><head><title>Salary Slip</title>
       <style>
         body{font-family:'Segoe UI',Arial,sans-serif;font-size:12px;margin:16px;color:#111827;}
-        .salary-slip{max-width:780px;margin:0 auto;border:1px solid #999;}
-        .ss-company-header{text-align:center;padding:18px 20px 12px;border-bottom:2px solid #111;}
+        .salary-slip{max-width:780px;margin:0 auto;border:1px solid #d9d9d9;background:#fff;}
+        .ss-company-header{text-align:center;padding:18px 20px 12px;border-bottom:1px solid #d9d9d9;}
         .ss-co-name{font-size:22px;font-weight:900;}
         .ss-co-addr,.ss-co-contact{font-size:10px;color:#555;margin-top:3px;}
         .ss-title-bar{text-align:center;padding:12px 20px 8px;}
         .ss-title{font-size:16px;font-weight:800;letter-spacing:0.08em;}
-        .ss-subtitle{font-size:11px;color:#92400e;font-weight:600;margin-top:2px;}
+        .ss-subtitle{font-size:11px;color:#c1121f;font-weight:600;margin-top:2px;}
         .ss-emp-grid{padding:4px 20px 8px;}
         .ss-emp-row{display:grid;grid-template-columns:110px 1fr 110px 1fr;gap:2px 6px;padding:2px 0;font-size:11px;border-bottom:1px solid #eee;}
         .ss-label{color:#666;font-weight:500;}
         .ss-value{color:#111;font-weight:700;}
-        .ss-att-boxes{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;padding:8px 20px;}
-        .ss-att-box{border:1px solid #999;padding:6px 8px;}
-        .ss-att-label{font-size:9px;color:#666;font-weight:600;text-transform:uppercase;}
-        .ss-att-val{font-size:18px;font-weight:800;}
+        .ss-att-flat{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;padding:10px 20px;border-top:1px solid #d9d9d9;border-bottom:1px solid #d9d9d9;}
+        .ss-att-flat-label{font-size:9px;color:#111;font-weight:700;text-transform:uppercase;}
+        .ss-att-flat-val{font-size:18px;font-weight:800;color:#111;margin-top:6px;}
         .ss-earn-ded{padding:0 20px 10px;}
         .ss-ed-table{border-collapse:collapse;width:100%;font-size:11px;table-layout:fixed;}
         .ss-ed-col-el{width:auto;}.ss-ed-col-ea{width:100px;}.ss-ed-col-dl{width:auto;}.ss-ed-col-da{width:100px;}
-        .ss-ed-table td{padding:4px 8px;border-bottom:1px solid #ddd;color:#111;}
-        .ss-th-earn{background:#fef3c7;color:#92400e;font-weight:800;text-align:left;padding:6px 8px;border-bottom:2px solid #f59e0b;border-right:2px solid #e5e7eb;}
-        .ss-th-ded{background:#fee2e2;color:#991b1b;font-weight:800;text-align:left;padding:6px 8px 6px 12px;border-bottom:2px solid #ef4444;}
-        .ss-ea{text-align:right;font-weight:600;color:#111;white-space:nowrap;border-right:2px solid #e5e7eb;}
+        .ss-ed-table td{padding:4px 8px;border-bottom:1px solid #d9d9d9;color:#111;}
+        .ss-th-earn{background:#fff;color:#111;font-weight:800;text-align:left;padding:6px 8px;border-top:1px solid #d9d9d9;border-bottom:1px solid #d9d9d9;border-right:1px solid #d9d9d9;}
+        .ss-th-ded{background:#fff;color:#c1121f;font-weight:800;text-align:left;padding:6px 8px 6px 12px;border-top:1px solid #d9d9d9;border-bottom:1px solid #d9d9d9;}
+        .ss-ea{text-align:right;font-weight:600;color:#111;white-space:nowrap;border-right:1px solid #d9d9d9;}
         .ss-dl{padding-left:12px;}
-        .ss-da{text-align:right;font-weight:600;color:#dc2626;white-space:nowrap;}
-        .ss-ed-ft-el{background:#fef9c3;border-top:2px solid #f59e0b;font-weight:700;padding:6px 8px;}
-        .ss-ed-ft-ea{background:#fef9c3;border-top:2px solid #f59e0b;font-weight:700;text-align:right;white-space:nowrap;border-right:2px solid #e5e7eb;}
-        .ss-ed-ft-dl{background:#fee2e2;border-top:2px solid #ef4444;font-weight:700;padding:6px 8px 6px 12px;}
-        .ss-ed-ft-da{background:#fee2e2;border-top:2px solid #ef4444;font-weight:700;text-align:right;white-space:nowrap;color:#dc2626;}
+        .ss-da{text-align:right;font-weight:600;color:#111;white-space:nowrap;}
+        .ss-ed-ft-el{background:#fff;border-top:1px solid #d9d9d9;font-weight:700;padding:6px 8px;}
+        .ss-ed-ft-ea{background:#fff;border-top:1px solid #d9d9d9;font-weight:700;text-align:right;white-space:nowrap;border-right:1px solid #d9d9d9;}
+        .ss-ed-ft-dl{background:#fff;border-top:1px solid #d9d9d9;font-weight:700;padding:6px 8px 6px 12px;color:#c1121f;}
+        .ss-ed-ft-da{background:#fff;border-top:1px solid #d9d9d9;font-weight:700;text-align:right;white-space:nowrap;color:#111;}
         .ss-netpay-bar{display:flex;justify-content:space-between;align-items:center;background:#111;color:#fff;padding:12px 20px;margin:0 20px;}
         .ss-netpay-label{font-size:14px;font-weight:800;letter-spacing:0.06em;}
         .ss-netpay-val{font-size:20px;font-weight:900;}
@@ -1201,20 +1540,20 @@ class PayrollApp {
     const w = window.open('', '_blank');
     w.document.write(`<!DOCTYPE html><html><head><title>Consolidated Salary Sheet</title>
       <style>
-        body{font-family:Arial,sans-serif;font-size:10px;margin:12px;}
-        h2{text-align:center;font-size:13px;margin-bottom:8px;}
-        table{border-collapse:collapse;width:100%;}
-        td,th{border:1px solid #999;padding:3px 4px;font-size:9px;}
-        .hdr-gross{background:#e8f4e8;font-weight:700;text-align:center;}
-        .hdr-ded{background:#fee2e2;font-weight:700;text-align:center;}
-        .hdr-net{background:#dbeafe;font-weight:700;text-align:center;}
-        .hdr-plain{background:#f3f4f6;font-weight:700;text-align:center;}
+        body{font-family:Arial,sans-serif;font-size:10px;margin:12px;color:#111827;}
+        h2{text-align:center;font-size:13px;margin-bottom:8px;color:#111827;}
+        table{border-collapse:collapse;width:100%;color:#111827;}
+        td,th{border:1px solid #999;padding:3px 4px;font-size:9px;color:#111827;}
+        .hdr-gross{background:#e8f4e8;color:#065f46;font-weight:700;text-align:center;}
+        .hdr-ded{background:#fee2e2;color:#991b1b;font-weight:700;text-align:center;}
+        .hdr-net{background:#dbeafe;color:#1e40af;font-weight:700;text-align:center;}
+        .hdr-plain{background:#f3f4f6;color:#111827;font-weight:700;text-align:center;}
         .num{text-align:right;}
-        .net-val{background:#dbeafe;font-weight:700;}
-        .cons-total-row td{background:#1e3a8a;color:#fff;font-weight:700;}
-        .cons-bottom{display:flex;justify-content:space-between;margin-top:12px;font-size:10px;}
-        .cons-words{font-weight:700;}
-        .sign-blank{margin-top:20px;}
+        .net-val{background:#dbeafe;color:#1e3a8a;font-weight:700;}
+        .cons-total-row td{background:#1e3a8a !important;color:#fff !important;font-weight:700;}
+        .cons-bottom{display:flex;justify-content:space-between;margin-top:12px;font-size:10px;color:#111827;}
+        .cons-words{font-weight:700;color:#1e3a8a;}
+        .sign-blank{margin-top:20px;color:#111827;}
       </style></head><body>
       <h2>Consolidated Salary Sheet for the month of ${fm||'All'} ${fy||''}</h2>
       ${tbl.outerHTML}
@@ -1222,6 +1561,36 @@ class PayrollApp {
       </body></html>`);
     w.document.close();
     w.print();
+  }
+
+  async generateAll() {
+    const month = Number(document.getElementById('generate-month')?.value || 0);
+    const year = Number(document.getElementById('generate-year')?.value || 0);
+    if (!month || !year) {
+      toast('Select month and year first', 'error');
+      return;
+    }
+    const companyId = this._isSuperadmin() ? this.currentCompanyId : (this.currentUser?.companyId || this.currentUser?.company?.id || null);
+    if (this._isSuperadmin() && !companyId) {
+      toast('Select a company first', 'error');
+      return;
+    }
+    try {
+      const payload = { month, year };
+      if (companyId) payload.companyId = companyId;
+      const res = await api('POST', '/salary/generate-bulk', payload);
+      toast(res.message || 'Payroll generated', 'success');
+      this._dbFilterMonth = this._monthNumberToName(month).toLowerCase();
+      this._dbFilterYear = String(year);
+      const yearSel = document.getElementById('db-year-filter');
+      if (yearSel) yearSel.value = String(year);
+      document.querySelectorAll('.db-pill[data-month]').forEach(p =>
+        p.classList.toggle('active', p.dataset.month === this._dbFilterMonth)
+      );
+      await this._loadData();
+    } catch (e) {
+      toast(e.message || 'Failed to generate payroll', 'error');
+    }
   }
 
   // ── Save / Load ──────────────────────────────────────────────────────────
@@ -1233,11 +1602,6 @@ class PayrollApp {
 
   async _saveNow() {
     this._setStatus('saving');
-    const payload = {
-      name: this.wbName,
-      sheetsData: [{ name: 'payroll', cells: this.rows }],
-      activeSheet: 'payroll',
-    };
     try {
       const token = typeof getToken === 'function' ? getToken() : localStorage.getItem('ems_token');
       if (!token) {
@@ -1245,15 +1609,51 @@ class PayrollApp {
         toast('Not logged in. Please log in first.', 'error');
         return;
       }
-      const method = this.wbId ? 'PUT' : 'POST';
-      const url    = this.wbId ? `/spreadsheet/${this.wbId}` : '/spreadsheet';
-      const res    = await api(method, url, payload);
-      if (!this.wbId && res && res.id) {
-        this.wbId = res.id;
-        history.replaceState(null, '', `?wb=${res.id}`);
+      const companyId = this._isSuperadmin() ? this.currentCompanyId : (this.currentUser?.companyId || this.currentUser?.company?.id || null);
+      if (this._isSuperadmin() && !companyId) {
+        this._setStatus('error');
+        toast('Select a company first', 'error');
+        return;
       }
+      for (const row of this.rows.filter(r => r && r.name)) {
+        const emp = this._employees.find(e => e.name === row.name || e.id === row.userId);
+        if (!emp?.id) continue;
+        const payload = {
+          userId: emp.id,
+          month: this._monthNameToNumber(row.month),
+          year: Number(row.year),
+          companyId: companyId || emp.companyId || emp.company?.id || null,
+          totalWorkDays: Number(row.workedDays || row.totalDays || 0),
+          leaveTaken: Number(row.leaveTaken || 0),
+          allowedLeave: Number(row.allowedLeave || 0),
+          baseSalary: Number(row.ctc || 0),
+          basicSalary: Number(row.basic || 0),
+          hra: Number(row.hra || 0),
+          conveyance: Number(row.conveyance || 0),
+          medicalExpenses: Number(row.medicalExpenses || 0),
+          specialAllowance: Number(row.special || 0),
+          bonus: Number(row.bonus || 0),
+          ta: Number(row.ta || 0),
+          pfContribution: Number(row.pfContribution || 0),
+          professionTax: Number(row.professionTax || 0),
+          tds: Number(row.tds || 0),
+          salaryAdvance: Number(row.salaryAdvance || 0),
+          manualDeductionAmount: Number(row.manualDeductionAmount || 0),
+          applyAbsentDeduction: true,
+          notes: document.getElementById('ae-notes-txt')?.value || '',
+        };
+        let res;
+        if (row.salaryId) res = await api('PUT', `/salary/${row.salaryId}`, payload);
+        else res = await api('POST', '/salary', payload);
+        if (res?.id) {
+          row.salaryId = res.id;
+          row.id = res.id;
+          row.userId = res.userId || emp.id;
+        }
+      }
+      await this._loadData();
       this._setStatus('saved');
-      toast('Payroll data saved successfully!', 'success');
+      toast('Payroll saved successfully!', 'success');
     } catch(e) {
       console.error('Save error:', e);
       this._setStatus('error');
@@ -1262,34 +1662,23 @@ class PayrollApp {
   }
 
   async _loadData() {
-    const params = new URLSearchParams(location.search);
-    const wbId = params.get('wb');
     try {
-      let data = null;
-      if (wbId) {
-        data = await api('GET', `/spreadsheet/${wbId}`);
-      } else {
-        const list = await api('GET', '/spreadsheet');
-        if (list.length > 0) {
-          data = await api('GET', `/spreadsheet/${list[0].id}`);
-          history.replaceState(null, '', `?wb=${data.id}`);
-        }
-      }
-      if (data) {
-        this.wbId  = data.id;
-        this.wbName = data.name;
-        const sd = Array.isArray(data.sheetsData) ? data.sheetsData : [];
-        const ps = sd.find(s => s.name === 'payroll');
-        if (ps?.cells?.length) {
-          this.rows = ps.cells.filter(r => r.name && r.name.trim());
-          this._nextId = this.rows.length
-            ? Math.max(...this.rows.map(r => r.id||0)) + 1
-            : 1;
-          this.renderDB();
-        }
-        this._setStatus('saved');
-      }
-    } catch(e) { /* first visit */ }
+      let url = '/salary';
+      const params = [];
+      if (this._isSuperadmin() && this.currentCompanyId) params.push(`companyId=${encodeURIComponent(this.currentCompanyId)}`);
+      if (params.length) url += `?${params.join('&')}`;
+      const list = await api('GET', url);
+      this.rows = (Array.isArray(list) ? list : []).map(s => this._salaryToRow(s)).filter(r => r.name && r.month && r.year);
+      this._nextId = this.rows.length ? Math.max(...this.rows.map(r => Number(r.id) || 0)) + 1 : 1;
+      this.renderDB();
+      this._renderSlipSelector();
+      this._setStatus('saved');
+    } catch(e) {
+      this.rows = [];
+      this.renderDB();
+      this._renderSlipSelector();
+      this._setStatus('saved');
+    }
   }
 
   _setStatus(s) {

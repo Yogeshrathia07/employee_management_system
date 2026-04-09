@@ -90,6 +90,14 @@ const Invoice = sequelize.define('Invoice', {
   // ── Metadata ──────────────────────────────────────────────────────────────
   createdBy: { type: DataTypes.INTEGER, allowNull: true },
 
+  // ── Linked Records (Accounts interconnection) ─────────────────────────
+  clientId:         { type: DataTypes.INTEGER,    allowNull: true },
+  vendorId:         { type: DataTypes.INTEGER,    allowNull: true },
+  projectAccountId: { type: DataTypes.INTEGER,    allowNull: true },
+  sourceDocId:      { type: DataTypes.INTEGER,    allowNull: true },
+  sourceDocType:    { type: DataTypes.STRING(30), defaultValue: '' }, // 'proforma','quotation','cwo'
+  convertedBadge:   { type: DataTypes.STRING(30), defaultValue: '' }, // 'From Proforma', etc.
+
 }, { timestamps: true });
 
 module.exports = Invoice;

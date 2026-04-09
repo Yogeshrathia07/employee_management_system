@@ -50,6 +50,26 @@ function getWorkingDays(month, year) {
 }
 
 // ─── Helper: approved leave days in month ────────────────────────────────────
+function numberToWords(n) {
+  const num = Math.round(Math.abs(Number(n || 0)));
+  if (num === 0) return 'Rupees Zero Only';
+  const ones = ['','One','Two','Three','Four','Five','Six','Seven','Eight','Nine',
+    'Ten','Eleven','Twelve','Thirteen','Fourteen','Fifteen','Sixteen','Seventeen','Eighteen','Nineteen'];
+  const tens = ['','','Twenty','Thirty','Forty','Fifty','Sixty','Seventy','Eighty','Ninety'];
+
+  function convert(x) {
+    if (x === 0) return '';
+    if (x < 20) return ones[x] + ' ';
+    if (x < 100) return tens[Math.floor(x / 10)] + (ones[x % 10] ? ' ' + ones[x % 10] : '') + ' ';
+    if (x < 1000) return ones[Math.floor(x / 100)] + ' Hundred ' + convert(x % 100);
+    if (x < 100000) return convert(Math.floor(x / 1000)) + 'Thousand ' + convert(x % 1000);
+    if (x < 10000000) return convert(Math.floor(x / 100000)) + 'Lakh ' + convert(x % 100000);
+    return convert(Math.floor(x / 10000000)) + 'Crore ' + convert(x % 10000000);
+  }
+
+  return 'Rupees ' + convert(num).trim().replace(/\s+/g, ' ') + ' Only';
+}
+
 async function getLeaveTaken(userId, month, year) {
   const monthStart = new Date(year, month - 1, 1);
   const monthEnd   = new Date(year, month, 0, 23, 59, 59);
@@ -254,6 +274,9 @@ exports.createSalary = async (req, res) => {
       professionTax:   p('professionTax'),
       tds:             p('tds'),
       salaryAdvance:   p('salaryAdvance'),
+      applyAbsentDeduction: req.body.applyAbsentDeduction !== undefined ? !!req.body.applyAbsentDeduction : true,
+      manualDeductionDays: req.body.manualDeductionDays !== undefined ? parseFloat(req.body.manualDeductionDays) || 0 : 0,
+      manualDeductionAmount: req.body.manualDeductionAmount !== undefined ? parseFloat(req.body.manualDeductionAmount) || 0 : 0,
       // Hours
       expectedHours,
       actualHours:   totalHours,
@@ -323,6 +346,9 @@ exports.generateBulk = async (req, res) => {
         professionTax:    0,
         tds:              0,
         salaryAdvance:    0,
+        applyAbsentDeduction: true,
+        manualDeductionDays: 0,
+        manualDeductionAmount: 0,
         expectedHours:    workingDays * 8,
         actualHours:      totalHours,
         totalWorkDays:    workingDays,
@@ -350,7 +376,8 @@ exports.updateSalary = async (req, res) => {
       'baseSalary', 'leaveTaken', 'allowedLeave',
       'basicSalary', 'hra', 'conveyance', 'medicalExpenses', 'specialAllowance', 'bonus', 'ta',
       'pfContribution', 'professionTax', 'tds', 'salaryAdvance',
-      'expectedHours', 'totalWorkDays', 'notes', 'status',
+      'expectedHours', 'totalWorkDays', 'notes', 'status', 'applyAbsentDeduction',
+      'manualDeductionDays', 'manualDeductionAmount',
     ];
     editableFields.forEach(f => { if (req.body[f] !== undefined) salary[f] = req.body[f]; });
 
@@ -456,6 +483,9 @@ exports.exportCSV = async (req, res) => {
         s.professionTax,
         s.tds,
         s.salaryAdvance,
+        s.absentDeduction,
+        s.manualDeductionDays,
+        s.manualDeductionAmount,
         s.deductions,
         s.netSalary,
         s.status,
@@ -476,181 +506,177 @@ exports.generatePayslip = async (req, res) => {
   try {
     const salary = await Salary.findByPk(req.params.id, {
       include: [
-        { model: User,    as: 'user',    attributes: ['id', 'name', 'email', 'role', 'department', 'phone', 'employeeCode'] },
+        { model: User, as: 'user', attributes: ['id', 'name', 'email', 'role', 'department', 'phone', 'employeeCode'] },
         { model: Company, as: 'company' },
       ],
     });
     if (!salary) return res.status(404).json({ message: 'Salary not found' });
 
     const actor = req.user;
-    if (actor.role === 'employee' || actor.role === 'manager') {
-      if (salary.userId !== actor.id) return res.status(403).json({ message: 'Access denied' });
+    if ((actor.role === 'employee' || actor.role === 'manager') && salary.userId !== actor.id) {
+      return res.status(403).json({ message: 'Access denied' });
     }
 
     const PDFDocument = require('pdfkit');
     const path = require('path');
     const doc = new PDFDocument({ size: 'A4', margin: 50 });
+    const chunks = [];
 
-    const mode = req.query.mode || 'download';
-    res.setHeader('Content-Type', 'application/pdf');
-    const fname = `payslip_${salary.user?.name?.replace(/\s+/g, '_')}_${salary.month}_${salary.year}.pdf`;
-    res.setHeader('Content-Disposition', `${mode === 'view' ? 'inline' : 'attachment'}; filename=${fname}`);
-    doc.pipe(res);
+    doc.on('data', (chunk) => chunks.push(chunk));
 
     const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
     const company = salary.company || {};
-    const user    = salary.user    || {};
-    const pageW   = 595.28;
-    const mL      = 50;
-    const cW      = pageW - 100;
+    const user = salary.user || {};
+    const pageW = 595.28;
+    const mL = 50;
+    const cW = pageW - 100;
+    const pageR = pageW - 50;
+    const monthLabel = `${MONTHS[salary.month - 1]} ${salary.year}`;
+    const calDays = new Date(salary.year, salary.month, 0).getDate();
+    const workedDays = Math.max(0, calDays - (salary.leaveTaken || 0));
+    const presentDays = salary.presentDays || 0;
+    const employeeCode = user.employeeCode || `EMP-${String(user.id || salary.userId || 0).padStart(4, '0')}`;
+    const generatedOn = new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'long', year: 'numeric' });
 
-    const black  = '#000000';
-    const muted  = '#555555';
-    const red    = '#dc2626';
-    const green  = '#16a34a';
-    const gray   = '#f3f4f6';
+    const black = '#111111';
+    const muted = '#666666';
+    const red = '#c1121f';
+    const border = '#d9d9d9';
+    const white = '#ffffff';
     const fontRegular = path.join('C:', 'Windows', 'Fonts', 'arial.ttf');
     const fontBold = path.join('C:', 'Windows', 'Fonts', 'arialbd.ttf');
 
-    // ── Header ─────────────────────────────────────────────────────────
-    doc.fontSize(16).font(fontBold).fillColor(black)
-       .text(company.name || 'Company', mL, 50, { width: cW, align: 'center' });
-    doc.fontSize(8).font(fontRegular).fillColor(muted)
-       .text(company.address || '', mL, 70, { width: cW, align: 'center' })
-       .text([company.phone, company.email].filter(Boolean).join('  |  '), { width: cW, align: 'center' });
+    function rowText(y, leftLabel, leftValue, rightLabel, rightValue) {
+      doc.font(fontRegular).fontSize(8).fillColor(muted).text(leftLabel, mL + 8, y);
+      doc.font(fontBold).fontSize(9).fillColor(black).text(String(leftValue || '-'), mL + 98, y, { width: 180 });
+      doc.font(fontRegular).fontSize(8).fillColor(muted).text(rightLabel, 318, y);
+      doc.font(fontBold).fontSize(9).fillColor(black).text(String(rightValue || '-'), 405, y, { width: 130 });
+    }
 
-    doc.moveTo(mL, 98).lineTo(pageW - 50, 98).strokeColor('#cccccc').lineWidth(1).stroke();
-    doc.fontSize(12).font(fontBold).fillColor(black)
-       .text('SALARY SLIP', mL, 108, { width: cW, align: 'center' });
-    doc.fontSize(9).font(fontRegular).fillColor(muted)
-       .text(`For the month of ${MONTHS[salary.month - 1]} ${salary.year}`, mL, 124, { width: cW, align: 'center' });
+    function statText(x, y, label, value) {
+      doc.font(fontBold).fontSize(8).fillColor(black).text(label.toUpperCase(), x, y);
+      doc.font(fontBold).fontSize(16).fillColor(black).text(String(value), x, y + 14);
+    }
 
-    // ── Employee info ───────────────────────────────────────────────────
-    const detY = 148;
-    const c1 = mL, c2 = mL + 110, c3 = 320, c4 = 430;
-
-    function infoRow(y, l1, v1, l2, v2) {
-      doc.font(fontRegular).fontSize(8).fillColor(muted).text(l1, c1, y);
-      doc.font(fontBold).fillColor(black).text(String(v1 || '—'), c2, y);
-      if (l2) {
-        doc.font(fontRegular).fillColor(muted).text(l2, c3, y);
-        doc.font(fontBold).fillColor(black).text(String(v2 || '—'), c4, y);
+    function drawSplitRow(y, leftLabel, leftValue, rightLabel, rightValue) {
+      const half = cW / 2;
+      doc.rect(mL, y, half, 24).fillColor(white).fill();
+      doc.rect(mL + half, y, half, 24).fillColor(white).fill();
+      doc.strokeColor(border).lineWidth(1).moveTo(mL, y + 24).lineTo(pageR, y + 24).stroke();
+      doc.strokeColor(border).lineWidth(1).moveTo(mL + half, y).lineTo(mL + half, y + 24).stroke();
+      doc.font(fontRegular).fontSize(8).fillColor(black).text(leftLabel, mL + 12, y + 7);
+      doc.font(fontBold).fontSize(8).fillColor(black).text(cur(leftValue), mL + half - 96, y + 7, { width: 84, align: 'right' });
+      doc.font(fontRegular).fontSize(8).fillColor(black).text(rightLabel, mL + half + 12, y + 7);
+      if (rightLabel) {
+        doc.font(fontBold).fontSize(8).fillColor(black).text(cur(rightValue), pageR - 84, y + 7, { width: 72, align: 'right' });
       }
     }
 
-    infoRow(detY,      'Employee Name:', user.name,          'Employee Code:', user.employeeCode || `EMP-${String(user.id).padStart(4,'0')}`);
-    infoRow(detY + 14, 'Department:',   user.department,    'Designation:',   user.role);
-    infoRow(detY + 28, 'Email:',        user.email,         'Phone:',         user.phone);
-    infoRow(detY + 42, 'Month:',        `${MONTHS[salary.month-1]} ${salary.year}`, 'CTC:', cur(salary.baseSalary));
+    doc.rect(mL, 40, cW, 752).fillColor(white).strokeColor(border).lineWidth(1).fillAndStroke();
 
-    doc.moveTo(mL, detY + 60).lineTo(pageW - 50, detY + 60).strokeColor('#eeeeee').stroke();
+    doc.font(fontBold).fontSize(22).fillColor(black)
+      .text(company.name || 'Company', mL, 58, { width: cW, align: 'center' });
+    doc.font(fontRegular).fontSize(9).fillColor(muted)
+      .text(company.address || '', mL + 24, 86, { width: cW - 48, align: 'center' })
+      .text([company.phone, company.email].filter(Boolean).join(' | '), mL + 24, 100, { width: cW - 48, align: 'center' });
+    doc.font(fontBold).fontSize(16).fillColor(black)
+      .text('SALARY SLIP', mL, 126, { width: cW, align: 'center' });
+    doc.font(fontRegular).fontSize(10).fillColor(red)
+      .text(`For the month of ${monthLabel}`, mL, 146, { width: cW, align: 'center' });
 
-    // ── Attendance row ──────────────────────────────────────────────────
-    const attY = detY + 68;
-    const calDays = new Date(salary.year, salary.month, 0).getDate();
-    const workedDays = Math.max(0, calDays - (salary.leaveTaken || 0));
+    rowText(182, 'Employee Name:', user.name, 'Employee Code:', employeeCode);
+    rowText(198, 'Department:', user.department, 'Designation:', user.role);
+    rowText(214, 'Email:', user.email, 'Phone:', user.phone);
+    rowText(230, 'Month:', monthLabel, 'CTC:', cur(salary.baseSalary));
 
-    function attBox(x, label, val) {
-      doc.rect(x, attY, 110, 32).fillColor(gray).fill();
-      doc.fontSize(7).font(fontRegular).fillColor(muted).text(label, x + 6, attY + 5);
-      doc.fontSize(12).font(fontBold).fillColor(black).text(String(val), x + 6, attY + 16);
-    }
+    doc.moveTo(mL, 252).lineTo(pageR, 252).strokeColor(border).lineWidth(1).stroke();
+    statText(mL + 12, 264, 'Total Day', calDays);
+    statText(mL + 146, 264, 'Leave Taken', salary.leaveTaken || 0);
+    statText(mL + 280, 264, 'Worked Day', workedDays);
+    statText(mL + 414, 264, 'Present Day', presentDays);
+    doc.moveTo(mL, 312).lineTo(pageR, 312).strokeColor(border).lineWidth(1).stroke();
 
-    attBox(mL,         'Total Days',   calDays);
-    attBox(mL + 118,   'Leave Taken',  salary.leaveTaken || 0);
-    attBox(mL + 236,   'Worked Days',  workedDays);
-    attBox(mL + 354,   'Present Days', salary.presentDays || 0);
-
-    // ── Earnings & Deductions ───────────────────────────────────────────
-    const tableY = attY + 46;
-    const halfW  = (cW - 10) / 2;
-
-    // Headers
-    doc.rect(mL,              tableY, halfW, 20).fillColor('#111111').fill();
-    doc.rect(mL + halfW + 10, tableY, halfW, 20).fillColor('#111111').fill();
-    doc.fontSize(9).font(fontBold).fillColor('#ffffff')
-       .text('EARNINGS',   mL + 10,              tableY + 5)
-       .text('DEDUCTIONS', mL + halfW + 20,      tableY + 5);
+    const half = cW / 2;
+    doc.font(fontBold).fontSize(10).fillColor(black).text('Earnings', mL + 12, 328);
+    doc.font(fontBold).fontSize(10).fillColor(red).text('Deductions', mL + half + 12, 328);
 
     const earnings = [
-      ['Basic Salary',      salary.basicSalary      || 0],
-      ['Dearness Allow. (DA)', salary.da             || 0],
-      ['House Rent Allow. (HRA)', salary.hra          || 0],
-      ['Conveyance',        salary.conveyanceWorking || 0],
-      ['Medical Expenses',  salary.medicalWorking    || 0],
-      ['Special Allowance', salary.specialAllowance  || 0],
-      ['Bonus',             salary.bonus             || 0],
-      ['Travel Allow. (TA)',salary.ta                || 0],
+      ['Basic Salary', salary.basicSalary || 0],
+      ['DA (Dearness Allow.)', salary.da || 0],
+      ['HRA', salary.hra || 0],
+      ['Conveyance', salary.conveyanceWorking || salary.conveyance || 0],
+      ['Medical Expenses', salary.medicalWorking || salary.medicalExpenses || 0],
+      ['Special Allowance', salary.specialAllowance || 0],
+      ['Bonus', salary.bonus || 0],
+      ['Travel Allow. (TA)', salary.ta || 0],
     ];
+    const absentLabel = (salary.manualDeductionAmount || 0) > 0
+      ? 'Deduction (Admin set)'
+      : 'Absent Deduction';
 
     const deductions = [
-      ['PF Contribution',   salary.pfContribution || 0],
-      ['Profession Tax',    salary.professionTax  || 0],
-      ['TDS',               salary.tds            || 0],
-      ['Salary Advance',    salary.salaryAdvance  || 0],
+      ['PF Contribution', salary.pfContribution || 0],
+      ['Profession Tax', salary.professionTax || 0],
+      ['TDS', salary.tds || 0],
+      ['Salary Advance', salary.salaryAdvance || 0],
+      [absentLabel, salary.absentDeduction || 0],
+      ['', 0],
+      ['', 0],
+      ['', 0],
     ];
 
-    const maxRows = Math.max(earnings.length, deductions.length);
-    const rowH = 18;
-
-    for (let i = 0; i < maxRows; i++) {
-      const y = tableY + 20 + i * rowH;
-      const bg = i % 2 === 0 ? '#ffffff' : '#f9fafb';
-
-      doc.rect(mL,              y, halfW, rowH).fillColor(bg).fill();
-      doc.rect(mL + halfW + 10, y, halfW, rowH).fillColor(bg).fill();
-
-      if (earnings[i]) {
-        doc.fontSize(8).font(fontRegular).fillColor(muted).text(earnings[i][0], mL + 8, y + 5);
-        doc.font(fontBold).fillColor(black).text(cur(earnings[i][1]), mL + halfW - 80, y + 5, { width: 72, align: 'right' });
-      }
-      if (deductions[i]) {
-        doc.fontSize(8).font(fontRegular).fillColor(muted).text(deductions[i][0], mL + halfW + 18, y + 5);
-        doc.font(fontBold).fillColor(red).text(cur(deductions[i][1]), mL + cW - 80, y + 5, { width: 72, align: 'right' });
-      }
+    let y = 344;
+    for (let i = 0; i < earnings.length; i++) {
+      drawSplitRow(y, earnings[i][0], earnings[i][1], deductions[i][0], deductions[i][1]);
+      y += 24;
     }
 
-    // Totals row
-    const totY = tableY + 20 + maxRows * rowH;
-    doc.rect(mL,              totY, halfW, 22).fillColor('#e5e7eb').fill();
-    doc.rect(mL + halfW + 10, totY, halfW, 22).fillColor('#fde8e8').fill();
-    doc.fontSize(9).font(fontBold).fillColor(black)
-       .text('Gross Salary', mL + 8, totY + 6)
-       .text(cur(salary.grossSalary), mL + halfW - 80, totY + 6, { width: 72, align: 'right' });
-    doc.fillColor(red)
-       .text('Total Deductions', mL + halfW + 18, totY + 6)
-       .text(cur(salary.deductions), mL + cW - 80, totY + 6, { width: 72, align: 'right' });
+    doc.rect(mL, y, half, 28).fillColor(white).strokeColor(border).lineWidth(1).fillAndStroke();
+    doc.rect(mL + half, y, half, 28).fillColor(white).strokeColor(border).lineWidth(1).fillAndStroke();
+    doc.font(fontBold).fontSize(9).fillColor(black).text('Gross Salary', mL + 12, y + 9);
+    doc.font(fontBold).fontSize(9).fillColor(black).text(cur(salary.grossSalary), mL + half - 96, y + 9, { width: 84, align: 'right' });
+    doc.font(fontBold).fontSize(9).fillColor(red).text('Total Deductions', mL + half + 12, y + 9);
+    doc.font(fontBold).fontSize(9).fillColor(black).text(cur(salary.deductions), pageR - 84, y + 9, { width: 72, align: 'right' });
 
-    // ── Net Pay ─────────────────────────────────────────────────────────
-    const netY = totY + 30;
-    doc.rect(mL, netY, cW, 38).fillColor('#111111').fill();
-    doc.fontSize(13).font(fontBold).fillColor('#ffffff')
-       .text('NET PAY', mL + 16, netY + 11)
-       .text(cur(salary.netSalary), mL + cW - 170, netY + 11, { width: 154, align: 'right' });
+    doc.rect(mL + 10, y + 46, cW - 20, 44).fillColor(black).fill();
+    doc.font(fontBold).fontSize(14).fillColor(white).text('NET PAY', mL + 26, y + 61);
+    doc.font(fontBold).fontSize(22).fillColor(white).text(cur(salary.netSalary), pageR - 160, y + 56, { width: 132, align: 'right' });
 
-    // ── Footer ─────────────────────────────────────────────────────────
-    const footY = netY + 60;
-    doc.moveTo(mL, footY).lineTo(pageW - 50, footY).strokeColor('#cccccc').stroke();
+    doc.font(fontRegular).fontSize(8).fillColor(muted)
+      .text(numberToWords(salary.netSalary), mL + 10, y + 102, { width: cW - 20 });
 
-    if (company.authorizedSignatory) {
-      doc.fontSize(8).font(fontRegular).fillColor(muted)
-         .text('Authorized by', pageW - 200, footY + 12, { width: 150, align: 'center' });
-      doc.fontSize(9).font(fontBold).fillColor(black)
-         .text(company.authorizedSignatory, pageW - 200, footY + 24, { width: 150, align: 'center' });
-    }
-
-    doc.fontSize(7).font(fontRegular).fillColor('#999999')
-       .text(`Generated on ${new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'long', year: 'numeric' })}`, mL, footY + 12)
-       .text('This is a computer-generated document.', mL, footY + 23);
+    const footerY = 720;
+    doc.moveTo(mL + 10, footerY).lineTo(pageR - 10, footerY).strokeColor(border).lineWidth(1).stroke();
+    doc.font(fontRegular).fontSize(8).fillColor('#9ca3af')
+      .text(`Generated on ${generatedOn}`, mL + 10, footerY + 10)
+      .text('This is a computer-generated document.', mL + 10, footerY + 22);
+    doc.font(fontRegular).fontSize(8).fillColor(muted)
+      .text('Authorized by', pageR - 150, footerY + 10, { width: 120, align: 'center' });
+    doc.font(fontBold).fontSize(10).fillColor(black)
+      .text(company.authorizedSignatory || 'Admin', pageR - 150, footerY + 24, { width: 120, align: 'center' });
 
     if (salary.notes) {
-      doc.fontSize(8).font(fontRegular).fillColor(muted)
-         .text(`Note: ${salary.notes}`, mL, footY + 38, { width: cW });
+      doc.font(fontRegular).fontSize(8).fillColor(muted)
+        .text(`Note: ${salary.notes}`, mL + 10, 772, { width: cW - 20 });
     }
 
-    doc.end();
+    const pdfBuffer = await new Promise((resolve, reject) => {
+      doc.on('end', () => resolve(Buffer.concat(chunks)));
+      doc.on('error', reject);
+      doc.end();
+    });
+
+    const mode = req.query.mode || 'download';
+    const fname = `payslip_${salary.user?.name?.replace(/\s+/g, '_')}_${salary.month}_${salary.year}.pdf`;
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Length', pdfBuffer.length);
+    res.setHeader('Content-Disposition', `${mode === 'view' ? 'inline' : 'attachment'}; filename=${fname}`);
+    return res.end(pdfBuffer);
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    console.error('generatePayslip failed:', err);
+    if (!res.headersSent && !res.writableEnded) {
+      res.status(500).json({ message: err.message });
+    }
   }
 };
 

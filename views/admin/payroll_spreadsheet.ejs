@@ -1,23 +1,23 @@
-<%- include('../partials/head', {title: 'Payroll Spreadsheet — Admin'}) %>
+<%- include('../partials/head', {title: title || 'Payroll'}) %>
 <link rel="stylesheet" href="/css/spreadsheet.css">
 
 <div class="app-layout ss-page">
-  <%- include('../partials/sidebar-admin') %>
+  <% if (pageRole === 'superadmin') { %>
+    <%- include('../partials/sidebar-superadmin') %>
+  <% } else { %>
+    <%- include('../partials/sidebar-admin') %>
+  <% } %>
   <div class="main-content">
 
     <header class="page-header print-hide">
       <div class="flex items-center gap-3">
         <button class="mobile-menu-btn" onclick="openSidebar()"><i class="bx bx-menu"></i></button>
         <div>
-          <div class="page-title">Payroll Spreadsheet</div>
-          <div class="page-subtitle">Database · Consolidation · Salary Slip</div>
+          <div class="page-title"><%= pageRole === 'superadmin' ? 'All Payroll' : 'Payroll' %></div>
+          <div class="page-subtitle">Payroll database · consolidation · salary slips</div>
         </div>
       </div>
-      <div class="header-actions">
-        <a href="/admin/salary" class="btn btn-ghost" style="font-size:12px;">
-          <i class="bx bx-arrow-back"></i> Back to Payroll
-        </a>
-      </div>
+      <div class="header-actions"></div>
     </header>
 
     <div class="page-body">
@@ -26,13 +26,13 @@
         <!-- ═══ Tab Bar ═══ -->
         <div class="payroll-tab-bar print-hide">
           <button class="tab-btn active" data-tab="database"      onclick="payroll.goToTab('database')">
-            <i class="bx bx-data"></i> Database
+            <i class="bx bx-data"></i> Payroll Records
           </button>
           <button class="tab-btn"        data-tab="consolidation" onclick="payroll.goToTab('consolidation')">
-            <i class="bx bx-table"></i> Consolidation
+            <i class="bx bx-table"></i> Summary
           </button>
           <button class="tab-btn"        data-tab="salary-slip"   onclick="payroll.goToTab('salary-slip')">
-            <i class="bx bx-receipt"></i> Salary Slip
+            <i class="bx bx-receipt"></i> Payslips
           </button>
         </div>
 
@@ -48,6 +48,21 @@
             </button>
             <button class="payroll-btn btn-primary" onclick="payroll.openAddModal()">
               <i class="bx bx-user-plus"></i> Add Employee
+            </button>
+            <% if (pageRole === 'superadmin') { %>
+              <select id="payroll-company-filter" class="filter-input" style="min-width:220px;" onchange="payroll.setCompany(this.value)">
+                <option value="">Select company</option>
+              </select>
+            <% } %>
+            <select id="generate-month" class="filter-input" style="min-width:130px;">
+              <option value="1">January</option><option value="2">February</option><option value="3">March</option>
+              <option value="4">April</option><option value="5">May</option><option value="6">June</option>
+              <option value="7">July</option><option value="8">August</option><option value="9">September</option>
+              <option value="10">October</option><option value="11">November</option><option value="12">December</option>
+            </select>
+            <input id="generate-year" class="filter-input" type="number" style="width:96px;" placeholder="Year">
+            <button class="payroll-btn btn-primary" onclick="payroll.generateAll()">
+              <i class="bx bxs-magic-wand"></i> Generate All
             </button>
             <span style="flex:1"></span>
             <span id="save-status" class="save-status status-saved">✓ Saved</span>
@@ -74,6 +89,20 @@
             <select id="db-year-filter" class="db-year-sel" onchange="payroll.setDbYear(this.value)">
               <option value="">All Years</option>
             </select>
+            <div class="status-check-group" id="db-status-filter">
+              <label class="status-check-item">
+                <input type="checkbox" value="draft" onchange="payroll.setDbStatus()">
+                <span>Draft</span>
+              </label>
+              <label class="status-check-item">
+                <input type="checkbox" value="finalized" onchange="payroll.setDbStatus()">
+                <span>Frozen</span>
+              </label>
+              <label class="status-check-item">
+                <input type="checkbox" value="paid" onchange="payroll.setDbStatus()">
+                <span>Paid</span>
+              </label>
+            </div>
             <button class="db-filter-clear" onclick="payroll.clearDbFilter()">✕ Clear</button>
             <span class="db-filter-count" id="db-filter-count"></span>
           </div>
@@ -89,43 +118,46 @@
                 <col style="width:110px">  <!-- Designation -->
                 <col style="width:80px">   <!-- Month -->
                 <col style="width:62px">   <!-- Year -->
+                <col style="width:86px">   <!-- Status -->
                 <col style="width:68px">   <!-- Total Days -->
                 <col style="width:72px">   <!-- Allowed Leave -->
                 <col style="width:72px">   <!-- Leave Taken -->
                 <col style="width:72px">   <!-- Worked Days -->
-                <col style="width:78px">   <!-- CTC -->
-                <col style="width:72px">   <!-- Basic -->
-                <col style="width:65px">   <!-- DA -->
-                <col style="width:70px">   <!-- HRA -->
-                <col style="width:78px">   <!-- Conveyance -->
-                <col style="width:78px">   <!-- Conv Working -->
-                <col style="width:82px">   <!-- Medical Exp -->
-                <col style="width:72px">   <!-- Special -->
-                <col style="width:72px">   <!-- Bonus -->
-                <col style="width:65px">   <!-- TA -->
-                <col style="width:82px">   <!-- Total Gross -->
-                <col style="width:80px">   <!-- PF Contrib -->
-                <col style="width:76px">   <!-- Prof Tax -->
+                <col style="width:112px">  <!-- CTC -->
+                <col style="width:78px">   <!-- Basic -->
+                <col style="width:70px">   <!-- DA -->
+                <col style="width:74px">   <!-- HRA -->
+                <col style="width:92px">   <!-- Conveyance -->
+                <col style="width:96px">   <!-- Conv Working -->
+                <col style="width:96px">   <!-- Medical Exp -->
+                <col style="width:82px">   <!-- Special -->
+                <col style="width:76px">   <!-- Bonus -->
+                <col style="width:68px">   <!-- TA -->
+                <col style="width:96px">   <!-- Total Gross -->
+                <col style="width:88px">   <!-- PF Contrib -->
+                <col style="width:84px">   <!-- Prof Tax -->
                 <col style="width:65px">   <!-- TDS -->
-                <col style="width:80px">   <!-- Salary Adv -->
-                <col style="width:80px">   <!-- Total Ded -->
-                <col style="width:78px">   <!-- Net Payable -->
+                <col style="width:92px">   <!-- Salary Adv -->
+                <col style="width:110px">  <!-- Deduction (₹) -->
+                <col style="width:100px">  <!-- Absent Ded (auto) -->
+                <col style="width:96px">   <!-- Total Ded -->
+                <col style="width:88px">   <!-- Net Payable -->
                 <col style="width:75px">   <!-- Gender -->
                 <col style="width:62px">   <!-- Prefix -->
-                <col style="width:110px">  <!-- Auth Sign -->
-                <col style="width:80px">   <!-- PF Applicable -->
-                <col style="width:80px">   <!-- Med Bill Sub -->
-                <col style="width:80px">   <!-- Med Bill Amt -->
-                <col style="width:100px">  <!-- Company Name -->
+                <col style="width:118px">  <!-- Auth Sign -->
+                <col style="width:90px">   <!-- PF Applicable -->
+                <col style="width:92px">   <!-- Med Bill Sub -->
+                <col style="width:92px">   <!-- Med Bill Amt -->
+                <col style="width:128px">  <!-- Company Name -->
               </colgroup>
               <thead>
                 <tr>
                   <th rowspan="2" class="col-sl">Sl</th>
                   <th rowspan="2" class="col-del-hdr"><i class="bx bx-trash" style="font-size:14px;"></i></th>
                   <th rowspan="2" class="col-edit-hdr"><i class="bx bx-edit" style="font-size:14px;"></i></th>
-                  <th colspan="9" style="background:#1e3a8a;">Employee Details &amp; Attendance</th>
+                  <th colspan="10" style="background:#1e3a8a;">Employee Details &amp; Attendance</th>
                   <th colspan="10" class="h-gross">TOTAL GROSS SALARY</th>
-                  <th colspan="5"  class="h-ded">TOTAL DEDUCTIONS</th>
+                  <th colspan="6"  class="h-ded">TOTAL DEDUCTIONS</th>
                   <th rowspan="2" style="background:#4c1d95;color:#fff;min-width:72px;">NET<br>PAYABLE</th>
                   <th colspan="7"  class="h-extra">Additional Details</th>
                 </tr>
@@ -135,6 +167,7 @@
                   <th class="col-desig">Designation</th>
                   <th>Month</th>
                   <th>Year</th>
+                  <th>Status</th>
                   <th>Total Days</th>
                   <th>Allowed Leave</th>
                   <th>Leave Taken</th>
@@ -156,6 +189,8 @@
                   <th class="h-ded">Prof. Tax</th>
                   <th class="h-ded">TDS</th>
                   <th class="h-ded">Salary Adv.</th>
+                  <th class="h-ded">Deduction (₹)</th>
+                  <th class="h-ded">Absent Ded.</th>
                   <th class="h-ded" style="background:#7f1d1d;">TOTAL DED.</th>
                   <!-- Extra -->
                   <th class="h-extra">Gender</th>
@@ -187,11 +222,34 @@
             </button>
             <div class="cons-filter-bar" style="border:none;padding:0;background:transparent;">
               <span style="font-size:12px;font-weight:600;color:#374151;">Filter by:</span>
-              <input type="text"   id="cons-filter-month" class="filter-input" placeholder="Month (e.g. June)"
-                     oninput="payroll.applyConsFilter()">
-              <input type="number" id="cons-filter-year"  class="filter-input" placeholder="Year (e.g. 2026)"
-                     oninput="payroll.applyConsFilter()">
-              <button class="payroll-btn" onclick="document.getElementById('cons-filter-month').value='';document.getElementById('cons-filter-year').value='';payroll.applyConsFilter()">
+              <select id="cons-filter-month" class="filter-input" onchange="payroll.applyConsFilter()">
+                <option value="">All Months</option>
+                <option>January</option><option>February</option><option>March</option>
+                <option>April</option><option>May</option><option>June</option>
+                <option>July</option><option>August</option><option>September</option>
+                <option>October</option><option>November</option><option>December</option>
+              </select>
+              <select id="cons-filter-year" class="filter-input" onchange="payroll.applyConsFilter()">
+                <option value="">All Years</option>
+                <option>2023</option><option>2024</option><option>2025</option>
+                <option>2026</option><option>2027</option><option>2028</option>
+                <option>2029</option><option>2030</option>
+              </select>
+              <div class="status-check-group" id="cons-filter-status">
+                <label class="status-check-item">
+                  <input type="checkbox" value="draft" onchange="payroll.applyConsFilter()">
+                  <span>Draft</span>
+                </label>
+                <label class="status-check-item">
+                  <input type="checkbox" value="finalized" onchange="payroll.applyConsFilter()">
+                  <span>Frozen</span>
+                </label>
+                <label class="status-check-item">
+                  <input type="checkbox" value="paid" onchange="payroll.applyConsFilter()">
+                  <span>Paid</span>
+                </label>
+              </div>
+              <button class="payroll-btn" onclick="document.getElementById('cons-filter-month').value='';document.getElementById('cons-filter-year').value='';document.querySelectorAll('#cons-filter-status input[type=&quot;checkbox&quot;]').forEach(cb => cb.checked = false);payroll.applyConsFilter()">
                 Clear
               </button>
             </div>
@@ -236,22 +294,44 @@
                 <option>2026</option><option>2027</option><option>2028</option>
                 <option>2029</option><option>2030</option>
               </select>
-              <button class="payroll-btn" onclick="document.getElementById('slip-filter-month').value='';document.getElementById('slip-filter-year').value='';payroll._applySlipFilter()">
+              <div class="status-check-group" id="slip-filter-status">
+                <label class="status-check-item">
+                  <input type="checkbox" value="draft" onchange="payroll._applySlipFilter()">
+                  <span>Draft</span>
+                </label>
+                <label class="status-check-item">
+                  <input type="checkbox" value="finalized" onchange="payroll._applySlipFilter()">
+                  <span>Frozen</span>
+                </label>
+                <label class="status-check-item">
+                  <input type="checkbox" value="paid" onchange="payroll._applySlipFilter()">
+                  <span>Paid</span>
+                </label>
+              </div>
+              <button class="payroll-btn" onclick="document.getElementById('slip-filter-month').value='';document.getElementById('slip-filter-year').value='';document.querySelectorAll('#slip-filter-status input[type=&quot;checkbox&quot;]').forEach(cb => cb.checked = false);payroll._applySlipFilter()">
                 Clear
               </button>
             </div>
-            <div style="flex:1"></div>
-            <label style="font-size:12px;font-weight:600;color:#374151;">Employee:</label>
-            <select id="slip-emp-select" class="emp-select"
-                    onchange="payroll.showSlip(this.value)">
-              <option value="">— Select Employee —</option>
-            </select>
           </div>
 
           <!-- Slip display -->
-          <div class="slip-body-wrapper">
-            <div id="slip-display">
-              <div class="slip-empty-msg">Select an employee above to view their salary slip.</div>
+          <div class="slip-body-wrapper slip-layout">
+            <div class="slip-list-panel">
+              <div class="slip-list-head">
+                <div class="slip-list-title">Employee Payroll List</div>
+                <div id="slip-emp-meta" class="slip-emp-meta"></div>
+                <div class="slip-list-search">
+                  <i class="bx bx-search"></i>
+                  <input id="slip-list-search" type="text" placeholder="Search employee..."
+                         oninput="payroll.filterSlipList(this.value)">
+                </div>
+              </div>
+              <div id="slip-emp-list-view" class="slip-emp-list-view"></div>
+            </div>
+            <div class="slip-preview-panel">
+              <div id="slip-display">
+                <div class="slip-empty-msg">Select an employee from the list to view their payslip.</div>
+              </div>
             </div>
           </div>
 
@@ -323,8 +403,11 @@
             <th class="ae-col-num">TOTAL<br>DAYS</th>
             <th class="ae-col-num">LEAVE<br>TAKEN</th>
             <th class="ae-col-num" style="background:#166534;color:#fff;">WORKED<br>DAYS</th>
+            <th class="ae-col-num">PF</th>
+            <th class="ae-col-num">PROF.<br>TAX</th>
             <th class="ae-col-num">SAL.<br>ADV.</th>
             <th class="ae-col-num">TDS</th>
+            <th class="ae-col-num">DEDUCTION<br>(₹)</th>
             <th class="ae-col-num">CTC</th>
             <th class="ae-col-del"></th>
           </tr>
@@ -336,8 +419,11 @@
             <td id="ae-tot-days"  class="ae-num-cell">—</td>
             <td id="ae-tot-leave" class="ae-num-cell">0</td>
             <td id="ae-tot-wd"    class="ae-num-cell">—</td>
+            <td id="ae-tot-pf"    class="ae-num-cell">0</td>
+            <td id="ae-tot-pt"    class="ae-num-cell">0</td>
             <td id="ae-tot-adv"   class="ae-num-cell">0</td>
             <td id="ae-tot-tds"   class="ae-num-cell">0</td>
+            <td id="ae-tot-ded"   class="ae-num-cell">0</td>
             <td id="ae-tot-ctc"   class="ae-num-cell">0</td>
             <td></td>
           </tr>
@@ -373,5 +459,6 @@
 <script src="/js/sidebar-fix.js"></script>
 <script src="/js/spreadsheet.js"></script>
 <script>
+  window.PAYROLL_PAGE_ROLE = '<%= pageRole || "admin" %>';
   document.addEventListener('DOMContentLoaded', () => payroll.init());
 </script>

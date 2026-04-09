@@ -17,23 +17,21 @@
         <div id="notif-area"></div>
 
         <div class="employee-overview-grid employee-dashboard-grid">
-          <a href="/manager/profile" class="employee-overview-card employee-overview-nav">
+          <a href="/manager/profile" class="employee-overview-card employee-overview-nav highlight-gray">
             <div class="employee-overview-head">
-              <div class="employee-overview-icon purple"><i class="bx bxs-user-circle"></i></div>
+              <div class="employee-overview-icon gray"><i class="bx bxs-user-circle"></i></div>
               <div>
-                <div class="employee-overview-label">My Profile & Salary</div>
-                <div class="employee-overview-value" id="manager-name-short">-</div>
+                <div class="employee-overview-label">My Profile</div>
               </div>
             </div>
             <div class="employee-overview-link">Open Profile</div>
           </a>
 
-          <a href="/manager/tasks" class="employee-overview-card employee-overview-nav">
+          <a href="/manager/tasks" class="employee-overview-card employee-overview-nav highlight-blue">
             <div class="employee-overview-head">
-              <div class="employee-overview-icon orange"><i class="bx bxs-check-square"></i></div>
+              <div class="employee-overview-icon blue"><i class="bx bxs-check-square"></i></div>
               <div>
                 <div class="employee-overview-label">Assign Tasks</div>
-                <div class="employee-overview-value" id="manager-task-count">0</div>
               </div>
             </div>
             <div class="employee-overview-link">Open Task Management</div>
@@ -44,62 +42,46 @@
               <div class="employee-overview-icon orange"><i class="bx bxs-calendar-check"></i></div>
               <div>
                 <div class="employee-overview-label">Leave Requests</div>
-                <div class="employee-overview-value" id="manager-leave-count">0</div>
               </div>
             </div>
             <div class="employee-overview-link emphasis">Review Leave Requests</div>
           </a>
 
-          <a href="/manager/leave-calendar" class="employee-overview-card employee-overview-nav">
+          <a href="/manager/timesheets" class="employee-overview-card employee-overview-nav highlight-green">
             <div class="employee-overview-head">
               <div class="employee-overview-icon green"><i class="bx bxs-calendar"></i></div>
               <div>
-                <div class="employee-overview-label">Leave Calendar</div>
-                <div class="employee-overview-value" id="manager-approved-count">0</div>
-              </div>
-            </div>
-            <div class="employee-overview-link">Open Leave Calendar</div>
-          </a>
-
-          <a href="/manager/timesheets" class="employee-overview-card employee-overview-nav highlight-orange">
-            <div class="employee-overview-head">
-              <div class="employee-overview-icon teal"><i class="bx bxs-time-five"></i></div>
-              <div>
                 <div class="employee-overview-label">Timesheets</div>
-                <div class="employee-overview-value" id="manager-ts-count">0</div>
               </div>
             </div>
             <div class="employee-overview-link">Review Timesheets</div>
           </a>
 
-          <a href="/manager/documents" class="employee-overview-card employee-overview-nav">
+          <a href="/manager/documents" class="employee-overview-card employee-overview-nav highlight-purple">
             <div class="employee-overview-head">
-              <div class="employee-overview-icon teal"><i class="bx bxs-file-doc"></i></div>
+              <div class="employee-overview-icon purple"><i class="bx bxs-file-doc"></i></div>
               <div>
                 <div class="employee-overview-label">Team Documents</div>
-                <div class="employee-overview-value" id="manager-team-docs-count">0</div>
               </div>
             </div>
             <div class="employee-overview-link">Open Team Documents</div>
           </a>
 
-          <a href="/employee/documents" class="employee-overview-card employee-overview-nav">
+          <a href="/manager/leave-calendar" class="employee-overview-card employee-overview-nav highlight-gray">
             <div class="employee-overview-head">
-              <div class="employee-overview-icon blue"><i class="bx bxs-file-doc"></i></div>
+              <div class="employee-overview-icon gray"><i class="bx bxs-calendar"></i></div>
               <div>
-                <div class="employee-overview-label">My Documents</div>
-                <div class="employee-overview-value" id="manager-my-docs-count">0</div>
+                <div class="employee-overview-label">Leave Calendar</div>
               </div>
             </div>
-            <div class="employee-overview-link">Open My Documents</div>
+            <div class="employee-overview-link">Open Leave Calendar</div>
           </a>
 
-          <a href="/manager/policies" class="employee-overview-card employee-overview-nav">
+          <a href="/manager/policies" class="employee-overview-card employee-overview-nav highlight-gray">
             <div class="employee-overview-head">
-              <div class="employee-overview-icon blue"><i class="bx bxs-book-content"></i></div>
+              <div class="employee-overview-icon gray"><i class="bx bxs-book-content"></i></div>
               <div>
                 <div class="employee-overview-label">Company Policy</div>
-                <div class="employee-overview-value">Read</div>
               </div>
             </div>
             <div class="employee-overview-link">Open Policies</div>
@@ -114,17 +96,9 @@
 <script>
 async function loadDashboard() {
   try {
-    const user = getUser();
-    if (user) {
-      document.getElementById('manager-name-short').textContent = user.name.split(' ')[0];
-    }
-
-    const [leaves, ts, notifs, tasks, docs] = await Promise.all([
-      api('GET', '/leaves?scope=team'),
-      api('GET', '/timesheets?scope=team'),
+    const [notifs] = await Promise.all([
       api('GET', '/notifications'),
-      api('GET', '/tasks').catch(function() { return []; }),
-      api('GET', '/documents').catch(function() { return []; })
+      Promise.resolve([])
     ]);
 
     const activeNotifs = (notifs || []).filter(function(n) { return n.status === 'active'; });
@@ -140,20 +114,6 @@ async function loadDashboard() {
         '</div>';
       }).join('');
     }
-
-    const pendingLeaves = leaves.filter(function(l) { return l.status === 'pending'; }).length;
-    const approvedLeaves = leaves.filter(function(l) { return l.status === 'approved'; }).length;
-    const pendingTimesheets = ts.filter(function(t) { return t.status === 'pending'; }).length;
-    const myDocs = (docs || []).filter(function(d) {
-      return user && (d.userId === user.id || (d.user && d.user.id === user.id));
-    }).length;
-
-    document.getElementById('manager-task-count').textContent = (tasks || []).length;
-    document.getElementById('manager-leave-count').textContent = pendingLeaves;
-    document.getElementById('manager-approved-count').textContent = approvedLeaves;
-    document.getElementById('manager-ts-count').textContent = pendingTimesheets;
-    document.getElementById('manager-team-docs-count').textContent = (docs || []).length;
-    document.getElementById('manager-my-docs-count').textContent = myDocs;
   } catch (e) {
     toast(e.message, 'error');
   }

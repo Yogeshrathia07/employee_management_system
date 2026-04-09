@@ -14,6 +14,8 @@
     </header>
     <div class="page-body admin-employees-page employee-shared-page">
       <div class="employee-directory-shell">
+
+        <!-- Stats -->
         <div class="stats-grid" style="grid-template-columns:repeat(5,1fr);">
           <div class="stat-card"><div class="stat-icon green"><i class="bx bxs-check-circle"></i></div><div><div class="stat-value" id="bal-earned">15</div><div class="stat-label">Earned Leave</div></div></div>
           <div class="stat-card"><div class="stat-icon red"><i class="bx bxs-thermometer"></i></div><div><div class="stat-value" id="bal-sick">10</div><div class="stat-label">Sick Leave</div></div></div>
@@ -22,30 +24,61 @@
           <div class="stat-card"><div class="stat-icon purple"><i class="bx bxs-calendar"></i></div><div><div class="stat-value" id="stat-used">0</div><div class="stat-label">Days Used</div></div></div>
         </div>
 
+        <!-- Toolbar -->
         <div class="leave-toolbar">
           <div style="font-size:15px;font-weight:700;color:var(--text-primary);">Leave Requests <span id="leaves-count" style="font-size:13px;font-weight:500;color:var(--text-muted);"></span></div>
-          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-            <button class="btn btn-primary" onclick="openModal('leave-modal')"><i class="bx bx-plus"></i> Apply Leave</button>
-          </div>
+          <button class="btn btn-primary" onclick="openModal('leave-modal')"><i class="bx bx-plus"></i> Apply Leave</button>
         </div>
 
-        <div style="display:flex;align-items:center;justify-content:flex-start;flex-wrap:wrap;gap:12px;margin-bottom:16px;">
+        <!-- Filters -->
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px;">
           <div class="toggle-group mb-0">
             <button class="toggle-btn active" id="f-all" onclick="filterLeaves('all')">All</button>
             <button class="toggle-btn" id="f-pending" onclick="filterLeaves('pending')">Pending</button>
             <button class="toggle-btn" id="f-approved" onclick="filterLeaves('approved')">Approved</button>
             <button class="toggle-btn" id="f-rejected" onclick="filterLeaves('rejected')">Rejected</button>
           </div>
+          <select id="type-filter" class="form-control" style="max-width:180px;" onchange="renderLeaves()">
+            <option value="">All Types</option>
+            <option value="earned">Earned Leave</option>
+            <option value="casual">Casual Leave</option>
+            <option value="sick">Sick Leave</option>
+            <option value="maternity">Maternity Leave</option>
+            <option value="paternity">Paternity Leave</option>
+            <option value="unpaid">Unpaid Leave</option>
+            <option value="other">Other Leave</option>
+          </select>
         </div>
 
-        <div id="leaves-grid" class="leave-card-grid">
-          <div style="grid-column:1/-1;text-align:center;padding:60px;"><span class="spinner"></span></div>
+        <!-- Table -->
+        <div class="card">
+          <div class="table-wrapper">
+            <table>
+              <thead>
+                <tr>
+                  <th>Leave Type</th>
+                  <th>From</th>
+                  <th>To</th>
+                  <th>Days</th>
+                  <th>Status</th>
+                  <th>Approved By</th>
+                  <th>Applied On</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="leaves-tbody">
+                <tr><td colspan="8" style="text-align:center;padding:60px;"><span class="spinner"></span></td></tr>
+              </tbody>
+            </table>
+          </div>
         </div>
+
       </div>
     </div>
   </div>
 </div>
 
+<!-- Apply Leave Modal -->
 <div class="modal-overlay" id="leave-modal">
   <div class="modal" style="max-width:520px;">
     <div class="modal-header"><span class="modal-title">Apply for Leave</span><button class="modal-close" onclick="closeModal('leave-modal')">×</button></div>
@@ -88,6 +121,15 @@
   </div>
 </div>
 
+<!-- View Modal -->
+<div class="modal-overlay" id="view-modal">
+  <div class="modal" style="max-width:520px">
+    <div class="modal-header"><span class="modal-title">Leave Details</span><button class="modal-close" onclick="closeModal('view-modal')">×</button></div>
+    <div class="modal-body" id="view-body"></div>
+    <div class="modal-footer"><button class="btn btn-ghost" onclick="closeModal('view-modal')">Close</button></div>
+  </div>
+</div>
+
 <style>
 .mini-cal-grid { display:grid; grid-template-columns:repeat(7,1fr); gap:3px; }
 .mini-cal-dow  { text-align:center; font-size:10px; font-weight:700; color:var(--text-muted); padding:3px 0; }
@@ -97,7 +139,6 @@
 .mini-cal-day.past  { color:var(--text-muted); opacity:0.4; cursor:not-allowed; }
 .mini-cal-day.sel-start, .mini-cal-day.sel-end { background:var(--accent); color:#fff; font-weight:700; }
 .mini-cal-day.sel-range { background:var(--accent-light); color:var(--accent); }
-.mini-cal-week-label { grid-column:1/-1; font-size:10px; color:var(--text-muted); font-weight:600; padding:4px 2px 1px; margin-top:4px; border-top:1px solid var(--border); }
 </style>
 
 <script src="/js/api.js"></script>
@@ -106,11 +147,14 @@ let singleMode = true;
 let allLeaves = [];
 let currentFilter = 'all';
 let currentUserGender = 'unspecified';
-let calClickState = 0; // 0=fresh, 1=start picked (range mode)
 
 const todayISO = new Date().toISOString().slice(0, 10);
+const leaveTypeLabels = {
+  earned:'Earned Leave', casual:'Casual Leave', sick:'Sick Leave',
+  maternity:'Maternity Leave', paternity:'Paternity Leave', unpaid:'Unpaid Leave', other:'Other Leave'
+};
 
-// Min allowed = Monday of previous week
+// Set min date
 (function() {
   const now = new Date();
   const dow = now.getDay();
@@ -122,10 +166,10 @@ const todayISO = new Date().toISOString().slice(0, 10);
   document.getElementById('leave-end').min   = minISO;
 })();
 
-// ── Mini Calendar ──────────────────────────────────────────────────
+// ── Mini Calendar ──────────────────────────────────────────────
 const MINI_CAL_MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 let miniCalYear  = new Date().getFullYear();
-let miniCalMonth = new Date().getMonth(); // 0-indexed
+let miniCalMonth = new Date().getMonth();
 
 function getMinAllowedDate() {
   const now = new Date();
@@ -148,11 +192,8 @@ function buildMiniCal() {
   const end    = singleMode ? start : document.getElementById('leave-end').value;
   const minDs  = getMinAllowedDate();
   const DOW    = ['Mo','Tu','We','Th','Fr','Sa','Su'];
-
-  // First day of displayed month (Monday-based grid)
   const firstDay = new Date(miniCalYear, miniCalMonth, 1);
   const lastDay  = new Date(miniCalYear, miniCalMonth + 1, 0);
-  // Offset: Monday=0 ... Sunday=6
   let startOffset = firstDay.getDay() - 1;
   if (startOffset < 0) startOffset = 6;
 
@@ -165,33 +206,28 @@ function buildMiniCal() {
   <div class="mini-cal-grid">`;
 
   DOW.forEach(d => { html += `<div class="mini-cal-dow">${d}</div>`; });
-
-  // Leading empty cells
   for (let i = 0; i < startOffset; i++) html += '<div></div>';
-
   for (let d = 1; d <= lastDay.getDate(); d++) {
     const ds = miniCalYear + '-' + String(miniCalMonth + 1).padStart(2,'0') + '-' + String(d).padStart(2,'0');
-    const isPast   = ds < minDs;
-    const isToday  = ds === todayISO;
-    const isStart  = ds === start;
-    const isEnd    = ds === end;
-    const isRange  = !singleMode && start && end && ds > start && ds < end;
+    const isPast  = ds < minDs;
+    const isToday = ds === todayISO;
+    const isStart = ds === start;
+    const isEnd   = ds === end;
+    const isRange = !singleMode && start && end && ds > start && ds < end;
     let cls = 'mini-cal-day';
-    if (isPast)              cls += ' past';
-    if (isToday)             cls += ' today';
-    if (isStart)             cls += ' sel-start';
-    else if (isEnd)          cls += ' sel-end';
-    else if (isRange)        cls += ' sel-range';
+    if (isPast)        cls += ' past';
+    if (isToday)       cls += ' today';
+    if (isStart)       cls += ' sel-start';
+    else if (isEnd)    cls += ' sel-end';
+    else if (isRange)  cls += ' sel-range';
     html += `<div class="${cls}" onclick="minicalClick('${ds}')">${d}</div>`;
   }
-
   html += '</div>';
   document.getElementById('mini-cal').innerHTML = html;
 }
 
 function minicalClick(ds) {
   if (ds < getMinAllowedDate()) return;
-
   if (singleMode) {
     document.getElementById('leave-start').value = ds;
     document.getElementById('leave-end').value   = ds;
@@ -202,12 +238,8 @@ function minicalClick(ds) {
       document.getElementById('leave-start').value = ds;
       document.getElementById('leave-end').value   = '';
     } else {
-      if (ds >= cur) {
-        document.getElementById('leave-end').value = ds;
-      } else {
-        document.getElementById('leave-start').value = ds;
-        document.getElementById('leave-end').value   = cur;
-      }
+      if (ds >= cur) { document.getElementById('leave-end').value = ds; }
+      else { document.getElementById('leave-start').value = ds; document.getElementById('leave-end').value = cur; }
     }
   }
   buildMiniCal();
@@ -215,57 +247,20 @@ function minicalClick(ds) {
 }
 
 function onDateInputChange() {
-  // Sync calendar view to the selected month
   const val = document.getElementById('leave-start').value;
-  if (val) {
-    const [y, m] = val.split('-').map(Number);
-    miniCalYear  = y;
-    miniCalMonth = m - 1;
-  }
+  if (val) { const [y, m] = val.split('-').map(Number); miniCalYear = y; miniCalMonth = m - 1; }
   buildMiniCal();
   validateDates();
 }
 
-const leaveConfig = {
-  earned:   { tone:'indigo', icon:'bxs-calendar-check', label:'Earned Leave' },
-  casual:   { tone:'teal', icon:'bxs-briefcase', label:'Casual Leave' },
-  sick:     { tone:'orange', icon:'bxs-thermometer', label:'Sick Leave' },
-  maternity:{ tone:'pink', icon:'bxs-baby-carriage', label:'Maternity Leave' },
-  paternity:{ tone:'blue', icon:'bxs-user-voice', label:'Paternity Leave' },
-  unpaid:   { tone:'slate', icon:'bxs-calendar-x', label:'Unpaid Leave' },
-  other:    { tone:'indigo', icon:'bxs-calendar', label:'Other Leave' }
-};
-
-function renderLeaveOptions() {
-  var options = [
-    { value: 'earned', label: 'Earned Leave' },
-    { value: 'casual', label: 'Casual Leave' },
-    { value: 'sick', label: 'Sick Leave' }
-  ];
-
-  if (currentUserGender === 'female') options.push({ value: 'maternity', label: 'Maternity Leave' });
-  if (currentUserGender === 'male') options.push({ value: 'paternity', label: 'Paternity Leave' });
-
-  options.push({ value: 'unpaid', label: 'Unpaid Leave' });
-  options.push({ value: 'other', label: 'Other' });
-
-  document.getElementById('leave-type').innerHTML = options.map(function(opt) {
-    return '<option value="' + opt.value + '">' + opt.label + '</option>';
-  }).join('');
-}
-
 function validateDates() {
-  const start    = document.getElementById('leave-start').value;
-  const end      = document.getElementById('leave-end').value;
-  const errEl    = document.getElementById('date-error');
+  const start = document.getElementById('leave-start').value;
+  const end   = document.getElementById('leave-end').value;
+  const errEl = document.getElementById('date-error');
   errEl.style.display = 'none';
-  document.getElementById('leave-start').style.borderColor = '';
-  document.getElementById('leave-end').style.borderColor   = '';
-
   if (!singleMode && end && start && end < start) {
-    document.getElementById('leave-end').style.borderColor = 'var(--danger)';
-    errEl.textContent    = 'End date must be on or after start date';
-    errEl.style.display  = '';
+    errEl.textContent   = 'End date must be on or after start date';
+    errEl.style.display = '';
     return false;
   }
   return true;
@@ -280,48 +275,83 @@ function toggleMode(mode) {
   buildMiniCal();
 }
 
+// ── Leave options ──────────────────────────────────────────────
+function renderLeaveOptions() {
+  var options = [
+    { value:'earned', label:'Earned Leave' },
+    { value:'casual', label:'Casual Leave' },
+    { value:'sick',   label:'Sick Leave' }
+  ];
+  if (currentUserGender === 'female') options.push({ value:'maternity', label:'Maternity Leave' });
+  if (currentUserGender === 'male')   options.push({ value:'paternity', label:'Paternity Leave' });
+  options.push({ value:'unpaid', label:'Unpaid Leave' });
+  options.push({ value:'other',  label:'Other' });
+  document.getElementById('leave-type').innerHTML = options.map(function(opt){
+    return '<option value="' + opt.value + '">' + opt.label + '</option>';
+  }).join('');
+}
+
+// ── Render table ───────────────────────────────────────────────
 function filterLeaves(filter) {
   currentFilter = filter;
-  ['all','pending','approved','rejected'].forEach(function(f) {
+  ['all','pending','approved','rejected'].forEach(function(f){
     document.getElementById('f-' + f).classList.toggle('active', f === filter);
   });
   renderLeaves();
 }
 
 function renderLeaves() {
-  const filtered = currentFilter === 'all' ? allLeaves : allLeaves.filter(function(l) { return l.status === currentFilter; });
-  const grid = document.getElementById('leaves-grid');
-  const countEl = document.getElementById('leaves-count');
+  var typeFilter = document.getElementById('type-filter').value;
+  var filtered = allLeaves.filter(function(l){
+    if (currentFilter !== 'all' && l.status !== currentFilter) return false;
+    if (typeFilter && l.type !== typeFilter) return false;
+    return true;
+  });
+
+  var countEl = document.getElementById('leaves-count');
   if (countEl) countEl.textContent = '(' + filtered.length + ')';
 
+  var tbody = document.getElementById('leaves-tbody');
   if (!filtered.length) {
-    grid.innerHTML = '<div style="grid-column:1/-1;" class="empty-state"><div class="empty-icon"><i class="bx bxs-calendar-check"></i></div><h3>No ' + (currentFilter === 'all' ? '' : currentFilter) + ' leaves</h3><p>' + (currentFilter === 'all' ? 'Click "Apply Leave" to submit your first request' : 'No records for this filter') + '</p></div>';
+    tbody.innerHTML = '<tr><td colspan="8"><div class="empty-state"><div class="empty-icon"><i class="bx bxs-calendar-check"></i></div><h3>No ' + (currentFilter === 'all' ? '' : currentFilter + ' ') + 'leaves</h3><p>' + (currentFilter === 'all' ? 'Click "Apply Leave" to submit your first request' : 'No records for this filter') + '</p></div></td></tr>';
     return;
   }
-
-  grid.innerHTML = filtered.map(function(l) {
-    const cfg = leaveConfig[l.type] || leaveConfig.other;
-    return '<div class="leave-review-card leave-tone-' + cfg.tone + '">' +
-      '<div class="leave-review-top">' +
-        '<div class="leave-review-title-row">' +
-          '<div class="leave-review-icon"><i class="bx ' + cfg.icon + '"></i></div>' +
-          '<div><div class="leave-review-title">' + cfg.label + '</div><div class="leave-review-days">' + l.days + ' day' + (l.days !== 1 ? 's' : '') + '</div></div>' +
-        '</div>' +
-        '<span class="leave-status-pill status-' + l.status + '">' + l.status + '</span>' +
-      '</div>' +
-      '<div class="leave-review-body">' +
-        '<div class="leave-review-meta"><i class="bx bxs-calendar"></i><span>' + fmtDate(l.startDate) + '</span><i class="bx bx-right-arrow-alt"></i><span>' + fmtDate(l.endDate) + '</span></div>' +
-        (l.reason ? '<div class="leave-review-note">' + l.reason + '</div>' : '') +
-        '<div class="leave-review-by"><i class="bx bx-time-five"></i> Applied ' + fmtDate(l.createdAt) + '</div>' +
-        (l.approver ? '<div class="leave-review-by"><i class="bx bxs-user-check"></i> ' + l.approver.name + '</div>' : '') +
-        '<div class="leave-review-actions">' +
-          (l.status === 'pending' ? '<button class="btn btn-danger btn-sm" onclick="deleteLeave(\'' + l.id + '\')" title="Cancel request"><i class="bx bx-trash"></i> Cancel</button>' : '<span class="btn btn-ghost btn-sm" style="pointer-events:none;">No Actions</span>') +
-        '</div>' +
-      '</div>' +
-    '</div>';
+  tbody.innerHTML = filtered.map(function(l){
+    return '<tr>' +
+      '<td>' + (leaveTypeLabels[l.type] || l.type) + '</td>' +
+      '<td>' + fmtDate(l.startDate) + '</td>' +
+      '<td>' + fmtDate(l.endDate) + '</td>' +
+      '<td>' + l.days + ' day' + (l.days !== 1 ? 's' : '') + '</td>' +
+      '<td>' + statusBadge(l.status) + '</td>' +
+      '<td style="font-size:12px;color:var(--text-muted);">' + (l.approver ? l.approver.name : '—') + '</td>' +
+      '<td style="font-size:12px;color:var(--text-muted);">' + fmtDate(l.createdAt) + '</td>' +
+      '<td>' +
+        '<button class="btn btn-ghost btn-sm" onclick="viewLeave(' + l.id + ')" title="View"><i class="bx bx-show"></i></button>' +
+        (l.status === 'pending' ? '<button class="btn btn-danger btn-sm" onclick="deleteLeave(\'' + l.id + '\')" title="Cancel"><i class="bx bx-trash"></i></button>' : '') +
+      '</td>' +
+    '</tr>';
   }).join('');
 }
 
+function viewLeave(id) {
+  const l = allLeaves.find(function(x){ return x.id === id; });
+  if (!l) return;
+  document.getElementById('view-body').innerHTML =
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">' +
+      '<div style="background:var(--bg-input);border-radius:12px;padding:12px;"><div class="detail-label">Leave Type</div><div class="detail-value">' + (leaveTypeLabels[l.type] || l.type) + '</div></div>' +
+      '<div style="background:var(--bg-input);border-radius:12px;padding:12px;"><div class="detail-label">Status</div><div class="detail-value">' + statusBadge(l.status) + '</div></div>' +
+      '<div style="background:var(--bg-input);border-radius:12px;padding:12px;"><div class="detail-label">From</div><div class="detail-value">' + fmtDate(l.startDate) + '</div></div>' +
+      '<div style="background:var(--bg-input);border-radius:12px;padding:12px;"><div class="detail-label">To</div><div class="detail-value">' + fmtDate(l.endDate) + '</div></div>' +
+      '<div style="background:var(--bg-input);border-radius:12px;padding:12px;"><div class="detail-label">Days</div><div class="detail-value">' + l.days + '</div></div>' +
+      '<div style="background:var(--bg-input);border-radius:12px;padding:12px;"><div class="detail-label">Applied On</div><div class="detail-value">' + fmtDate(l.createdAt) + '</div></div>' +
+      (l.approver ? '<div style="background:var(--bg-input);border-radius:12px;padding:12px;grid-column:1/-1;"><div class="detail-label">Approved By</div><div class="detail-value">' + l.approver.name + '</div></div>' : '') +
+    '</div>' +
+    (l.reason ? '<div style="margin-top:14px;background:var(--bg-input);border-radius:12px;padding:12px;"><div class="detail-label">Reason</div><div class="detail-value">' + l.reason + '</div></div>' : '') +
+    (l.rejectionReason ? '<div style="margin-top:12px;background:var(--danger-light);border-radius:12px;padding:12px;"><div class="detail-label" style="color:var(--danger);">Rejection Reason</div><div class="detail-value">' + l.rejectionReason + '</div></div>' : '');
+  openModal('view-modal');
+}
+
+// ── Load / Submit ──────────────────────────────────────────────
 async function loadLeaves() {
   try {
     var me = await api('GET', '/users/me');
@@ -329,24 +359,23 @@ async function loadLeaves() {
     renderLeaveOptions();
     const leaves = await api('GET', '/leaves');
     allLeaves = leaves;
-    document.getElementById('stat-pending').textContent = leaves.filter(function(l) { return l.status === 'pending'; }).length;
-    document.getElementById('stat-used').textContent = leaves.filter(function(l) { return l.status === 'approved'; }).reduce(function(s, l) { return s + l.days; }, 0);
+    document.getElementById('stat-pending').textContent = leaves.filter(function(l){ return l.status === 'pending'; }).length;
+    document.getElementById('stat-used').textContent    = leaves.filter(function(l){ return l.status === 'approved'; }).reduce(function(s, l){ return s + l.days; }, 0);
     renderLeaves();
   } catch(e) { toast(e.message, 'error'); }
 }
 
 async function submitLeave() {
   if (!validateDates()) return;
-  const type = document.getElementById('leave-type').value;
-  const start = document.getElementById('leave-start').value;
-  const end = singleMode ? start : document.getElementById('leave-end').value;
+  const type   = document.getElementById('leave-type').value;
+  const start  = document.getElementById('leave-start').value;
+  const end    = singleMode ? start : document.getElementById('leave-end').value;
   const reason = document.getElementById('leave-reason').value;
   if (!start) return toast('Please select a start date', 'error');
   if (!singleMode && !end) return toast('Please select an end date', 'error');
   if (type === 'other' && !reason.trim()) return toast('Please enter a reason for Other leave', 'error');
-
   try {
-    await api('POST', '/leaves', { type: type, startDate: start, endDate: end, reason: reason });
+    await api('POST', '/leaves', { type, startDate: start, endDate: end, reason });
     toast('Leave request submitted!', 'success');
     closeModal('leave-modal');
     loadLeaves();
@@ -355,11 +384,8 @@ async function submitLeave() {
 
 async function deleteLeave(id) {
   if (!confirm('Delete this leave request?')) return;
-  try {
-    await api('DELETE', '/leaves/' + id);
-    toast('Leave deleted', 'success');
-    loadLeaves();
-  } catch(e) { toast(e.message, 'error'); }
+  try { await api('DELETE', '/leaves/' + id); toast('Leave deleted', 'success'); loadLeaves(); }
+  catch(e) { toast(e.message, 'error'); }
 }
 
 loadLeaves();

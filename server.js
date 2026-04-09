@@ -59,21 +59,25 @@ app.get('/admin/users',         (req, res) => res.render('admin/users',         
 app.get('/admin/leaves',        (req, res) => res.render('admin/leaves',        { title: 'Leave Management' }));
 app.get('/admin/leave-calendar',(req, res) => res.render('admin/leave-calendar',{ title: 'Leave Calendar' }));
 app.get('/admin/timesheets',    (req, res) => res.render('admin/timesheets',    { title: 'Timesheets' }));
-app.get('/admin/salary',               (req, res) => res.render('admin/salary',               { title: 'Payroll' }));
-app.get('/admin/payroll-spreadsheet',  (req, res) => res.render('admin/payroll_spreadsheet',  { title: 'Payroll Spreadsheet' }));
+app.get('/admin/salary',               (req, res) => res.render('admin/payroll_spreadsheet',  { title: 'Payroll', pageRole: 'admin' }));
+app.get('/admin/payroll-spreadsheet',  (req, res) => res.redirect('/admin/salary'));
 app.get('/admin/salary-slip-preview',  (req, res) => res.render('admin/salary_slip_preview',  { title: 'Salary Slip Preview' }));
 app.get('/admin/documents',     (req, res) => res.render('admin/documents',     { title: 'Documents' }));
 app.get('/admin/notifications', (req, res) => res.render('admin/notifications', { title: 'Notifications' }));
 app.get('/admin/policies',      (req, res) => res.render('admin/policies',      { title: 'Company Policy' }));
 app.get('/admin/recycle-bin',   (req, res) => res.render('admin/recycle-bin',   { title: 'Recycle Bin' }));
+app.get('/admin/tasks',         (req, res) => res.render('admin/tasks',         { title: 'Tasks' }));
 
 // Super Admin pages
 app.get('/superadmin/dashboard',   (req, res) => res.render('superadmin/dashboard',   { title: 'Dashboard' }));
 app.get('/superadmin/companies',   (req, res) => res.render('superadmin/companies',   { title: 'Companies' }));
 app.get('/superadmin/users',       (req, res) => res.render('superadmin/users',       { title: 'All Users' }));
+app.get('/superadmin/salary',      (req, res) => res.render('admin/payroll_spreadsheet', { title: 'All Payroll', pageRole: 'superadmin' }));
 app.get('/superadmin/recycle-bin', (req, res) => res.render('superadmin/recycle-bin', { title: 'Recycle Bin' }));
 app.get('/superadmin/policies',    (req, res) => res.render('superadmin/policies',    { title: 'Company Policies' }));
 app.get('/superadmin/accounts',    (req, res) => res.render('superadmin/accounts',    { title: 'Accounts' }));
+app.get('/superadmin/projects',    (req, res) => res.render('superadmin/projects',    { title: 'Projects' }));
+app.get('/superadmin/tasks',       (req, res) => res.render('superadmin/tasks',       { title: 'Tasks' }));
 
 // 404 fallback
 app.use((req, res) => {
@@ -103,8 +107,10 @@ async function dropExcessIndexes(tableName) {
 
 const TABLE_NAMES = [
   'Users', 'Leaves', 'Timesheets', 'Salaries', 'Documents',
-  'Notifications', 'NotificationReads', 'RecycleBins', 'Tasks', 'CompanyPolicies', 'Companies',
+  'Notifications', 'NotificationReads', 'RecycleBins', 'Tasks', 'Projects', 'CompanyPolicies', 'Companies',
   'Invoices', 'SpreadsheetWorkbooks',
+  // Accounts module tables
+  'Vendors', 'Clients', 'Quotations', 'Proformas', 'PurchaseOrders', 'WorkOrders', 'ProjectAccounts',
 ];
 
 // ─── Database & Server Start ───
@@ -196,30 +202,29 @@ async function seedInitialData() {
     status: 'active',
   });
 
-  await User.bulkCreate([
-    {
-      name: 'Bob Smith',
-      email: 'bob@demo.com',
-      password: 'EmsDemo@2026',
-      role: 'employee',
-      companyId: company.id,
-      managerId: manager.id,
-      baseSalary: 38000,
-      department: 'Engineering',
-      status: 'active',
-    },
-    {
-      name: 'Carol Jones',
-      email: 'carol@demo.com',
-      password: 'EmsDemo@2026',
-      role: 'employee',
-      companyId: company.id,
-      managerId: manager.id,
-      baseSalary: 42000,
-      department: 'Design',
-      status: 'active',
-    },
-  ], { individualHooks: true });
+  await User.create({
+    name: 'Bob Smith',
+    email: 'bob@demo.com',
+    password: 'EmsDemo@2026',
+    role: 'employee',
+    companyId: company.id,
+    managerId: manager.id,
+    baseSalary: 38000,
+    department: 'Engineering',
+    status: 'active',
+  });
+
+  await User.create({
+    name: 'Carol Jones',
+    email: 'carol@demo.com',
+    password: 'EmsDemo@2026',
+    role: 'employee',
+    companyId: company.id,
+    managerId: manager.id,
+    baseSalary: 42000,
+    department: 'Design',
+    status: 'active',
+  });
 
   console.log('Seed data created successfully!');
 }

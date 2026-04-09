@@ -165,6 +165,13 @@ router.patch('/tasks/:id/approve-completion',     auth, requireRole('manager', '
 router.patch('/tasks/:id/refuse',                 auth, taskCtrl.refuseTask);
 router.delete('/tasks/:id',                       auth, requireRole('manager', 'admin', 'superadmin'), taskCtrl.deleteTask);
 
+// ─── Projects ─────────────────────────────────────────────────────────────────
+const projectCtrl = require('../controllers/projectController');
+router.get('/projects',       auth, projectCtrl.getProjects);
+router.post('/projects',      auth, requireRole('superadmin'), projectCtrl.createProject);
+router.put('/projects/:id',   auth, requireRole('superadmin'), projectCtrl.updateProject);
+router.delete('/projects/:id',auth, requireRole('superadmin'), projectCtrl.deleteProject);
+
 // ─── Proformas (PDF only — data stored client-side) ───────────────────────────
 const proformaCtrl = require('../controllers/proformaController');
 router.post('/proformas/pdf', auth, requireRole('superadmin'), proformaCtrl.generatePDF);
@@ -196,4 +203,68 @@ router.delete('/policies/:id',            auth, requireRole('superadmin', 'admin
 router.get('/policies/:id/download',      auth, policyCtrl.downloadPolicy);
 router.get('/policies/:id/view',          auth, policyCtrl.viewPolicy);
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// ─── ACCOUNTS MODULE — Interconnected Routes ──────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// ─── Vendors ──────────────────────────────────────────────────────────────────
+const vendorCtrl = require('../controllers/vendorController');
+router.get('/vendors',           auth, requireRole('superadmin'), vendorCtrl.getVendors);
+router.get('/vendors/:id',       auth, requireRole('superadmin'), vendorCtrl.getVendor);
+router.post('/vendors',          auth, requireRole('superadmin'), vendorCtrl.createVendor);
+router.put('/vendors/:id',       auth, requireRole('superadmin'), vendorCtrl.updateVendor);
+router.delete('/vendors/:id',    auth, requireRole('superadmin'), vendorCtrl.deleteVendor);
+
+// ─── Clients ──────────────────────────────────────────────────────────────────
+const clientCtrl = require('../controllers/clientController');
+router.get('/clients',           auth, requireRole('superadmin'), clientCtrl.getClients);
+router.get('/clients/:id',       auth, requireRole('superadmin'), clientCtrl.getClient);
+router.post('/clients',          auth, requireRole('superadmin'), clientCtrl.createClient);
+router.put('/clients/:id',       auth, requireRole('superadmin'), clientCtrl.updateClient);
+router.delete('/clients/:id',    auth, requireRole('superadmin'), clientCtrl.deleteClient);
+
+// ─── Quotations ───────────────────────────────────────────────────────────────
+const quotationCtrl = require('../controllers/quotationController');
+router.get('/quotations',                         auth, requireRole('superadmin'), quotationCtrl.getQuotations);
+router.get('/quotations/:id',                     auth, requireRole('superadmin'), quotationCtrl.getQuotation);
+router.post('/quotations',                        auth, requireRole('superadmin'), quotationCtrl.createQuotation);
+router.put('/quotations/:id',                     auth, requireRole('superadmin'), quotationCtrl.updateQuotation);
+router.delete('/quotations/:id',                  auth, requireRole('superadmin'), quotationCtrl.deleteQuotation);
+router.post('/quotations/:id/convert-to-proforma',auth, requireRole('superadmin'), quotationCtrl.convertToProforma);
+router.post('/quotations/:id/convert-to-invoice', auth, requireRole('superadmin'), quotationCtrl.convertToInvoice);
+
+// ─── Proformas (DB-backed CRUD + conversion) ──────────────────────────────────
+const proformaDbCtrl = require('../controllers/proformaDbController');
+router.get('/proformas-db',                          auth, requireRole('superadmin'), proformaDbCtrl.getProformas);
+router.get('/proformas-db/:id',                      auth, requireRole('superadmin'), proformaDbCtrl.getProforma);
+router.post('/proformas-db',                         auth, requireRole('superadmin'), proformaDbCtrl.createProforma);
+router.put('/proformas-db/:id',                      auth, requireRole('superadmin'), proformaDbCtrl.updateProforma);
+router.delete('/proformas-db/:id',                   auth, requireRole('superadmin'), proformaDbCtrl.deleteProforma);
+router.post('/proformas-db/:id/convert-to-invoice',  auth, requireRole('superadmin'), proformaDbCtrl.convertToInvoice);
+
+// ─── Purchase Orders ──────────────────────────────────────────────────────────
+const poCtrl = require('../controllers/purchaseOrderController');
+router.get('/purchase-orders',        auth, requireRole('superadmin'), poCtrl.getPurchaseOrders);
+router.get('/purchase-orders/:id',    auth, requireRole('superadmin'), poCtrl.getPurchaseOrder);
+router.post('/purchase-orders',       auth, requireRole('superadmin'), poCtrl.createPurchaseOrder);
+router.put('/purchase-orders/:id',    auth, requireRole('superadmin'), poCtrl.updatePurchaseOrder);
+router.delete('/purchase-orders/:id', auth, requireRole('superadmin'), poCtrl.deletePurchaseOrder);
+
+// ─── Work Orders (CWO + VWO) ─────────────────────────────────────────────────
+const woCtrl = require('../controllers/workOrderController');
+router.get('/work-orders',        auth, requireRole('superadmin'), woCtrl.getWorkOrders);
+router.get('/work-orders/:id',    auth, requireRole('superadmin'), woCtrl.getWorkOrder);
+router.post('/work-orders',       auth, requireRole('superadmin'), woCtrl.createWorkOrder);
+router.put('/work-orders/:id',    auth, requireRole('superadmin'), woCtrl.updateWorkOrder);
+router.delete('/work-orders/:id', auth, requireRole('superadmin'), woCtrl.deleteWorkOrder);
+
+// ─── Project Accounts ────────────────────────────────────────────────────────
+const paCtrl = require('../controllers/projectAccountController');
+router.get('/project-accounts',        auth, requireRole('superadmin'), paCtrl.getProjectAccounts);
+router.get('/project-accounts/:id',    auth, requireRole('superadmin'), paCtrl.getProjectAccount);
+router.post('/project-accounts',       auth, requireRole('superadmin'), paCtrl.createProjectAccount);
+router.put('/project-accounts/:id',    auth, requireRole('superadmin'), paCtrl.updateProjectAccount);
+router.delete('/project-accounts/:id', auth, requireRole('superadmin'), paCtrl.deleteProjectAccount);
+
 module.exports = router;
+

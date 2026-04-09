@@ -13,8 +13,19 @@ exports.getTasks = async (req, res) => {
     if (role === 'employee') {
       where.assignedTo = id;
     } else if (role === 'manager') {
-      where.assignedBy = id;
-      if (req.query.assignedTo) where.assignedTo = req.query.assignedTo;
+      if (req.query.scope === 'assigned_to_me') {
+        // tasks assigned TO this manager by admin/superadmin
+        where.assignedTo = id;
+      } else if (req.query.scope === 'assigned_by_me') {
+        // tasks this manager assigned to employees
+        where.assignedBy = id;
+        if (req.query.assignedTo) where.assignedTo = req.query.assignedTo;
+      } else {
+        // default: all tasks involving this manager
+        const { Op } = require('sequelize');
+        where[Op.or] = [{ assignedBy: id }, { assignedTo: id }];
+        if (req.query.assignedTo) where = { assignedTo: req.query.assignedTo, assignedBy: id };
+      }
     } else {
       where.companyId = companyId;
       if (req.query.assignedTo) where.assignedTo = req.query.assignedTo;

@@ -35,6 +35,9 @@ const Salary = sequelize.define('Salary', {
   salaryAdvance:   { type: DataTypes.FLOAT, defaultValue: 0 },
   deductions:      { type: DataTypes.FLOAT, defaultValue: 0 },  // total deductions (auto)
   absentDeduction: { type: DataTypes.FLOAT, defaultValue: 0 },
+  applyAbsentDeduction: { type: DataTypes.BOOLEAN, defaultValue: true },
+  manualDeductionDays: { type: DataTypes.FLOAT, defaultValue: 0 },
+  manualDeductionAmount: { type: DataTypes.FLOAT, defaultValue: 0 },
 
   // ── Net pay ───────────────────────────────────────────────────────
   netSalary: { type: DataTypes.FLOAT, defaultValue: 0 },
@@ -76,6 +79,7 @@ function calcNetSalary(salary) {
     ? Number(salary.totalWorkDays)
     : calDays;
   const workedDays = Math.max(0, payrollDays - (salary.leaveTaken || 0));
+  const absentDays = Math.max(0, Number(salary.absentDays || 0));
 
   // CTC = sum of all fixed salary components
   salary.baseSalary = (salary.basicSalary || 0) + (salary.hra || 0)
@@ -101,10 +105,17 @@ function calcNetSalary(salary) {
     + salary.medicalWorking + (salary.specialAllowance || 0) + (salary.bonus || 0) + (salary.ta || 0);
 
   // Total deductions
+  // If admin set a manual amount, use it directly; otherwise auto-calc from absent days
+  const manualDeductionAmount = Math.max(0, Number(salary.manualDeductionAmount || 0));
+  const perDayRate = payrollDays > 0 ? (salary.baseSalary || 0) / payrollDays : 0;
+  const absentDeduction = manualDeductionAmount > 0
+    ? r10(manualDeductionAmount)
+    : (payrollDays > 0 ? r10(perDayRate * absentDays) : 0);
+  salary.manualDeductionDays = 0; // no longer used in calculation
   const totalDed = (salary.pfContribution || 0) + (salary.professionTax || 0)
-    + (salary.tds || 0) + (salary.salaryAdvance || 0);
+    + (salary.tds || 0) + (salary.salaryAdvance || 0) + absentDeduction;
   salary.deductions      = totalDed;
-  salary.absentDeduction = 0; // handled via proportional calc
+  salary.absentDeduction = absentDeduction;
 
   salary.netSalary = salary.grossSalary - totalDed;
   if (salary.netSalary < 0) salary.netSalary = 0;

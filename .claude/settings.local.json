@@ -1,7 +1,8 @@
 {
   "permissions": {
     "allow": [
-      "Bash(node -e \"require\\(''./controllers/userController.js''\\); console.log\\(''userController OK''\\);\")"
+      "Bash(node -e \"require\\(''./controllers/userController.js''\\); console.log\\(''userController OK''\\);\")",
+      "Bash(powershell \"Get-ChildItem 'C:\\\\Program Files\\\\MySQL' -Recurse -Filter 'mysql.exe' -ErrorAction SilentlyContinue | Select-Object -ExpandProperty FullName\")"
     ]
   }
 }

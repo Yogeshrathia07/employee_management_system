@@ -1,0 +1,275 @@
+<%- include('../partials/head', {title: 'Projects'}) %>
+<div class="app-layout">
+  <%- include('../partials/sidebar-superadmin') %>
+  <div class="main-content">
+    <header class="page-header">
+      <div class="flex items-center gap-3">
+        <button class="mobile-menu-btn" onclick="openSidebar()"><i class="bx bx-menu"></i></button>
+        <div>
+          <div class="page-title"><i class="bx bxs-briefcase"></i> Projects</div>
+          <div class="page-subtitle">Assign projects to managers</div>
+        </div>
+      </div>
+      <div class="header-actions">
+        <button class="btn btn-primary" onclick="openCreate()"><i class="bx bx-plus"></i> New Project</button>
+      </div>
+    </header>
+
+    <div class="page-body admin-employees-page employee-shared-page">
+      <div class="employee-directory-shell">
+
+        <!-- Toolbar -->
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:18px;">
+          <span id="company-filter-container"></span>
+          <select id="status-filter" class="form-control" style="width:140px;" onchange="renderProjects()">
+            <option value="">All Status</option>
+            <option value="active">Active</option>
+            <option value="on_hold">On Hold</option>
+            <option value="completed">Completed</option>
+          </select>
+          <span id="project-count" style="font-size:13px;color:var(--text-muted);margin-left:4px;"></span>
+        </div>
+
+        <!-- Table -->
+        <div class="card">
+          <div class="table-wrapper">
+            <table>
+              <thead>
+                <tr>
+                  <th>Project Name</th>
+                  <th>Assigned Manager</th>
+                  <th>Department</th>
+                  <th>Status</th>
+                  <th>Description</th>
+                  <th>Created</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="projects-tbody">
+                <tr><td colspan="7" style="text-align:center;padding:60px;"><span class="spinner"></span></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Create / Edit Modal -->
+<div class="modal-overlay" id="form-modal">
+  <div class="modal" style="max-width:520px;">
+    <div class="modal-header">
+      <span class="modal-title" id="form-title">New Project</span>
+      <button class="modal-close" onclick="closeModal('form-modal')">×</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="edit-id">
+      <div class="form-group">
+        <label class="form-label">Project Name <span style="color:var(--danger)">*</span></label>
+        <input type="text" id="f-name" class="form-control" placeholder="e.g. Website Redesign">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Assign to Manager <span style="color:var(--danger)">*</span></label>
+        <select id="f-manager" class="form-control">
+          <option value="">— Select Manager —</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Status</label>
+        <select id="f-status" class="form-control">
+          <option value="active">Active</option>
+          <option value="on_hold">On Hold</option>
+          <option value="completed">Completed</option>
+        </select>
+      </div>
+      <div class="form-group mb-0">
+        <label class="form-label">Description</label>
+        <textarea id="f-desc" class="form-control" rows="3" placeholder="Brief project description..."></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('form-modal')">Cancel</button>
+      <button class="btn btn-primary" id="save-btn" onclick="saveProject()"><i class="bx bx-check"></i> Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Delete Confirm Modal -->
+<div class="modal-overlay" id="del-modal">
+  <div class="modal" style="max-width:400px;">
+    <div class="modal-header"><span class="modal-title">Delete Project</span><button class="modal-close" onclick="closeModal('del-modal')">×</button></div>
+    <div class="modal-body">
+      <p style="color:var(--text-secondary);font-size:14px;">Are you sure you want to delete <strong id="del-name"></strong>? This cannot be undone.</p>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('del-modal')">Cancel</button>
+      <button class="btn btn-danger" onclick="confirmDelete()"><i class="bx bx-trash"></i> Delete</button>
+    </div>
+  </div>
+</div>
+
+<script src="/js/api.js"></script>
+<script src="/js/sidebar-fix.js"></script>
+<script src="/js/admin-company-filter.js"></script>
+<script>
+var allProjects = [], allManagers = [], deleteId = null;
+
+var STATUS_LABEL = { active: 'Active', on_hold: 'On Hold', completed: 'Completed' };
+var STATUS_COLOR = { active: '#22c55e', on_hold: '#f59e0b', completed: '#6366f1' };
+var STATUS_BG    = { active: '#dcfce7', on_hold: '#fef3c7', completed: 'rgba(99,102,241,0.12)' };
+
+/* ── Render table ── */
+function renderProjects() {
+  var statusF = document.getElementById('status-filter').value;
+  var cid     = getSelectedCompanyId();
+  var data    = allProjects.filter(function(p) {
+    if (statusF && p.status !== statusF) return false;
+    if (cid && String(p.companyId) !== String(cid)) return false;
+    return true;
+  });
+
+  var countEl = document.getElementById('project-count');
+  if (countEl) countEl.textContent = data.length + ' project' + (data.length !== 1 ? 's' : '');
+
+  var tbody = document.getElementById('projects-tbody');
+  if (!data.length) {
+    tbody.innerHTML = '<tr><td colspan="7"><div class="empty-state"><div class="empty-icon"><i class="bx bxs-briefcase"></i></div><h3>No projects found</h3><p>Create one using the button above</p></div></td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = data.map(function(p) {
+    var mgr  = p.manager;
+    var dept = mgr ? (mgr.department || mgr.position || '—') : '—';
+    var sc   = STATUS_COLOR[p.status] || '#64748b';
+    var sb   = STATUS_BG[p.status]   || '#f1f5f9';
+    var sl   = STATUS_LABEL[p.status] || p.status;
+    var created = p.createdAt ? new Date(p.createdAt).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'}) : '—';
+    return '<tr>' +
+      '<td><div style="font-weight:700;font-size:13px;color:var(--text-primary);">' + escH(p.name) + '</div></td>' +
+      '<td>' +
+        '<div style="font-weight:600;font-size:13px;">' + (mgr ? escH(mgr.name) : '—') + '</div>' +
+        (mgr && mgr.email ? '<div style="font-size:11px;color:var(--text-muted);">' + escH(mgr.email) + '</div>' : '') +
+      '</td>' +
+      '<td style="font-size:12px;color:var(--text-muted);">' + escH(dept) + '</td>' +
+      '<td><span style="font-size:12px;font-weight:700;background:' + sb + ';color:' + sc + ';border-radius:12px;padding:3px 10px;">' + sl + '</span></td>' +
+      '<td style="font-size:12px;color:var(--text-muted);max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + escH(p.description || '—') + '</td>' +
+      '<td style="font-size:12px;color:var(--text-muted);">' + created + '</td>' +
+      '<td>' +
+        '<div style="display:flex;gap:5px;">' +
+          '<button class="btn btn-ghost btn-sm" onclick="openEdit(' + p.id + ')" title="Edit"><i class="bx bx-edit"></i></button>' +
+          '<button class="btn btn-danger btn-sm" onclick="openDelete(' + p.id + ',\'' + escH(p.name).replace(/'/g,"\\'") + '\')" title="Delete"><i class="bx bx-trash"></i></button>' +
+        '</div>' +
+      '</td>' +
+    '</tr>';
+  }).join('');
+}
+
+function escH(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+/* ── Load managers dropdown ── */
+async function loadManagers() {
+  try {
+    var url = '/users?role=manager';
+    var cid = getSelectedCompanyId();
+    if (cid) url += '&companyId=' + cid;
+    var users = await api('GET', url);
+    allManagers = (users || []).filter(function(u) { return u.role === 'manager'; });
+    populateManagerSelect();
+  } catch(e) { /* ignore */ }
+}
+
+function populateManagerSelect() {
+  var sel = document.getElementById('f-manager');
+  var cur = sel.value;
+  sel.innerHTML = '<option value="">— Select Manager —</option>' +
+    allManagers.map(function(m) {
+      return '<option value="' + m.id + '">' + escH(m.name) + (m.department ? ' (' + m.department + ')' : '') + '</option>';
+    }).join('');
+  if (cur) sel.value = cur;
+}
+
+/* ── Load all projects ── */
+async function reloadPageData() {
+  try {
+    var url = '/projects';
+    var cid = getSelectedCompanyId();
+    if (cid) url += '?companyId=' + cid;
+    allProjects = await api('GET', url);
+    await loadManagers();
+    renderProjects();
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+/* ── Create modal ── */
+function openCreate() {
+  document.getElementById('edit-id').value = '';
+  document.getElementById('form-title').textContent = 'New Project';
+  document.getElementById('f-name').value   = '';
+  document.getElementById('f-manager').value= '';
+  document.getElementById('f-status').value = 'active';
+  document.getElementById('f-desc').value   = '';
+  populateManagerSelect();
+  openModal('form-modal');
+}
+
+/* ── Edit modal ── */
+function openEdit(id) {
+  var p = allProjects.find(function(x){ return x.id === id; });
+  if (!p) return;
+  document.getElementById('edit-id').value    = p.id;
+  document.getElementById('form-title').textContent = 'Edit Project';
+  document.getElementById('f-name').value     = p.name;
+  document.getElementById('f-status').value   = p.status;
+  document.getElementById('f-desc').value     = p.description || '';
+  populateManagerSelect();
+  document.getElementById('f-manager').value  = p.managerId;
+  openModal('form-modal');
+}
+
+/* ── Save ── */
+async function saveProject() {
+  var id      = document.getElementById('edit-id').value;
+  var name    = document.getElementById('f-name').value.trim();
+  var manager = document.getElementById('f-manager').value;
+  var status  = document.getElementById('f-status').value;
+  var desc    = document.getElementById('f-desc').value.trim();
+  if (!name)    return toast('Project name is required', 'error');
+  if (!manager) return toast('Please select a manager', 'error');
+
+  var cid = getSelectedCompanyId();
+  var body = { name, managerId: Number(manager), status, description: desc };
+  if (cid) body.companyId = Number(cid);
+
+  try {
+    if (id) {
+      await api('PUT', '/projects/' + id, body);
+      toast('Project updated', 'success');
+    } else {
+      await api('POST', '/projects', body);
+      toast('Project created and assigned to manager', 'success');
+    }
+    closeModal('form-modal');
+    reloadPageData();
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+/* ── Delete ── */
+function openDelete(id, name) {
+  deleteId = id;
+  document.getElementById('del-name').textContent = name;
+  openModal('del-modal');
+}
+async function confirmDelete() {
+  try {
+    await api('DELETE', '/projects/' + deleteId);
+    toast('Project deleted', 'success');
+    closeModal('del-modal');
+    reloadPageData();
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+initCompanyFilter().then(reloadPageData);
+</script>
+</body></html>

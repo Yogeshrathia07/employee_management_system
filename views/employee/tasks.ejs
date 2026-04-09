@@ -14,27 +14,68 @@
     </header>
     <div class="page-body admin-employees-page employee-shared-page">
       <div class="employee-directory-shell">
-        <div class="admin-toolbar" style="margin-bottom:20px;">
+
+        <!-- Filters -->
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:16px;">
           <div class="toggle-group mb-0">
-            <button class="toggle-btn active" id="f-all" onclick="filter('all')">All</button>
-            <button class="toggle-btn" id="f-todo" onclick="filter('todo')">To Do</button>
-            <button class="toggle-btn" id="f-in_progress" onclick="filter('in_progress')">In Progress</button>
-            <button class="toggle-btn" id="f-done" onclick="filter('done')">Done</button>
+            <button class="toggle-btn active" id="f-all"         onclick="filter('all')">All</button>
+            <button class="toggle-btn"        id="f-todo"        onclick="filter('todo')">To Do</button>
+            <button class="toggle-btn"        id="f-in_progress" onclick="filter('in_progress')">In Progress</button>
+            <button class="toggle-btn"        id="f-done"        onclick="filter('done')">Done</button>
+          </div>
+          <select id="f-priority" class="form-control" style="max-width:160px;" onchange="render()">
+            <option value="">All Priorities</option>
+            <option value="high">High</option>
+            <option value="medium">Medium</option>
+            <option value="low">Low</option>
+          </select>
+          <span style="font-size:13px;color:var(--text-muted);" id="task-count"></span>
+        </div>
+
+        <!-- Table -->
+        <div class="card">
+          <div class="table-wrapper">
+            <table>
+              <thead>
+                <tr>
+                  <th>Task / Project</th>
+                  <th>Priority</th>
+                  <th>Due Date</th>
+                  <th>Status</th>
+                  <th>Approval</th>
+                  <th>Assigned By</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="tasks-tbody">
+                <tr><td colspan="7" style="text-align:center;padding:60px;"><span class="spinner"></span></td></tr>
+              </tbody>
+            </table>
           </div>
         </div>
-        <div id="tasks-grid" class="leave-card-grid task-review-grid">
-          <div style="text-align:center;padding:60px;grid-column:1/-1;"><span class="spinner"></span></div>
-        </div>
+
       </div>
     </div>
   </div>
 </div>
 
+<!-- View Task Modal -->
+<div class="modal-overlay" id="view-modal">
+  <div class="modal" style="max-width:560px">
+    <div class="modal-header"><span class="modal-title">Task Details</span><button class="modal-close" onclick="closeModal('view-modal')">×</button></div>
+    <div class="modal-body" id="view-body"></div>
+    <div class="modal-footer" id="view-footer">
+      <button class="btn btn-ghost" onclick="closeModal('view-modal')">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- Refuse Modal -->
 <div class="modal-overlay" id="refuse-modal">
   <div class="modal" style="max-width:460px;">
     <div class="modal-header">
       <span class="modal-title">Refuse Task</span>
-      <button class="modal-close" onclick="closeModal('refuse-modal')">x</button>
+      <button class="modal-close" onclick="closeModal('refuse-modal')">×</button>
     </div>
     <div class="modal-body">
       <input type="hidden" id="refuse-task-id">
@@ -60,9 +101,8 @@ let allTasks = [];
 let currentFilter = 'all';
 
 const PRIORITY_COLOR = { low:'#22c55e', medium:'#f59e0b', high:'#ef4444' };
-const PRIORITY_BG = { low:'rgba(34,197,94,0.1)', medium:'rgba(245,158,11,0.1)', high:'rgba(239,68,68,0.1)' };
-const STATUS_LABEL = { todo:'To Do', in_progress:'In Progress', done:'Done' };
-const STATUS_ICON = { todo:'bx-circle', in_progress:'bx-loader-alt', done:'bxs-check-circle' };
+const PRIORITY_BG    = { low:'rgba(34,197,94,0.1)', medium:'rgba(245,158,11,0.1)', high:'rgba(239,68,68,0.1)' };
+const STATUS_LABEL   = { todo:'To Do', in_progress:'In Progress', done:'Done' };
 
 function filter(f) {
   currentFilter = f;
@@ -72,88 +112,126 @@ function filter(f) {
   render();
 }
 
-function getApprovalBadge(t) {
-  if (t.approvalStatus === 'pending_approval') {
-    return '<div class="task-approval-box pending"><i class="bx bxs-time"></i>Completion request sent - awaiting manager approval</div>';
-  }
-  if (t.approvalStatus === 'approved') {
-    return '<div class="task-approval-box approved"><i class="bx bxs-check-circle"></i>Manager approved - task completed!</div>';
-  }
-  if (t.approvalStatus === 'refused') {
-    return '<div class="task-approval-box rejected"><i class="bx bx-x-circle"></i><strong>Task refused:</strong> ' + (t.refusalReason || '-') + '</div>';
-  }
-  return '';
-}
-
-function getActionButtons(t) {
-  if (t.approvalStatus === 'refused') {
-    return '<span class="btn btn-danger btn-sm" style="pointer-events:none;"><i class="bx bx-x-circle"></i> Refused</span>';
-  }
-  if (t.approvalStatus === 'pending_approval') {
-    return '<span class="btn btn-ghost btn-sm" style="pointer-events:none;"><i class="bx bxs-time"></i> Awaiting Approval</span>';
-  }
-  if (t.approvalStatus === 'approved' || t.status === 'done') {
-    return '<span class="btn btn-success btn-sm" style="pointer-events:none;"><i class="bx bxs-check-circle"></i> Completed</span>';
-  }
-
-  var btns = '';
-  if (t.status === 'todo') {
-    btns += '<button class="btn btn-ghost btn-sm" onclick="startTask(' + t.id + ')"><i class="bx bx-play"></i> Start</button>';
-  }
-  if (t.status === 'in_progress') {
-    btns += '<button class="btn btn-primary btn-sm" onclick="requestCompletion(' + t.id + ')"><i class="bx bx-check-double"></i> Request Completion</button>';
-  }
-  btns += '<button class="btn btn-danger btn-sm" onclick="openRefuse(' + t.id + ')" title="Refuse this task"><i class="bx bx-x"></i> Refuse</button>';
-  return btns;
-}
-
 function render() {
-  const tasks = currentFilter === 'all' ? allTasks : allTasks.filter(function(t) { return t.status === currentFilter; });
-  const grid = document.getElementById('tasks-grid');
+  var priority = document.getElementById('f-priority').value;
+  var tasks = allTasks.filter(function(t) {
+    if (currentFilter !== 'all' && t.status !== currentFilter) return false;
+    if (priority && t.priority !== priority) return false;
+    return true;
+  });
+
+  var countEl = document.getElementById('task-count');
+  if (countEl) countEl.textContent = tasks.length + ' task' + (tasks.length !== 1 ? 's' : '');
+
+  var tbody = document.getElementById('tasks-tbody');
   if (!tasks.length) {
-    grid.innerHTML = '<div style="text-align:center;grid-column:1/-1;padding:80px 20px;color:var(--text-muted);"><i class="bx bxs-check-square" style="font-size:56px;opacity:0.25;"></i><p style="margin-top:14px;font-size:15px;">No tasks found</p></div>';
+    tbody.innerHTML = '<tr><td colspan="7"><div class="empty-state"><div class="empty-icon"><i class="bx bxs-check-square"></i></div><h3>No tasks found</h3><p>No tasks match the selected filter</p></div></td></tr>';
     return;
   }
 
-  grid.innerHTML = tasks.map(function(t) {
+  tbody.innerHTML = tasks.map(function(t) {
     var isOverdue = t.dueDate && new Date(t.dueDate) < new Date() && t.status !== 'done';
-    var dueTxt = t.dueDate ? new Date(t.dueDate).toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric' }) : '';
-    var dot = t.status === 'done' ? '#22c55e' : t.status === 'in_progress' ? '#f59e0b' : 'var(--text-muted)';
+    var dueStr = t.dueDate ? new Date(t.dueDate).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'}) : '—';
 
-    return '<div class="leave-review-card task-review-card task-priority-' + t.priority + '">' +
-      '<div class="leave-review-top">' +
-        '<div class="leave-review-title-row">' +
-          '<div class="leave-review-icon"><i class="bx bx-task"></i></div>' +
-          '<div><div class="leave-review-title">' + t.title + '</div><div class="leave-review-days">' + STATUS_LABEL[t.status] + '</div></div>' +
+    var approvalCell = '—';
+    if (t.approvalStatus === 'pending_approval') {
+      approvalCell = '<span style="font-size:11px;font-weight:700;color:#f59e0b;"><i class="bx bxs-time"></i> Awaiting</span>';
+    } else if (t.approvalStatus === 'approved') {
+      approvalCell = '<span style="font-size:11px;font-weight:700;color:#22c55e;"><i class="bx bxs-check-circle"></i> Approved</span>';
+    } else if (t.approvalStatus === 'refused') {
+      approvalCell = '<span style="font-size:11px;font-weight:700;color:#ef4444;"><i class="bx bx-x-circle"></i> Refused</span>';
+    }
+
+    var statusBadgeClass = t.status === 'done' ? 'success' : t.status === 'in_progress' ? 'warning' : 'ghost';
+
+    return '<tr>' +
+      '<td>' +
+        '<div style="font-weight:600;font-size:13px;">' + t.title + '</div>' +
+        (t.projectName ? '<div style="font-size:11px;color:var(--accent);font-weight:600;margin-top:2px;"><i class="bx bx-folder" style="font-size:10px;"></i> ' + t.projectName + '</div>' : '') +
+        (t.description ? '<div style="font-size:11px;color:var(--text-muted);margin-top:1px;">' + t.description.slice(0,60) + (t.description.length>60?'…':'') + '</div>' : '') +
+      '</td>' +
+      '<td><span style="font-size:12px;font-weight:700;background:' + PRIORITY_BG[t.priority] + ';color:' + PRIORITY_COLOR[t.priority] + ';border-radius:12px;padding:2px 9px;text-transform:capitalize;">' + t.priority + '</span></td>' +
+      '<td style="font-size:12px;' + (isOverdue?'color:#ef4444;font-weight:700;':'color:var(--text-muted);') + '">' + dueStr + (isOverdue?' <span style="font-size:10px;">(overdue)</span>':'') + '</td>' +
+      '<td><span class="badge badge-' + statusBadgeClass + '">' + STATUS_LABEL[t.status] + '</span></td>' +
+      '<td>' + approvalCell + '</td>' +
+      '<td style="font-size:12px;color:var(--text-muted);">' + (t.assigner ? t.assigner.name : '—') + '</td>' +
+      '<td>' +
+        '<div style="display:flex;gap:5px;flex-wrap:wrap;">' +
+          '<button class="btn btn-ghost btn-sm" onclick="viewTask(' + t.id + ')" title="View"><i class="bx bx-show"></i></button>' +
+          getActionButtons(t) +
         '</div>' +
-        '<span class="task-priority-pill" style="background:' + PRIORITY_BG[t.priority] + ';color:' + PRIORITY_COLOR[t.priority] + ';">' + t.priority + '</span>' +
-      '</div>' +
-      '<div class="leave-review-body">' +
-        (t.description ? '<div class="leave-review-note">' + t.description + '</div>' : '') +
-        '<div class="leave-review-meta"><i class="bx ' + STATUS_ICON[t.status] + '" style="color:' + dot + ';"></i>' + STATUS_LABEL[t.status] + '</div>' +
-        (t.dueDate ? '<div class="leave-review-by"><i class="bx bx-calendar"></i> Due ' + dueTxt + (isOverdue ? ' <span style="color:#ef4444;font-weight:700;">Overdue</span>' : '') + '</div>' : '') +
-        '<div class="leave-review-by"><i class="bx bx-user"></i> ' + (t.assigner ? t.assigner.name : 'Manager') + '</div>' +
-        (getApprovalBadge(t) ? '<div class="task-approval-wrap">' + getApprovalBadge(t) + '</div>' : '') +
-        '<div class="leave-review-actions">' + getActionButtons(t) + '</div>' +
-      '</div>' +
-    '</div>';
+      '</td>' +
+    '</tr>';
   }).join('');
 }
 
+function getActionButtons(t) {
+  if (t.approvalStatus === 'refused' || t.approvalStatus === 'approved' || t.status === 'done') return '';
+  if (t.approvalStatus === 'pending_approval') return '';
+  var btns = '';
+  if (t.status === 'todo') {
+    btns += '<button class="btn btn-ghost btn-sm" onclick="startTask(' + t.id + ')"><i class="bx bx-play"></i></button>';
+  }
+  if (t.status === 'in_progress') {
+    btns += '<button class="btn btn-primary btn-sm" onclick="requestCompletion(' + t.id + ')"><i class="bx bx-check-double"></i></button>';
+  }
+  btns += '<button class="btn btn-danger btn-sm" onclick="openRefuse(' + t.id + ')" title="Refuse"><i class="bx bx-x"></i></button>';
+  return btns;
+}
+
+function viewTask(id) {
+  var t = allTasks.find(function(x){ return x.id === id; });
+  if (!t) return;
+  var isOverdue = t.dueDate && new Date(t.dueDate) < new Date() && t.status !== 'done';
+  var dueStr = t.dueDate ? new Date(t.dueDate).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'}) : '—';
+
+  var approvalHtml = '';
+  if (t.approvalStatus === 'pending_approval') {
+    approvalHtml = '<div style="background:#fef3c7;border:1px solid #fde68a;border-radius:10px;padding:10px 14px;font-size:13px;color:#92400e;margin-top:14px;"><i class="bx bxs-time"></i> Completion request sent — awaiting manager approval</div>';
+  } else if (t.approvalStatus === 'approved') {
+    approvalHtml = '<div style="background:#d1fae5;border:1px solid #a7f3d0;border-radius:10px;padding:10px 14px;font-size:13px;color:#065f46;margin-top:14px;"><i class="bx bxs-check-circle"></i> Manager approved — task completed!</div>';
+  } else if (t.approvalStatus === 'refused') {
+    approvalHtml = '<div style="background:#fee2e2;border:1px solid #fecaca;border-radius:10px;padding:10px 14px;font-size:13px;color:#991b1b;margin-top:14px;"><i class="bx bx-x-circle"></i> <strong>Refused:</strong> ' + (t.refusalReason || '—') + '</div>';
+  }
+
+  document.getElementById('view-body').innerHTML =
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">' +
+      '<div style="background:var(--bg-input);border-radius:12px;padding:12px;grid-column:1/-1;">' +
+        '<div class="detail-label">Title</div>' +
+        '<div style="font-weight:700;font-size:15px;color:var(--text-primary);margin-top:4px;">' + t.title + '</div>' +
+        (t.projectName ? '<div style="font-size:12px;color:var(--accent);font-weight:600;margin-top:4px;"><i class="bx bx-folder"></i> ' + t.projectName + '</div>' : '') +
+      '</div>' +
+      '<div style="background:var(--bg-input);border-radius:12px;padding:12px;"><div class="detail-label">Priority</div><div style="font-weight:600;color:' + PRIORITY_COLOR[t.priority] + ';text-transform:capitalize;margin-top:4px;">' + t.priority + '</div></div>' +
+      '<div style="background:var(--bg-input);border-radius:12px;padding:12px;"><div class="detail-label">Status</div><div style="margin-top:4px;">' + STATUS_LABEL[t.status] + '</div></div>' +
+      '<div style="background:var(--bg-input);border-radius:12px;padding:12px;"><div class="detail-label">Due Date</div><div style="margin-top:4px;' + (isOverdue?'color:#ef4444;font-weight:700;':'') + '">' + dueStr + (isOverdue?' (overdue)':'') + '</div></div>' +
+      '<div style="background:var(--bg-input);border-radius:12px;padding:12px;"><div class="detail-label">Assigned By</div><div style="margin-top:4px;">' + (t.assigner ? t.assigner.name : '—') + '</div></div>' +
+    '</div>' +
+    (t.description ? '<div style="margin-top:14px;background:var(--bg-input);border-radius:12px;padding:12px;"><div class="detail-label">Description</div><div style="margin-top:4px;font-size:13px;color:var(--text-secondary);">' + t.description + '</div></div>' : '') +
+    approvalHtml;
+
+  // Footer action buttons
+  var footer = document.getElementById('view-footer');
+  var actionHtml = '<button class="btn btn-ghost" onclick="closeModal(\'view-modal\')">Close</button>';
+  if (t.approvalStatus !== 'refused' && t.approvalStatus !== 'approved' && t.status !== 'done' && t.approvalStatus !== 'pending_approval') {
+    if (t.status === 'todo') {
+      actionHtml += '<button class="btn btn-primary" onclick="startTask(' + t.id + ');closeModal(\'view-modal\');"><i class="bx bx-play"></i> Start Task</button>';
+    } else if (t.status === 'in_progress') {
+      actionHtml += '<button class="btn btn-primary" onclick="requestCompletion(' + t.id + ');closeModal(\'view-modal\');"><i class="bx bx-check-double"></i> Request Completion</button>';
+    }
+    actionHtml += '<button class="btn btn-danger" onclick="openRefuse(' + t.id + ');closeModal(\'view-modal\');"><i class="bx bx-x"></i> Refuse</button>';
+  }
+  footer.innerHTML = actionHtml;
+  openModal('view-modal');
+}
+
 async function startTask(id) {
-  try {
-    await api('PATCH', '/tasks/' + id + '/status', { status: 'in_progress' });
-    toast('Task started!', 'success');
-    loadTasks();
-  } catch(e) { toast(e.message, 'error'); }
+  try { await api('PATCH', '/tasks/' + id + '/status', { status: 'in_progress' }); toast('Task started!', 'success'); loadTasks(); }
+  catch(e) { toast(e.message, 'error'); }
 }
 
 async function requestCompletion(id) {
-  try {
-    await api('PATCH', '/tasks/' + id + '/request-completion', {});
-    toast('Completion request sent to manager!', 'success');
-    loadTasks();
-  } catch(e) { toast(e.message, 'error'); }
+  try { await api('PATCH', '/tasks/' + id + '/request-completion', {}); toast('Completion request sent to manager!', 'success'); loadTasks(); }
+  catch(e) { toast(e.message, 'error'); }
 }
 
 function openRefuse(id) {
@@ -163,11 +241,11 @@ function openRefuse(id) {
 }
 
 async function submitRefuse() {
-  const id = document.getElementById('refuse-task-id').value;
-  const reason = document.getElementById('refuse-reason').value.trim();
+  var id = document.getElementById('refuse-task-id').value;
+  var reason = document.getElementById('refuse-reason').value.trim();
   if (!reason) return toast('Please enter a reason for refusing', 'error');
   try {
-    await api('PATCH', '/tasks/' + id + '/refuse', { reason: reason });
+    await api('PATCH', '/tasks/' + id + '/refuse', { reason });
     toast('Task refused. Your manager has been notified.', 'info');
     closeModal('refuse-modal');
     loadTasks();
@@ -175,10 +253,8 @@ async function submitRefuse() {
 }
 
 async function loadTasks() {
-  try {
-    allTasks = await api('GET', '/tasks');
-    render();
-  } catch(e) { toast(e.message, 'error'); }
+  try { allTasks = await api('GET', '/tasks'); render(); }
+  catch(e) { toast(e.message, 'error'); }
 }
 
 loadTasks();

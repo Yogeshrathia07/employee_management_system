@@ -550,23 +550,28 @@ body.modal-open{overflow:hidden;}
 .employee-dashboard-shell .quick-action{border:1px solid #e5e7eb;border-radius:16px;box-shadow:0 1px 4px rgba(0,0,0,0.05);}
 .employee-dashboard-shell .quick-action:hover{box-shadow:0 4px 12px rgba(0,0,0,0.08);}
 .employee-dashboard-shell .qa-icon{background:#f3f4f6;color:#374151;border-radius:16px;}
-.employee-overview-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:16px;margin-bottom:24px;justify-content:start;}
-.employee-overview-card{background:#fff;border:1px solid #e5e7eb;border-radius:24px;padding:22px;box-shadow:0 4px 16px rgba(0,0,0,0.06);display:flex;flex-direction:column;gap:18px;min-height:162px;justify-content:space-between;}
+.employee-overview-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,240px));gap:18px;margin-bottom:24px;justify-content:center;}
+.employee-overview-card{background:#fff;border:1px solid #e5e7eb;border-radius:24px;padding:20px;box-shadow:0 6px 20px rgba(15,23,42,0.05);display:flex;flex-direction:column;gap:16px;min-height:148px;justify-content:space-between;position:relative;overflow:hidden;}
 .employee-overview-nav{text-decoration:none;color:inherit;}
-.employee-overview-card.highlight-orange{border-color:#e5e7eb;}
-.employee-overview-card.highlight-purple{border-color:#e5e7eb;}
+.employee-overview-card::before{content:'';position:absolute;inset:0 0 auto 0;height:3px;background:#d1d5db;opacity:.9;}
+.employee-overview-card.highlight-orange::before{background:#ef4444;}
+.employee-overview-card.highlight-purple::before{background:#64748b;}
+.employee-overview-card.highlight-green::before{background:#16a34a;}
+.employee-overview-card.highlight-blue::before{background:#2563eb;}
+.employee-overview-card.highlight-gray::before{background:#6b7280;}
 .employee-overview-head{display:flex;align-items:flex-start;gap:14px;}
-.employee-overview-icon{width:50px;height:50px;border-radius:16px;display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0;}
-.employee-overview-icon.blue{background:#f3f4f6;color:#374151;}
-.employee-overview-icon.green{background:#f3f4f6;color:#374151;}
-.employee-overview-icon.orange{background:#f3f4f6;color:#374151;}
-.employee-overview-icon.purple{background:#f3f4f6;color:#374151;}
-.employee-overview-icon.teal{background:#f3f4f6;color:#374151;}
-.employee-overview-label{font-size:13px;color:#9ca3af;font-weight:500;margin-bottom:4px;}
-.employee-overview-value{font-size:24px;font-weight:500;color:#111111;line-height:1.1;}
-.employee-overview-link{display:flex;align-items:center;justify-content:center;min-height:36px;padding:0 16px;border:1px solid #e5e7eb;border-radius:12px;background:#fff;color:#374151;font-size:13px;font-weight:700;text-align:center;}
+.employee-overview-icon{width:48px;height:48px;border-radius:16px;display:flex;align-items:center;justify-content:center;font-size:21px;flex-shrink:0;}
+.employee-overview-icon.blue{background:#eff6ff;color:#2563eb;}
+.employee-overview-icon.green{background:#f0fdf4;color:#16a34a;}
+.employee-overview-icon.orange{background:#fef2f2;color:#ef4444;}
+.employee-overview-icon.purple{background:#f5f3ff;color:#7c3aed;}
+.employee-overview-icon.teal{background:#f0fdfa;color:#0f766e;}
+.employee-overview-icon.gray{background:#f3f4f6;color:#374151;}
+.employee-overview-label{font-size:13px;color:#6b7280;font-weight:600;margin-bottom:2px;}
+.employee-overview-value{font-size:30px;font-weight:600;color:#111111;line-height:1.1;display:none;}
+.employee-overview-link{display:flex;align-items:center;justify-content:center;min-height:36px;padding:0 16px;border:1px solid #e5e7eb;border-radius:12px;background:#fafafa;color:#374151;font-size:13px;font-weight:700;text-align:center;}
 .employee-overview-link::before{content:'\2192';margin-right:8px;font-size:14px;line-height:1;}
-.employee-overview-link.emphasis{background:#fff;border-color:#e5e7eb;color:#374151;}
+.employee-overview-link.emphasis{background:#fafafa;border-color:#e5e7eb;color:#374151;}
 .leave-toolbar{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:20px;}
 .leave-card-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;justify-content:start;}
 .leave-review-card{background:#fff;border:1px solid #e8eef9;border-radius:18px;padding:13px;box-shadow:0 8px 18px rgba(185,196,226,0.08);display:flex;flex-direction:column;gap:10px;}
