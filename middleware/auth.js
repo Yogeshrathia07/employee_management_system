@@ -23,6 +23,33 @@ const auth = async (req, res, next) => {
     if (user.status === 'inactive') return res.status(403).json({ message: 'Account is inactive' });
 
     req.user = user;
+
+    const requiresDocLock =
+      user.role === 'employee' &&
+      ['pending_docs', 'docs_submitted'].includes(user.verificationStatus);
+
+    if (requiresDocLock) {
+      const allowedPrefixes = [
+        '/auth/login',
+        '/users/me',
+        '/users/me/profile',
+        '/users/change-password',
+        '/users/me/photo',
+        '/documents',
+      ];
+
+      const currentPath = req.path || '';
+      const isAllowed = allowedPrefixes.some(prefix => currentPath === prefix || currentPath.startsWith(prefix + '/'));
+
+      if (!isAllowed) {
+        return res.status(403).json({
+          message: 'Document verification required',
+          lockPath: '/employee/documents',
+          verificationStatus: user.verificationStatus,
+        });
+      }
+    }
+
     next();
   } catch (err) {
     return res.status(401).json({ message: 'Invalid token' });

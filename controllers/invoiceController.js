@@ -6,7 +6,7 @@ const PDFDocument = require('pdfkit');
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function fmtINR(n) {
-  return '₹ ' + Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return 'Rs. ' + Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
 function fmtDate(s) {
@@ -162,18 +162,17 @@ exports.downloadPDF = async (req, res) => {
     doc.pipe(res);
 
     // ── Constants ────────────────────────────────────────────────────────────
-    const M   = 30;           // page margin
+    const M   = 20;           // page margin
     const PW  = 595;          // page width
     const PH  = 842;          // page height
-    const W   = PW - M * 2;  // 535 usable width
+    const W   = PW - M * 2;  // 555 usable width
     const X   = M;
     const BLK = '#000000';
     const DRK = '#1a1a1a';
     const GRY = '#555555';
     const LGY = '#888888';
     const HBG = '#f2f2f2';   // header row background
-    const LBD = 0.4;         // light border width
-    const HBD = 1.0;         // heavy border width
+    const LBD = 0.5;         // unified border width (all lines same thickness)
 
     // ── Drawing helpers ──────────────────────────────────────────────────────
     function hLine(y, x1, x2, lw) {
@@ -254,37 +253,37 @@ exports.downloadPDF = async (req, res) => {
     ].filter(Boolean);
 
     // estimate header box height
-    let hBoxH = 16; // padding
+    let hBoxH = 8;
     compLines.forEach((l, i) => {
-      const sz = i === 0 ? 13 : 7.5;
+      const sz = i === 0 ? 12 : 7.5;
       const bold = i === 0;
-      hBoxH += txtH(l, HW - 16, sz, bold) + 2;
+      hBoxH += txtH(l, HW - 14, sz, bold) + 1.5;
     });
-    const hBoxHRight = metaRight.reduce((s, l, i) => s + txtH(l, HW - 12, i === 0 ? 9 : 7.5, i === 0) + 2, 8);
-    const headerH = Math.max(hBoxH, hBoxHRight) + 8;
+    const hBoxHRight = metaRight.reduce((s, l, i) => s + txtH(l, HW - 12, i === 0 ? 8.5 : 7.5, i === 0) + 1.5, 5);
+    const headerH = Math.max(hBoxH, hBoxHRight) + 5;
 
-    // Draw outer box
-    box(X, y, W, headerH, HBD);
+    // Draw outer box (same weight as all other boxes)
+    box(X, y, W, headerH, LBD);
     // Vertical divider
     vLine(X + HW, y, y + headerH, LBD);
 
     // LEFT: Company info
-    let ly = y + 6;
+    let ly = y + 5;
     compLines.forEach((line, i) => {
       if (!line) return;
-      const sz   = i === 0 ? 13 : 7.5;
+      const sz   = i === 0 ? 12 : 7.5;
       const bold = i === 0;
-      txt(line, X + 6, ly, HW - 12, { size: sz, bold, color: BLK, lineGap: 1 });
-      ly = doc.y + (i === 0 ? 3 : 1);
+      txt(line, X + 5, ly, HW - 10, { size: sz, bold, color: BLK, lineGap: 0.5 });
+      ly = doc.y + (i === 0 ? 2 : 1);
     });
 
     // RIGHT: Invoice meta
-    let ry = y + 6;
+    let ry = y + 5;
     metaRight.forEach((line, i) => {
       if (!line) return;
       const bold = i === 0;
-      const sz   = i === 0 ? 9 : 7.5;
-      txt(line, RX + 4, ry, HW - 10, { size: sz, bold, color: BLK, align: 'right', lineGap: 1 });
+      const sz   = i === 0 ? 8.5 : 7.5;
+      txt(line, RX + 4, ry, HW - 10, { size: sz, bold, color: BLK, align: 'right', lineGap: 0.5 });
       ry = doc.y + 1;
     });
 
@@ -294,10 +293,10 @@ exports.downloadPDF = async (req, res) => {
     // 2. BILL TO
     // ════════════════════════════════════════════════════════════════════════
     // Label row
-    fillBox(X, y, W, 14, HBG);
-    box(X, y, W, 14, LBD);
-    txt('Bill To:', X + 6, y + 3, W - 12, { size: 8, bold: true, color: BLK });
-    y += 14;
+    fillBox(X, y, W, 11, HBG);
+    box(X, y, W, 11, LBD);
+    txt('Bill To:', X + 5, y + 2, W - 10, { size: 7.5, bold: true, color: BLK });
+    y += 11;
 
     // Content: left = customer name+address, right = GSTIN/PAN/email/state
     const custLeft = [
@@ -310,24 +309,24 @@ exports.downloadPDF = async (req, res) => {
       inv.customerState  ? 'State: ' + inv.customerState + (inv.customerStateCode ? ', Code: ' + inv.customerStateCode : '') : '',
     ].filter(Boolean);
 
-    let billH = 10;
-    custLeft.forEach((l, i) => { billH += txtH(l, HW - 14, i === 0 ? 9 : 7.5, i === 0) + 2; });
-    const billHR = custRight.reduce((s, l) => s + txtH(l, HW - 14, 7.5, false) + 2, 10);
-    const billBoxH = Math.max(billH, billHR) + 4;
+    let billH = 6;
+    custLeft.forEach((l, i) => { billH += txtH(l, HW - 12, i === 0 ? 8.5 : 7.5, i === 0) + 1.5; });
+    const billHR = custRight.reduce((s, l) => s + txtH(l, HW - 12, 7.5, false) + 1.5, 6);
+    const billBoxH = Math.max(billH, billHR) + 3;
 
     box(X, y, W, billBoxH, LBD);
     vLine(X + HW, y, y + billBoxH, LBD);
 
-    let by = y + 5, bry = y + 5;
+    let by = y + 4, bry = y + 4;
     custLeft.forEach((line, i) => {
       if (!line) return;
-      txt(line, X + 6, by, HW - 14, { size: i === 0 ? 9 : 7.5, bold: i === 0, color: BLK });
-      by = doc.y + 1;
+      txt(line, X + 5, by, HW - 10, { size: i === 0 ? 8.5 : 7.5, bold: i === 0, color: BLK });
+      by = doc.y + 0.5;
     });
     custRight.forEach(line => {
       if (!line) return;
       txt(line, RX + 4, bry, HW - 10, { size: 7.5, color: BLK });
-      bry = doc.y + 1;
+      bry = doc.y + 0.5;
     });
 
     y += billBoxH;
@@ -342,132 +341,136 @@ exports.downloadPDF = async (req, res) => {
         inv.workDetails ? 'Work Details: ' + inv.workDetails : '',
       ].filter(Boolean);
 
-      let woH = 8;
-      woLines.forEach(l => { woH += txtH(l, W - 14, 7.5, false) + 2; });
-      woH += 4;
+      let woH = 5;
+      woLines.forEach(l => { woH += txtH(l, W - 12, 7.5, false) + 1.5; });
+      woH += 3;
 
       y = checkPage(y, woH);
       box(X, y, W, woH, LBD);
-      let wy = y + 5;
+      let wy = y + 4;
       woLines.forEach((line, i) => {
         const bold = i === 0 || line.startsWith('Project Name');
-        txt(line, X + 6, wy, W - 12, { size: 7.5, bold, color: BLK });
-        wy = doc.y + 1;
+        txt(line, X + 5, wy, W - 10, { size: 7.5, bold, color: BLK });
+        wy = doc.y + 0.5;
       });
       y += woH;
     }
 
     // ════════════════════════════════════════════════════════════════════════
     // 4. ITEMS TABLE
-    // ════════════════════════════════════════════════════════════════════════
-    // Column widths (total = W = 535)
-    // Column widths must sum to W (535) for IGST, and < W for CGST (remainder = Amount col)
-    // IGST  total: 20+45+183+48+35+58+45+101 = 535
-    // CGST  total: 18+38+126+42+30+48+33+30+38+30+38 = 471  →  amtW = 64
+    // Description is rendered as a separate sub-row; main row has all numeric cols.
+    // Column widths must sum to W (535).
+    // CGST: 18+48+50+32+55+32+30+48+30+48+164 = 555
+    // IGST: 20+50+55+35+65+35+35+65+195       = 555
     const COL = useIGST
-      ? { sl:20, code:45, desc:183, hsn:48, unit:35, rate:58, qty:45, amt:101 }
-      : { sl:18, code:38, desc:126, hsn:42, unit:30, rate:48, qty:33, cgstP:30, cgst:38, sgstP:30, sgst:38 };
+      ? { sl:20, code:50, hsn:55, unit:35, rate:65, qty:35, igstP:35, igst:65, amt:195 }
+      : { sl:18, code:48, hsn:50, unit:32, rate:55, qty:32, cgstP:30, cgst:48, sgstP:30, sgst:48, amt:164 };
 
     // Table section label
-    y = checkPage(y, 30);
-    fillBox(X, y, W, 14, HBG);
-    box(X, y, W, 14, LBD);
-    txt('Item Details', X + 6, y + 3, W - 12, { size: 8, bold: true, color: BLK });
-    y += 14;
+    y = checkPage(y, 26);
+    fillBox(X, y, W, 11, HBG);
+    box(X, y, W, 11, LBD);
+    txt('Item Details', X + 5, y + 2, W - 10, { size: 7.5, bold: true, color: BLK });
+    y += 11;
 
     // Header row
-    const ROW_H = 18;
+    const ROW_H = 14;
     fillBox(X, y, W, ROW_H, HBG);
     box(X, y, W, ROW_H, LBD);
 
-    // Draw header cells
-    function drawColHeaders(y) {
+    function drawColHeaders(hy) {
       let cx = X;
       function th(label, w) {
-        vLine(cx, y, y + ROW_H, LBD);
-        txt(label, cx + 2, y + 4, w - 4, { size: 7, bold: true, color: BLK, align: 'center' });
+        vLine(cx, hy, hy + ROW_H, LBD);
+        txt(label, cx + 2, hy + 3, w - 4, { size: 6.5, bold: true, color: BLK, align: 'center' });
         cx += w;
       }
       if (useIGST) {
-        th('Sl.', COL.sl); th('Item Code', COL.code); th('Description', COL.desc);
+        th('Sl.', COL.sl); th('Item Code', COL.code);
         th('HSN/SAC', COL.hsn); th('Unit', COL.unit);
-        th('Rate (₹)', COL.rate); th('Qty', COL.qty); th('Amount (₹)', COL.amt);
+        th('Rate (Rs.)', COL.rate); th('Qty', COL.qty);
+        th('IGST%', COL.igstP); th('IGST', COL.igst);
+        th('Amount (Rs.)', COL.amt);
       } else {
-        th('Sl.', COL.sl); th('Item Code', COL.code); th('Description', COL.desc);
+        th('Sl.', COL.sl); th('Item Code', COL.code);
         th('HSN/SAC', COL.hsn); th('Unit', COL.unit);
-        th('Rate (₹)', COL.rate); th('Qty', COL.qty);
+        th('Rate (Rs.)', COL.rate); th('Qty', COL.qty);
         th('CGST%', COL.cgstP); th('CGST', COL.cgst);
         th('SGST%', COL.sgstP); th('SGST', COL.sgst);
-        // Amount column fills remainder
-        const amtW = W - (COL.sl+COL.code+COL.desc+COL.hsn+COL.unit+COL.rate+COL.qty+COL.cgstP+COL.cgst+COL.sgstP+COL.sgst);
-        vLine(cx, y, y + ROW_H, LBD);
-        txt('Amount (₹)', cx + 2, y + 4, amtW - 4, { size: 7, bold: true, color: BLK, align: 'center' });
+        th('Amount (Rs.)', COL.amt);
       }
     }
     drawColHeaders(y);
     y += ROW_H;
 
-    // Item rows
+    // Item rows — data row + description sub-row
+    const DATA_ROW_H = 14;
     items.forEach((it, idx) => {
-      const qty      = parseFloat(it.quantity  || 0);
-      const price    = parseFloat(it.unitPrice || 0);
-      const disc     = parseFloat(it.discount  || 0);
-      const taxRate  = parseFloat(it.taxRate   || 0);
+      const qty      = parseFloat(it.quantity       || 0);
+      const price    = parseFloat(it.unitPrice      || 0);
+      const disc     = parseFloat(it.discount       || 0);
+      const taxRate  = parseFloat(it.taxRate        || 0);
       const taxable  = parseFloat(it.taxableAmount  || (qty * price * (1 - disc / 100)));
-      const igst     = parseFloat(it.igst  || (taxable * taxRate / 100));
-      const cgst     = parseFloat(it.cgst  || (igst / 2));
-      const total    = parseFloat(it.itemTotal || (taxable + igst));
-      const itemCode = it.itemCode || 'N/A';
+      const igstAmt  = parseFloat(it.igst  || 0);
+      const cgstAmt  = parseFloat(it.cgst  || 0);
+      const sgstAmt  = parseFloat(it.sgst  || 0);
+      const total    = parseFloat(it.itemTotal      || (taxable + igstAmt + cgstAmt + sgstAmt));
+      const itemCode = it.itemCode || '';
+      const descText = (it.name || '').trim();
 
-      // Calculate row height based on description
-      const descW = (useIGST ? COL.desc : COL.desc) - 6;
-      const descH = txtH(it.name || '', descW, 7.5, false);
-      const rowH  = Math.max(descH + 8, 18);
+      // Description sub-row height — lineGap must match the txt() call below
+      const descH    = descText ? txtH(descText, W - 16, 7.5, false) + 7 : 0;
+      const totalRowH = DATA_ROW_H + (descText ? descH : 0);
 
-      y = checkPage(y, rowH + 2);
-      if (idx % 2 === 0) fillBox(X, y, W, rowH, '#fafafa');
-      box(X, y, W, rowH, LBD);
+      y = checkPage(y, totalRowH + 1);
+
+      // ── data row background
+      if (idx % 2 === 0) fillBox(X, y, W, DATA_ROW_H, '#fafafa');
+      box(X, y, W, DATA_ROW_H, LBD);
 
       let cx = X;
       function td(text, w, opts) {
-        vLine(cx, y, y + rowH, LBD);
-        txt(text, cx + 2, y + (rowH - (opts && opts.size ? opts.size + 2 : 9)) / 2 + 1,
-            w - 4, Object.assign({ size: 7.5, align: 'center', lineGap: 0.5 }, opts || {}));
-        cx += w;
-      }
-      function tdDesc(text, w) {
-        vLine(cx, y, y + rowH, LBD);
-        txt(text, cx + 3, y + 3, w - 6, { size: 7.5, align: 'left', lineGap: 1 });
+        vLine(cx, y, y + DATA_ROW_H, LBD);
+        const to = Object.assign({ size: 7.5, align: 'center', lineGap: 0.5 }, opts || {});
+        const textY = y + (DATA_ROW_H - (to.size + 2)) / 2 + 1;
+        txt(String(text), cx + 3, textY, w - 6, to);
         cx += w;
       }
 
       if (useIGST) {
-        td(idx + 1, COL.sl);
-        td(itemCode, COL.code);
-        tdDesc(it.name || '', COL.desc);
-        td(it.hsnCode || '', COL.hsn);
-        td(it.unit || '', COL.unit);
-        td(price.toFixed(2), COL.rate, { align: 'right' });
-        td(qty % 1 === 0 ? qty : qty.toFixed(3), COL.qty);
-        td(total.toFixed(2), COL.amt, { align: 'right', bold: true });
+        td(idx + 1,                               COL.sl);
+        td(itemCode,                              COL.code);
+        td(it.hsnCode || '',                      COL.hsn);
+        td(it.unit    || '',                      COL.unit);
+        td(price.toFixed(2),                      COL.rate,  { align: 'right' });
+        td(qty % 1 === 0 ? qty : qty.toFixed(3),  COL.qty);
+        td((taxRate).toFixed(0) + '%',            COL.igstP);
+        td(igstAmt.toFixed(2),                    COL.igst,  { align: 'right' });
+        td(total.toFixed(2),                      COL.amt,   { align: 'right', bold: true });
       } else {
-        td(idx + 1, COL.sl);
-        td(itemCode, COL.code);
-        tdDesc(it.name || '', COL.desc);
-        td(it.hsnCode || '', COL.hsn);
-        td(it.unit || '', COL.unit);
-        td(price.toFixed(2), COL.rate, { align: 'right' });
-        td(qty % 1 === 0 ? qty : qty.toFixed(3), COL.qty);
-        td((taxRate / 2).toFixed(0) + '%', COL.cgstP);
-        td(cgst.toFixed(2), COL.cgst, { align: 'right' });
-        td((taxRate / 2).toFixed(0) + '%', COL.sgstP);
-        td(cgst.toFixed(2), COL.sgst, { align: 'right' });
-        const amtW = W - (COL.sl+COL.code+COL.desc+COL.hsn+COL.unit+COL.rate+COL.qty+COL.cgstP+COL.cgst+COL.sgstP+COL.sgst);
-        vLine(cx, y, y + rowH, LBD);
-        txt(total.toFixed(2), cx + 2, y + (rowH - 10) / 2 + 1, amtW - 4, { size: 7.5, align: 'right', bold: true, lineGap: 0.5 });
+        td(idx + 1,                               COL.sl);
+        td(itemCode,                              COL.code);
+        td(it.hsnCode || '',                      COL.hsn);
+        td(it.unit    || '',                      COL.unit);
+        td(price.toFixed(2),                      COL.rate,  { align: 'right' });
+        td(qty % 1 === 0 ? qty : qty.toFixed(3),  COL.qty);
+        td((taxRate / 2).toFixed(0) + '%',        COL.cgstP);
+        td(cgstAmt.toFixed(2),                    COL.cgst,  { align: 'right' });
+        td((taxRate / 2).toFixed(0) + '%',        COL.sgstP);
+        td(sgstAmt.toFixed(2),                    COL.sgst,  { align: 'right' });
+        td(total.toFixed(2),                      COL.amt,   { align: 'right', bold: true });
       }
 
-      y += rowH;
+      y += DATA_ROW_H;
+
+      // ── description sub-row (page-safe, same lineGap as txtH)
+      if (descText) {
+        y = checkPage(y, descH);
+        fillBox(X, y, W, descH, '#f9fafb');
+        box(X, y, W, descH, LBD);
+        txt(descText, X + 8, y + 3, W - 16, { size: 7.5, align: 'left', lineGap: 0.5, color: GRY });
+        y += descH;
+      }
     });
 
     // ════════════════════════════════════════════════════════════════════════
@@ -486,34 +489,38 @@ exports.downloadPDF = async (req, res) => {
       ...(parseFloat(inv.roundOff) ? [['Round Off:', fmtINR(inv.roundOff)]] : []),
     ];
 
-    const sumRowH  = 14;
-    const sumTotalH = 18;
+    const sumRowH  = 12;
+    const sumTotalH = 14;
     const sumH = sumLines.length * sumRowH + sumTotalH;
     const wordText = numWords(parseFloat(inv.totalAmount || 0));
-    const wordH    = txtH(wordText, HW - 16, 8, false);
-    const botH     = Math.max(sumH + 4, wordH + 28);
+    const wordH    = txtH(wordText, HW - 14, 7.5, false);
+    const botH     = Math.max(sumH + 3, wordH + 18);
 
-    box(X, y, HW, botH, LBD);          // Amount in words box
-    box(X + HW, y, HW, botH, LBD);     // Summary box
+    // Fill blue Total Amount area FIRST, then draw all borders on top
+    const sy0 = y + 3 + sumLines.length * sumRowH;
+    fillBox(X + HW, sy0, HW, sumTotalH, '#1d4ed8');
 
-    txt('Amount in Words (This Bill):', X + 6, y + 5, HW - 12, { size: 7.5, bold: true, color: BLK });
-    txt(wordText, X + 6, y + 18, HW - 12, { size: 8, color: BLK });
+    // Now draw all borders (they paint over the fill, keeping lines clean)
+    box(X, y, W, botH, LBD);
+    vLine(X + HW, y, y + botH, LBD);
 
-    // Summary rows
-    let sy = y + 4;
+    txt('Amount in Words (This Bill):', X + 5, y + 4, HW - 10, { size: 7.5, bold: true, color: BLK });
+    txt(wordText, X + 5, y + 14, HW - 10, { size: 7.5, color: BLK });
+
+    // Summary rows (right half)
+    let sy = y + 3;
     sumLines.forEach(([label, val]) => {
       hLine(sy, X + HW, X + W, LBD);
-      txt(label, X + HW + 4, sy + 3, HW / 2 - 6, { size: 8, color: BLK });
-      txt(val,   X + HW + HW / 2, sy + 3, HW / 2 - 6, { size: 8, align: 'right', color: BLK });
+      txt(label, X + HW + 4, sy + 2, HW / 2 - 6, { size: 7.5, color: BLK });
+      txt(val,   X + HW + HW / 2, sy + 2, HW / 2 - 6, { size: 7.5, align: 'right', color: BLK });
       sy += sumRowH;
     });
 
-    // Total Amount row (bold blue-ish)
-    fillBox(X + HW, sy, HW, sumTotalH, '#1d4ed8');
-    txt('Total Amount:', X + HW + 4, sy + 4, HW / 2 - 6,
-        { size: 9, bold: true, color: '#ffffff' });
-    txt(fmtINR(inv.totalAmount), X + HW + HW / 2, sy + 4, HW / 2 - 6,
-        { size: 9, bold: true, color: '#ffffff', align: 'right' });
+    // Total Amount row text (drawn after borders so text is on top of blue)
+    txt('Total Amount:', X + HW + 4, sy + 3, HW / 2 - 6,
+        { size: 8, bold: true, color: '#ffffff' });
+    txt(fmtINR(inv.totalAmount), X + HW + HW / 2, sy + 3, HW / 2 - 6,
+        { size: 8, bold: true, color: '#ffffff', align: 'right' });
 
     y += botH;
 
@@ -523,32 +530,36 @@ exports.downloadPDF = async (req, res) => {
     y = checkPage(y, 70);
 
     const bankLines = [
-      ['Bank:', inv.bankName    || 'N/A'],
+      ['Bank:',     inv.bankName    || 'N/A'],
       ['A/c Name:', inv.bankAcName  || 'N/A'],
-      ['A/c No.:', inv.bankAccount || 'N/A'],
-      ['IFSC:',   inv.bankIfsc   || 'N/A'],
-      ['Branch:', inv.bankBranch  || 'N/A'],
+      ['A/c No.:',  inv.bankAccount || 'N/A'],
+      ['IFSC:',     inv.bankIfsc    || 'N/A'],
+      ['Branch:',   inv.bankBranch  || 'N/A'],
     ];
 
-    const bankH = bankLines.length * 12 + 20;
-    box(X, y, HW, bankH, LBD);
+    const bankH = bankLines.length * 10 + 17;
 
-    // Bank label header
-    fillBox(X, y, HW, 14, HBG);
-    hLine(y + 14, X, X + HW, LBD);
-    txt('Bank Account Details:', X + 6, y + 3, HW - 12, { size: 8, bold: true, color: BLK });
-    let bky = y + 18;
+    // Draw fills FIRST, then all borders on top (prevents fill from covering borders)
+    fillBox(X, y, W, 11, HBG);          // header background
+    // Outer box + dividers drawn after fills so borders are always visible
+    box(X, y, W, bankH, LBD);
+    vLine(X + HW, y, y + bankH, LBD);
+    hLine(y + 11, X, X + W, LBD);
+    // Header labels
+    txt('Bank Account Details:', X + 5, y + 2, HW - 10, { size: 7.5, bold: true, color: BLK });
+    txt('Authorized Signature', X + HW + 5, y + 2, HW - 10, { size: 7.5, bold: true, color: BLK, align: 'right' });
+
+    let bky = y + 14;
     bankLines.forEach(([label, val]) => {
-      txt(label + ' ' + val, X + 6, bky, HW - 12, { size: 7.5, color: BLK });
-      bky += 12;
+      txt(label + ' ' + val, X + 5, bky, HW - 10, { size: 7.5, color: BLK });
+      bky += 10;
     });
 
-    // Signature box (right side, same height)
-    box(X + HW, y, HW, bankH, LBD);
-    txt('For ' + (inv.sellerName || ''), X + HW + 4, y + bankH - 30,
-        HW - 10, { size: 8, bold: true, color: BLK, align: 'right' });
-    txt('Authorized Signatory', X + HW + 4, y + bankH - 16,
-        HW - 10, { size: 8, color: BLK, align: 'right' });
+    // Signature text (bottom of right column)
+    txt('For ' + (inv.sellerName || ''), X + HW + 5, y + bankH - 19,
+        HW - 10, { size: 7.5, bold: true, color: BLK, align: 'right' });
+    txt('Authorized Signatory', X + HW + 5, y + bankH - 10,
+        HW - 10, { size: 7.5, color: BLK, align: 'right' });
 
     y += bankH;
 
@@ -561,11 +572,11 @@ exports.downloadPDF = async (req, res) => {
       'Note: This is a computer-generated invoice.',
     ].filter(Boolean);
 
-    box(X, y, W, noteLines.length * 11 + 10, LBD);
-    let ny = y + 5;
+    box(X, y, W, noteLines.length * 9 + 7, LBD);
+    let ny = y + 4;
     noteLines.forEach(line => {
-      txt(line, X + 6, ny, W - 12, { size: 7, color: GRY });
-      ny += 11;
+      txt(line, X + 5, ny, W - 10, { size: 7, color: GRY });
+      ny += 9;
     });
 
     doc.end();

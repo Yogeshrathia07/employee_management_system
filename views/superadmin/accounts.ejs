@@ -23,6 +23,7 @@
           <button class="acc-tab" id="tab-pro"     onclick="showModule('pro')"><i class="bx bxs-file-doc"></i> Proforma</button>
           <button class="acc-tab" id="tab-quo"     onclick="showModule('quo')"><i class="bx bxs-notepad"></i> Quotations</button>
           <button class="acc-tab" id="tab-po"      onclick="showModule('po')"><i class="bx bxs-truck"></i> Purchase Orders</button>
+          <button class="acc-tab" id="tab-clt"     onclick="showModule('clt')"><i class="bx bxs-contact"></i> Clients</button>
           <button class="acc-tab" id="tab-ven"     onclick="showModule('ven')"><i class="bx bxs-user-badge"></i> Vendors</button>
           <button class="acc-tab" id="tab-cwo"     onclick="showModule('cwo')"><i class="bx bxs-briefcase"></i> Client W/O</button>
           <button class="acc-tab" id="tab-vwo"     onclick="showModule('vwo')"><i class="bx bxs-wrench"></i> Vendor W/O</button>
@@ -33,6 +34,7 @@
         <div id="mod-home" class="acc-module">
           <div class="stats-grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:24px;">
             <div class="stat-card"><div class="stat-icon" style="background:#f3f4f6;color:#374151;"><i class="bx bxs-receipt"></i></div><div><div class="stat-value" id="dash-inv">0</div><div class="stat-label">Invoices</div></div></div>
+            <div class="stat-card"><div class="stat-icon" style="background:#f3f4f6;color:#374151;"><i class="bx bxs-contact"></i></div><div><div class="stat-value" id="dash-clt">0</div><div class="stat-label">Clients</div></div></div>
             <div class="stat-card"><div class="stat-icon" style="background:#f3f4f6;color:#374151;"><i class="bx bxs-user-badge"></i></div><div><div class="stat-value" id="dash-ven">0</div><div class="stat-label">Vendors</div></div></div>
             <div class="stat-card"><div class="stat-icon" style="background:#f3f4f6;color:#374151;"><i class="bx bxs-briefcase"></i></div><div><div class="stat-value" id="dash-cwo">0</div><div class="stat-label">Client W/O</div></div></div>
             <div class="stat-card"><div class="stat-icon" style="background:#f3f4f6;color:#374151;"><i class="bx bxs-bar-chart-alt-2"></i></div><div><div class="stat-value" id="dash-prj">0</div><div class="stat-label">Projects</div></div></div>
@@ -43,6 +45,7 @@
               {key:'pro', icon:'bxs-file-doc',        title:'Proforma Invoices',   desc:'Generate preliminary invoices for clients'},
               {key:'quo', icon:'bxs-notepad',         title:'Quotations',          desc:'Create and send quotes to potential clients'},
               {key:'po',  icon:'bxs-truck',           title:'Purchase Orders',     desc:'Manage vendor purchase orders'},
+              {key:'clt', icon:'bxs-contact',           title:'Clients',             desc:'Register and manage client / customer information'},
               {key:'ven', icon:'bxs-user-badge',      title:'Vendor Registration', desc:'Register and manage vendor information'},
               {key:'cwo', icon:'bxs-briefcase',       title:'Client Work Orders',  desc:'Track work orders for clients'},
               {key:'vwo', icon:'bxs-wrench',          title:'Vendor Work Orders',  desc:'Assign and track vendor work orders'},
@@ -242,6 +245,25 @@
           </div>
         </div>
 
+        <!-- ═════════════════════════════════════════════════ CLIENTS -->
+        <div id="mod-clt" class="acc-module" style="display:none;">
+          <div class="admin-toolbar" style="margin-bottom:16px;">
+            <div class="search-bar" style="width:220px;"><span class="search-icon"><i class="bx bx-search"></i></span><input type="text" id="clt-search" placeholder="Search client..." oninput="renderClients()"></div>
+            <select id="clt-status" class="form-control" style="width:140px" onchange="renderClients()">
+              <option value="">All Status</option><option>Active</option><option>Inactive</option>
+            </select>
+            <button class="btn btn-primary" style="margin-left:auto;" onclick="openCltModal()"><i class="bx bx-plus"></i> Register Client</button>
+          </div>
+          <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;">
+            <table style="width:100%;border-collapse:collapse;">
+              <thead><tr style="background:var(--bg-input);border-bottom:1px solid var(--border);">
+                <th class="acc-th">Client #</th><th class="acc-th">Name</th><th class="acc-th">Contact</th><th class="acc-th">Email</th><th class="acc-th">GST</th><th class="acc-th">State</th><th class="acc-th">Status</th><th class="acc-th"></th>
+              </tr></thead>
+              <tbody id="clt-body"></tbody>
+            </table>
+          </div>
+        </div>
+
         <!-- ═══════════════════════════════════════ VENDOR REGISTRATION -->
         <div id="mod-ven" class="acc-module" style="display:none;">
           <div class="admin-toolbar" style="margin-bottom:16px;">
@@ -327,7 +349,7 @@
 
 <!-- ════════════════════════════ GST INVOICE MODAL ════════════════════════════ -->
 <div class="modal-overlay" id="gst-inv-modal" style="align-items:flex-start;padding:16px 0;">
-  <div class="modal" style="max-width:900px;width:96vw;margin:0 auto;border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,0.18);">
+  <div class="modal gst-invoice-modal-shell" style="max-width:99vw;width:99vw;margin:0 auto;border-radius:16px;box-shadow:0 8px 32px rgba(0,0,0,0.18);">
     <!-- Header -->
     <div style="padding:22px 28px 14px;border-bottom:1px solid #e5e7eb;border-radius:12px 12px 0 0;background:#fff;">
       <div style="display:flex;align-items:flex-start;justify-content:space-between;">
@@ -440,7 +462,7 @@
       <div style="border:1px solid #e5e7eb;border-radius:10px;padding:20px;margin-bottom:16px;">
         <div style="font-size:13px;font-weight:600;color:#111;margin-bottom:16px;">Customer Details</div>
         <div style="margin-bottom:14px;">
-          <label style="display:block;font-size:13px;font-weight:500;color:#111;margin-bottom:6px;">Quick-fill from Vendor List <span style="font-weight:400;font-size:11px;color:#888;">(auto-fills fields below)</span></label>
+          <label style="display:block;font-size:13px;font-weight:500;color:#111;margin-bottom:6px;">Quick-fill from Existing Customer List <span style="font-weight:400;font-size:11px;color:#888;">(auto-fills fields below)</span></label>
           <select id="gst-vendor-sel" onchange="fillFromVendor(this.value)" style="width:100%;border:1px solid #d1d5db;border-radius:8px;padding:9px 12px;font-size:13px;color:#111;background:#fff;outline:none;">
             <option value="">— Type manually or select a vendor —</option>
           </select>
@@ -449,7 +471,7 @@
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
           <div>
             <label style="display:block;font-size:13px;font-weight:500;color:#111;margin-bottom:6px;">Customer Name</label>
-            <input type="text" id="gst-c-name" style="width:100%;border:1px solid #d1d5db;border-radius:8px;padding:9px 12px;font-size:13px;color:#111;background:#fff;box-sizing:border-box;" placeholder="Customer / company name">
+            <input type="text" id="gst-c-name" list="acc-customer-list" style="width:100%;border:1px solid #d1d5db;border-radius:8px;padding:9px 12px;font-size:13px;color:#111;background:#fff;box-sizing:border-box;" placeholder="Customer / company name">
           </div>
           <div>
             <label style="display:block;font-size:13px;font-weight:500;color:#111;margin-bottom:6px;">Customer Email</label>
@@ -493,11 +515,11 @@
         <div style="font-size:13px;font-weight:600;color:#111;margin-bottom:16px;">Work &amp; Project Details</div>
         <div style="margin-bottom:14px;">
           <label style="display:block;font-size:13px;font-weight:500;color:#111;margin-bottom:6px;">Work Order</label>
-          <input type="text" id="gst-work-order" style="width:100%;border:1px solid #d1d5db;border-radius:8px;padding:9px 12px;font-size:13px;color:#111;background:#fff;box-sizing:border-box;" placeholder="Work order number / reference">
+          <input type="text" id="gst-work-order" list="acc-work-order-list" style="width:100%;border:1px solid #d1d5db;border-radius:8px;padding:9px 12px;font-size:13px;color:#111;background:#fff;box-sizing:border-box;" placeholder="Work order number / reference">
         </div>
         <div style="margin-bottom:14px;">
           <label style="display:block;font-size:13px;font-weight:500;color:#111;margin-bottom:6px;">Project Name</label>
-          <textarea id="gst-project" rows="2" style="width:100%;border:1px solid #d1d5db;border-radius:8px;padding:9px 12px;font-size:13px;color:#111;background:#fff;resize:vertical;box-sizing:border-box;" placeholder="Project name"></textarea>
+          <input type="text" id="gst-project" list="acc-project-list" style="width:100%;border:1px solid #d1d5db;border-radius:8px;padding:9px 12px;font-size:13px;color:#111;background:#fff;box-sizing:border-box;" placeholder="Project name">
         </div>
         <div>
           <label style="display:block;font-size:13px;font-weight:500;color:#111;margin-bottom:6px;">Work Details / Scope</label>
@@ -690,13 +712,13 @@
         <div class="gst-section">
           <div class="gst-section-title" style="color:#0891b2;"><i class="bx bxs-user-detail"></i> Customer / Buyer Details</div>
           <div class="form-group">
-            <label class="form-label"><i class="bx bxs-user-badge" style="color:#0891b2;font-size:13px;"></i> Select from Vendor List</label>
+            <label class="form-label"><i class="bx bxs-user-badge" style="color:#0891b2;font-size:13px;"></i> Select Existing Customer</label>
             <select id="pro-vendor-sel" class="form-control" onchange="fillProFromVendor(this.value)" style="border-color:#0891b2;">
               <option value="">— Type manually or pick a vendor —</option>
             </select>
           </div>
           <div style="border-top:1px dashed var(--border);margin:4px 0 12px 0;"></div>
-          <div class="form-group"><label class="form-label">Customer Name <span style="color:#ef4444">*</span></label><input type="text" id="pro-c-name" class="form-control" placeholder="Customer / company name"></div>
+          <div class="form-group"><label class="form-label">Customer Name <span style="color:#ef4444">*</span></label><input type="text" id="pro-c-name" class="form-control" list="acc-customer-list" placeholder="Customer / company name"></div>
           <div class="form-group"><label class="form-label">GSTIN</label><input type="text" id="pro-c-gstin" class="form-control" placeholder="Customer GSTIN" maxlength="15" style="text-transform:uppercase"></div>
           <div class="form-group"><label class="form-label">Address</label><textarea id="pro-c-addr" class="form-control" rows="2" placeholder="Customer address"></textarea></div>
           <div style="display:grid;grid-template-columns:2fr 1fr;gap:8px;">
@@ -722,8 +744,8 @@
             <div class="form-group"><label class="form-label">Period From</label><input type="date" id="pro-bill-from" class="form-control"></div>
             <div class="form-group"><label class="form-label">Period To</label><input type="date" id="pro-bill-to" class="form-control"></div>
           </div>
-          <div class="form-group"><label class="form-label">Work Order Ref</label><input type="text" id="pro-work-order" class="form-control" placeholder="WO number / reference"></div>
-          <div class="form-group"><label class="form-label">Project Name</label><input type="text" id="pro-project" class="form-control" placeholder="Project name"></div>
+          <div class="form-group"><label class="form-label">Work Order Ref</label><input type="text" id="pro-work-order" class="form-control" list="acc-work-order-list" placeholder="WO number / reference"></div>
+          <div class="form-group"><label class="form-label">Project Name</label><input type="text" id="pro-project" class="form-control" list="acc-project-list" placeholder="Project name"></div>
           <div class="form-group"><label class="form-label">Work Details</label><textarea id="pro-work-details" class="form-control" rows="2" placeholder="Brief description of work"></textarea></div>
         </div>
         <div class="gst-section">
@@ -741,8 +763,8 @@
       <!-- ── Items Table ───────────────────────────────────────────────────── -->
       <div class="gst-section" style="border-top:1px solid var(--border);">
         <div class="gst-section-title"><i class="bx bxs-package"></i> Product / Service Items</div>
-        <div style="overflow-x:auto;">
-          <table style="width:100%;border-collapse:collapse;min-width:860px;" id="pro-items-table">
+        <div class="acc-pro-items-wrap">
+          <table id="pro-items-table">
             <thead>
               <tr style="background:var(--bg-input);border-bottom:1px solid var(--border);">
                 <th class="acc-th" style="width:28px;">#</th>
@@ -848,7 +870,7 @@
       <input type="hidden" id="doc-type">
       <div class="form-row">
         <div class="form-group"><label class="form-label">ID / Number</label><input type="text" id="doc-id" class="form-control" readonly style="background:var(--bg-input);"></div>
-        <div class="form-group"><label class="form-label" id="doc-party-label">Client Name</label><input type="text" id="doc-party" class="form-control" placeholder="Client name"></div>
+        <div class="form-group"><label class="form-label" id="doc-party-label">Client Name</label><input type="text" id="doc-party" class="form-control" list="acc-customer-list" placeholder="Client name"></div>
       </div>
       <div class="form-row">
         <div class="form-group"><label class="form-label">Date</label><input type="date" id="doc-date" class="form-control"></div>
@@ -888,6 +910,7 @@
       <div class="form-row">
         <div class="form-group"><label class="form-label">PO Number</label><input type="text" id="po-id" class="form-control" readonly style="background:var(--bg-input);"></div>
         <div class="form-group"><label class="form-label">Vendor</label><select id="po-vendor" class="form-control"></select></div>
+        <div class="form-group"><label class="form-label">Linked Project</label><input type="text" id="po-project" class="form-control" list="acc-project-list" placeholder="Project name (optional)"></div>
       </div>
       <div class="form-row">
         <div class="form-group"><label class="form-label">PO Date</label><input type="date" id="po-date" class="form-control"></div>
@@ -953,6 +976,43 @@
   </div>
 </div>
 
+<!-- ══════════════════════════════ CLIENT MODAL ══════════════════════════════ -->
+<div class="modal-overlay" id="clt-modal">
+  <div class="modal acc-form-modal-shell acc-form-modal-wide" style="max-width:99vw;width:99vw;margin:0 auto;border-radius:14px;">
+    <div class="modal-header"><span class="modal-title" id="clt-modal-title">Register Client</span><button class="modal-close" onclick="closeModal('clt-modal')">×</button></div>
+    <div class="modal-body acc-form-modal-body">
+      <input type="hidden" id="clt-db-id">
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Client Code</label><input type="text" id="clt-code" class="form-control" readonly style="background:var(--bg-input);" placeholder="Auto-generated"></div>
+        <div class="form-group"><label class="form-label">Client Name <span style="color:#ef4444">*</span></label><input type="text" id="clt-name" class="form-control" placeholder="Business name"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Contact Person</label><input type="text" id="clt-contact" class="form-control" placeholder="Contact name"></div>
+        <div class="form-group"><label class="form-label">Phone</label><input type="text" id="clt-phone" class="form-control" placeholder="Phone number"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Email</label><input type="email" id="clt-email" class="form-control" placeholder="Email address"></div>
+        <div class="form-group"><label class="form-label">GST Number</label><input type="text" id="clt-gst" class="form-control" placeholder="GSTIN" style="text-transform:uppercase"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">PAN Number</label><input type="text" id="clt-pan" class="form-control" placeholder="PAN"></div>
+        <div class="form-group"><label class="form-label">Status</label>
+          <select id="clt-status-sel" class="form-control"><option>Active</option><option>Inactive</option></select>
+        </div>
+      </div>
+      <div class="form-group"><label class="form-label">Billing Address</label><textarea id="clt-address" class="form-control" rows="2" placeholder="Full billing address"></textarea></div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">State</label><input type="text" id="clt-state" class="form-control" placeholder="e.g. Maharashtra"></div>
+        <div class="form-group"><label class="form-label">State Code</label><input type="text" id="clt-statecode" class="form-control" placeholder="27" maxlength="2"></div>
+      </div>
+    </div>
+    <div class="modal-footer acc-form-modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('clt-modal')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveClient()">Save</button>
+    </div>
+  </div>
+</div>
+
 <!-- Work Order modal (Client & Vendor) -->
 <div class="modal-overlay" id="wo-modal">
   <div class="modal acc-form-modal-shell acc-form-modal-wide" style="max-width:99vw;width:99vw;margin:0 auto;border-radius:14px;">
@@ -963,11 +1023,11 @@
         <div class="form-group"><label class="form-label">Work Order #</label><input type="text" id="wo-id" class="form-control" readonly style="background:var(--bg-input);"></div>
         <div class="form-group">
           <label class="form-label" id="wo-party-label">Client Name</label>
-          <input type="text" id="wo-party" class="form-control" placeholder="Client / Vendor name">
+          <input type="text" id="wo-party" class="form-control" list="acc-customer-list" placeholder="Client / Vendor name">
           <select id="wo-vendor" class="form-control" style="display:none;margin-top:8px;"></select>
         </div>
       </div>
-      <div class="form-group"><label class="form-label">Project Name</label><input type="text" id="wo-project" class="form-control" placeholder="Project name"></div>
+      <div class="form-group"><label class="form-label">Project Name</label><input type="text" id="wo-project" class="form-control" list="acc-project-list" placeholder="Project name"></div>
       <div class="form-row">
         <div class="form-group"><label class="form-label">Start Date</label><input type="date" id="wo-start" class="form-control"></div>
         <div class="form-group"><label class="form-label">End Date</label><input type="date" id="wo-end" class="form-control"></div>
@@ -997,7 +1057,7 @@
         <div class="form-group"><label class="form-label">Project Name</label><input type="text" id="prj-name" class="form-control" placeholder="Project name"></div>
       </div>
       <div class="form-row">
-        <div class="form-group"><label class="form-label">Client</label><input type="text" id="prj-client" class="form-control" placeholder="Client name"></div>
+        <div class="form-group"><label class="form-label">Client</label><input type="text" id="prj-client" class="form-control" list="acc-customer-list" placeholder="Client name"></div>
         <div class="form-group"><label class="form-label">Status</label>
           <select id="prj-status-sel" class="form-control"><option>Planning</option><option>Active</option><option>Completed</option><option>On Hold</option></select>
         </div>
@@ -1018,6 +1078,10 @@
     </div>
   </div>
 </div>
+
+<datalist id="acc-customer-list"></datalist>
+<datalist id="acc-project-list"></datalist>
+<datalist id="acc-work-order-list"></datalist>
 
 <style>
 .acc-tab {
@@ -1175,12 +1239,72 @@
 #gst-items-table td input:focus, #gst-items-table td select:focus { outline:none;border-color:var(--accent); }
 #gst-items-table td input, #gst-items-table td select { width:100%;min-width:0; }
 #pro-items-table td input, #pro-items-table td select { width:100%;min-width:0; }
+.acc-pro-items-wrap {
+  overflow:auto;
+  border:1px solid var(--border);
+  border-radius:14px;
+  background:#fff;
+}
+#pro-items-table {
+  width:100%;
+  min-width:1450px;
+  border-collapse:separate;
+  border-spacing:0;
+}
+#pro-items-table thead th {
+  position:sticky;
+  top:0;
+  z-index:2;
+  background:#f8fafc;
+  border-bottom:1px solid var(--border);
+}
+#pro-items-table td {
+  padding:10px 8px;
+  border-bottom:1px solid #e5e7eb;
+  vertical-align:middle;
+  background:#fff;
+}
+#pro-items-table td input,
+#pro-items-table td select {
+  height:40px;
+  padding:0 10px;
+  border:1px solid #cbd5e1;
+  border-radius:8px;
+  background:#fff;
+  font-size:13px;
+}
+#pro-items-table td input:focus,
+#pro-items-table td select:focus {
+  outline:none;
+  border-color:var(--accent);
+  box-shadow:0 0 0 3px rgba(37,99,235,.08);
+}
+#pro-items-table td:nth-child(3) input { min-width:320px; }
+#pro-items-table td:nth-child(4) input { min-width:110px; }
+#pro-items-table td:nth-child(7) input { min-width:130px; }
+#pro-items-table td:nth-child(10) select { min-width:96px; }
+.acc-pro-items-wrap::-webkit-scrollbar,
+.acc-form-modal-body::-webkit-scrollbar {
+  height:10px;
+  width:10px;
+}
+.acc-pro-items-wrap::-webkit-scrollbar-thumb,
+.acc-form-modal-body::-webkit-scrollbar-thumb {
+  background:#cbd5e1;
+  border-radius:999px;
+}
+.acc-pro-items-wrap::-webkit-scrollbar-track,
+.acc-form-modal-body::-webkit-scrollbar-track {
+  background:#f8fafc;
+}
 .gst-item-num { font-size:11px;color:var(--text-muted);text-align:center; }
 .gst-invoice-modal-shell {
   display:flex;
   flex-direction:column;
-  height:calc(100vh - 20px);
-  max-height:calc(100vh - 20px);
+  width:min(99vw, 1800px);
+  height:calc(100vh - 12px);
+  max-height:calc(100vh - 12px);
+  border-radius:16px;
 }
 .gst-invoice-modal-body {
   flex:1 1 auto;
@@ -1197,17 +1321,22 @@
 .acc-form-modal-shell {
   display:flex;
   flex-direction:column;
-  width:96vw;
-  max-height:calc(100vh - 32px);
+  width:min(99vw, 1800px);
+  height:calc(100vh - 12px);
+  max-height:calc(100vh - 12px);
+  border-radius:16px;
 }
 .acc-form-modal-wide {
-  max-height:calc(100vh - 24px);
+  width:min(99vw, 1800px);
+  height:calc(100vh - 12px);
+  max-height:calc(100vh - 12px);
 }
 .acc-form-modal-body {
   flex:1 1 auto;
   min-height:0;
   overflow-y:auto;
-  overflow-x:hidden;
+  overflow-x:auto;
+  padding-bottom:20px;
 }
 .acc-form-modal-footer {
   position:sticky;
@@ -1282,6 +1411,114 @@ function genId(prefix) { return prefix + '-' + Math.random().toString(36).substr
 function today() { return new Date().toISOString().slice(0,10); }
 function fmtAmt(n) { return '₹ ' + Number(n||0).toLocaleString('en-IN'); }
 function fmtD(s) { if(!s) return '-'; var d=new Date(s); return d.getDate()+' '+['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][d.getMonth()]+' '+d.getFullYear(); }
+var ACCOUNTS_REGISTRY_KEYS = {
+  customers: 'acc_customer_registry',
+  projects: 'acc_project_registry',
+  workOrders: 'acc_workorder_registry'
+};
+function uniqueStrings(list) {
+  return Array.from(new Set((list || []).map(function(v){ return String(v || '').trim(); }).filter(Boolean)));
+}
+function getKnownCustomers() {
+  var vendors = load('ven').map(function(v){
+    return {
+      name: v.name || '',
+      email: v.email || '',
+      gst: v.gst || '',
+      pan: v.pan || '',
+      address: v.address || '',
+      state: v.state || '',
+      stateCode: v.stateCode || '',
+      source: 'vendor'
+    };
+  });
+  var docs = []
+    .concat(load('quo').map(function(r){ return { name:r.client || '', source:'quotation' }; }))
+    .concat(load('pro').map(function(r){ return {
+      name:r.customerName || r.client || '',
+      email:r.customerEmail || '',
+      gst:r.customerGstin || '',
+      pan:r.customerPan || '',
+      address:r.customerAddress || '',
+      state:r.customerState || '',
+      stateCode:r.customerStateCode || '',
+      source:'proforma'
+    }; }))
+    .concat(load('cwo').map(function(r){ return { name:r.party || '', source:'cwo' }; }))
+    .concat(load('prj').map(function(r){ return { name:r.client || '', source:'project' }; }));
+  var registry = load(ACCOUNTS_REGISTRY_KEYS.customers);
+  var merged = vendors.concat(docs).concat(Array.isArray(registry) ? registry : []);
+  var byName = {};
+  merged.forEach(function(item) {
+    var key = String((item && item.name) || '').trim().toLowerCase();
+    if (!key) return;
+    byName[key] = Object.assign({}, byName[key] || {}, item, { name: String(item.name).trim() });
+  });
+  return Object.keys(byName).sort().map(function(key){ return byName[key]; });
+}
+function getKnownProjects() {
+  return uniqueStrings(
+    load('prj').map(function(r){ return r.name; })
+      .concat(load('cwo').map(function(r){ return r.project; }))
+      .concat(load('vwo').map(function(r){ return r.project; }))
+      .concat(load('po').map(function(r){ return r.project; }))
+      .concat(load('pro').map(function(r){ return r.projectName || r.project; }))
+      .concat(load(ACCOUNTS_REGISTRY_KEYS.projects))
+  ).sort();
+}
+function getKnownWorkOrders() {
+  return uniqueStrings(
+    load('cwo').map(function(r){ return r.id; })
+      .concat(load('po').map(function(r){ return r.workOrder; }))
+      .concat(load('pro').map(function(r){ return r.workOrder; }))
+      .concat(load(ACCOUNTS_REGISTRY_KEYS.workOrders))
+  ).sort();
+}
+function rememberCustomer(customer) {
+  if (!customer) return;
+  var payload = typeof customer === 'string' ? { name: customer } : customer;
+  if (!payload.name || !String(payload.name).trim()) return;
+  var arr = load(ACCOUNTS_REGISTRY_KEYS.customers);
+  if (!Array.isArray(arr)) arr = [];
+  var key = String(payload.name).trim().toLowerCase();
+  var idx = arr.findIndex(function(item){ return String((item && item.name) || '').trim().toLowerCase() === key; });
+  var merged = Object.assign({}, idx >= 0 ? arr[idx] : {}, payload, { name: String(payload.name).trim() });
+  if (idx >= 0) arr[idx] = merged;
+  else arr.unshift(merged);
+  save(ACCOUNTS_REGISTRY_KEYS.customers, arr);
+}
+function rememberProject(projectName) {
+  var name = String(projectName || '').trim();
+  if (!name) return;
+  var arr = load(ACCOUNTS_REGISTRY_KEYS.projects);
+  if (!Array.isArray(arr)) arr = [];
+  if (!arr.some(function(item){ return String(item || '').trim().toLowerCase() === name.toLowerCase(); })) {
+    arr.unshift(name);
+    save(ACCOUNTS_REGISTRY_KEYS.projects, arr);
+  }
+}
+function rememberWorkOrder(woRef) {
+  var ref = String(woRef || '').trim();
+  if (!ref) return;
+  var arr = load(ACCOUNTS_REGISTRY_KEYS.workOrders);
+  if (!Array.isArray(arr)) arr = [];
+  if (!arr.some(function(item){ return String(item || '').trim().toLowerCase() === ref.toLowerCase(); })) {
+    arr.unshift(ref);
+    save(ACCOUNTS_REGISTRY_KEYS.workOrders, arr);
+  }
+}
+function renderDataList(id, values) {
+  var list = document.getElementById(id);
+  if (!list) return;
+  list.innerHTML = (values || []).map(function(value){
+    return '<option value="' + escape(String(value || '')) + '"></option>';
+  }).join('');
+}
+function refreshAccountsDataLists() {
+  renderDataList('acc-customer-list', getKnownCustomers().map(function(c){ return c.name; }));
+  renderDataList('acc-project-list', getKnownProjects());
+  renderDataList('acc-work-order-list', getKnownWorkOrders());
+}
 
 var STATUS_COLORS = {
   Draft:{c:'#64748b',b:'#f1f5f9'}, Sent:{c:'#3b82f6',b:'#dbeafe'},
@@ -1319,6 +1556,7 @@ function showModule(key) {
   else if(key==='pro') renderProforma();
   else if(key==='quo') renderQuotations();
   else if(key==='po') renderPO();
+  else if(key==='clt') renderClients();
   else if(key==='ven') renderVendors();
   else if(key==='cwo') renderCWO();
   else if(key==='vwo') renderVWO();
@@ -1337,10 +1575,28 @@ function updateDashStats() {
   api('GET', '/invoices').then(function(data) {
     document.getElementById('dash-inv').textContent = (data||[]).length;
   }).catch(function() {});
-  // Others from localStorage
-  document.getElementById('dash-ven').textContent = load('ven').length;
-  document.getElementById('dash-cwo').textContent = load('cwo').length;
-  document.getElementById('dash-prj').textContent = load('prj').length;
+  // Clients from API
+  api('GET', '/clients').then(function(data) {
+    document.getElementById('dash-clt').textContent = (data||[]).length;
+  }).catch(function() {});
+  // Vendors from API
+  api('GET', '/vendors').then(function(data) {
+    document.getElementById('dash-ven').textContent = (data||[]).length;
+  }).catch(function() {
+    document.getElementById('dash-ven').textContent = load('ven').length;
+  });
+  // Work orders from API
+  api('GET', '/work-orders?type=CWO').then(function(data) {
+    document.getElementById('dash-cwo').textContent = (data||[]).length;
+  }).catch(function() {
+    document.getElementById('dash-cwo').textContent = load('cwo').length;
+  });
+  // Projects from API
+  api('GET', '/project-accounts').then(function(data) {
+    document.getElementById('dash-prj').textContent = (data||[]).length;
+  }).catch(function() {
+    document.getElementById('dash-prj').textContent = load('prj').length;
+  });
 }
 
 /* ══════════════════════════════════════════════════════════
@@ -1664,6 +1920,9 @@ function collectGSTItems() {
   var sgstRate = parseFloat(document.getElementById('gst-sgst-rate').value) || 0;
   var cgstRate = parseFloat(document.getElementById('gst-cgst-rate').value) || 0;
   var totalTaxRate = sgstRate + cgstRate;
+  var sellerCode   = (document.getElementById('gst-s-code').value   || '').trim();
+  var customerCode = (document.getElementById('gst-c-code').value   || '').trim();
+  var useIGST = sellerCode && customerCode && sellerCode !== customerCode;
 
   var cards = document.getElementById('gst-items-body').querySelectorAll('[id^="gst-row-"]');
   var items = [];
@@ -1671,8 +1930,10 @@ function collectGSTItems() {
     var qty   = parseFloat(card.querySelector('.gi-qty').value)   || 0;
     var price = parseFloat(card.querySelector('.gi-price').value) || 0;
     var taxable = qty * price;
-    var sgstAmt = taxable * sgstRate / 100;
-    var cgstAmt = taxable * cgstRate / 100;
+    var gstAmt  = taxable * totalTaxRate / 100;
+    var cgstAmt = useIGST ? 0 : taxable * cgstRate / 100;
+    var sgstAmt = useIGST ? 0 : taxable * sgstRate / 100;
+    var igstAmt = useIGST ? gstAmt : 0;
     items.push({
       itemCode: card.querySelector('.gi-code').value,
       name:     card.querySelector('.gi-name').value,
@@ -1685,8 +1946,8 @@ function collectGSTItems() {
       taxableAmount: parseFloat(taxable.toFixed(2)),
       cgst:     parseFloat(cgstAmt.toFixed(2)),
       sgst:     parseFloat(sgstAmt.toFixed(2)),
-      igst:     0,
-      itemTotal: parseFloat((taxable + sgstAmt + cgstAmt).toFixed(2)),
+      igst:     parseFloat(igstAmt.toFixed(2)),
+      itemTotal: parseFloat((taxable + gstAmt).toFixed(2)),
     });
   });
   return items;
@@ -1701,13 +1962,14 @@ function saveGSTInvoice() {
   var cgstRate = parseFloat(document.getElementById('gst-cgst-rate').value) || 0;
 
   var items = collectGSTItems();
-  var subtotal = 0, totalCgst = 0, totalSgst = 0;
+  var subtotal = 0, totalCgst = 0, totalSgst = 0, totalIgst = 0;
   items.forEach(function(it) {
     subtotal  += it.taxableAmount;
     totalCgst += it.cgst;
     totalSgst += it.sgst;
+    totalIgst += it.igst;
   });
-  var gross      = subtotal + totalCgst + totalSgst;
+  var gross      = subtotal + totalCgst + totalSgst + totalIgst;
   var roundOff   = parseFloat((Math.round(gross) - gross).toFixed(2));
   var totalAmount= parseFloat((gross + roundOff).toFixed(2));
 
@@ -1742,8 +2004,8 @@ function saveGSTInvoice() {
     subtotal:          parseFloat(subtotal.toFixed(2)),
     totalCgst:         parseFloat(totalCgst.toFixed(2)),
     totalSgst:         parseFloat(totalSgst.toFixed(2)),
-    totalIgst:         0,
-    totalTax:          parseFloat((totalCgst + totalSgst).toFixed(2)),
+    totalIgst:         parseFloat(totalIgst.toFixed(2)),
+    totalTax:          parseFloat((totalCgst + totalSgst + totalIgst).toFixed(2)),
     roundOff:          roundOff,
     totalAmount:       totalAmount,
     sgstRate:          sgstRate,
@@ -1888,24 +2150,29 @@ function previewInvoice(id) {
 
     var statusColor = {Draft:'#64748b',Sent:'#3b82f6',Paid:'#22c55e',Overdue:'#ef4444',Cancelled:'#94a3b8'}[inv.status] || '#64748b';
 
+    var TD = 'padding:7px 10px;font-size:12px;border-bottom:1px solid #f1f5f9;';
     var itemRows = items.map(function(it, i) {
-      return '<tr style="border-bottom:1px solid #f1f5f9;">' +
-        '<td style="padding:8px 10px;color:#64748b;font-size:12px;">' + (i+1) + '</td>' +
-        '<td style="padding:8px 10px;">' +
-          '<div style="font-weight:600;font-size:13px;">' + (it.name||'—') + '</div>' +
-          ((it.itemCode && it.itemCode !== 'N/A') ? '<div style="font-size:11px;color:#94a3b8;">Code: ' + it.itemCode + '</div>' : '') +
-          (it.hsnCode ? '<div style="font-size:11px;color:#94a3b8;">HSN: ' + it.hsnCode + '</div>' : '') +
-        '</td>' +
-        '<td style="padding:8px 10px;text-align:center;font-size:12px;">' + (it.quantity||0) + (it.unit ? ' '+it.unit : '') + '</td>' +
-        '<td style="padding:8px 10px;text-align:right;font-size:12px;">' + fmt(it.unitPrice) + '</td>' +
-        '<td style="padding:8px 10px;text-align:center;font-size:12px;color:#64748b;">' + (it.discount ? it.discount+'%' : '—') + '</td>' +
-        '<td style="padding:8px 10px;text-align:center;font-size:12px;">' + (it.taxRate||0) + '%</td>' +
-        (useIGST
-          ? '<td style="padding:8px 10px;text-align:right;font-size:12px;color:#7c3aed;">' + fmt(it.igst) + '</td>'
-          : '<td style="padding:8px 10px;text-align:right;font-size:12px;color:#0891b2;">' + fmt(it.cgst) + '</td>' +
-            '<td style="padding:8px 10px;text-align:right;font-size:12px;color:#0891b2;">' + fmt(it.sgst) + '</td>') +
-        '<td style="padding:8px 10px;text-align:right;font-weight:700;font-size:13px;">' + fmt(it.itemTotal) + '</td>' +
+      var dataRow =
+        '<tr>' +
+          '<td style="' + TD + 'color:#64748b;text-align:center;">' + (i+1) + '</td>' +
+          '<td style="' + TD + '">' + (it.itemCode && it.itemCode !== 'N/A' ? it.itemCode : '—') + '</td>' +
+          '<td style="' + TD + '">' + (it.hsnCode || '—') + '</td>' +
+          '<td style="' + TD + 'text-align:center;">' + (it.unit || '—') + '</td>' +
+          '<td style="' + TD + 'text-align:right;">' + fmt(it.unitPrice) + '</td>' +
+          '<td style="' + TD + 'text-align:center;">' + (it.quantity||0) + '</td>' +
+          (useIGST
+            ? '<td style="' + TD + 'text-align:center;color:#7c3aed;">' + (it.taxRate||0) + '%</td>' +
+              '<td style="' + TD + 'text-align:right;color:#7c3aed;">' + fmt(it.igst) + '</td>'
+            : '<td style="' + TD + 'text-align:center;color:#0891b2;">' + ((it.taxRate||0)/2) + '%</td>' +
+              '<td style="' + TD + 'text-align:right;color:#0891b2;">' + fmt(it.cgst) + '</td>' +
+              '<td style="' + TD + 'text-align:center;color:#0891b2;">' + ((it.taxRate||0)/2) + '%</td>' +
+              '<td style="' + TD + 'text-align:right;color:#0891b2;">' + fmt(it.sgst) + '</td>') +
+          '<td style="' + TD + 'text-align:right;font-weight:700;">' + fmt(it.itemTotal) + '</td>' +
         '</tr>';
+      var descRow = it.name
+        ? '<tr><td colspan="' + (useIGST ? 9 : 11) + '" style="padding:4px 10px 8px 10px;font-size:12px;color:#475569;background:#f8fafc;border-bottom:1px solid #e2e8f0;">' + it.name + '</td></tr>'
+        : '';
+      return dataRow + descRow;
     }).join('');
 
     var html =
@@ -1958,16 +2225,21 @@ function previewInvoice(id) {
       '<div style="border:1px solid #e2e8f0;border-radius:10px;overflow:hidden;margin-bottom:16px;">' +
         '<div style="background:#f8fafc;padding:10px 12px;font-size:11px;font-weight:700;text-transform:uppercase;color:#64748b;letter-spacing:.5px;border-bottom:1px solid #e2e8f0;"><i class="bx bxs-package" style="font-size:13px;color:var(--accent);"></i> Item Details</div>' +
         '<table style="width:100%;border-collapse:collapse;">' +
-          '<thead><tr style="background:#f8fafc;border-bottom:2px solid #e2e8f0;">' +
-            '<th style="padding:8px 10px;font-size:11px;font-weight:700;color:#64748b;text-align:left;">#</th>' +
-            '<th style="padding:8px 10px;font-size:11px;font-weight:700;color:#64748b;text-align:left;">Description</th>' +
-            '<th style="padding:8px 10px;font-size:11px;font-weight:700;color:#64748b;text-align:center;">Qty</th>' +
+          '<thead><tr style="background:#f1f5f9;border-bottom:2px solid #e2e8f0;">' +
+            '<th style="padding:8px 10px;font-size:11px;font-weight:700;color:#64748b;text-align:center;">#</th>' +
+            '<th style="padding:8px 10px;font-size:11px;font-weight:700;color:#64748b;">Item Code</th>' +
+            '<th style="padding:8px 10px;font-size:11px;font-weight:700;color:#64748b;">HSN/SAC</th>' +
+            '<th style="padding:8px 10px;font-size:11px;font-weight:700;color:#64748b;text-align:center;">Unit</th>' +
             '<th style="padding:8px 10px;font-size:11px;font-weight:700;color:#64748b;text-align:right;">Rate</th>' +
-            '<th style="padding:8px 10px;font-size:11px;font-weight:700;color:#64748b;text-align:center;">Disc</th>' +
-            '<th style="padding:8px 10px;font-size:11px;font-weight:700;color:#64748b;text-align:center;">Tax</th>' +
-            (useIGST ? '<th style="padding:8px 10px;font-size:11px;font-weight:700;color:#7c3aed;text-align:right;">IGST</th>'
-                     : '<th style="padding:8px 10px;font-size:11px;font-weight:700;color:#0891b2;text-align:right;">CGST</th><th style="padding:8px 10px;font-size:11px;font-weight:700;color:#0891b2;text-align:right;">SGST</th>') +
-            '<th style="padding:8px 10px;font-size:11px;font-weight:700;color:#64748b;text-align:right;">Total</th>' +
+            '<th style="padding:8px 10px;font-size:11px;font-weight:700;color:#64748b;text-align:center;">Qty</th>' +
+            (useIGST
+              ? '<th style="padding:8px 10px;font-size:11px;font-weight:700;color:#7c3aed;text-align:center;">IGST%</th>' +
+                '<th style="padding:8px 10px;font-size:11px;font-weight:700;color:#7c3aed;text-align:right;">IGST</th>'
+              : '<th style="padding:8px 10px;font-size:11px;font-weight:700;color:#0891b2;text-align:center;">CGST%</th>' +
+                '<th style="padding:8px 10px;font-size:11px;font-weight:700;color:#0891b2;text-align:right;">CGST</th>' +
+                '<th style="padding:8px 10px;font-size:11px;font-weight:700;color:#0891b2;text-align:center;">SGST%</th>' +
+                '<th style="padding:8px 10px;font-size:11px;font-weight:700;color:#0891b2;text-align:right;">SGST</th>') +
+            '<th style="padding:8px 10px;font-size:11px;font-weight:700;color:#64748b;text-align:right;">Amount</th>' +
           '</tr></thead>' +
           '<tbody>' + itemRows + '</tbody>' +
         '</table>' +
@@ -2367,9 +2639,7 @@ function addProformaItem(it) {
     '<td><input type="text"   class="pi-unit"  value="' + (it.unit||'')     + '" placeholder="Nos/Kg/Hr"></td>' +
     '<td><input type="number" class="pi-price" value="' + (it.unitPrice||0) + '" min="0" step="0.01" oninput="recalcProforma()"></td>' +
     '<td><input type="number" class="pi-disc"  value="' + (it.discount||0)  + '" min="0" max="100" step="0.01" oninput="recalcProforma()"></td>' +
-    '<td><select class="pi-tax" onchange="recalcProforma()">' +
-      ['0','5','12','18','28'].map(function(r){ return '<option value="'+r+'"'+(String(it.taxRate)===r?' selected':'')+'>'+(r==='0'?'Exempt':r+'%')+'</option>'; }).join('') +
-    '</select></td>' +
+    '<td><input type="number" class="pi-tax" value="' + (it.taxRate||18) + '" min="0" max="100" step="0.01" oninput="recalcProforma()" style="width:60px;text-align:center;" onwheel="this.blur()"></td>' +
     '<td style="text-align:right;font-weight:600;font-size:13px;white-space:nowrap;" id="pi-amt-' + idx + '">₹0.00</td>' +
     '<td><button type="button" class="btn btn-danger btn-sm" style="padding:3px 7px;" onclick="removeProformaItem(\'pro-row-'+idx+'\')"><i class="bx bx-x"></i></button></td>';
   document.getElementById('pro-items-body').appendChild(row);
@@ -2427,6 +2697,10 @@ function recalcProforma() {
 
 /* ── Collect proforma items ─────────────────────────────── */
 function collectProformaItems() {
+  var selCode = (document.getElementById('pro-s-code').value || '').trim();
+  var cusCode = (document.getElementById('pro-c-code').value || '').trim();
+  var useIGST = selCode && cusCode && selCode !== cusCode;
+
   var rows = document.getElementById('pro-items-body').querySelectorAll('tr');
   var items = [];
   rows.forEach(function(row) {
@@ -2443,9 +2717,9 @@ function collectProformaItems() {
       quantity: qty, unit: row.querySelector('.pi-unit').value,
       unitPrice: price, discount: disc, taxRate: tax,
       taxableAmount: parseFloat(taxable.toFixed(2)),
-      cgst: parseFloat((gstAmt/2).toFixed(2)),
-      sgst: parseFloat((gstAmt/2).toFixed(2)),
-      igst: parseFloat(gstAmt.toFixed(2)),
+      cgst: useIGST ? 0 : parseFloat((gstAmt/2).toFixed(2)),
+      sgst: useIGST ? 0 : parseFloat((gstAmt/2).toFixed(2)),
+      igst: useIGST ? parseFloat(gstAmt.toFixed(2)) : 0,
       itemTotal: parseFloat((taxable + gstAmt).toFixed(2)),
     });
   });
@@ -2739,249 +3013,714 @@ function _applyProformaToInvoiceModal(rec) {
   }, 200);
 }
 
+/* ══════════════════════════════════════════════════════════
+   API-backed state caches
+══════════════════════════════════════════════════════════ */
+var _allVendors = [];
+var _allClients = [];
+var _allProjects = [];
+
 /* ── Global state for proforma editing ──────────────────── */
 var proEditingId = null;
 var proItemCount = 0;
-function renderQuotations() {
-  var q=(document.getElementById('quo-search').value||'').toLowerCase();
-  var st=document.getElementById('quo-status').value;
-  var data=load('quo').filter(function(r){ return (!q||(r.client||'').toLowerCase().includes(q)||(r.id||'').toLowerCase().includes(q))&&(!st||r.status===st); });
-  document.getElementById('quo-body').innerHTML = data.length ? data.map(function(r){
-    return '<tr><td class="acc-td" style="font-weight:600;">'+r.id+'</td><td class="acc-td">'+r.client+'</td><td class="acc-td">'+fmtD(r.date)+'</td><td class="acc-td">'+fmtD(r.validTill)+'</td><td class="acc-td" style="font-weight:600;">'+fmtAmt(r.amount)+'</td><td class="acc-td">'+badge(r.status)+'</td><td class="acc-td">'+actBtns('openDocEditModal(\'quo\',\''+r.id+'\')', 'delRecord(\'quo\',\''+r.id+'\')')+'</td></tr>';
-  }).join('') : emptyRow(7);
+
+/* ══════════════════════════════════════════════════════════
+   DROPDOWN POPULATORS (API-backed)
+══════════════════════════════════════════════════════════ */
+function populateClientDropdown(selId, selectedId, placeholder) {
+  var sel = document.getElementById(selId);
+  if (!sel) return Promise.resolve();
+  return api('GET', '/clients?status=Active').then(function(clients) {
+    sel.innerHTML = '<option value="">' + (placeholder||'— Select client —') + '</option>';
+    (clients||[]).forEach(function(c) {
+      var opt = document.createElement('option');
+      opt.value = c.id;
+      opt.dataset.name       = c.name;
+      opt.dataset.gstin      = c.gstin || '';
+      opt.dataset.pan        = c.pan || '';
+      opt.dataset.email      = c.email || '';
+      opt.dataset.address    = c.billingAddress || '';
+      opt.dataset.state      = c.state || '';
+      opt.dataset.stateCode  = c.stateCode || '';
+      opt.textContent = c.name + (c.clientCode ? ' (' + c.clientCode + ')' : '');
+      if (selectedId && c.id == selectedId) opt.selected = true;
+      sel.appendChild(opt);
+    });
+  }).catch(function(){});
 }
 
-/* ── PURCHASE ORDERS ──────────────────────────────────── */
+function populateVendorDropdownAPI(selId, selectedId, placeholder) {
+  var sel = document.getElementById(selId);
+  if (!sel) return Promise.resolve();
+  return api('GET', '/vendors?status=Active').then(function(vendors) {
+    sel.innerHTML = '<option value="">' + (placeholder||'— Select vendor —') + '</option>';
+    (vendors||[]).forEach(function(v) {
+      var opt = document.createElement('option');
+      opt.value = v.id;
+      opt.dataset.name       = v.name;
+      opt.dataset.gstin      = v.gstin || '';
+      opt.dataset.pan        = v.pan || '';
+      opt.dataset.email      = v.email || '';
+      opt.dataset.address    = v.address || '';
+      opt.dataset.state      = v.state || '';
+      opt.dataset.stateCode  = v.stateCode || '';
+      opt.dataset.bankName   = v.bankName || '';
+      opt.dataset.bankAcName = v.bankAcName || '';
+      opt.dataset.bankAccount= v.bankAccount || '';
+      opt.dataset.bankIfsc   = v.bankIfsc || '';
+      opt.dataset.bankBranch = v.bankBranch || '';
+      opt.textContent = v.name + (v.vendorCode ? ' (' + v.vendorCode + ')' : '') + (v.gstin ? ' | ' + v.gstin : '');
+      if (selectedId && v.id == selectedId) opt.selected = true;
+      sel.appendChild(opt);
+    });
+  }).catch(function(){});
+}
+
+/* ══════════════════════════════════════════════════════════
+   QUOTATIONS (API-backed)
+══════════════════════════════════════════════════════════ */
+var editingQuoId = null;
+
+function renderQuotations() {
+  var q = (document.getElementById('quo-search').value||'').toLowerCase();
+  var st = document.getElementById('quo-status').value;
+  api('GET', '/quotations').then(function(data) {
+    var filtered = (data||[]).filter(function(r) {
+      return (!q || (r.clientName||'').toLowerCase().includes(q) || (r.quotationNumber||'').toLowerCase().includes(q))
+          && (!st || r.status === st);
+    });
+    document.getElementById('quo-body').innerHTML = filtered.length ? filtered.map(function(r) {
+      var convBadge = r.status === 'Converted'
+        ? '<span style="font-size:10px;background:#dbeafe;color:#1d4ed8;border-radius:12px;padding:2px 8px;margin-left:4px;">Converted</span>' : '';
+      var canConv = r.status !== 'Converted' && r.status !== 'Rejected';
+      var btns = '<div style="display:flex;gap:2px;justify-content:center;">' +
+        '<button class="inv-act-btn" title="Edit" onclick="openQuoModal('+r.id+')"><i class="bx bx-edit-alt"></i></button>' +
+        (canConv ? '<button class="inv-act-btn" style="color:#0891b2;" title="→ Proforma" onclick="convertQuoToProforma('+r.id+')"><i class="bx bxs-file-doc"></i></button>' +
+                   '<button class="inv-act-btn" style="color:#22c55e;" title="→ Invoice" onclick="convertQuoToInvoice('+r.id+')"><i class="bx bxs-receipt"></i></button>' : '') +
+        '<button class="inv-act-btn inv-act-del" title="Delete" onclick="deleteQuo('+r.id+')"><i class="bx bx-trash"></i></button>' +
+        '</div>';
+      return '<tr>' +
+        '<td class="acc-td" style="font-weight:600;">'+(r.quotationNumber||'—')+convBadge+'</td>' +
+        '<td class="acc-td">'+(r.clientName||'—')+'</td>' +
+        '<td class="acc-td">'+fmtD(r.date)+'</td>' +
+        '<td class="acc-td">'+fmtD(r.validTill)+'</td>' +
+        '<td class="acc-td" style="font-weight:600;">'+fmtAmt(r.totalAmount||0)+'</td>' +
+        '<td class="acc-td">'+badge(r.status)+'</td>' +
+        '<td class="acc-td">'+btns+'</td></tr>';
+    }).join('') : emptyRow(7);
+  }).catch(function(e){ toast(e.message||'Error loading quotations','error'); });
+}
+
+/* ══════════════════════════════════════════════════════════
+   QUOTATIONS — open/save/delete/convert (API-backed)
+══════════════════════════════════════════════════════════ */
+var editingQuoId = null;
+
+function openQuoModal(id) {
+  editingQuoId = id || null;
+  document.getElementById('doc-type').value = 'quo';
+  document.getElementById('doc-modal-title').textContent = id ? 'Edit Quotation' : 'New Quotation';
+  document.getElementById('doc-party-label').textContent = 'Client Name';
+  document.getElementById('doc-date2-label').textContent = 'Valid Till';
+  document.getElementById('doc-status').innerHTML = '<option>Draft</option><option>Sent</option><option>Accepted</option><option>Rejected</option>';
+  document.getElementById('doc-items').innerHTML = '';
+  if (id) {
+    api('GET', '/quotations/'+id).then(function(r) {
+      document.getElementById('doc-id').value    = r.quotationNumber || '';
+      document.getElementById('doc-party').value = r.clientName || '';
+      document.getElementById('doc-date').value  = r.date || '';
+      document.getElementById('doc-date2').value = r.validTill || '';
+      document.getElementById('doc-status').value= r.status || 'Draft';
+      document.getElementById('doc-notes').value = r.notes || '';
+      (r.items||[]).forEach(function(it){ addLineItemRow(document.getElementById('doc-items'), it); });
+      updateDocTotal();
+    }).catch(function(e){ toast(e.message,'error'); });
+  } else {
+    document.getElementById('doc-id').value    = '';
+    document.getElementById('doc-party').value = '';
+    document.getElementById('doc-date').value  = today();
+    document.getElementById('doc-date2').value = '';
+    document.getElementById('doc-status').value= 'Draft';
+    document.getElementById('doc-notes').value = '';
+    addLineItemRow(document.getElementById('doc-items'), null);
+    updateDocTotal();
+  }
+  openModal('doc-modal');
+}
+
+async function saveDoc() {
+  var type = document.getElementById('doc-type').value;
+  if (type !== 'quo') return;
+  var items = getDocItems(document.getElementById('doc-items'));
+  var total = items.reduce(function(s,it){return s+(it.qty||0)*(it.rate||0);},0);
+  var clientName = document.getElementById('doc-party').value;
+  if (!clientName) return toast('Client name required','error');
+  var data = {
+    clientName: clientName,
+    date:       document.getElementById('doc-date').value,
+    validTill:  document.getElementById('doc-date2').value,
+    status:     document.getElementById('doc-status').value,
+    notes:      document.getElementById('doc-notes').value,
+    items:      items,
+    totalAmount:total,
+    subtotal:   total,
+  };
+  try {
+    if (editingQuoId) await api('PUT', '/quotations/'+editingQuoId, data);
+    else await api('POST', '/quotations', data);
+    closeModal('doc-modal');
+    renderQuotations();
+    toast('Quotation saved!','success');
+  } catch(e){ toast(e.message||'Error','error'); }
+}
+
+async function deleteQuo(id) {
+  if(!confirm('Delete this quotation?')) return;
+  try { await api('DELETE', '/quotations/'+id); renderQuotations(); toast('Deleted','success'); }
+  catch(e){ toast(e.message,'error'); }
+}
+
+async function convertQuoToProforma(id) {
+  if(!confirm('Convert to Proforma Invoice?')) return;
+  try {
+    var pro = await api('POST', '/quotations/'+id+'/convert-to-proforma', {});
+    toast('Proforma created: '+pro.proformaNumber,'success');
+    renderQuotations(); renderProforma();
+  } catch(e){ toast(e.message||'Error','error'); }
+}
+
+async function convertQuoToInvoice(id) {
+  if(!confirm('Convert directly to Invoice?')) return;
+  try {
+    var inv = await api('POST', '/quotations/'+id+'/convert-to-invoice', {});
+    toast('Invoice created: '+inv.invoiceNumber,'success');
+    renderQuotations(); renderInvoices();
+  } catch(e){ toast(e.message||'Error','error'); }
+}
+
+/* ══════════════════════════════════════════════════════════
+   PROFORMA — render/save/convert (API-backed overrides)
+══════════════════════════════════════════════════════════ */
+function renderProforma() {
+  var q  = (document.getElementById('pro-search').value||'').toLowerCase();
+  var st = document.getElementById('pro-status').value;
+  api('GET', '/proformas-db').then(function(data) {
+    var filtered = (data||[]).filter(function(r) {
+      return (!q || (r.customerName||'').toLowerCase().includes(q) || (r.proformaNumber||'').toLowerCase().includes(q))
+          && (!st || r.status === st);
+    });
+    document.getElementById('pro-body').innerHTML = filtered.length ? filtered.map(function(r) {
+      var convBadge = r.status === 'Converted'
+        ? '<span style="font-size:10px;background:#dcfce7;color:#15803d;border-radius:12px;padding:2px 8px;margin-left:4px;">Invoiced</span>' : '';
+      var canConv = r.status !== 'Converted' && r.status !== 'Rejected';
+      var proActBtns = '<div style="display:flex;gap:2px;justify-content:center;">' +
+        '<button class="inv-act-btn" title="Edit" onclick="openProformaModal('+r.id+')"><i class="bx bx-edit-alt"></i></button>' +
+        (canConv ? '<button class="inv-act-btn" style="color:#22c55e;" title="→ Invoice" onclick="convertProToInvoice('+r.id+')"><i class="bx bxs-receipt"></i></button>' : '') +
+        '<button class="inv-act-btn" title="Download PDF" onclick="downloadProformaPDF(\''+r.proformaNumber+'\')"><i class="bx bx-download"></i></button>' +
+        '<button class="inv-act-btn inv-act-del" title="Delete" onclick="deletePro('+r.id+')"><i class="bx bx-trash"></i></button>' +
+        '</div>';
+      return '<tr class="inv-row">' +
+        '<td class="acc-td" style="font-weight:700;color:var(--accent);">'+(r.proformaNumber||'—')+convBadge+'</td>' +
+        '<td class="acc-td">'+(r.customerName||'—')+'</td>' +
+        '<td class="acc-td">'+fmtD(r.date)+'</td>' +
+        '<td class="acc-td">'+fmtD(r.validityDate)+'</td>' +
+        '<td class="acc-td" style="font-weight:600;">'+fmtAmt(r.totalAmount||0)+'</td>' +
+        '<td class="acc-td">'+badge(r.status)+'</td>' +
+        '<td class="acc-td">'+proActBtns+'</td></tr>';
+    }).join('') : emptyRow(7);
+  }).catch(function(e){ toast(e.message||'Error','error'); });
+}
+
+async function convertProToInvoice(id) {
+  if(!confirm('Convert this Proforma to an Invoice?')) return;
+  try {
+    var inv = await api('POST', '/proformas-db/'+id+'/convert-to-invoice', {});
+    toast('Invoice created: '+inv.invoiceNumber,'success');
+    renderProforma(); renderInvoices();
+  } catch(e){ toast(e.message||'Error','error'); }
+}
+
+async function deletePro(id) {
+  if(!confirm('Delete this proforma?')) return;
+  try { await api('DELETE', '/proformas-db/'+id); renderProforma(); toast('Deleted','success'); }
+  catch(e){ toast(e.message,'error'); }
+}
+
+/* ══════════════════════════════════════════════════════════
+   PURCHASE ORDERS (API-backed)
+══════════════════════════════════════════════════════════ */
 var editingPOId = null;
+
 function addPOItemRow(container, item) {
   item = item||{name:'',qty:1,rate:0};
   var div = document.createElement('div'); div.className='line-item-row';
-  div.innerHTML='<input type="text" class="form-control item-name" placeholder="Item description" value="'+escape(item.name||'')+'">'+
-    '<input type="number" class="form-control item-qty" placeholder="Qty" value="'+(item.qty||1)+'" min="1" oninput="updatePOTotal()">'+
-    '<input type="number" class="form-control item-rate" placeholder="Rate" value="'+(item.rate||0)+'" min="0" oninput="updatePOTotal()">'+
-    '<div class="item-total">'+fmtAmt((item.qty||1)*(item.rate||0))+'</div>'+
-    '<button type="button" class="btn btn-danger btn-sm" onclick="this.parentElement.remove();updatePOTotal()"><i class="bx bx-x"></i></button>';
-  div.querySelector('.item-rate').addEventListener('input',function(){div.querySelector('.item-total').textContent=fmtAmt((parseFloat(div.querySelector('.item-qty').value)||0)*(parseFloat(div.querySelector('.item-rate').value)||0));});
-  div.querySelector('.item-qty').addEventListener('input',function(){div.querySelector('.item-total').textContent=fmtAmt((parseFloat(div.querySelector('.item-qty').value)||0)*(parseFloat(div.querySelector('.item-rate').value)||0));});
+  div.innerHTML = buildLineItemRow(item, 'updatePOTotal');
   container.appendChild(div);
+  wireLineItemTotal(div);
 }
 function addPOItem() { addPOItemRow(document.getElementById('po-items'),null); updatePOTotal(); }
 function updatePOTotal() {
-  var rows=document.getElementById('po-items').querySelectorAll('.line-item-row');
-  var total=0; rows.forEach(function(r){total+=(parseFloat(r.querySelector('.item-qty').value)||0)*(parseFloat(r.querySelector('.item-rate').value)||0);});
-  document.getElementById('po-total-display').textContent=fmtAmt(total);
+  var rows = document.getElementById('po-items').querySelectorAll('.line-item-row');
+  var total = 0;
+  rows.forEach(function(r){ total += (parseFloat(r.querySelector('.item-qty').value)||0)*(parseFloat(r.querySelector('.item-rate').value)||0); });
+  document.getElementById('po-total-display').textContent = fmtAmt(total);
 }
+
 function openPOModal(id) {
-  editingPOId=id||null;
-  document.getElementById('po-modal-title').textContent=id?'Edit Purchase Order':'New Purchase Order';
-  document.getElementById('po-items').innerHTML='';
-  if(id){
-    var rec=load('po').find(function(x){return x.id===id;}); if(!rec)return;
-    document.getElementById('po-id').value=rec.id; document.getElementById('po-vendor').value=rec.vendor;
-    document.getElementById('po-date').value=rec.date; document.getElementById('po-delivery').value=rec.deliveryDate||'';
-    document.getElementById('po-status-sel').value=rec.status; document.getElementById('po-notes').value=rec.notes||'';
-    (rec.items||[]).forEach(function(it){addPOItemRow(document.getElementById('po-items'),it);});
+  editingPOId = id || null;
+  document.getElementById('po-modal-title').textContent = id ? 'Edit Purchase Order' : 'New Purchase Order';
+  document.getElementById('po-items').innerHTML = '';
+  populateVendorDropdownAPI('po-vendor', null, 'Select vendor');
+  if (id) {
+    api('GET', '/purchase-orders/'+id).then(function(r) {
+      document.getElementById('po-id').value = r.poNumber || '';
+      document.getElementById('po-date').value = r.date || '';
+      document.getElementById('po-delivery').value = r.deliveryDate || '';
+      document.getElementById('po-status-sel').value = r.status || 'Draft';
+      document.getElementById('po-notes').value = r.notes || '';
+      populateVendorDropdownAPI('po-vendor', r.vendorId, 'Select vendor');
+      (r.items||[]).forEach(function(it){ addPOItemRow(document.getElementById('po-items'), it); });
+      updatePOTotal();
+    }).catch(function(e){ toast(e.message,'error'); });
   } else {
-    document.getElementById('po-id').value=genId('PO'); document.getElementById('po-vendor').value='';
-    document.getElementById('po-date').value=today(); document.getElementById('po-delivery').value='';
-    document.getElementById('po-status-sel').value='Draft'; document.getElementById('po-notes').value='';
-    addPOItemRow(document.getElementById('po-items'),null);
+    document.getElementById('po-id').value = '';
+    document.getElementById('po-date').value = today();
+    document.getElementById('po-delivery').value = '';
+    document.getElementById('po-status-sel').value = 'Draft';
+    document.getElementById('po-notes').value = '';
+    addPOItemRow(document.getElementById('po-items'), null);
+    updatePOTotal();
   }
-  updatePOTotal(); openModal('po-modal');
+  openModal('po-modal');
 }
-function savePO() {
-  var items=getDocItems(document.getElementById('po-items'));
-  var rec={id:document.getElementById('po-id').value, vendor:document.getElementById('po-vendor').value,
-    date:document.getElementById('po-date').value, deliveryDate:document.getElementById('po-delivery').value,
-    status:document.getElementById('po-status-sel').value, notes:document.getElementById('po-notes').value,
-    items:items, amount:items.reduce(function(s,it){return s+it.qty*it.rate;},0)};
-  var arr=load('po');
-  if(editingPOId){var i=arr.findIndex(function(x){return x.id===editingPOId;});if(i>=0)arr[i]=rec;}else arr.unshift(rec);
-  save('po',arr); closeModal('po-modal'); renderPO(); toast('Saved!','success');
+
+async function savePO() {
+  var items = getDocItems(document.getElementById('po-items'));
+  var vendorId = document.getElementById('po-vendor').value;
+  if (!vendorId) return toast('Select a vendor','error');
+  if (!items.length) return toast('Add at least one item','error');
+  var data = {
+    vendorId:     vendorId,
+    date:         document.getElementById('po-date').value,
+    deliveryDate: document.getElementById('po-delivery').value || null,
+    status:       document.getElementById('po-status-sel').value,
+    notes:        document.getElementById('po-notes').value,
+    items:        items,
+    totalAmount:  items.reduce(function(s,it){return s+(it.qty||0)*(it.rate||0);},0),
+  };
+  try {
+    if (editingPOId) await api('PUT', '/purchase-orders/'+editingPOId, data);
+    else await api('POST', '/purchase-orders', data);
+    closeModal('po-modal');
+    renderPO();
+    toast('PO saved!','success');
+  } catch(e){ toast(e.message||'Error','error'); }
 }
+
 function renderPO() {
-  var q=(document.getElementById('po-search').value||'').toLowerCase();
-  var st=document.getElementById('po-status').value;
-  var data=load('po').filter(function(r){return(!q||(r.vendor||'').toLowerCase().includes(q)||(r.id||'').toLowerCase().includes(q))&&(!st||r.status===st);});
-  document.getElementById('po-body').innerHTML=data.length?data.map(function(r){
-    return '<tr><td class="acc-td" style="font-weight:600;">'+r.id+'</td><td class="acc-td">'+r.vendor+'</td><td class="acc-td">'+fmtD(r.date)+'</td><td class="acc-td">'+fmtD(r.deliveryDate)+'</td><td class="acc-td" style="font-weight:600;">'+fmtAmt(r.amount)+'</td><td class="acc-td">'+badge(r.status)+'</td><td class="acc-td">'+actBtns('openPOModal(\''+r.id+'\')','delRecord(\'po\',\''+r.id+'\')')+'</td></tr>';
-  }).join(''):emptyRow(7);
+  var q = (document.getElementById('po-search').value||'').toLowerCase();
+  var st = document.getElementById('po-status').value;
+  api('GET', '/purchase-orders').then(function(data) {
+    var filtered = (data||[]).filter(function(r) {
+      return (!q || (r.vendorName||'').toLowerCase().includes(q) || (r.poNumber||'').toLowerCase().includes(q))
+          && (!st || r.status === st);
+    });
+    document.getElementById('po-body').innerHTML = filtered.length ? filtered.map(function(r) {
+      return '<tr>' +
+        '<td class="acc-td" style="font-weight:600;">'+(r.poNumber||'—')+'</td>' +
+        '<td class="acc-td">'+(r.vendorName||'—')+'</td>' +
+        '<td class="acc-td">'+fmtD(r.date)+'</td>' +
+        '<td class="acc-td">'+fmtD(r.deliveryDate)+'</td>' +
+        '<td class="acc-td" style="font-weight:600;">'+fmtAmt(r.totalAmount||0)+'</td>' +
+        '<td class="acc-td">'+badge(r.status)+'</td>' +
+        '<td class="acc-td">'+actBtns('openPOModal('+r.id+')','deletePO('+r.id+')')+'</td></tr>';
+    }).join('') : emptyRow(7);
+  }).catch(function(e){ toast(e.message||'Error','error'); });
 }
 
-/* ── VENDORS ──────────────────────────────────────────── */
-var editingVenId=null;
+async function deletePO(id) {
+  if(!confirm('Delete this purchase order?')) return;
+  try { await api('DELETE', '/purchase-orders/'+id); renderPO(); toast('Deleted','success'); }
+  catch(e){ toast(e.message,'error'); }
+}
+
+/* ══════════════════════════════════════════════════════════
+   VENDORS (API-backed)
+══════════════════════════════════════════════════════════ */
+var editingVenId = null;
+
 function openVenModal(id) {
-  editingVenId=id||null;
-  document.getElementById('ven-modal-title').textContent=id?'Edit Vendor':'Register Vendor';
-  if(id){
-    var rec=load('ven').find(function(x){return x.id===id;}); if(!rec)return;
-    document.getElementById('ven-id').value=rec.id; document.getElementById('ven-name').value=rec.name;
-    document.getElementById('ven-contact').value=rec.contact||''; document.getElementById('ven-phone').value=rec.phone||'';
-    document.getElementById('ven-email').value=rec.email||''; document.getElementById('ven-category').value=rec.category||'';
-    document.getElementById('ven-gst').value=rec.gst||''; document.getElementById('ven-pan').value=rec.pan||'';
-    document.getElementById('ven-address').value=rec.address||'';
-    document.getElementById('ven-state').value=rec.state||'';
-    document.getElementById('ven-statecode').value=rec.stateCode||'';
-    document.getElementById('ven-status-sel').value=rec.status||'Active';
+  editingVenId = id || null;
+  document.getElementById('ven-modal-title').textContent = id ? 'Edit Vendor' : 'Register Vendor';
+  if (id) {
+    api('GET', '/vendors/'+id).then(function(r) {
+      document.getElementById('ven-id').value       = r.vendorCode || '';
+      document.getElementById('ven-name').value     = r.name || '';
+      document.getElementById('ven-contact').value  = r.contactPerson || '';
+      document.getElementById('ven-phone').value    = r.phone || '';
+      document.getElementById('ven-email').value    = r.email || '';
+      document.getElementById('ven-category').value = r.category || '';
+      document.getElementById('ven-gst').value      = r.gstin || '';
+      document.getElementById('ven-pan').value      = r.pan || '';
+      document.getElementById('ven-address').value  = r.address || '';
+      document.getElementById('ven-state').value    = r.state || '';
+      document.getElementById('ven-statecode').value= r.stateCode || '';
+      document.getElementById('ven-status-sel').value = r.status || 'Active';
+      openModal('ven-modal');
+    }).catch(function(e){ toast(e.message,'error'); });
   } else {
-    ['ven-name','ven-contact','ven-phone','ven-email','ven-category','ven-gst','ven-pan','ven-address','ven-state','ven-statecode'].forEach(function(i){document.getElementById(i).value='';});
-    document.getElementById('ven-id').value=genId('VEN'); document.getElementById('ven-status-sel').value='Active';
+    ['ven-name','ven-contact','ven-phone','ven-email','ven-category','ven-gst','ven-pan','ven-address','ven-state','ven-statecode'].forEach(function(fid){ var el=document.getElementById(fid); if(el) el.value=''; });
+    document.getElementById('ven-id').value = '';
+    document.getElementById('ven-status-sel').value = 'Active';
+    openModal('ven-modal');
   }
-  openModal('ven-modal');
-}
-function saveVendor() {
-  var rec={id:document.getElementById('ven-id').value, name:document.getElementById('ven-name').value,
-    contact:document.getElementById('ven-contact').value, phone:document.getElementById('ven-phone').value,
-    email:document.getElementById('ven-email').value, category:document.getElementById('ven-category').value,
-    gst:document.getElementById('ven-gst').value.toUpperCase(), pan:document.getElementById('ven-pan').value,
-    address:document.getElementById('ven-address').value,
-    state:document.getElementById('ven-state').value,
-    stateCode:document.getElementById('ven-statecode').value,
-    status:document.getElementById('ven-status-sel').value};
-  if(!rec.name) return toast('Vendor name required','error');
-  var arr=load('ven');
-  if(editingVenId){var i=arr.findIndex(function(x){return x.id===editingVenId;});if(i>=0)arr[i]=rec;}else arr.unshift(rec);
-  save('ven',arr); closeModal('ven-modal'); renderVendors(); toast('Saved!','success');
-}
-function renderVendors() {
-  var q=(document.getElementById('ven-search').value||'').toLowerCase();
-  var st=document.getElementById('ven-status').value;
-  var data=load('ven').filter(function(r){return(!q||(r.name||'').toLowerCase().includes(q)||(r.id||'').toLowerCase().includes(q))&&(!st||r.status===st);});
-  document.getElementById('ven-body').innerHTML=data.length?data.map(function(r){
-    return '<tr><td class="acc-td" style="font-weight:600;">'+r.id+'</td><td class="acc-td">'+r.name+'</td><td class="acc-td">'+r.contact+'</td><td class="acc-td">'+r.email+'</td><td class="acc-td">'+r.category+'</td><td class="acc-td" style="font-size:12px;">'+r.gst+'</td><td class="acc-td">'+badge(r.status)+'</td><td class="acc-td">'+actBtns('openVenModal(\''+r.id+'\')','delRecord(\'ven\',\''+r.id+'\')')+'</td></tr>';
-  }).join(''):emptyRow(8);
 }
 
-/* ── WORK ORDERS (Client & Vendor) ────────────────────── */
-var editingWOId=null, editingWOType=null;
-function openWOModal(type, id) {
-  editingWOType=type; editingWOId=id||null;
-  var labels={cwo:{title:id?'Edit Client Work Order':'New Client Work Order', party:'Client Name'},
-               vwo:{title:id?'Edit Vendor Work Order':'New Vendor Work Order', party:'Vendor Name'}};
-  document.getElementById('wo-type').value=type;
-  document.getElementById('wo-modal-title').textContent=labels[type].title;
-  document.getElementById('wo-party-label').textContent=labels[type].party;
-  if(id){
-    var rec=load(type).find(function(x){return x.id===id;}); if(!rec)return;
-    document.getElementById('wo-id').value=rec.id; document.getElementById('wo-party').value=rec.party;
-    document.getElementById('wo-project').value=rec.project||''; document.getElementById('wo-start').value=rec.startDate||'';
-    document.getElementById('wo-end').value=rec.endDate||''; document.getElementById('wo-scope').value=rec.scope||'';
-    document.getElementById('wo-amount').value=rec.amount||0; document.getElementById('wo-status-sel').value=rec.status||'Draft';
+async function saveVendor() {
+  var data = {
+    name:          document.getElementById('ven-name').value,
+    contactPerson: document.getElementById('ven-contact').value,
+    phone:         document.getElementById('ven-phone').value,
+    email:         document.getElementById('ven-email').value,
+    category:      document.getElementById('ven-category').value,
+    gstin:         document.getElementById('ven-gst').value.toUpperCase(),
+    pan:           document.getElementById('ven-pan').value.toUpperCase(),
+    address:       document.getElementById('ven-address').value,
+    state:         document.getElementById('ven-state').value,
+    stateCode:     document.getElementById('ven-statecode').value,
+    status:        document.getElementById('ven-status-sel').value,
+  };
+  if (!data.name) return toast('Vendor name required','error');
+  try {
+    if (editingVenId) await api('PUT', '/vendors/'+editingVenId, data);
+    else await api('POST', '/vendors', data);
+    closeModal('ven-modal');
+    renderVendors();
+    toast('Vendor saved!','success');
+  } catch(e){ toast(e.message||'Error','error'); }
+}
+
+function renderVendors() {
+  var q = (document.getElementById('ven-search').value||'').toLowerCase();
+  var st = document.getElementById('ven-status').value;
+  api('GET', '/vendors').then(function(data) {
+    _allVendors = data || [];
+    var filtered = _allVendors.filter(function(r) {
+      return (!q || (r.name||'').toLowerCase().includes(q) || (r.vendorCode||'').toLowerCase().includes(q) || (r.email||'').toLowerCase().includes(q))
+          && (!st || r.status === st);
+    });
+    document.getElementById('ven-body').innerHTML = filtered.length ? filtered.map(function(r) {
+      return '<tr>' +
+        '<td class="acc-td" style="font-weight:600;">'+(r.vendorCode||'—')+'</td>' +
+        '<td class="acc-td" style="font-weight:600;">'+r.name+'</td>' +
+        '<td class="acc-td">'+(r.contactPerson||'—')+'</td>' +
+        '<td class="acc-td">'+(r.email||'—')+'</td>' +
+        '<td class="acc-td">'+(r.category||'—')+'</td>' +
+        '<td class="acc-td" style="font-size:12px;">'+(r.gstin||'—')+'</td>' +
+        '<td class="acc-td">'+badge(r.status)+'</td>' +
+        '<td class="acc-td">'+actBtns('openVenModal('+r.id+')','deleteVen('+r.id+')')+'</td></tr>';
+    }).join('') : emptyRow(8);
+  }).catch(function(e){ toast(e.message||'Error','error'); });
+}
+
+async function deleteVen(id) {
+  if(!confirm('Delete this vendor?')) return;
+  try { await api('DELETE', '/vendors/'+id); renderVendors(); toast('Deleted','success'); }
+  catch(e){ toast(e.message,'error'); }
+}
+
+/* ══════════════════════════════════════════════════════════
+   CLIENTS (API-backed)
+══════════════════════════════════════════════════════════ */
+var editingCltId = null;
+
+function renderClients() {
+  var q = (document.getElementById('clt-search').value||'').toLowerCase();
+  var st = document.getElementById('clt-status').value;
+  api('GET', '/clients').then(function(data) {
+    _allClients = data || [];
+    var filtered = _allClients.filter(function(r) {
+      return (!q || (r.name||'').toLowerCase().includes(q) || (r.clientCode||'').toLowerCase().includes(q) || (r.email||'').toLowerCase().includes(q))
+          && (!st || r.status === st);
+    });
+    document.getElementById('clt-body').innerHTML = filtered.length ? filtered.map(function(r) {
+      return '<tr>' +
+        '<td class="acc-td" style="font-weight:600;">'+(r.clientCode||'—')+'</td>' +
+        '<td class="acc-td" style="font-weight:600;">'+r.name+'</td>' +
+        '<td class="acc-td">'+(r.contactPerson||'—')+'</td>' +
+        '<td class="acc-td">'+(r.email||'—')+'</td>' +
+        '<td class="acc-td" style="font-size:12px;">'+(r.gstin||'—')+'</td>' +
+        '<td class="acc-td">'+(r.state||'—')+'</td>' +
+        '<td class="acc-td">'+badge(r.status)+'</td>' +
+        '<td class="acc-td">'+actBtns('openCltModal('+r.id+')','deleteClt('+r.id+')')+'</td></tr>';
+    }).join('') : emptyRow(8);
+  }).catch(function(e){ toast(e.message||'Error loading clients','error'); });
+}
+
+function openCltModal(id) {
+  editingCltId = id || null;
+  document.getElementById('clt-modal-title').textContent = id ? 'Edit Client' : 'Register Client';
+  if (id) {
+    api('GET', '/clients/'+id).then(function(r) {
+      document.getElementById('clt-db-id').value     = r.id;
+      document.getElementById('clt-code').value      = r.clientCode || '';
+      document.getElementById('clt-name').value      = r.name || '';
+      document.getElementById('clt-contact').value   = r.contactPerson || '';
+      document.getElementById('clt-phone').value     = r.phone || '';
+      document.getElementById('clt-email').value     = r.email || '';
+      document.getElementById('clt-gst').value       = r.gstin || '';
+      document.getElementById('clt-pan').value       = r.pan || '';
+      document.getElementById('clt-address').value   = r.billingAddress || '';
+      document.getElementById('clt-state').value     = r.state || '';
+      document.getElementById('clt-statecode').value = r.stateCode || '';
+      document.getElementById('clt-status-sel').value= r.status || 'Active';
+      openModal('clt-modal');
+    }).catch(function(e){ toast(e.message,'error'); });
   } else {
-    ['wo-party','wo-project','wo-scope'].forEach(function(i){document.getElementById(i).value='';});
-    document.getElementById('wo-id').value=genId(type==='cwo'?'CWO':'VWO');
-    document.getElementById('wo-start').value=today(); document.getElementById('wo-end').value='';
-    document.getElementById('wo-amount').value=0; document.getElementById('wo-status-sel').value='Draft';
+    ['clt-db-id','clt-code','clt-name','clt-contact','clt-phone','clt-email','clt-gst','clt-pan','clt-address','clt-state','clt-statecode'].forEach(function(fid){ var el=document.getElementById(fid); if(el) el.value=''; });
+    document.getElementById('clt-status-sel').value = 'Active';
+    openModal('clt-modal');
+  }
+}
+
+async function saveClient() {
+  var data = {
+    name:          document.getElementById('clt-name').value,
+    contactPerson: document.getElementById('clt-contact').value,
+    phone:         document.getElementById('clt-phone').value,
+    email:         document.getElementById('clt-email').value,
+    gstin:         document.getElementById('clt-gst').value.toUpperCase(),
+    pan:           document.getElementById('clt-pan').value.toUpperCase(),
+    billingAddress:document.getElementById('clt-address').value,
+    state:         document.getElementById('clt-state').value,
+    stateCode:     document.getElementById('clt-statecode').value,
+    status:        document.getElementById('clt-status-sel').value,
+  };
+  if (!data.name) return toast('Client name required','error');
+  try {
+    if (editingCltId) await api('PUT', '/clients/'+editingCltId, data);
+    else await api('POST', '/clients', data);
+    closeModal('clt-modal');
+    renderClients();
+    toast('Client saved!','success');
+  } catch(e){ toast(e.message||'Error','error'); }
+}
+
+async function deleteClt(id) {
+  if(!confirm('Delete this client?')) return;
+  try { await api('DELETE', '/clients/'+id); renderClients(); toast('Deleted','success'); }
+  catch(e){ toast(e.message,'error'); }
+}
+
+/* ══════════════════════════════════════════════════════════
+   WORK ORDERS — CWO + VWO (API-backed)
+══════════════════════════════════════════════════════════ */
+var editingWOId = null, editingWOType = null;
+
+function openWOModal(type, id) {
+  editingWOType = type; editingWOId = id || null;
+  var isCWO = type === 'cwo';
+  document.getElementById('wo-type').value = type;
+  document.getElementById('wo-modal-title').textContent = isCWO
+    ? (id ? 'Edit Client Work Order' : 'New Client Work Order')
+    : (id ? 'Edit Vendor Work Order' : 'New Vendor Work Order');
+  document.getElementById('wo-party-label').textContent = isCWO ? 'Client' : 'Vendor';
+  var partyInput  = document.getElementById('wo-party');
+  var vendorSelect= document.getElementById('wo-vendor');
+  if (isCWO) {
+    partyInput.style.display  = '';
+    vendorSelect.style.display= 'none';
+  } else {
+    partyInput.style.display  = 'none';
+    vendorSelect.style.display= '';
+    populateVendorDropdownAPI('wo-vendor', id ? null : null, 'Select vendor');
+  }
+  if (id) {
+    api('GET', '/work-orders/'+id).then(function(r) {
+      document.getElementById('wo-id').value      = r.woNumber || '';
+      partyInput.value = r.partyName || '';
+      if (!isCWO) populateVendorDropdownAPI('wo-vendor', r.vendorId, 'Select vendor');
+      document.getElementById('wo-project').value = r.projectName || '';
+      document.getElementById('wo-start').value   = r.startDate || '';
+      document.getElementById('wo-end').value     = r.endDate || '';
+      document.getElementById('wo-scope').value   = r.scope || '';
+      document.getElementById('wo-amount').value  = r.totalAmount || 0;
+      document.getElementById('wo-status-sel').value = r.status || 'Draft';
+    }).catch(function(e){ toast(e.message,'error'); });
+  } else {
+    document.getElementById('wo-id').value = '';
+    partyInput.value = '';
+    document.getElementById('wo-project').value = '';
+    document.getElementById('wo-start').value = today();
+    document.getElementById('wo-end').value = '';
+    document.getElementById('wo-scope').value = '';
+    document.getElementById('wo-amount').value = 0;
+    document.getElementById('wo-status-sel').value = 'Draft';
   }
   openModal('wo-modal');
 }
-function saveWO() {
-  var type=document.getElementById('wo-type').value;
-  var rec={id:document.getElementById('wo-id').value, party:document.getElementById('wo-party').value,
-    project:document.getElementById('wo-project').value, startDate:document.getElementById('wo-start').value,
-    endDate:document.getElementById('wo-end').value, scope:document.getElementById('wo-scope').value,
-    amount:parseFloat(document.getElementById('wo-amount').value)||0, status:document.getElementById('wo-status-sel').value};
-  if(!rec.party) return toast('Name required','error');
-  var arr=load(type);
-  if(editingWOId){var i=arr.findIndex(function(x){return x.id===editingWOId;});if(i>=0)arr[i]=rec;}else arr.unshift(rec);
-  save(type,arr); closeModal('wo-modal');
-  if(type==='cwo') renderCWO(); else renderVWO(); toast('Saved!','success');
-}
-function renderCWO() {
-  var q=(document.getElementById('cwo-search').value||'').toLowerCase();
-  var st=document.getElementById('cwo-status').value;
-  var data=load('cwo').filter(function(r){return(!q||(r.party||'').toLowerCase().includes(q)||(r.id||'').toLowerCase().includes(q)||(r.project||'').toLowerCase().includes(q))&&(!st||r.status===st);});
-  document.getElementById('cwo-body').innerHTML=data.length?data.map(function(r){
-    return '<tr><td class="acc-td" style="font-weight:600;">'+r.id+'</td><td class="acc-td">'+r.party+'</td><td class="acc-td">'+r.project+'</td><td class="acc-td">'+fmtD(r.startDate)+'</td><td class="acc-td">'+fmtD(r.endDate)+'</td><td class="acc-td" style="font-weight:600;">'+fmtAmt(r.amount)+'</td><td class="acc-td">'+badge(r.status)+'</td><td class="acc-td">'+actBtns('openWOModal(\'cwo\',\''+r.id+'\')','delRecord(\'cwo\',\''+r.id+'\')')+'</td></tr>';
-  }).join(''):emptyRow(8);
-}
-function renderVWO() {
-  var q=(document.getElementById('vwo-search').value||'').toLowerCase();
-  var st=document.getElementById('vwo-status').value;
-  var data=load('vwo').filter(function(r){return(!q||(r.party||'').toLowerCase().includes(q)||(r.id||'').toLowerCase().includes(q)||(r.project||'').toLowerCase().includes(q))&&(!st||r.status===st);});
-  document.getElementById('vwo-body').innerHTML=data.length?data.map(function(r){
-    return '<tr><td class="acc-td" style="font-weight:600;">'+r.id+'</td><td class="acc-td">'+r.party+'</td><td class="acc-td">'+r.project+'</td><td class="acc-td">'+fmtD(r.startDate)+'</td><td class="acc-td">'+fmtD(r.endDate)+'</td><td class="acc-td" style="font-weight:600;">'+fmtAmt(r.amount)+'</td><td class="acc-td">'+badge(r.status)+'</td><td class="acc-td">'+actBtns('openWOModal(\'vwo\',\''+r.id+'\')','delRecord(\'vwo\',\''+r.id+'\')')+'</td></tr>';
-  }).join(''):emptyRow(8);
-}
 
-/* ── PROJECT ACCOUNTS ─────────────────────────────────── */
-var editingPrjId=null;
-function openPrjModal(id) {
-  editingPrjId=id||null;
-  document.getElementById('prj-modal-title').textContent=id?'Edit Project':'New Project';
-  if(id){
-    var rec=load('prj').find(function(x){return x.id===id;}); if(!rec)return;
-    document.getElementById('prj-id').value=rec.id; document.getElementById('prj-name').value=rec.name;
-    document.getElementById('prj-client').value=rec.client||''; document.getElementById('prj-status-sel').value=rec.status||'Planning';
-    document.getElementById('prj-start').value=rec.startDate||''; document.getElementById('prj-end').value=rec.endDate||'';
-    document.getElementById('prj-budget').value=rec.budget||0; document.getElementById('prj-spent').value=rec.spent||0;
-    document.getElementById('prj-desc').value=rec.desc||'';
-  } else {
-    ['prj-name','prj-client','prj-desc'].forEach(function(i){document.getElementById(i).value='';});
-    document.getElementById('prj-id').value=genId('PRJ'); document.getElementById('prj-status-sel').value='Planning';
-    document.getElementById('prj-start').value=today(); document.getElementById('prj-end').value='';
-    document.getElementById('prj-budget').value=0; document.getElementById('prj-spent').value=0;
-  }
-  openModal('prj-modal');
-}
-function saveProject() {
-  var rec={id:document.getElementById('prj-id').value, name:document.getElementById('prj-name').value,
-    client:document.getElementById('prj-client').value, status:document.getElementById('prj-status-sel').value,
-    startDate:document.getElementById('prj-start').value, endDate:document.getElementById('prj-end').value,
-    budget:parseFloat(document.getElementById('prj-budget').value)||0, spent:parseFloat(document.getElementById('prj-spent').value)||0,
-    desc:document.getElementById('prj-desc').value};
-  if(!rec.name) return toast('Project name required','error');
-  var arr=load('prj');
-  if(editingPrjId){var i=arr.findIndex(function(x){return x.id===editingPrjId;});if(i>=0)arr[i]=rec;}else arr.unshift(rec);
-  save('prj',arr); closeModal('prj-modal'); renderProjects(); toast('Saved!','success');
-}
-function renderProjects() {
-  var q=(document.getElementById('prj-search').value||'').toLowerCase();
-  var st=document.getElementById('prj-status').value;
-  var data=load('prj').filter(function(r){return(!q||(r.name||'').toLowerCase().includes(q)||(r.id||'').toLowerCase().includes(q)||(r.client||'').toLowerCase().includes(q))&&(!st||r.status===st);});
-  document.getElementById('prj-body').innerHTML=data.length?data.map(function(r){
-    var rem=r.budget-r.spent; var pct=r.budget?Math.round((r.spent/r.budget)*100):0;
-    var barColor=pct>90?'#ef4444':pct>70?'#f59e0b':'#22c55e';
-    return '<tr><td class="acc-td" style="font-weight:600;">'+r.id+'</td>'+
-      '<td class="acc-td"><div style="font-weight:600;">'+r.name+'</div><div style="height:4px;background:var(--bg-input);border-radius:4px;margin-top:4px;width:100px;"><div style="width:'+pct+'%;height:100%;background:'+barColor+';border-radius:4px;"></div></div></td>'+
-      '<td class="acc-td">'+r.client+'</td>'+
-      '<td class="acc-td" style="font-weight:600;">'+fmtAmt(r.budget)+'</td>'+
-      '<td class="acc-td">'+fmtAmt(r.spent)+'</td>'+
-      '<td class="acc-td" style="font-weight:600;color:'+(rem<0?'#ef4444':'var(--text-primary)')+';">'+fmtAmt(rem)+'</td>'+
-      '<td class="acc-td">'+badge(r.status)+'</td>'+
-      '<td class="acc-td">'+actBtns('openPrjModal(\''+r.id+'\')','delRecord(\'prj\',\''+r.id+'\')')+'</td></tr>';
-  }).join(''):emptyRow(8);
-}
-
-/* ── delete (localStorage modules only) ──────────────────── */
-async function delRecord(key, id) {
-  if(!confirm('Delete this record?')) return;
-  var arr=load(key);
-  var rec=arr.find(function(x){return x.id===id;});
-  if(!rec) return toast('Record not found','error');
-  var typeMap={
-    pro:'proforma',
-    quo:'quotation',
-    po:'purchase_order',
-    ven:'vendor',
-    cwo:'client_work_order',
-    vwo:'vendor_work_order',
-    prj:'project_account'
+async function saveWO() {
+  var type    = document.getElementById('wo-type').value;
+  var isCWO   = type === 'cwo';
+  var partyInput  = document.getElementById('wo-party');
+  var vendorSel   = document.getElementById('wo-vendor');
+  var vendorOpt   = vendorSel && vendorSel.selectedIndex >= 0 ? vendorSel.options[vendorSel.selectedIndex] : null;
+  var data = {
+    type:       type.toUpperCase(),
+    partyName:  isCWO ? partyInput.value : (vendorOpt && vendorOpt.dataset ? vendorOpt.dataset.name : vendorSel.value),
+    clientId:   isCWO ? null : null,
+    vendorId:   !isCWO && vendorSel && vendorSel.value ? vendorSel.value : null,
+    projectName:document.getElementById('wo-project').value,
+    startDate:  document.getElementById('wo-start').value || null,
+    endDate:    document.getElementById('wo-end').value || null,
+    scope:      document.getElementById('wo-scope').value,
+    totalAmount:parseFloat(document.getElementById('wo-amount').value)||0,
+    status:     document.getElementById('wo-status-sel').value,
   };
+  if (!data.partyName && !data.vendorId) return toast(isCWO ? 'Client name required' : 'Select a vendor','error');
   try {
-    await api('POST', '/recycle-bin/custom', {
-      itemType:typeMap[key],
-      itemId:rec.id,
-      itemData:rec,
-      itemTitle:rec.id + (rec.name ? (' - ' + rec.name) : rec.vendor ? (' - ' + rec.vendor) : rec.party ? (' - ' + rec.party) : rec.client ? (' - ' + rec.client) : '')
+    if (editingWOId) await api('PUT', '/work-orders/'+editingWOId, data);
+    else await api('POST', '/work-orders', data);
+    closeModal('wo-modal');
+    if (isCWO) renderCWO(); else renderVWO();
+    toast('Work Order saved!','success');
+  } catch(e){ toast(e.message||'Error','error'); }
+}
+
+function renderCWO() {
+  var q = (document.getElementById('cwo-search').value||'').toLowerCase();
+  var st = document.getElementById('cwo-status').value;
+  api('GET', '/work-orders?type=CWO').then(function(data) {
+    var filtered = (data||[]).filter(function(r) {
+      return (!q || (r.partyName||'').toLowerCase().includes(q) || (r.woNumber||'').toLowerCase().includes(q) || (r.projectName||'').toLowerCase().includes(q))
+          && (!st || r.status === st);
     });
-  } catch (e) {
-    return toast(e.message || 'Could not move to recycle bin', 'error');
+    document.getElementById('cwo-body').innerHTML = filtered.length ? filtered.map(function(r) {
+      return '<tr>' +
+        '<td class="acc-td" style="font-weight:600;">'+(r.woNumber||'—')+'</td>' +
+        '<td class="acc-td">'+(r.partyName||'—')+'</td>' +
+        '<td class="acc-td">'+(r.projectName||'—')+'</td>' +
+        '<td class="acc-td">'+fmtD(r.startDate)+'</td>' +
+        '<td class="acc-td">'+fmtD(r.endDate)+'</td>' +
+        '<td class="acc-td" style="font-weight:600;">'+fmtAmt(r.totalAmount||0)+'</td>' +
+        '<td class="acc-td">'+badge(r.status)+'</td>' +
+        '<td class="acc-td">'+actBtns('openWOModal(\'cwo\','+r.id+')','deleteWO('+r.id+')')+'</td></tr>';
+    }).join('') : emptyRow(8);
+  }).catch(function(e){ toast(e.message||'Error','error'); });
+}
+
+function renderVWO() {
+  var q = (document.getElementById('vwo-search').value||'').toLowerCase();
+  var st = document.getElementById('vwo-status').value;
+  api('GET', '/work-orders?type=VWO').then(function(data) {
+    var filtered = (data||[]).filter(function(r) {
+      return (!q || (r.partyName||'').toLowerCase().includes(q) || (r.woNumber||'').toLowerCase().includes(q) || (r.projectName||'').toLowerCase().includes(q))
+          && (!st || r.status === st);
+    });
+    document.getElementById('vwo-body').innerHTML = filtered.length ? filtered.map(function(r) {
+      return '<tr>' +
+        '<td class="acc-td" style="font-weight:600;">'+(r.woNumber||'—')+'</td>' +
+        '<td class="acc-td">'+(r.partyName||'—')+'</td>' +
+        '<td class="acc-td">'+(r.projectName||'—')+'</td>' +
+        '<td class="acc-td">'+fmtD(r.startDate)+'</td>' +
+        '<td class="acc-td">'+fmtD(r.endDate)+'</td>' +
+        '<td class="acc-td" style="font-weight:600;">'+fmtAmt(r.totalAmount||0)+'</td>' +
+        '<td class="acc-td">'+badge(r.status)+'</td>' +
+        '<td class="acc-td">'+actBtns('openWOModal(\'vwo\','+r.id+')','deleteWO('+r.id+')')+'</td></tr>';
+    }).join('') : emptyRow(8);
+  }).catch(function(e){ toast(e.message||'Error','error'); });
+}
+
+async function deleteWO(id) {
+  if(!confirm('Delete this work order?')) return;
+  try { await api('DELETE', '/work-orders/'+id); renderCWO(); renderVWO(); toast('Deleted','success'); }
+  catch(e){ toast(e.message,'error'); }
+}
+
+/* ══════════════════════════════════════════════════════════
+   PROJECT ACCOUNTS (API-backed)
+══════════════════════════════════════════════════════════ */
+var editingPrjId = null;
+
+function renderProjects() {
+  var q = (document.getElementById('prj-search').value||'').toLowerCase();
+  var st = document.getElementById('prj-status').value;
+  api('GET', '/project-accounts').then(function(data) {
+    _allProjects = data || [];
+    var filtered = _allProjects.filter(function(r) {
+      return (!q || (r.name||'').toLowerCase().includes(q) || (r.projectCode||'').toLowerCase().includes(q) || (r.clientName||'').toLowerCase().includes(q))
+          && (!st || r.status === st);
+    });
+    document.getElementById('prj-body').innerHTML = filtered.length ? filtered.map(function(r) {
+      var spent = parseFloat(r.spent||0), budget = parseFloat(r.budget||0), rem = budget - spent;
+      var pct = budget ? Math.round((spent/budget)*100) : 0;
+      var barColor = pct > 90 ? '#ef4444' : pct > 70 ? '#f59e0b' : '#22c55e';
+      return '<tr>' +
+        '<td class="acc-td" style="font-weight:600;">'+(r.projectCode||'—')+'</td>' +
+        '<td class="acc-td"><div style="font-weight:600;">'+r.name+'</div><div style="height:4px;background:var(--bg-input);border-radius:4px;margin-top:4px;width:100px;"><div style="width:'+pct+'%;height:100%;background:'+barColor+';border-radius:4px;"></div></div></td>' +
+        '<td class="acc-td">'+(r.clientName||'—')+'</td>' +
+        '<td class="acc-td" style="font-weight:600;">'+fmtAmt(budget)+'</td>' +
+        '<td class="acc-td">'+fmtAmt(spent)+'</td>' +
+        '<td class="acc-td" style="font-weight:600;color:'+(rem<0?'#ef4444':'var(--text-primary)')+';">'+fmtAmt(rem)+'</td>' +
+        '<td class="acc-td">'+badge(r.status)+'</td>' +
+        '<td class="acc-td">'+actBtns('openPrjModal('+r.id+')','deletePrj('+r.id+')')+'</td></tr>';
+    }).join('') : emptyRow(8);
+  }).catch(function(e){ toast(e.message||'Error','error'); });
+}
+
+function openPrjModal(id) {
+  editingPrjId = id || null;
+  document.getElementById('prj-modal-title').textContent = id ? 'Edit Project' : 'New Project';
+  if (id) {
+    api('GET', '/project-accounts/'+id).then(function(r) {
+      document.getElementById('prj-id').value     = r.projectCode || '';
+      document.getElementById('prj-name').value   = r.name || '';
+      document.getElementById('prj-client').value = r.clientName || '';
+      document.getElementById('prj-status-sel').value = r.status || 'Planning';
+      document.getElementById('prj-start').value  = r.startDate || '';
+      document.getElementById('prj-end').value    = r.endDate || '';
+      document.getElementById('prj-budget').value = r.budget || 0;
+      document.getElementById('prj-spent').value  = r.spent || 0;
+      document.getElementById('prj-desc').value   = r.description || '';
+      openModal('prj-modal');
+    }).catch(function(e){ toast(e.message,'error'); });
+  } else {
+    ['prj-name','prj-client','prj-desc'].forEach(function(fid){ var el=document.getElementById(fid); if(el) el.value=''; });
+    document.getElementById('prj-id').value = '';
+    document.getElementById('prj-status-sel').value = 'Planning';
+    document.getElementById('prj-start').value = today();
+    document.getElementById('prj-end').value = '';
+    document.getElementById('prj-budget').value = 0;
+    document.getElementById('prj-spent').value = 0;
+    openModal('prj-modal');
   }
-  save(key,arr.filter(function(x){return x.id!==id;}));
-  var renders={pro:renderProforma,quo:renderQuotations,po:renderPO,ven:renderVendors,cwo:renderCWO,vwo:renderVWO,prj:renderProjects};
-  if(renders[key]) renders[key]();
-  toast('Deleted (moved to recycle bin)','success');
+}
+
+async function saveProject() {
+  var data = {
+    name:        document.getElementById('prj-name').value,
+    clientName:  document.getElementById('prj-client').value,
+    status:      document.getElementById('prj-status-sel').value,
+    startDate:   document.getElementById('prj-start').value || null,
+    endDate:     document.getElementById('prj-end').value || null,
+    budget:      parseFloat(document.getElementById('prj-budget').value)||0,
+    description: document.getElementById('prj-desc').value,
+  };
+  if (!data.name) return toast('Project name required','error');
+  try {
+    if (editingPrjId) await api('PUT', '/project-accounts/'+editingPrjId, data);
+    else await api('POST', '/project-accounts', data);
+    closeModal('prj-modal');
+    renderProjects();
+    toast('Project saved!','success');
+  } catch(e){ toast(e.message||'Error','error'); }
+}
+
+async function deletePrj(id) {
+  if(!confirm('Delete this project account?')) return;
+  try { await api('DELETE', '/project-accounts/'+id); renderProjects(); toast('Deleted','success'); }
+  catch(e){ toast(e.message,'error'); }
 }
 
 /* ── calculators ──────────────────────────────────────── */
@@ -3216,7 +3955,224 @@ function saveWO() {
   save(type,arr); closeModal('wo-modal');
   if(type==='cwo') renderCWO(); else renderVWO(); toast('Saved!','success');
 }
+
+var _saveDoc = saveDoc;
+var _saveGSTInvoice = saveGSTInvoice;
+var _saveProforma = saveProforma;
+var _openPOModal = openPOModal;
+var _savePO = savePO;
+var _openWOModal = openWOModal;
+var _saveWO = saveWO;
+var _saveProject = saveProject;
+
+function populateVendorDropdown(selectedName) {
+  var sel = document.getElementById('gst-vendor-sel');
+  if (!sel) return;
+  var customers = getKnownCustomers();
+  sel.innerHTML = '<option value="">— Type manually or pick an existing customer —</option>';
+  customers.forEach(function(customer) {
+    var opt = document.createElement('option');
+    opt.value = JSON.stringify(customer);
+    opt.textContent = customer.name + (customer.gst ? ' | GST: ' + customer.gst : '');
+    if (selectedName && customer.name === selectedName) opt.selected = true;
+    sel.appendChild(opt);
+  });
+}
+
+function fillFromVendor(jsonStr) {
+  if (!jsonStr) return;
+  var customer;
+  try { customer = JSON.parse(jsonStr); } catch(e) { return; }
+  document.getElementById('gst-c-name').value  = customer.name || '';
+  document.getElementById('gst-c-email').value = customer.email || '';
+  document.getElementById('gst-c-gstin').value = (customer.gst || '').toUpperCase();
+  document.getElementById('gst-c-pan').value   = (customer.pan || '').toUpperCase();
+  document.getElementById('gst-c-addr').value  = customer.address || '';
+  document.getElementById('gst-c-state').value = customer.state || '';
+  document.getElementById('gst-c-code').value  = customer.stateCode || '';
+  rememberCustomer(customer);
+  recalcGST();
+}
+
+function populateProVendorDropdown(selectedName) {
+  var sel = document.getElementById('pro-vendor-sel');
+  if (!sel) return;
+  var customers = getKnownCustomers();
+  sel.innerHTML = '<option value="">— Type manually or pick an existing customer —</option>';
+  customers.forEach(function(customer) {
+    var opt = document.createElement('option');
+    opt.value = JSON.stringify(customer);
+    opt.textContent = customer.name + (customer.gst ? ' | GST: ' + customer.gst : '');
+    if (selectedName && customer.name === selectedName) opt.selected = true;
+    sel.appendChild(opt);
+  });
+}
+
+function fillProFromVendor(jsonStr) {
+  if (!jsonStr) return;
+  var customer;
+  try { customer = JSON.parse(jsonStr); } catch(e) { return; }
+  document.getElementById('pro-c-name').value  = customer.name || '';
+  document.getElementById('pro-c-email').value = customer.email || '';
+  document.getElementById('pro-c-gstin').value = (customer.gst || '').toUpperCase();
+  document.getElementById('pro-c-pan').value   = (customer.pan || '').toUpperCase();
+  document.getElementById('pro-c-addr').value  = customer.address || '';
+  document.getElementById('pro-c-state').value = customer.state || '';
+  document.getElementById('pro-c-code').value  = customer.stateCode || '';
+  rememberCustomer(customer);
+  recalcProforma();
+}
+
+saveDoc = function() {
+  var type = document.getElementById('doc-type').value;
+  var party = document.getElementById('doc-party').value;
+  if (type === 'pro' || type === 'quo') rememberCustomer(party);
+  _saveDoc();
+  refreshAccountsDataLists();
+};
+
+saveGSTInvoice = function() {
+  rememberCustomer({
+    name: document.getElementById('gst-c-name').value,
+    email: document.getElementById('gst-c-email').value,
+    gst: document.getElementById('gst-c-gstin').value,
+    pan: document.getElementById('gst-c-pan').value,
+    address: document.getElementById('gst-c-addr').value,
+    state: document.getElementById('gst-c-state').value,
+    stateCode: document.getElementById('gst-c-code').value
+  });
+  rememberProject(document.getElementById('gst-project').value);
+  rememberWorkOrder(document.getElementById('gst-work-order').value);
+  _saveGSTInvoice();
+  refreshAccountsDataLists();
+};
+
+saveProforma = function(forceStatus) {
+  rememberCustomer({
+    name: document.getElementById('pro-c-name').value,
+    email: document.getElementById('pro-c-email').value,
+    gst: document.getElementById('pro-c-gstin').value,
+    pan: document.getElementById('pro-c-pan').value,
+    address: document.getElementById('pro-c-addr').value,
+    state: document.getElementById('pro-c-state').value,
+    stateCode: document.getElementById('pro-c-code').value
+  });
+  rememberProject(document.getElementById('pro-project').value);
+  rememberWorkOrder(document.getElementById('pro-work-order').value);
+  _saveProforma(forceStatus);
+  refreshAccountsDataLists();
+};
+
+openPOModal = function(id) {
+  _openPOModal(id);
+  var projectEl = document.getElementById('po-project');
+  if (!projectEl) return;
+  if (id) {
+    var rec = load('po').find(function(x){ return x.id === id; });
+    projectEl.value = rec && rec.project ? rec.project : '';
+  } else {
+    projectEl.value = '';
+  }
+};
+
+savePO = function() {
+  var projectEl = document.getElementById('po-project');
+  var vendorName = document.getElementById('po-vendor').value || '';
+  var poId = document.getElementById('po-id').value;
+  rememberCustomer(vendorName);
+  rememberProject(projectEl ? projectEl.value : '');
+  _savePO();
+  var arr = load('po');
+  var idx = arr.findIndex(function(item){ return item.id === poId; });
+  if (idx >= 0 && projectEl) arr[idx].project = projectEl.value || '';
+  save('po', arr);
+  refreshAccountsDataLists();
+  renderPO();
+};
+
+openWOModal = function(type, id) {
+  _openWOModal(type, id);
+  var partyInput = document.getElementById('wo-party');
+  var vendorSelect = document.getElementById('wo-vendor');
+  if (type === 'cwo' && partyInput) {
+    partyInput.setAttribute('list', 'acc-customer-list');
+  }
+  if (type === 'vwo' && vendorSelect) {
+    populateVendorWODropdown(id ? vendorSelect.value : '');
+  }
+};
+
+saveWO = function() {
+  var type = document.getElementById('wo-type').value;
+  var partyName = type === 'vwo' ? (document.getElementById('wo-vendor').value || '') : (document.getElementById('wo-party').value || '');
+  var woId = document.getElementById('wo-id').value;
+  var project = document.getElementById('wo-project').value;
+  rememberCustomer(partyName);
+  rememberProject(project);
+  rememberWorkOrder(woId);
+  _saveWO();
+  refreshAccountsDataLists();
+};
+
+saveProject = function() {
+  var name = document.getElementById('prj-name').value;
+  var client = document.getElementById('prj-client').value;
+  rememberProject(name);
+  rememberCustomer(client);
+  _saveProject();
+  refreshAccountsDataLists();
+};
+
+function fmtAmt(n) {
+  return '\u20B9 ' + Number(n || 0).toLocaleString('en-IN', {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2
+  });
+}
+
+function fmtAmtCompact(n) {
+  return '<span style="font-family:Arial,sans-serif;font-weight:700;">&#8377;</span> ' +
+    Number(n || 0).toLocaleString('en-IN', {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 2
+    });
+}
+
+openWOModal = function(type, id) {
+  _openWOModal(type, id);
+  var partyInput = document.getElementById('wo-party');
+  var vendorSelect = document.getElementById('wo-vendor');
+  var projectInput = document.getElementById('wo-project');
+  if (projectInput) projectInput.setAttribute('list', 'acc-project-list');
+  if (type === 'cwo' && partyInput) {
+    partyInput.style.display = '';
+    partyInput.placeholder = 'Select or type client name';
+    partyInput.setAttribute('list', 'acc-customer-list');
+  }
+  if (type === 'vwo' && vendorSelect) {
+    vendorSelect.style.display = '';
+    populateVendorWODropdown(id ? vendorSelect.value : '');
+  }
+};
+
+saveWO = function() {
+  var type = document.getElementById('wo-type').value;
+  var partyName = type === 'vwo'
+    ? (document.getElementById('wo-vendor').value || '')
+    : (document.getElementById('wo-party').value || '');
+  var woId = document.getElementById('wo-id').value;
+  var project = document.getElementById('wo-project').value;
+  if (!partyName) return toast(type === 'vwo' ? 'Select a vendor' : 'Select or enter a client name', 'error');
+  rememberCustomer(partyName);
+  rememberProject(project);
+  rememberWorkOrder(woId);
+  _saveWO();
+  refreshAccountsDataLists();
+  if (type === 'cwo') renderCWO(); else renderVWO();
+};
+
 document.addEventListener('DOMContentLoaded', function(){
+  refreshAccountsDataLists();
   populatePOVendorDropdown();
   populateVendorWODropdown();
 });

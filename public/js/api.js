@@ -118,6 +118,17 @@ async function api(method, path, body = null) {
   if (res.status === 401) { clearAuth(); window.location.href = '/login'; return; }
 
   const data = await res.json();
+  if (res.status === 403 && data && data.lockPath) {
+    var user = getUser();
+    if (user && user.role === 'employee') {
+      user.verificationStatus = data.verificationStatus || user.verificationStatus || 'pending_docs';
+      setAuth(token, user);
+    }
+    if (window.location.pathname !== data.lockPath) {
+      window.location.replace(data.lockPath);
+      return;
+    }
+  }
   if (!res.ok) throw new Error(data.message || 'Request failed');
   return data;
 }
@@ -339,6 +350,12 @@ async function apiFetch(url, opts = {}) {
   opts.headers = { 'Content-Type': 'application/json', ...(opts.headers || {}) };
   const res = await fetch(url, opts);
   const data = await res.json();
+  if (res.status === 403 && data && data.lockPath) {
+    if (window.location.pathname !== data.lockPath) {
+      window.location.replace(data.lockPath);
+      return;
+    }
+  }
   if (!res.ok) throw new Error(data.message || 'Request failed');
   return data;
 }

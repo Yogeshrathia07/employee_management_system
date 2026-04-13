@@ -33,12 +33,41 @@ const User = sequelize.define('User', {
 }, { timestamps: true });
 
 // Hash password before create
+async function generateUniqueEmployeeCode(companyId) {
+  const where = companyId ? { companyId } : {};
+  const users = await User.findAll({
+    where,
+    attributes: ['employeeCode'],
+  });
+
+  let maxNum = 0;
+  users.forEach((u) => {
+    const code = u.employeeCode || '';
+    const match = /^EMP-(\d+)$/.exec(code);
+    if (match) {
+      const num = parseInt(match[1], 10) || 0;
+      if (num > maxNum) maxNum = num;
+    }
+  });
+
+  let nextNum = maxNum + 1;
+  let nextCode = '';
+  let exists = true;
+
+  while (exists) {
+    nextCode = 'EMP-' + String(nextNum).padStart(4, '0');
+    exists = !!(await User.findOne({ where: { employeeCode: nextCode } }));
+    nextNum += 1;
+  }
+
+  return nextCode;
+}
+
 User.beforeCreate(async (user) => {
   user.password = await bcrypt.hash(user.password, 10);
-  // Auto-generate employee code for employees
-  if (user.role === 'employee' || user.role === 'manager') {
-    const count = await User.count({ where: user.companyId ? { companyId: user.companyId } : {} });
-    user.employeeCode = 'EMP-' + String(count + 1).padStart(4, '0');
+  // Auto-generate employee code for employees/managers using next unused code
+  if ((user.role === 'employee' || user.role === 'manager') && !user.employeeCode) {
+    user.employeeCode = await generateUniqueEmployeeCode(user.companyId);
   }
 });
 
