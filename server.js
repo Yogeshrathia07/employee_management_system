@@ -65,7 +65,7 @@ app.get('/admin/salary-slip-preview',  (req, res) => res.render('admin/salary_sl
 app.get('/admin/documents',     (req, res) => res.render('admin/documents',     { title: 'Documents' }));
 app.get('/admin/notifications', (req, res) => res.render('admin/notifications', { title: 'Notifications' }));
 app.get('/admin/policies',      (req, res) => res.render('admin/policies',      { title: 'Company Policy' }));
-app.get('/admin/recycle-bin',   (req, res) => res.render('admin/recycle-bin',   { title: 'Recycle Bin' }));
+app.get('/admin/recycle-bin',   (req, res) => res.redirect('/admin/dashboard'));
 app.get('/admin/tasks',         (req, res) => res.render('admin/tasks',         { title: 'Tasks' }));
 
 // Super Admin pages

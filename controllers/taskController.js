@@ -27,7 +27,9 @@ exports.getTasks = async (req, res) => {
         if (req.query.assignedTo) where = { assignedTo: req.query.assignedTo, assignedBy: id };
       }
     } else {
-      where.companyId = companyId;
+      // admin / superadmin — prefer query param, then user's own companyId, then no filter (superadmin sees all)
+      const filterCompany = req.query.companyId || companyId;
+      if (filterCompany) where.companyId = filterCompany;
       if (req.query.assignedTo) where.assignedTo = req.query.assignedTo;
       if (req.query.assignedBy) where.assignedBy = req.query.assignedBy;
     }

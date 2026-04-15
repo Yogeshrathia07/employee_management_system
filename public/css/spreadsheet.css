@@ -168,6 +168,24 @@
 .db-status-pill.status-finalized { background: #dbeafe; color: #1d4ed8; }
 .db-status-pill.status-paid { background: #dcfce7; color: #15803d; }
 
+/* Editable status dropdown in spreadsheet rows */
+.db-status-sel {
+  border: none;
+  border-radius: 999px;
+  padding: 3px 20px 3px 8px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: capitalize;
+  cursor: pointer;
+  outline: none;
+  appearance: auto;
+  min-width: 72px;
+  height: 24px;
+}
+.db-status-sel.status-draft     { background: #fef3c7; color: #b45309; }
+.db-status-sel.status-finalized { background: #dbeafe; color: #1d4ed8; }
+.db-status-sel.status-paid      { background: #dcfce7; color: #15803d; }
+
 /* Group header colors */
 #db-table thead tr:first-child th.h-gross { background:#166534; }
 #db-table thead tr:nth-child(2) th.h-gross{ background:#15803d; }
@@ -258,6 +276,27 @@
 .db-edit-btn:hover         { color: #16a34a; background: #dcfce7; }
 .db-edit-btn--active       { color: #16a34a !important; background: #dcfce7 !important; }
 .db-edit-btn--active:hover { color: #15803d !important; background: #bbf7d0 !important; }
+
+/* Lock icon shown instead of edit/delete for frozen or paid rows */
+.db-lock-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  color: #9ca3af;
+  font-size: 13px;
+  cursor: not-allowed;
+}
+
+/* Locked row — subtle visual indicator */
+#db-table tbody tr.row-locked td {
+  background: #f9fafb !important;
+  opacity: 0.88;
+}
+#db-table tbody tr.row-locked .ci {
+  color: #6b7280;
+}
 
 /* Row editing state — make inputs look interactive */
 #db-table tbody tr.row-editing td { background: #fffbeb !important; }
@@ -1224,7 +1263,8 @@
   color: #374151;
 }
 .ae-stat-sep { color: #d1d5db; }
-.ae-stat-total { font-size: 14px; font-weight: 700; color: #111827; }
+.ae-stat-total { font-size: 14px; font-weight: 700; color: #111827; font-family: 'Noto Sans', Roboto, 'Segoe UI', Arial, sans-serif; letter-spacing: 0.01em; }
+.ae-stat-total .ae-rupee { font-family: 'Noto Sans', Roboto, 'Segoe UI', Arial, sans-serif; font-size: 13px; }
 
 /* ── Footer ── */
 .ae-footer {

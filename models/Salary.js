@@ -14,7 +14,7 @@ const Salary = sequelize.define('Salary', {
 
   // ── Earnings components ───────────────────────────────────────────
   basicSalary:      { type: DataTypes.FLOAT, defaultValue: 0 },
-  da:               { type: DataTypes.FLOAT, defaultValue: 0 },   // auto: 10% of prop CTC
+  da:               { type: DataTypes.FLOAT, defaultValue: 0 },   // fixed input (Dearness Allowance)
   hra:              { type: DataTypes.FLOAT, defaultValue: 0 },
   conveyance:       { type: DataTypes.FLOAT, defaultValue: 0 },   // fixed input
   conveyanceWorking:{ type: DataTypes.FLOAT, defaultValue: 0 },   // auto: proportional
@@ -81,27 +81,22 @@ function calcNetSalary(salary) {
   const workedDays = Math.max(0, payrollDays - (salary.leaveTaken || 0));
   const absentDays = Math.max(0, Number(salary.absentDays || 0));
 
-  // CTC = sum of all fixed salary components
-  salary.baseSalary = (salary.basicSalary || 0) + (salary.hra || 0)
+  // CTC = sum of all fixed salary components (DA is user-defined, included here)
+  salary.baseSalary = (salary.basicSalary || 0) + (salary.da || 0) + (salary.hra || 0)
     + (salary.conveyance || 0) + (salary.medicalExpenses || 0)
     + (salary.specialAllowance || 0) + (salary.bonus || 0) + (salary.ta || 0);
 
-  // Proportional CTC → used for DA
-  const ctc = salary.baseSalary;
-  const propCtc = payrollDays > 0 ? r10(ctc / payrollDays * workedDays) : 0;
-
-  // Auto-calculated earnings
-  salary.da                 = r10(propCtc * 0.10);
+  // Auto-calculated working-day proportional components
   salary.conveyanceWorking  = payrollDays > 0 ? r10((salary.conveyance || 0) / payrollDays * workedDays) : (salary.conveyance || 0);
   salary.medicalWorking     = payrollDays > 0 ? r10((salary.medicalExpenses || 0) / payrollDays * workedDays) : (salary.medicalExpenses || 0);
 
-  // Gross = basic + DA + HRA + conv(working) + medical(working) + special + bonus + TA
-  salary.grossSalary = (salary.basicSalary || 0) + salary.da + (salary.hra || 0)
+  // Gross = basic + DA (fixed) + HRA + conv(working) + medical(working) + special + bonus + TA
+  salary.grossSalary = (salary.basicSalary || 0) + (salary.da || 0) + (salary.hra || 0)
     + salary.conveyanceWorking + salary.medicalWorking
     + (salary.specialAllowance || 0) + (salary.bonus || 0) + (salary.ta || 0);
 
   // Sync allowances (non-basic additions)
-  salary.allowances = salary.da + (salary.hra || 0) + salary.conveyanceWorking
+  salary.allowances = (salary.da || 0) + (salary.hra || 0) + salary.conveyanceWorking
     + salary.medicalWorking + (salary.specialAllowance || 0) + (salary.bonus || 0) + (salary.ta || 0);
 
   // Total deductions

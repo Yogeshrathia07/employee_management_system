@@ -19,37 +19,31 @@
         <!-- Module Tabs -->
         <div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:24px;background:var(--bg-input);border-radius:12px;padding:4px;">
           <button class="acc-tab active" id="tab-home"    onclick="showModule('home')"><i class="bx bxs-home"></i> Dashboard</button>
-          <button class="acc-tab" id="tab-inv"     onclick="showModule('inv')"><i class="bx bxs-receipt"></i> Invoices</button>
-          <button class="acc-tab" id="tab-pro"     onclick="showModule('pro')"><i class="bx bxs-file-doc"></i> Proforma</button>
-          <button class="acc-tab" id="tab-quo"     onclick="showModule('quo')"><i class="bx bxs-notepad"></i> Quotations</button>
-          <button class="acc-tab" id="tab-po"      onclick="showModule('po')"><i class="bx bxs-truck"></i> Purchase Orders</button>
-          <button class="acc-tab" id="tab-clt"     onclick="showModule('clt')"><i class="bx bxs-contact"></i> Clients</button>
-          <button class="acc-tab" id="tab-ven"     onclick="showModule('ven')"><i class="bx bxs-user-badge"></i> Vendors</button>
-          <button class="acc-tab" id="tab-cwo"     onclick="showModule('cwo')"><i class="bx bxs-briefcase"></i> Client W/O</button>
-          <button class="acc-tab" id="tab-vwo"     onclick="showModule('vwo')"><i class="bx bxs-wrench"></i> Vendor W/O</button>
-          <button class="acc-tab" id="tab-prj"     onclick="showModule('prj')"><i class="bx bxs-bar-chart-alt-2"></i> Project Accounts</button>
+          <button class="acc-tab" id="tab-inv"     onclick="showModule('inv')"><i class="bx bxs-receipt"></i> Invoices <span id="tab-count-inv" class="acc-tab-badge"></span></button>
+          <button class="acc-tab" id="tab-pro"     onclick="showModule('pro')"><i class="bx bxs-file-doc"></i> Proforma <span id="tab-count-pro" class="acc-tab-badge"></span></button>
+          <button class="acc-tab" id="tab-quo"     onclick="showModule('quo')"><i class="bx bxs-notepad"></i> Quotations <span id="tab-count-quo" class="acc-tab-badge"></span></button>
+          <button class="acc-tab" id="tab-po"      onclick="showModule('po')"><i class="bx bxs-truck"></i> Purchase Orders <span id="tab-count-po" class="acc-tab-badge"></span></button>
+          <button class="acc-tab" id="tab-clt"     onclick="showModule('clt')"><i class="bx bxs-contact"></i> Clients <span id="tab-count-clt" class="acc-tab-badge"></span></button>
+          <button class="acc-tab" id="tab-ven"     onclick="showModule('ven')"><i class="bx bxs-user-badge"></i> Vendors <span id="tab-count-ven" class="acc-tab-badge"></span></button>
+          <button class="acc-tab" id="tab-cwo"     onclick="showModule('cwo')"><i class="bx bxs-briefcase"></i> Client W/O <span id="tab-count-cwo" class="acc-tab-badge"></span></button>
+          <button class="acc-tab" id="tab-vwo"     onclick="showModule('vwo')"><i class="bx bxs-wrench"></i> Vendor W/O <span id="tab-count-vwo" class="acc-tab-badge"></span></button>
+          <button class="acc-tab" id="tab-prj"     onclick="showModule('prj')"><i class="bx bxs-bar-chart-alt-2"></i> Project Accounts <span id="tab-count-prj" class="acc-tab-badge"></span></button>
+          <button class="acc-tab" id="tab-rep"     onclick="showModule('rep')"><i class="bx bxs-report"></i> Reports</button>
         </div>
 
         <!-- ═══════════════════════════════════════════════════ DASHBOARD -->
         <div id="mod-home" class="acc-module">
-          <div class="stats-grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:24px;">
-            <div class="stat-card"><div class="stat-icon" style="background:#f3f4f6;color:#374151;"><i class="bx bxs-receipt"></i></div><div><div class="stat-value" id="dash-inv">0</div><div class="stat-label">Invoices</div></div></div>
-            <div class="stat-card"><div class="stat-icon" style="background:#f3f4f6;color:#374151;"><i class="bx bxs-contact"></i></div><div><div class="stat-value" id="dash-clt">0</div><div class="stat-label">Clients</div></div></div>
-            <div class="stat-card"><div class="stat-icon" style="background:#f3f4f6;color:#374151;"><i class="bx bxs-user-badge"></i></div><div><div class="stat-value" id="dash-ven">0</div><div class="stat-label">Vendors</div></div></div>
-            <div class="stat-card"><div class="stat-icon" style="background:#f3f4f6;color:#374151;"><i class="bx bxs-briefcase"></i></div><div><div class="stat-value" id="dash-cwo">0</div><div class="stat-label">Client W/O</div></div></div>
-            <div class="stat-card"><div class="stat-icon" style="background:#f3f4f6;color:#374151;"><i class="bx bxs-bar-chart-alt-2"></i></div><div><div class="stat-value" id="dash-prj">0</div><div class="stat-label">Projects</div></div></div>
-          </div>
           <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:16px;">
             <% var modules = [
-              {key:'inv', icon:'bxs-receipt',        title:'Invoices',            desc:'Manage client invoices and billing'},
-              {key:'pro', icon:'bxs-file-doc',        title:'Proforma Invoices',   desc:'Generate preliminary invoices for clients'},
-              {key:'quo', icon:'bxs-notepad',         title:'Quotations',          desc:'Create and send quotes to potential clients'},
-              {key:'po',  icon:'bxs-truck',           title:'Purchase Orders',     desc:'Manage vendor purchase orders'},
-              {key:'clt', icon:'bxs-contact',           title:'Clients',             desc:'Register and manage client / customer information'},
-              {key:'ven', icon:'bxs-user-badge',      title:'Vendor Registration', desc:'Register and manage vendor information'},
-              {key:'cwo', icon:'bxs-briefcase',       title:'Client Work Orders',  desc:'Track work orders for clients'},
-              {key:'vwo', icon:'bxs-wrench',          title:'Vendor Work Orders',  desc:'Assign and track vendor work orders'},
-              {key:'prj', icon:'bxs-bar-chart-alt-2', title:'Project Accounts',   desc:'Budget and track project financials'}
+              {key:'inv', icon:'bxs-receipt',         title:'Invoices',            desc:'Manage client invoices and billing'},
+              {key:'pro', icon:'bxs-file-doc',         title:'Proforma Invoices',   desc:'Generate preliminary invoices for clients'},
+              {key:'quo', icon:'bxs-notepad',          title:'Quotations',          desc:'Create and send quotes to potential clients'},
+              {key:'po',  icon:'bxs-truck',            title:'Purchase Orders',     desc:'Manage vendor purchase orders'},
+              {key:'clt', icon:'bxs-contact',          title:'Clients',             desc:'Register and manage client / customer information'},
+              {key:'ven', icon:'bxs-user-badge',       title:'Vendor Registration', desc:'Register and manage vendor information'},
+              {key:'cwo', icon:'bxs-briefcase',        title:'Client Work Orders',  desc:'Track work orders for clients'},
+              {key:'vwo', icon:'bxs-wrench',           title:'Vendor Work Orders',  desc:'Assign and track vendor work orders'},
+              {key:'prj', icon:'bxs-bar-chart-alt-2',  title:'Project Accounts',   desc:'Budget and track project financials'}
             ]; %>
             <% modules.forEach(function(m) { %>
             <div style="background:#fff;border:1px solid #e5e7eb;border-radius:14px;padding:20px;display:flex;flex-direction:column;gap:12px;cursor:pointer;transition:box-shadow .2s,border-color .2s;" onclick="showModule('<%= m.key %>')" onmouseover="this.style.boxShadow='0 4px 16px rgba(0,0,0,0.08)';this.style.borderColor='#d1d5db'" onmouseout="this.style.boxShadow='';this.style.borderColor='#e5e7eb'">
@@ -96,10 +90,6 @@
               <div class="acc-inline-preview">Preview: <code id="inv-num-preview" class="acc-inline-code">001/DHPE/26-27/XXXXXX</code></div>
             </div>
             <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;flex-wrap:wrap;">
-              <label style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--text-muted);cursor:pointer;">
-                <input type="checkbox" id="inv-show-deleted" onchange="renderInvoices()" style="accent-color:var(--accent);width:15px;height:15px;">
-                Show Deleted
-              </label>
               <div style="margin-left:auto;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
                 <div class="search-bar" style="width:200px;"><span class="search-icon"><i class="bx bx-search"></i></span><input type="text" id="inv-search" placeholder="Search ref, customer..." oninput="renderInvoices()"></div>
                 <select id="inv-status" class="form-control" style="width:120px" onchange="renderInvoices()">
@@ -193,7 +183,7 @@
           <div class="admin-toolbar" style="margin-bottom:16px;">
             <div class="search-bar" style="width:220px;"><span class="search-icon"><i class="bx bx-search"></i></span><input type="text" id="pro-search" placeholder="Search proforma..." oninput="renderProforma()"></div>
             <select id="pro-status" class="form-control" style="width:140px" onchange="renderProforma()">
-              <option value="">All Status</option><option>Draft</option><option>Sent</option><option>Accepted</option><option>Rejected</option>
+              <option value="">All Status</option><option>Draft</option><option>Sent</option><option>Confirmed</option><option>Rejected</option><option>Converted</option>
             </select>
             <button class="btn btn-primary" style="margin-left:auto;" onclick="openProformaModal()"><i class="bx bx-plus"></i> New Proforma</button>
           </div>
@@ -337,6 +327,83 @@
               </tr></thead>
               <tbody id="prj-body"></tbody>
             </table>
+          </div>
+        </div>
+
+        <!-- ═══════════════════════════════════════════════════ REPORTS -->
+        <div id="mod-rep" class="acc-module" style="display:none;">
+          <!-- Header -->
+          <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:20px;">
+            <div>
+              <div style="font-size:17px;font-weight:800;color:var(--text-primary);margin-bottom:4px;">
+                <i class="bx bxs-report" style="color:#111111;margin-right:6px;"></i>Reports &amp; Export
+              </div>
+              <div style="font-size:12px;color:var(--text-muted);">Filter any section and export to Excel</div>
+            </div>
+            <button class="btn btn-primary" onclick="exportReportExcel()" style="background:#111111;display:flex;align-items:center;gap:6px;">
+              <i class="bx bx-export"></i> Export to Excel
+            </button>
+          </div>
+
+          <!-- Filters Card -->
+          <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:16px 20px;margin-bottom:20px;">
+            <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px;align-items:end;">
+              <div>
+                <label style="font-size:11px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px;">Section</label>
+                <select id="rep-section" class="form-control" onchange="onRepSectionChange()">
+                  <option value="inv">Invoices</option>
+                  <option value="pro">Proforma</option>
+                  <option value="quo">Quotations</option>
+                  <option value="po">Purchase Orders</option>
+                  <option value="clt">Clients</option>
+                  <option value="ven">Vendors</option>
+                  <option value="cwo">Client Work Orders</option>
+                  <option value="vwo">Vendor Work Orders</option>
+                  <option value="prj">Project Accounts</option>
+                </select>
+              </div>
+              <div id="rep-date-from-wrap">
+                <label style="font-size:11px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px;">Date From</label>
+                <input type="date" id="rep-date-from" class="form-control" onchange="renderReport()">
+              </div>
+              <div id="rep-date-to-wrap">
+                <label style="font-size:11px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px;">Date To</label>
+                <input type="date" id="rep-date-to" class="form-control" onchange="renderReport()">
+              </div>
+              <div>
+                <label style="font-size:11px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px;">Status</label>
+                <select id="rep-status" class="form-control" onchange="renderReport()">
+                  <option value="">All Status</option>
+                </select>
+              </div>
+              <div>
+                <label style="font-size:11px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px;">Search</label>
+                <input type="text" id="rep-search" class="form-control" placeholder="Name / number..." oninput="renderReport()">
+              </div>
+              <div style="display:flex;gap:8px;">
+                <button class="btn" style="flex:1;font-size:12px;padding:8px 10px;" onclick="clearRepFilters()">
+                  <i class="bx bx-reset"></i> Clear
+                </button>
+                <button class="btn btn-primary" style="flex:1;font-size:12px;padding:8px 10px;background:#111111;" onclick="renderReport()">
+                  <i class="bx bx-filter-alt"></i> Apply
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Summary Cards -->
+          <div id="rep-summary" style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:16px;"></div>
+
+          <!-- Table -->
+          <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;">
+            <div class="table-wrapper" style="overflow-x:auto;">
+              <table style="width:100%;border-collapse:collapse;">
+                <thead id="rep-thead"></thead>
+                <tbody id="rep-body">
+                  <tr><td style="text-align:center;padding:40px;color:var(--text-muted);">Select a section and click Apply</td></tr>
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
 
@@ -686,7 +753,7 @@
           <div class="form-group"><label class="form-label">Status</label>
             <select id="pro-status-field" class="form-control">
               <option value="Draft">Draft</option><option value="Sent">Sent</option>
-              <option value="Accepted">Accepted</option><option value="Rejected">Rejected</option>
+              <option value="Confirmed">Confirmed</option><option value="Rejected">Rejected</option>
             </select>
           </div>
         </div>
@@ -696,6 +763,13 @@
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:0;border-top:1px solid var(--border);">
         <div class="gst-section" style="border-right:1px solid var(--border);">
           <div class="gst-section-title" style="color:#1d4ed8;"><i class="bx bxs-buildings"></i> Company / Seller Details</div>
+          <div class="form-group">
+            <label class="form-label">Quick-fill from Company List <span style="font-weight:400;font-size:11px;color:var(--text-muted);">(auto-fills fields below)</span></label>
+            <select id="pro-company-sel" class="form-control" onchange="fillProFromCompany(this.value)">
+              <option value="">— Select a company —</option>
+            </select>
+          </div>
+          <div style="border-top:1px dashed var(--border);margin:0 0 10px 0;"></div>
           <div class="form-group"><label class="form-label">Company Name <span style="color:#ef4444">*</span></label><input type="text" id="pro-s-name" class="form-control" placeholder="Your company name"></div>
           <div class="form-group"><label class="form-label">GSTIN</label><input type="text" id="pro-s-gstin" class="form-control" placeholder="22AAAAA0000A1Z5" maxlength="15" style="text-transform:uppercase"></div>
           <div class="form-group"><label class="form-label">Address</label><textarea id="pro-s-addr" class="form-control" rows="2" placeholder="Full address"></textarea></div>
@@ -1090,6 +1164,8 @@
 }
 .acc-tab.active { background:var(--bg-card);color:var(--accent);box-shadow:var(--shadow); }
 .acc-tab:hover:not(.active) { color:var(--text-primary); }
+.acc-tab-badge { display:inline-flex;align-items:center;justify-content:center;min-width:16px;height:16px;padding:0 4px;border-radius:99px;background:var(--accent);color:#fff;font-size:10px;font-weight:700;line-height:1;margin-left:3px;vertical-align:middle; }
+.acc-tab-badge:empty { display:none; }
 .acc-subtab {
   padding:6px 16px;border:none;background:transparent;border-radius:7px;
   font-size:12px;font-weight:600;color:var(--text-muted);cursor:pointer;transition:all .15s;
@@ -1099,11 +1175,11 @@
 .acc-td { padding:11px 14px;font-size:13px;color:var(--text-primary);border-bottom:1px solid var(--border); }
 .acc-empty { grid-column:1/-1;padding:48px;text-align:center;color:var(--text-muted);font-size:14px; }
 .acc-inline-settings {
-  display:grid;
-  grid-template-columns:auto minmax(180px, 220px) minmax(210px, 260px) minmax(240px, 1fr);
-  align-items:end;
-  gap:12px 18px;
-  padding:14px 16px;
+  display:flex;
+  flex-wrap:wrap;
+  align-items:center;
+  gap:10px 16px;
+  padding:12px 16px;
   background:var(--bg-input);
   border:1px solid var(--border);
   border-radius:12px;
@@ -1126,6 +1202,7 @@
   display:flex;
   align-items:center;
   gap:8px;
+  flex-shrink:0;
 }
 .acc-inline-label {
   font-size:12px;
@@ -1399,6 +1476,7 @@
 </style>
 
 <script src="/js/api.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script>
 /* ── storage helpers ──────────────────────────────────── */
 var STORE = {
@@ -1561,6 +1639,7 @@ function showModule(key) {
   else if(key==='cwo') renderCWO();
   else if(key==='vwo') renderVWO();
   else if(key==='prj') renderProjects();
+  else if(key==='rep') { onRepSectionChange(); }
 }
 function showSubTab(key) {
   ['invoices','calc'].forEach(function(k) {
@@ -1570,32 +1649,26 @@ function showSubTab(key) {
     if (btn) btn.classList.toggle('active', k===key);
   });
 }
+function setTabCount(id, n) {
+  var el = document.getElementById(id);
+  if (!el) return;
+  el.textContent = n > 0 ? n : '';
+}
 function updateDashStats() {
-  // Invoices from API
-  api('GET', '/invoices').then(function(data) {
-    document.getElementById('dash-inv').textContent = (data||[]).length;
-  }).catch(function() {});
-  // Clients from API
-  api('GET', '/clients').then(function(data) {
-    document.getElementById('dash-clt').textContent = (data||[]).length;
-  }).catch(function() {});
-  // Vendors from API
-  api('GET', '/vendors').then(function(data) {
-    document.getElementById('dash-ven').textContent = (data||[]).length;
-  }).catch(function() {
-    document.getElementById('dash-ven').textContent = load('ven').length;
+  api('GET', '/invoices').then(function(d)        { setTabCount('tab-count-inv', (d||[]).length); }).catch(function(){});
+  api('GET', '/proformas-db').then(function(d)    { setTabCount('tab-count-pro', (d||[]).length); }).catch(function(){});
+  api('GET', '/quotations').then(function(d)      { setTabCount('tab-count-quo', (d||[]).length); }).catch(function(){});
+  api('GET', '/purchase-orders').then(function(d) { setTabCount('tab-count-po',  (d||[]).length); }).catch(function(){});
+  api('GET', '/clients').then(function(d)         { setTabCount('tab-count-clt', (d||[]).length); }).catch(function(){});
+  api('GET', '/vendors').then(function(d)         { setTabCount('tab-count-ven', (d||[]).length); }).catch(function(){
+    setTabCount('tab-count-ven', load('ven').length);
   });
-  // Work orders from API
-  api('GET', '/work-orders?type=CWO').then(function(data) {
-    document.getElementById('dash-cwo').textContent = (data||[]).length;
-  }).catch(function() {
-    document.getElementById('dash-cwo').textContent = load('cwo').length;
+  api('GET', '/work-orders?type=CWO').then(function(d) { setTabCount('tab-count-cwo', (d||[]).length); }).catch(function(){
+    setTabCount('tab-count-cwo', load('cwo').length);
   });
-  // Projects from API
-  api('GET', '/project-accounts').then(function(data) {
-    document.getElementById('dash-prj').textContent = (data||[]).length;
-  }).catch(function() {
-    document.getElementById('dash-prj').textContent = load('prj').length;
+  api('GET', '/work-orders?type=VWO').then(function(d) { setTabCount('tab-count-vwo', (d||[]).length); }).catch(function(){});
+  api('GET', '/project-accounts').then(function(d) { setTabCount('tab-count-prj', (d||[]).length); }).catch(function(){
+    setTabCount('tab-count-prj', load('prj').length);
   });
 }
 
@@ -2090,19 +2163,19 @@ function renderInvoices() {
         var typeColor = r.invoiceType === 'B2C' ? '#7c3aed' : '#1d4ed8';
         var typeBg    = r.invoiceType === 'B2C' ? '#ede9fe' : '#dbeafe';
 
+        var _isSuperAdmin = (getUser() || {}).role === 'superadmin';
         var actionBtns =
           '<div style="display:flex;gap:2px;justify-content:center;">' +
-            '<button class="inv-act-btn" title="Preview" onclick="previewInvoice('+r.id+')"><i class="bx bx-show"></i></button>' +
-            '<button class="inv-act-btn" title="Share WhatsApp" onclick="shareWhatsApp(\''+r.invoiceNumber+'\','+r.totalAmount+')"><i class="bx bxl-whatsapp"></i></button>' +
-            '<button class="inv-act-btn" title="Print" onclick="printInvoice('+r.id+')"><i class="bx bx-printer"></i></button>' +
-            '<button class="inv-act-btn" title="Download PDF" onclick="downloadInvPDF('+r.id+',\''+r.invoiceNumber+'\')"><i class="bx bx-download"></i></button>' +
-            (r.paymentStatus !== 'Paid' ? '<button class="inv-act-btn" title="Mark Paid" onclick="openMarkPaid('+r.id+',\''+r.invoiceNumber+'\')"><i class="bx bx-check-circle"></i></button>' : '') +
-            '<button class="inv-act-btn" title="Edit" onclick="openGSTModal('+r.id+')"><i class="bx bx-edit-alt"></i></button>' +
-            '<button class="inv-act-btn inv-act-del" title="Delete" onclick="deleteInvoice('+r.id+',\''+r.invoiceNumber+'\')"><i class="bx bx-trash"></i></button>' +
+            '<button class="inv-act-btn" title="Share WhatsApp" onclick="shareWhatsApp(\'' + r.invoiceNumber + '\', ' + r.totalAmount + ')"><i class="bx bxl-whatsapp"></i></button>' +
+            '<button class="inv-act-btn" title="Print" onclick="printInvoice(' + r.id + ')"><i class="bx bx-printer"></i></button>' +
+            '<button class="inv-act-btn" title="Open PDF" onclick="downloadInvPDF(' + r.id + ')"><i class="bx bxs-file-pdf"></i></button>' +
+            (r.paymentStatus !== 'Paid' ? '<button class="inv-act-btn" title="Mark Paid" onclick="openMarkPaid(' + r.id + ', \'' + r.invoiceNumber + '\')"><i class="bx bx-check-circle"></i></button>' : '') +
+            '<button class="inv-act-btn" title="Edit" onclick="openGSTModal(' + r.id + ')"><i class="bx bx-edit-alt"></i></button>' +
+            (_isSuperAdmin ? '<button class="inv-act-btn inv-act-del" title="Delete" onclick="deleteInvoice(' + r.id + ', \'' + r.invoiceNumber + '\')"><i class="bx bx-trash"></i></button>' : '') +
           '</div>';
 
         return '<tr class="inv-row">' +
-          '<td class="acc-td" style="font-weight:700;color:var(--accent);font-size:12px;white-space:nowrap;">' + (r.invoiceNumber||'') + '</td>' +
+'<td class="acc-td" style="font-weight:700;color:var(--accent);font-size:12px;white-space:nowrap;">' + (r.invoiceNumber||'') + '</td>' +
           '<td class="acc-td"><span style="font-size:11px;font-weight:700;background:'+typeBg+';color:'+typeColor+';border-radius:6px;padding:3px 9px;">'+typeLabel+'</span></td>' +
           '<td class="acc-td"><div style="font-weight:600;font-size:13px;">' + (r.customerName||'') + '</div>' +
             (r.customerGstin ? '<div style="font-size:10px;color:var(--text-muted);margin-top:1px;">'+r.customerGstin+'</div>' : '') + '</td>' +
@@ -2113,7 +2186,7 @@ function renderInvoices() {
         '</tr>';
       }).join('');
 
-      document.getElementById('dash-inv').textContent = data.length;
+      setTabCount('tab-count-inv', data.length);
     })
     .catch(function(err) {
       document.getElementById('inv-body').innerHTML =
@@ -2286,7 +2359,7 @@ function previewInvoice(id) {
 
     document.getElementById('inv-preview-body').innerHTML = html;
     document.getElementById('btn-preview-pdf').onclick = function() {
-      downloadInvPDF(id, inv.invoiceNumber);
+      downloadInvPDF(id);
     };
     document.getElementById('btn-preview-edit').onclick = function() {
       closeModal('inv-preview-modal');
@@ -2380,8 +2453,8 @@ function shareWhatsApp(num, amount) {
   window.open('https://wa.me/?text=' + encodeURIComponent(msg), '_blank');
 }
 
-/* ── PDF Download (blob fetch with auth header) ─────────── */
-function downloadInvPDF(id, num) {
+/* ── Open Invoice PDF in new tab ────────────────────────── */
+function downloadInvPDF(id) {
   var token = getToken();
   fetch('/api/invoices/' + id + '/pdf', {
     headers: { 'Authorization': 'Bearer ' + token }
@@ -2390,15 +2463,39 @@ function downloadInvPDF(id, num) {
     return res.blob();
   }).then(function(blob) {
     if (!blob) return;
-    var url = URL.createObjectURL(blob);
-    var a   = document.createElement('a');
-    a.href     = url;
-    a.download = 'Invoice-' + num + '.pdf';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  }).catch(function() { toast('PDF download failed', 'error'); });
+    window.open(URL.createObjectURL(blob), '_blank');
+  }).catch(function() { toast('Failed to open PDF', 'error'); });
+}
+
+/* ── Open Proforma PDF in new tab (DB-backed) ───────────── */
+function openProformaPDF(id) {
+  api('GET', '/proformas-db/' + id).then(function(rec) {
+    var token = getToken();
+    fetch('/api/proformas/pdf', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+      body: JSON.stringify(rec)
+    }).then(function(r) { return r.blob(); }).then(function(blob) {
+      window.open(URL.createObjectURL(blob), '_blank');
+    }).catch(function() { toast('PDF generation failed', 'error'); });
+  }).catch(function(e) { toast(e.message || 'Error', 'error'); });
+}
+
+/* ── Print Proforma (DB-backed) ─────────────────────────── */
+function printProformaById(id) {
+  api('GET', '/proformas-db/' + id).then(function(rec) {
+    var token = getToken();
+    fetch('/api/proformas/pdf', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+      body: JSON.stringify(rec)
+    }).then(function(r) { return r.blob(); }).then(function(blob) {
+      var url = URL.createObjectURL(blob);
+      var win = window.open(url);
+      if (win) { win.addEventListener('load', function() { win.print(); }); }
+      else { toast('Allow popups to use Print', 'error'); }
+    }).catch(function() { toast('Print failed', 'error'); });
+  }).catch(function(e) { toast(e.message || 'Error', 'error'); });
 }
 
 /* ══════════════════════════════════════════════════════════
@@ -2539,6 +2636,51 @@ function fillProFromVendor(jsonStr) {
     document.getElementById('pro-c-code').value  = v.stateCode || '';
     recalcProforma();
   } catch(e) {}
+}
+
+/* ── Populate company (seller) dropdown for proforma ────── */
+function populateProCompanyDropdown(selectedName) {
+  var sel = document.getElementById('pro-company-sel');
+  if (!sel) return;
+  api('GET', '/companies').then(function(companies) {
+    sel.innerHTML = '<option value="">— Select a company —</option>';
+    companies.forEach(function(c) {
+      if (c.status === 'inactive') return;
+      var opt = document.createElement('option');
+      opt.value = JSON.stringify(c);
+      opt.textContent = c.name + (c.gstNo ? '  |  ' + c.gstNo : '');
+      if (selectedName && c.name === selectedName) opt.selected = true;
+      sel.appendChild(opt);
+    });
+    // Auto-select first company if none selected
+    if (!selectedName && sel.options.length > 1) {
+      sel.selectedIndex = 1;
+      fillProFromCompany(sel.value);
+    } else if (selectedName) {
+      var match = companies.find(function(c) { return c.name === selectedName; });
+      if (match) fillProFromCompany(JSON.stringify(match));
+    }
+  }).catch(function() {});
+}
+
+function fillProFromCompany(jsonStr) {
+  if (!jsonStr) return;
+  var c;
+  try { c = JSON.parse(jsonStr); } catch(e) { return; }
+  document.getElementById('pro-s-name').value   = c.name       || '';
+  document.getElementById('pro-s-gstin').value  = (c.gstNo     || '').toUpperCase();
+  document.getElementById('pro-s-addr').value   = c.address    || '';
+  document.getElementById('pro-s-state').value  = c.state      || '';
+  document.getElementById('pro-s-code').value   = c.stateCode  || '';
+  document.getElementById('pro-s-pan').value    = (c.panNo     || '').toUpperCase();
+  document.getElementById('pro-s-phone').value  = c.phone      || '';
+  document.getElementById('pro-s-email').value  = c.email      || '';
+  document.getElementById('pro-bank-name').value   = c.bankName    || '';
+  document.getElementById('pro-bank-acname').value = c.bankAcName  || '';
+  document.getElementById('pro-bank-ac').value     = c.bankAccount || '';
+  document.getElementById('pro-bank-ifsc').value   = (c.bankIfsc   || '').toUpperCase();
+  document.getElementById('pro-bank-branch').value = c.bankBranch  || '';
+  recalcProforma();
 }
 
 /* ── Populate vendor dropdown for proforma ──────────────── */
@@ -3214,19 +3356,20 @@ function renderProforma() {
         ? '<span style="font-size:10px;background:#dcfce7;color:#15803d;border-radius:12px;padding:2px 8px;margin-left:4px;">Invoiced</span>' : '';
       var canConv = r.status !== 'Converted' && r.status !== 'Rejected';
       var proActBtns = '<div style="display:flex;gap:2px;justify-content:center;">' +
-        '<button class="inv-act-btn" title="Edit" onclick="openProformaModal('+r.id+')"><i class="bx bx-edit-alt"></i></button>' +
-        (canConv ? '<button class="inv-act-btn" style="color:#22c55e;" title="→ Invoice" onclick="convertProToInvoice('+r.id+')"><i class="bx bxs-receipt"></i></button>' : '') +
-        '<button class="inv-act-btn" title="Download PDF" onclick="downloadProformaPDF(\''+r.proformaNumber+'\')"><i class="bx bx-download"></i></button>' +
-        '<button class="inv-act-btn inv-act-del" title="Delete" onclick="deletePro('+r.id+')"><i class="bx bx-trash"></i></button>' +
+        '<button class="inv-act-btn" title="Print" onclick="printProformaById(' + r.id + ')"><i class="bx bx-printer"></i></button>' +
+        '<button class="inv-act-btn" title="Open PDF" onclick="openProformaPDF(' + r.id + ')"><i class="bx bxs-file-pdf"></i></button>' +
+        (canConv ? '<button class="inv-act-btn" style="color:#22c55e;" title="→ Invoice" onclick="convertProToInvoice(' + r.id + ')"><i class="bx bxs-receipt"></i></button>' : '') +
+        '<button class="inv-act-btn" title="Edit" onclick="openProformaModal(' + r.id + ')"><i class="bx bx-edit-alt"></i></button>' +
+        '<button class="inv-act-btn inv-act-del" title="Delete" onclick="deletePro(' + r.id + ')"><i class="bx bx-trash"></i></button>' +
         '</div>';
       return '<tr class="inv-row">' +
-        '<td class="acc-td" style="font-weight:700;color:var(--accent);">'+(r.proformaNumber||'—')+convBadge+'</td>' +
-        '<td class="acc-td">'+(r.customerName||'—')+'</td>' +
-        '<td class="acc-td">'+fmtD(r.date)+'</td>' +
-        '<td class="acc-td">'+fmtD(r.validityDate)+'</td>' +
-        '<td class="acc-td" style="font-weight:600;">'+fmtAmt(r.totalAmount||0)+'</td>' +
-        '<td class="acc-td">'+badge(r.status)+'</td>' +
-        '<td class="acc-td">'+proActBtns+'</td></tr>';
+        '<td class="acc-td" style="font-weight:700;color:var(--accent);">' + (r.proformaNumber||'—') + convBadge + '</td>' +
+        '<td class="acc-td">' + (r.customerName||'—') + '</td>' +
+        '<td class="acc-td">' + fmtD(r.date) + '</td>' +
+        '<td class="acc-td">' + fmtD(r.validityDate) + '</td>' +
+        '<td class="acc-td" style="font-weight:600;">' + fmtAmt(r.totalAmount||0) + '</td>' +
+        '<td class="acc-td">' + badge(r.status) + '</td>' +
+        '<td class="acc-td">' + proActBtns + '</td></tr>';
     }).join('') : emptyRow(7);
   }).catch(function(e){ toast(e.message||'Error','error'); });
 }
@@ -3244,6 +3387,159 @@ async function deletePro(id) {
   if(!confirm('Delete this proforma?')) return;
   try { await api('DELETE', '/proformas-db/'+id); renderProforma(); toast('Deleted','success'); }
   catch(e){ toast(e.message,'error'); }
+}
+
+/* ── API-backed saveProforma override ───────────────────── */
+function saveProforma(forceStatus) {
+  if (!document.getElementById('pro-c-name').value.trim()) return toast('Customer name is required', 'error');
+  if (!document.getElementById('pro-date').value)          return toast('Date is required', 'error');
+
+  var selCode = (document.getElementById('pro-s-code').value || '').trim();
+  var cusCode = (document.getElementById('pro-c-code').value || '').trim();
+  var useIGST = selCode && cusCode && selCode !== cusCode;
+  var items   = collectProformaItems();
+
+  var subtotal=0, totalCgst=0, totalSgst=0, totalIgst=0;
+  items.forEach(function(it) {
+    subtotal += it.taxableAmount;
+    if (useIGST) { totalIgst += it.igst; }
+    else { totalCgst += it.cgst; totalSgst += it.sgst; }
+  });
+  var gross    = subtotal + totalCgst + totalSgst + totalIgst;
+  var roundOff = parseFloat((Math.round(gross) - gross).toFixed(2));
+
+  var payTerms       = document.getElementById('pro-pay-terms').value;
+  var payTermsCustom = document.getElementById('pro-pay-terms-custom').value;
+
+  var rec = {
+    date:             document.getElementById('pro-date').value,
+    validityDate:     document.getElementById('pro-validity').value || null,
+    placeOfSupply:    document.getElementById('pro-supply').value,
+    status:           forceStatus || document.getElementById('pro-status-field').value,
+    sellerName:       document.getElementById('pro-s-name').value,
+    sellerGstin:      document.getElementById('pro-s-gstin').value.toUpperCase(),
+    sellerAddress:    document.getElementById('pro-s-addr').value,
+    sellerState:      document.getElementById('pro-s-state').value,
+    sellerStateCode:  document.getElementById('pro-s-code').value,
+    sellerPhone:      document.getElementById('pro-s-phone').value,
+    sellerEmail:      document.getElementById('pro-s-email').value,
+    sellerPan:        document.getElementById('pro-s-pan').value.toUpperCase(),
+    customerName:     document.getElementById('pro-c-name').value,
+    customerGstin:    document.getElementById('pro-c-gstin').value.toUpperCase(),
+    customerAddress:  document.getElementById('pro-c-addr').value,
+    customerState:    document.getElementById('pro-c-state').value,
+    customerStateCode:document.getElementById('pro-c-code').value,
+    customerPan:      document.getElementById('pro-c-pan').value.toUpperCase(),
+    customerEmail:    document.getElementById('pro-c-email').value,
+    billMonth:        document.getElementById('pro-bill-month').value,
+    billPeriodFrom:   document.getElementById('pro-bill-from').value  || null,
+    billPeriodTo:     document.getElementById('pro-bill-to').value    || null,
+    workOrder:        document.getElementById('pro-work-order').value,
+    projectName:      document.getElementById('pro-project').value,
+    workDetails:      document.getElementById('pro-work-details').value,
+    bankName:         document.getElementById('pro-bank-name').value,
+    bankAcName:       document.getElementById('pro-bank-acname').value,
+    bankAccount:      document.getElementById('pro-bank-ac').value,
+    bankIfsc:         document.getElementById('pro-bank-ifsc').value.toUpperCase(),
+    bankBranch:       document.getElementById('pro-bank-branch').value,
+    paymentTerms:     payTermsCustom || payTerms,
+    deliveryTimeline: document.getElementById('pro-delivery').value,
+    warranty:         document.getElementById('pro-warranty').value,
+    notes:            document.getElementById('pro-notes').value,
+    termsConditions:  document.getElementById('pro-terms').value,
+    items:            items,
+    subtotal:         parseFloat(subtotal.toFixed(2)),
+    totalCgst:        parseFloat(totalCgst.toFixed(2)),
+    totalSgst:        parseFloat(totalSgst.toFixed(2)),
+    totalIgst:        parseFloat(totalIgst.toFixed(2)),
+    totalTax:         parseFloat((totalCgst + totalSgst + totalIgst).toFixed(2)),
+    roundOff:         roundOff,
+    totalAmount:      parseFloat((gross + roundOff).toFixed(2)),
+  };
+
+  var method = proEditingId ? 'PUT' : 'POST';
+  var url    = proEditingId ? '/proformas-db/' + proEditingId : '/proformas-db';
+  api(method, url, rec).then(function() {
+    closeModal('pro-inv-modal');
+    renderProforma();
+    toast('Proforma ' + (proEditingId ? 'updated' : 'saved') + '!', 'success');
+    proEditingId = null;
+  }).catch(function(e) { toast(e.message || 'Error saving proforma', 'error'); });
+}
+
+/* ── API-backed openProformaModal override ──────────────── */
+function openProformaModal(proId) {
+  proEditingId = proId || null;
+  proItemCount = 0;
+  document.getElementById('pro-items-body').innerHTML = '';
+  document.getElementById('pro-inv-title').innerHTML = proId
+    ? '<i class="bx bxs-edit" style="color:var(--accent)"></i> Edit Proforma'
+    : '<i class="bx bxs-file-doc" style="color:var(--accent)"></i> New Proforma Invoice';
+  document.getElementById('pro-convert-btn').style.display = proId ? '' : 'none';
+
+  populateProVendorDropdown();
+
+  var fields = ['pro-number','pro-date','pro-validity','pro-supply','pro-status-field',
+    'pro-s-name','pro-s-gstin','pro-s-addr','pro-s-state','pro-s-code','pro-s-phone','pro-s-email','pro-s-pan',
+    'pro-c-name','pro-c-gstin','pro-c-addr','pro-c-state','pro-c-code','pro-c-pan','pro-c-email',
+    'pro-bill-month','pro-bill-from','pro-bill-to','pro-work-order','pro-project','pro-work-details',
+    'pro-bank-name','pro-bank-acname','pro-bank-ac','pro-bank-ifsc','pro-bank-branch',
+    'pro-pay-terms','pro-pay-terms-custom','pro-delivery','pro-warranty','pro-notes','pro-terms'];
+  fields.forEach(function(id) { var el = document.getElementById(id); if (el) el.value = ''; });
+  document.getElementById('pro-vendor-sel').value = '';
+
+  if (proId) {
+    api('GET', '/proformas-db/' + proId).then(function(rec) {
+      // Populate company dropdown and match current seller
+      populateProCompanyDropdown(rec.sellerName || '');
+      document.getElementById('pro-number').value          = rec.proformaNumber || '';
+      document.getElementById('pro-date').value            = rec.date || '';
+      document.getElementById('pro-validity').value        = rec.validityDate || '';
+      document.getElementById('pro-supply').value          = rec.placeOfSupply || '';
+      document.getElementById('pro-status-field').value    = rec.status || 'Draft';
+      document.getElementById('pro-s-name').value          = rec.sellerName || '';
+      document.getElementById('pro-s-gstin').value         = rec.sellerGstin || '';
+      document.getElementById('pro-s-addr').value          = rec.sellerAddress || '';
+      document.getElementById('pro-s-state').value         = rec.sellerState || '';
+      document.getElementById('pro-s-code').value          = rec.sellerStateCode || '';
+      document.getElementById('pro-s-phone').value         = rec.sellerPhone || '';
+      document.getElementById('pro-s-email').value         = rec.sellerEmail || '';
+      document.getElementById('pro-s-pan').value           = rec.sellerPan || '';
+      document.getElementById('pro-c-name').value          = rec.customerName || '';
+      document.getElementById('pro-c-gstin').value         = rec.customerGstin || '';
+      document.getElementById('pro-c-addr').value          = rec.customerAddress || '';
+      document.getElementById('pro-c-state').value         = rec.customerState || '';
+      document.getElementById('pro-c-code').value          = rec.customerStateCode || '';
+      document.getElementById('pro-c-pan').value           = rec.customerPan || '';
+      document.getElementById('pro-c-email').value         = rec.customerEmail || '';
+      document.getElementById('pro-bill-month').value      = rec.billMonth || '';
+      document.getElementById('pro-bill-from').value       = rec.billPeriodFrom || '';
+      document.getElementById('pro-bill-to').value         = rec.billPeriodTo || '';
+      document.getElementById('pro-work-order').value      = rec.workOrder || '';
+      document.getElementById('pro-project').value         = rec.projectName || '';
+      document.getElementById('pro-work-details').value    = rec.workDetails || '';
+      document.getElementById('pro-bank-name').value       = rec.bankName || '';
+      document.getElementById('pro-bank-acname').value     = rec.bankAcName || '';
+      document.getElementById('pro-bank-ac').value         = rec.bankAccount || '';
+      document.getElementById('pro-bank-ifsc').value       = rec.bankIfsc || '';
+      document.getElementById('pro-bank-branch').value     = rec.bankBranch || '';
+      document.getElementById('pro-pay-terms').value       = rec.paymentTerms || '';
+      document.getElementById('pro-delivery').value        = rec.deliveryTimeline || '';
+      document.getElementById('pro-warranty').value        = rec.warranty || '';
+      document.getElementById('pro-notes').value           = rec.notes || '';
+      document.getElementById('pro-terms').value           = rec.termsConditions || '';
+      (rec.items || []).forEach(function(it) { addProformaItem(it); });
+      recalcProforma();
+    }).catch(function(e) { toast(e.message || 'Error loading proforma', 'error'); });
+  } else {
+    populateProCompanyDropdown(); // auto-select first company for new proforma
+    document.getElementById('pro-number').value       = 'Auto-generated';
+    document.getElementById('pro-date').value         = today();
+    document.getElementById('pro-status-field').value = 'Draft';
+    addProformaItem();
+    recalcProforma();
+  }
+  openModal('pro-inv-modal');
 }
 
 /* ══════════════════════════════════════════════════════════
@@ -4177,5 +4473,262 @@ document.addEventListener('DOMContentLoaded', function(){
   populateVendorWODropdown();
 });
 updateDashStats();
+
+/* ══════════════════════════════════════════════════════════
+   REPORTS — section config, filters, render, export
+══════════════════════════════════════════════════════════ */
+var repData     = [];
+var repFiltered = [];
+
+var REP_CONFIG = {
+  inv: {
+    label: 'Invoices', endpoint: '/invoices',
+    statuses: ['Draft','Sent','Paid','Cancelled'],
+    dateField: 'invoiceDate', nameField: 'customerName', numField: 'invoiceNumber', amountField: 'totalAmount',
+    columns: [
+      { h:'Invoice #',      v:function(r){ return r.invoiceNumber||''; } },
+      { h:'Customer',       v:function(r){ return r.customerName||''; } },
+      { h:'GSTIN',          v:function(r){ return r.customerGstin||''; } },
+      { h:'Date',           v:function(r){ return r.invoiceDate||''; } },
+      { h:'Bill Month',     v:function(r){ return r.billMonth||''; } },
+      { h:'Subtotal',       v:function(r){ return parseFloat(r.subtotal||0); } },
+      { h:'CGST',           v:function(r){ return parseFloat(r.totalCgst||0); } },
+      { h:'SGST',           v:function(r){ return parseFloat(r.totalSgst||0); } },
+      { h:'IGST',           v:function(r){ return parseFloat(r.totalIgst||0); } },
+      { h:'Total Amount',   v:function(r){ return parseFloat(r.totalAmount||0); } },
+      { h:'Payment Status', v:function(r){ return r.paymentStatus||''; } },
+      { h:'Status',         v:function(r){ return r.status||''; } },
+    ],
+  },
+  pro: {
+    label: 'Proforma', endpoint: '/proformas-db',
+    statuses: ['Draft','Sent','Confirmed','Rejected','Converted'],
+    dateField: 'date', nameField: 'customerName', numField: 'proformaNumber', amountField: 'totalAmount',
+    columns: [
+      { h:'Proforma #',   v:function(r){ return r.proformaNumber||''; } },
+      { h:'Customer',     v:function(r){ return r.customerName||''; } },
+      { h:'Date',         v:function(r){ return r.date||''; } },
+      { h:'Valid Until',  v:function(r){ return r.validityDate||''; } },
+      { h:'Subtotal',     v:function(r){ return parseFloat(r.subtotal||0); } },
+      { h:'Tax',          v:function(r){ return parseFloat(r.totalTax||0); } },
+      { h:'Total Amount', v:function(r){ return parseFloat(r.totalAmount||0); } },
+      { h:'Status',       v:function(r){ return r.status||''; } },
+    ],
+  },
+  quo: {
+    label: 'Quotations', endpoint: '/quotations',
+    statuses: ['Draft','Sent','Accepted','Rejected','Converted'],
+    dateField: 'date', nameField: 'customerName', numField: 'quotationNumber', amountField: 'totalAmount',
+    columns: [
+      { h:'Quotation #',  v:function(r){ return r.quotationNumber||''; } },
+      { h:'Customer',     v:function(r){ return r.customerName||''; } },
+      { h:'Date',         v:function(r){ return r.date||''; } },
+      { h:'Valid Until',  v:function(r){ return r.validityDate||''; } },
+      { h:'Total Amount', v:function(r){ return parseFloat(r.totalAmount||0); } },
+      { h:'Status',       v:function(r){ return r.status||''; } },
+    ],
+  },
+  po: {
+    label: 'Purchase Orders', endpoint: '/purchase-orders',
+    statuses: ['Draft','Sent','Approved','Rejected','Completed'],
+    dateField: 'date', nameField: 'vendorName', numField: 'poNumber', amountField: 'totalAmount',
+    columns: [
+      { h:'PO #',         v:function(r){ return r.poNumber||''; } },
+      { h:'Vendor',       v:function(r){ return r.vendorName||''; } },
+      { h:'Date',         v:function(r){ return r.date||''; } },
+      { h:'Total Amount', v:function(r){ return parseFloat(r.totalAmount||0); } },
+      { h:'Status',       v:function(r){ return r.status||''; } },
+    ],
+  },
+  clt: {
+    label: 'Clients', endpoint: '/clients',
+    statuses: ['active','inactive'],
+    dateField: null, nameField: 'name', numField: 'clientCode', amountField: null,
+    columns: [
+      { h:'Client Code', v:function(r){ return r.clientCode||''; } },
+      { h:'Name',        v:function(r){ return r.name||''; } },
+      { h:'GSTIN',       v:function(r){ return r.gstin||r.gstNo||''; } },
+      { h:'Email',       v:function(r){ return r.email||''; } },
+      { h:'Phone',       v:function(r){ return r.phone||''; } },
+      { h:'State',       v:function(r){ return r.state||''; } },
+      { h:'Status',      v:function(r){ return r.status||''; } },
+    ],
+  },
+  ven: {
+    label: 'Vendors', endpoint: '/vendors',
+    statuses: ['active','inactive'],
+    dateField: null, nameField: 'name', numField: 'vendorCode', amountField: null,
+    columns: [
+      { h:'Vendor Code', v:function(r){ return r.vendorCode||''; } },
+      { h:'Name',        v:function(r){ return r.name||''; } },
+      { h:'GSTIN',       v:function(r){ return r.gstin||r.gstNo||''; } },
+      { h:'Email',       v:function(r){ return r.email||''; } },
+      { h:'Phone',       v:function(r){ return r.phone||''; } },
+      { h:'State',       v:function(r){ return r.state||''; } },
+    ],
+  },
+  cwo: {
+    label: 'Client Work Orders', endpoint: '/work-orders?type=CWO',
+    statuses: ['Draft','Active','Completed','Cancelled'],
+    dateField: 'date', nameField: 'clientName', numField: 'woNumber', amountField: 'totalAmount',
+    columns: [
+      { h:'WO #',         v:function(r){ return r.woNumber||''; } },
+      { h:'Client',       v:function(r){ return r.clientName||r.customerName||''; } },
+      { h:'Date',         v:function(r){ return r.date||''; } },
+      { h:'Total Amount', v:function(r){ return parseFloat(r.totalAmount||0); } },
+      { h:'Status',       v:function(r){ return r.status||''; } },
+    ],
+  },
+  vwo: {
+    label: 'Vendor Work Orders', endpoint: '/work-orders?type=VWO',
+    statuses: ['Draft','Active','Completed','Cancelled'],
+    dateField: 'date', nameField: 'vendorName', numField: 'woNumber', amountField: 'totalAmount',
+    columns: [
+      { h:'WO #',         v:function(r){ return r.woNumber||''; } },
+      { h:'Vendor',       v:function(r){ return r.vendorName||''; } },
+      { h:'Date',         v:function(r){ return r.date||''; } },
+      { h:'Total Amount', v:function(r){ return parseFloat(r.totalAmount||0); } },
+      { h:'Status',       v:function(r){ return r.status||''; } },
+    ],
+  },
+  prj: {
+    label: 'Project Accounts', endpoint: '/project-accounts',
+    statuses: ['Planning','Active','Completed','On Hold'],
+    dateField: 'startDate', nameField: 'name', numField: 'projectCode', amountField: 'budget',
+    columns: [
+      { h:'Project #',  v:function(r){ return r.projectCode||''; } },
+      { h:'Name',       v:function(r){ return r.name||''; } },
+      { h:'Client',     v:function(r){ return r.clientName||''; } },
+      { h:'Start Date', v:function(r){ return r.startDate||''; } },
+      { h:'End Date',   v:function(r){ return r.endDate||''; } },
+      { h:'Budget',     v:function(r){ return parseFloat(r.budget||0); } },
+      { h:'Spent',      v:function(r){ return parseFloat(r.spent||0); } },
+      { h:'Remaining',  v:function(r){ return parseFloat((r.budget||0)-(r.spent||0)); } },
+      { h:'Status',     v:function(r){ return r.status||''; } },
+    ],
+  },
+};
+
+function onRepSectionChange() {
+  var sec = document.getElementById('rep-section').value;
+  var cfg = REP_CONFIG[sec];
+  // Update status options
+  var stSel = document.getElementById('rep-status');
+  stSel.innerHTML = '<option value="">All Status</option>';
+  (cfg.statuses||[]).forEach(function(s){
+    var o = document.createElement('option'); o.value = s; o.textContent = s; stSel.appendChild(o);
+  });
+  // Show/hide date filters
+  var showDate = !!cfg.dateField;
+  document.getElementById('rep-date-from-wrap').style.display = showDate ? '' : 'none';
+  document.getElementById('rep-date-to-wrap').style.display   = showDate ? '' : 'none';
+  repData = []; repFiltered = [];
+  renderReport();
+}
+
+function renderReport() {
+  var sec   = document.getElementById('rep-section').value;
+  var cfg   = REP_CONFIG[sec];
+  var tbody = document.getElementById('rep-body');
+  var thead = document.getElementById('rep-thead');
+  tbody.innerHTML = '<tr><td colspan="20" style="text-align:center;padding:32px;color:var(--text-muted);">Loading...</td></tr>';
+
+  api('GET', cfg.endpoint).then(function(data) {
+    repData = data || [];
+    var q     = (document.getElementById('rep-search').value||'').toLowerCase();
+    var st    = document.getElementById('rep-status').value;
+    var dfrom = document.getElementById('rep-date-from').value;
+    var dto   = document.getElementById('rep-date-to').value;
+
+    repFiltered = repData.filter(function(r) {
+      if (st && r.status !== st) return false;
+      if (q) {
+        var num  = String(r[cfg.numField]  ||'').toLowerCase();
+        var name = String(r[cfg.nameField] ||'').toLowerCase();
+        if (!num.includes(q) && !name.includes(q)) return false;
+      }
+      if (cfg.dateField && dfrom && (r[cfg.dateField]||'') < dfrom) return false;
+      if (cfg.dateField && dto   && (r[cfg.dateField]||'') > dto)   return false;
+      return true;
+    });
+
+    // Header
+    thead.innerHTML = '<tr style="background:var(--bg-input);border-bottom:1px solid var(--border);">' +
+      cfg.columns.map(function(c){ return '<th class="acc-th">' + c.h + '</th>'; }).join('') + '</tr>';
+
+    // Rows
+    if (!repFiltered.length) {
+      tbody.innerHTML = '<tr><td colspan="' + cfg.columns.length + '" style="text-align:center;padding:40px;color:var(--text-muted);">No records match the filters</td></tr>';
+    } else {
+      tbody.innerHTML = repFiltered.map(function(r) {
+        return '<tr class="inv-row">' + cfg.columns.map(function(c) {
+          var val = c.v(r);
+          var disp = (typeof val === 'number') ? fmtAmt(val) : (val || '—');
+          return '<td class="acc-td" style="font-size:12px;white-space:nowrap;">' + disp + '</td>';
+        }).join('') + '</tr>';
+      }).join('');
+    }
+
+    // Summary
+    var summaryEl = document.getElementById('rep-summary');
+    var cards = [{ label:'Total Records', val: repFiltered.length, money: false }];
+    if (cfg.amountField) {
+      var total = repFiltered.reduce(function(s,r){ return s + parseFloat(r[cfg.amountField]||0); }, 0);
+      cards.push({ label:'Total Amount', val: total, money: true });
+    }
+    // Status breakdown
+    var byStatus = {};
+    repFiltered.forEach(function(r){ var s=r.status||'—'; byStatus[s]=(byStatus[s]||0)+1; });
+    Object.keys(byStatus).forEach(function(s){ cards.push({ label:s, val:byStatus[s], money:false }); });
+    summaryEl.innerHTML = cards.map(function(c){
+      return '<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:12px 18px;min-width:110px;">' +
+        '<div style="font-size:18px;font-weight:800;color:var(--text-primary);">' + (c.money ? fmtAmt(c.val) : c.val) + '</div>' +
+        '<div style="font-size:11px;color:var(--text-muted);margin-top:2px;">' + c.label + '</div>' +
+        '</div>';
+    }).join('');
+
+  }).catch(function(e) {
+    tbody.innerHTML = '<tr><td colspan="20" style="text-align:center;padding:32px;color:var(--danger);">' + (e.message||'Error loading data') + '</td></tr>';
+    document.getElementById('rep-summary').innerHTML = '';
+  });
+}
+
+function clearRepFilters() {
+  document.getElementById('rep-date-from').value = '';
+  document.getElementById('rep-date-to').value   = '';
+  document.getElementById('rep-status').value    = '';
+  document.getElementById('rep-search').value    = '';
+  renderReport();
+}
+
+function exportReportExcel() {
+  if (!repFiltered || !repFiltered.length) { toast('No data to export', 'error'); return; }
+  if (typeof XLSX === 'undefined')          { toast('Excel library not loaded yet — try again in a moment', 'error'); return; }
+  var sec = document.getElementById('rep-section').value;
+  var cfg = REP_CONFIG[sec];
+
+  var headers = cfg.columns.map(function(c){ return c.h; });
+  var rows    = repFiltered.map(function(r){ return cfg.columns.map(function(c){ return c.v(r); }); });
+
+  var ws = XLSX.utils.aoa_to_sheet([headers].concat(rows));
+
+  // Style header row bold + auto column widths
+  ws['!cols'] = headers.map(function(h, i) {
+    var max = h.length;
+    rows.forEach(function(row){ var v = String(row[i]||''); if (v.length > max) max = v.length; });
+    return { wch: Math.min(max + 2, 42) };
+  });
+
+  // Freeze top row
+  ws['!freeze'] = { xSplit: 0, ySplit: 1 };
+
+  var wb   = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, cfg.label.substring(0,31));
+
+  var today = new Date().toISOString().slice(0,10);
+  var fname = cfg.label.replace(/\s+/g, '-') + '-' + today + '.xlsx';
+  XLSX.writeFile(wb, fname);
+  toast('Exported ' + repFiltered.length + ' records \u2192 ' + fname, 'success');
+}
 </script>
 </body></html>

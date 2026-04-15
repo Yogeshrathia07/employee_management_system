@@ -148,11 +148,11 @@ router.post('/settings/login-hero',      auth, requireRole('superadmin'), photoU
 
 // ─── Recycle Bin ──────────────────────────────────────────────────────────────
 const recycleBinCtrl = require('../controllers/recycleBinController');
-router.get('/recycle-bin',             auth, requireRole('admin', 'superadmin'), recycleBinCtrl.getItems);
-router.post('/recycle-bin/custom',     auth, requireRole('admin', 'superadmin'), recycleBinCtrl.storeCustomItem);
-router.post('/recycle-bin/:id/restore',auth, requireRole('admin', 'superadmin'), recycleBinCtrl.restoreItem);
-router.delete('/recycle-bin/:id',      auth, requireRole('admin', 'superadmin'), recycleBinCtrl.permanentDelete);
-router.delete('/recycle-bin',          auth, requireRole('admin', 'superadmin'), recycleBinCtrl.emptyBin);
+router.get('/recycle-bin',             auth, requireRole('superadmin'), recycleBinCtrl.getItems);
+router.post('/recycle-bin/custom',     auth, requireRole('superadmin'), recycleBinCtrl.storeCustomItem);
+router.post('/recycle-bin/:id/restore',auth, requireRole('superadmin'), recycleBinCtrl.restoreItem);
+router.delete('/recycle-bin/:id',      auth, requireRole('superadmin'), recycleBinCtrl.permanentDelete);
+router.delete('/recycle-bin',          auth, requireRole('superadmin'), recycleBinCtrl.emptyBin);
 
 // ─── Tasks ────────────────────────────────────────────────────────────────────
 const taskCtrl = require('../controllers/taskController');

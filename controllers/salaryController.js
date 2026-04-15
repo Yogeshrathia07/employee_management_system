@@ -167,6 +167,7 @@ exports.getSalaryPreview = async (req, res) => {
       // Salary structure from profile
       baseSalary:       user.baseSalary        || 0,
       basicSalary:      user.basicSalary       || 0,
+      da:               user.da               || 0,
       hra:              user.hra               || 0,
       conveyance:       user.conveyance        || 0,
       medicalExpenses:  user.medicalExpenses   || 0,
@@ -263,6 +264,7 @@ exports.createSalary = async (req, res) => {
       allowedLeave: p('allowedLeave', 'allowedLeavePerMonth'),
       // Earnings
       basicSalary:      p('basicSalary',      'basicSalary'),
+      da:               p('da',              'da'),
       hra:              p('hra',              'hra'),
       conveyance:       p('conveyance',       'conveyance'),
       medicalExpenses:  p('medicalExpenses',  'medicalExpenses'),
@@ -336,6 +338,7 @@ exports.generateBulk = async (req, res) => {
         leaveTaken:       leaveTakenAuto,
         allowedLeave:     user.allowedLeavePerMonth || 2,
         basicSalary:      user.basicSalary       || 0,
+        da:               user.da                || 0,
         hra:              user.hra                || 0,
         conveyance:       user.conveyance         || 0,
         medicalExpenses:  user.medicalExpenses    || 0,
@@ -374,7 +377,7 @@ exports.updateSalary = async (req, res) => {
 
     const editableFields = [
       'baseSalary', 'leaveTaken', 'allowedLeave',
-      'basicSalary', 'hra', 'conveyance', 'medicalExpenses', 'specialAllowance', 'bonus', 'ta',
+      'basicSalary', 'da', 'hra', 'conveyance', 'medicalExpenses', 'specialAllowance', 'bonus', 'ta',
       'pfContribution', 'professionTax', 'tds', 'salaryAdvance',
       'expectedHours', 'totalWorkDays', 'notes', 'status', 'applyAbsentDeduction',
       'manualDeductionDays', 'manualDeductionAmount',

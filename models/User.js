@@ -12,6 +12,7 @@ const User = sequelize.define('User', {
   baseSalary:    { type: DataTypes.FLOAT, defaultValue: 0 },  // CTC (monthly)
   // Salary structure components (DHPE style)
   basicSalary:      { type: DataTypes.FLOAT, defaultValue: 0 },
+  da:               { type: DataTypes.FLOAT, defaultValue: 0 },
   hra:              { type: DataTypes.FLOAT, defaultValue: 0 },
   conveyance:       { type: DataTypes.FLOAT, defaultValue: 0 },
   medicalExpenses:  { type: DataTypes.FLOAT, defaultValue: 0 },

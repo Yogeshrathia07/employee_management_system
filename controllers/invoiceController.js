@@ -44,15 +44,24 @@ function currentFY() {
 }
 
 // Format: {SEQ}/{CODE}/{FY}/{RANDOM}  e.g. 004/DHPE/26-27/GDTYJH
+// Sequence is global per FY (shared across all codes) so manual + converted invoices
+// always increment together and never restart at 001.
 async function nextInvoiceNumber(fy, code) {
   const safeFY   = /^\d{2}-\d{2}$/.test(fy || '') ? fy : currentFY();
   const safeCode = ((code || '').toUpperCase().replace(/[^A-Z0-9]/g, '') || 'INV');
   const random   = Math.random().toString(36).substr(2, 6).toUpperCase();
-  const count    = await Invoice.count({
-    where: { invoiceNumber: { [Op.like]: `%/${safeCode}/${safeFY}/%` } },
+  // Find the highest sequence already used in this FY (any code)
+  const rows = await Invoice.findAll({
+    attributes: ['invoiceNumber'],
+    where: { invoiceNumber: { [Op.like]: `%/${safeFY}/%` } },
+    raw: true,
   });
-  const seq = String(count + 1).padStart(3, '0');
-  return `${seq}/${safeCode}/${safeFY}/${random}`;
+  let maxSeq = 0;
+  rows.forEach(r => {
+    const m = (r.invoiceNumber || '').match(/^(\d+)\//);
+    if (m) { const n = parseInt(m[1], 10); if (n > maxSeq) maxSeq = n; }
+  });
+  return `${String(maxSeq + 1).padStart(3, '0')}/${safeCode}/${safeFY}/${random}`;
 }
 
 // ── GET /invoices ─────────────────────────────────────────────────────────────
@@ -208,9 +217,11 @@ exports.downloadPDF = async (req, res) => {
       return doc.heightOfString(String(text || ''), { width: w, lineGap: 0.5 });
     }
 
+    const FOOTER_H = 22;  // reserved at bottom of every page for footer
+
     // check page space, add new page if needed
     function checkPage(y, needed) {
-      if (y + needed > PH - M) {
+      if (y + needed > PH - M - FOOTER_H) {
         doc.addPage();
         return M;
       }
@@ -578,6 +589,36 @@ exports.downloadPDF = async (req, res) => {
       txt(line, X + 5, ny, W - 10, { size: 7, color: GRY });
       ny += 9;
     });
+
+    // ════════════════════════════════════════════════════════════════════════
+    // 8. FOOTER: confidentiality notice + page numbers (printed on every page)
+    // ════════════════════════════════════════════════════════════════════════
+    const CONF_TEXT =
+      'This document is the property of DHPE and is confidential. It must not be disclosed, ' +
+      'shared, or transmitted to any person or firm not authorized by us. No part of this ' +
+      'document may be copied, reproduced, or used in whole or in part without our prior written consent.';
+
+    const pageRange  = doc.bufferedPageRange();
+    const totalPages = pageRange.count;
+
+    for (let i = 0; i < totalPages; i++) {
+      doc.switchToPage(pageRange.start + i);
+      const fy = PH - M - FOOTER_H + 2;
+
+      // Separator line
+      doc.moveTo(X, fy).lineTo(X + W, fy)
+         .lineWidth(0.3).strokeColor('#aaaaaa').stroke();
+
+      // Page number — right side
+      doc.fontSize(6.5).font('Helvetica-Bold').fillColor(GRY)
+         .text('Page ' + (i + 1) + ' of ' + totalPages,
+               X + W - 55, fy + 4, { width: 55, align: 'right' });
+
+      // Confidentiality notice — centred, leaves room for page number
+      doc.fontSize(5.5).font('Helvetica').fillColor(LGY)
+         .text(CONF_TEXT, X, fy + 4,
+               { width: W - 60, align: 'center', lineGap: 0.5 });
+    }
 
     doc.end();
   } catch (err) {

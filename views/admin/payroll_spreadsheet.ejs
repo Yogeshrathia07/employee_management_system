@@ -368,9 +368,13 @@
           </select>
           <input type="number" id="ae-year" class="ae-period-yr" placeholder="Year"
                  onchange="payroll._aeMonthYearChange()">
-          <label class="ae-weekend-toggle" title="Include Saturday & Sunday as working days">
-            <input type="checkbox" id="ae-include-weekends" onchange="payroll._aeMonthYearChange()">
-            <span>Include Sat/Sun</span>
+          <label class="ae-weekend-toggle" title="Count Saturday as a working day">
+            <input type="checkbox" id="ae-include-sat" onchange="payroll._aeMonthYearChange()">
+            <span>Include Saturday</span>
+          </label>
+          <label class="ae-weekend-toggle" title="Count Sunday as a working day">
+            <input type="checkbox" id="ae-include-sun" onchange="payroll._aeMonthYearChange()">
+            <span>Include Sunday</span>
           </label>
         </div>
       </div>
@@ -443,7 +447,7 @@
       <span class="ae-stat-sep">|</span>
       <span class="ae-stat-pill" id="ae-stat-rows">0 row(s)</span>
       <span style="flex:1"></span>
-      <span class="ae-stat-total" id="ae-stat-ctc">₹0 total CTC</span>
+      <span class="ae-stat-total" id="ae-stat-ctc"><span class="ae-rupee">&#8377;</span>0 total CTC</span>
     </div>
 
     <!-- Footer -->

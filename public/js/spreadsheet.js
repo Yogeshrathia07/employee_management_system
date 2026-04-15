@@ -278,7 +278,6 @@ class PayrollApp {
 
   _autofill(r, emp) {
     r.designation     = emp.position || '';
-    r.ctc             = emp.baseSalary || 0;
     r.basic           = emp.basicSalary || 0;
     r.da              = emp.da || 0;
     r.hra             = emp.hra || 0;
@@ -310,7 +309,7 @@ class PayrollApp {
   }
 
   _refreshRow(r) {
-    const fields = ['designation','ctc','basic','da','hra','conveyance','medicalExpenses',
+    const fields = ['designation','basic','da','hra','conveyance','medicalExpenses',
       'special','bonus','ta','allowedLeave','pfContribution','companyName'];
     for (const f of fields) {
       const el = document.querySelector(`[data-row="${r.id}"][data-field="${f}"]`);
@@ -340,8 +339,13 @@ class PayrollApp {
         r.workedDays = maxWd;
       }
     }
+    // CTC = sum of all gross components (always kept in sync)
+    const tg = this._tg(r);
+    r.ctc = tg;
+    set('ctc',         tg);
     set('convWorking', this._cw(r));
-    set('totalGross',  this._tg(r));
+    set('totalGross',  tg);
+    // absentDeduction uses r.ctc — must be called AFTER r.ctc is updated above
     set('absentDeduction', this._ad(r));
     set('totalDed',    this._td(r));
     set('netPay',      this._net(r));
@@ -365,20 +369,31 @@ class PayrollApp {
       </select>`;
     };
 
-    return `<tr data-dbrow="${r.id}">
+    const locked = r.status === 'finalized' || r.status === 'paid';
+    return `<tr data-dbrow="${r.id}"${locked ? ' class="row-locked"' : ''}>
       <td class="sl-col">${sl}</td>
-      <td class="del-col"><button class="db-del-btn" data-del-id="${r.id}" title="Delete this row"><i class="bx bx-trash"></i></button></td>
-      <td class="edit-col"><button class="db-edit-btn" data-edit-id="${r.id}" title="Edit this row"><i class="bx bx-edit"></i></button></td>
+      <td class="del-col">${locked
+        ? `<span class="db-lock-icon" title="Change status to Draft to delete"><i class="bx bx-lock-alt"></i></span>`
+        : `<button class="db-del-btn" data-del-id="${r.id}" title="Delete this row"><i class="bx bx-trash"></i></button>`}</td>
+      <td class="edit-col">${locked
+        ? `<span class="db-lock-icon" title="Change status to Draft to edit"><i class="bx bx-lock-alt"></i></span>`
+        : `<button class="db-edit-btn" data-edit-id="${r.id}" title="Edit this row"><i class="bx bx-edit"></i></button>`}</td>
       <td class="name-col"><input type="text" class="ci" data-row="${r.id}" data-field="name" value="${r.name||''}" list="emp-datalist" autocomplete="off" readonly tabindex="-1"></td>
       <td>${n('designation')}</td>
       <td>${monthSel()}</td>
       <td>${n('year','number',r.year)}</td>
-      <td class="db-status-cell"><span class="db-status-pill status-${String(r.status || 'draft').toLowerCase()}">${String(r.status || 'draft').toLowerCase() === 'finalized' ? 'Frozen' : this._esc(r.status || 'draft')}</span></td>
+      <td class="db-status-cell">
+        <select class="db-status-sel status-${String(r.status||'draft').toLowerCase()}" data-status-id="${r.id}" data-prev="${String(r.status||'draft')}" onchange="payroll.changeRowStatus(this)">
+          <option value="draft"${(r.status||'draft')==='draft'?' selected':''}>Draft</option>
+          <option value="finalized"${r.status==='finalized'?' selected':''}>Frozen</option>
+          <option value="paid"${r.status==='paid'?' selected':''}>Paid</option>
+        </select>
+      </td>
       <td>${n('totalDays','number',r.totalDays)}</td>
       <td>${n('allowedLeave','number',r.allowedLeave)}</td>
       <td>${n('leaveTaken','number',r.leaveTaken)}</td>
       <td><input type="number" class="ci auto-cell auto-wd" data-row="${r.id}" data-field="workedDays" value="${this._wd(r)}" min="0" max="${this._calcMaxWd(r)}" step="1" title="Max ${this._calcMaxWd(r)} days"></td>
-      <td>${n('ctc','number',r.ctc)}</td>
+      <td>${au('ctc', this._tg(r), 'auto-green')}</td>
       <td class="gross-zone">${n('basic','number',r.basic)}</td>
       <td class="gross-zone">${n('da','number',r.da)}</td>
       <td class="gross-zone">${n('hra','number',r.hra)}</td>
@@ -568,6 +583,10 @@ class PayrollApp {
     document.getElementById('ae-banner').style.display     = 'flex';
     document.getElementById('ae-totals-row').style.display = 'none';
     document.getElementById('add-emp-modal').style.display = 'flex';
+    const satCb = document.getElementById('ae-include-sat');
+    const sunCb = document.getElementById('ae-include-sun');
+    if (satCb) satCb.checked = false;
+    if (sunCb) sunCb.checked = false;
     this._aeUpdateStats();
     // Pre-load timesheets + leaves in background for attendance summary
     Promise.all([
@@ -639,7 +658,18 @@ class PayrollApp {
     const m = (document.getElementById('ae-month').value||'').toLowerCase();
     const y = +document.getElementById('ae-year').value || 0;
     const idx = MONTHS[m];
-    return (idx && y) ? new Date(y, idx, 0).getDate() : 0;
+    if (!idx || !y) return 0;
+    const calDays   = new Date(y, idx, 0).getDate();
+    const inclSat   = document.getElementById('ae-include-sat')?.checked || false;
+    const inclSun   = document.getElementById('ae-include-sun')?.checked || false;
+    let count = 0;
+    for (let d = 1; d <= calDays; d++) {
+      const dow = new Date(y, idx-1, d).getDay(); // 0=Sun, 6=Sat
+      if (dow === 6 && !inclSat) continue;
+      if (dow === 0 && !inclSun) continue;
+      count++;
+    }
+    return count;
   }
 
   _aeMonthYearChange() {
@@ -786,7 +816,9 @@ class PayrollApp {
       e._isDup = false;
       if (emp) {
         e.designation = emp.position || '';
-        e.ctc         = emp.baseSalary || 0;
+        const _compCTC = (emp.basicSalary||0)+(emp.da||0)+(emp.hra||0)+(emp.conveyance||0)
+          +(emp.medicalExpenses||0)+(emp.specialAllowance||0)+(emp.bonus||0)+(emp.ta||0);
+        e.ctc = _compCTC || emp.baseSalary || 0;
         if (desigEl) { desigEl.value = e.designation; desigEl.classList.add('ae-ci-found'); }
         if (ctcEl)   { ctcEl.value   = e.ctc;         ctcEl.classList.add('ae-ci-found'); }
         if (subEl)   { subEl.innerHTML = '<span style="color:#16a34a;font-size:10px;font-weight:600;">✓ Salary auto-filled</span>'; }
@@ -816,12 +848,15 @@ class PayrollApp {
     const monthStart = new Date(year, monthIdx-1, 1);
     const monthEnd   = new Date(year, monthIdx-1, calDays);
 
-    // Working days — check if weekends should be included
-    const includeWeekends = document.getElementById('ae-include-weekends')?.checked || false;
+    // Working days — respect separate Saturday / Sunday toggles
+    const inclSat = document.getElementById('ae-include-sat')?.checked || false;
+    const inclSun = document.getElementById('ae-include-sun')?.checked || false;
     let workingDays = 0;
     for (let d = 1; d <= calDays; d++) {
-      const dow = new Date(year, monthIdx-1, d).getDay();
-      if (includeWeekends || (dow !== 0 && dow !== 6)) workingDays++;
+      const dow = new Date(year, monthIdx-1, d).getDay(); // 0=Sun, 6=Sat
+      if (dow === 6 && !inclSat) continue;
+      if (dow === 0 && !inclSun) continue;
+      workingDays++;
     }
 
     // Timesheets for this employee
@@ -945,7 +980,9 @@ class PayrollApp {
     const setEl = (id, v) => { const el=document.getElementById(id); if(el) el.textContent=v; };
     setEl('ae-stat-emp',  `${named} employee${named!==1?'s':''}`);
     setEl('ae-stat-rows', `${entries.length} row(s)`);
-    setEl('ae-stat-ctc',  `₹${entries.reduce((s,e)=>s+(+e.ctc||0),0).toLocaleString('en-IN')} total CTC`);
+    const totalCTC = entries.reduce((s,e)=>s+(+e.ctc||0),0);
+    const ctcEl = document.getElementById('ae-stat-ctc');
+    if (ctcEl) ctcEl.innerHTML = `<span class="ae-rupee">&#8377;</span>${totalCTC.toLocaleString('en-IN')} total CTC`;
   }
 
   async submitAddEmployee() {
@@ -1006,7 +1043,7 @@ class PayrollApp {
         applyAbsentDeduction: true,
         tds: e.tds || 0,
         designation: e.designation || '',
-        ctc: e.ctc || 0,
+        ctc: 0, // auto-computed from components in _recalc
         basic:0, da:0, hra:0, conveyance:0, medicalExpenses:0, special:0, bonus:0, ta:0,
         allowedLeave:2,
         presentDays: 0, absentDays: 0,
@@ -1327,6 +1364,66 @@ class PayrollApp {
     }
   }
 
+  async changeRowStatus(sel) {
+    const id     = sel.dataset.statusId;
+    const newVal = sel.value;
+    const oldVal = sel.dataset.prev || 'draft';
+
+    // Confirmation warning before marking as Paid
+    if (newVal === 'paid') {
+      const row = this.rows.find(r => String(r.id) === String(id));
+      const name = row ? (row.name || 'this employee') : 'this employee';
+      const confirmed = confirm(
+        `Mark salary as Paid for ${name}?\n\nThis action cannot be undone. The record will be locked permanently.`
+      );
+      if (!confirmed) {
+        sel.value = oldVal;
+        return;
+      }
+    }
+
+    try {
+      if (newVal === 'paid') {
+        await api('PATCH', `/salary/${id}/pay`, {});
+      } else {
+        await api('PUT', `/salary/${id}`, { status: newVal });
+      }
+
+      // Update row data
+      const row = this.rows.find(r => String(r.id) === String(id));
+      if (row) {
+        row.status = newVal;
+        // Re-render the row so lock icons appear/disappear correctly
+        const tr = document.querySelector(`[data-dbrow="${id}"]`);
+        if (tr) {
+          const sl = tr.querySelector('.sl-col')?.textContent?.trim() || '';
+          tr.insertAdjacentHTML('afterend', this._rowHTML(row, sl));
+          tr.remove();
+          const newTr = document.querySelector(`[data-dbrow="${id}"]`);
+          if (newTr) {
+            this._bindRow(newTr);
+            const delBtn = newTr.querySelector('.db-del-btn');
+            if (delBtn) {
+              delBtn.addEventListener('click', (e) => {
+                e.preventDefault(); e.stopPropagation();
+                this.deleteRow(+delBtn.dataset.delId);
+              });
+            }
+          }
+        }
+      }
+
+      toast(`Status changed to ${newVal === 'finalized' ? 'Frozen' : newVal.charAt(0).toUpperCase() + newVal.slice(1)}`, 'success');
+      this._applySlipFilter();
+    } catch (e) {
+      // Revert on failure
+      sel.value = oldVal;
+      sel.dataset.prev = oldVal;
+      sel.className = `db-status-sel status-${oldVal}`;
+      toast(e.message || 'Failed to update status', 'error');
+    }
+  }
+
   downloadPayslip(id) {
     const token = typeof getToken === 'function' ? getToken() : localStorage.getItem('ems_token');
     if (!token) {
@@ -1615,7 +1712,7 @@ class PayrollApp {
         toast('Select a company first', 'error');
         return;
       }
-      for (const row of this.rows.filter(r => r && r.name)) {
+      for (const row of this.rows.filter(r => r && r.name && r.status !== 'paid')) {
         const emp = this._employees.find(e => e.name === row.name || e.id === row.userId);
         if (!emp?.id) continue;
         const payload = {
@@ -1628,6 +1725,7 @@ class PayrollApp {
           allowedLeave: Number(row.allowedLeave || 0),
           baseSalary: Number(row.ctc || 0),
           basicSalary: Number(row.basic || 0),
+          da: Number(row.da || 0),
           hra: Number(row.hra || 0),
           conveyance: Number(row.conveyance || 0),
           medicalExpenses: Number(row.medicalExpenses || 0),

@@ -37,7 +37,7 @@ exports.getUsers = async (req, res) => {
 exports.createUser = async (req, res) => {
   try {
     const { name, email, password, role, companyId, managerId, baseSalary,
-            basicSalary, hra, conveyance, medicalExpenses, specialAllowance, bonus, ta,
+            basicSalary, da, hra, conveyance, medicalExpenses, specialAllowance, bonus, ta,
             pfApplicable, allowedLeavePerMonth,
             department, phone, position, gender } = req.body;
     if (!name || !email) return res.status(400).json({ message: 'Name and email are required' });
@@ -60,6 +60,7 @@ exports.createUser = async (req, res) => {
     // Salary structure components
     const comp = {
       basicSalary:      parseFloat(basicSalary)      || 0,
+      da:               parseFloat(da)               || 0,
       hra:              parseFloat(hra)              || 0,
       conveyance:       parseFloat(conveyance)       || 0,
       medicalExpenses:  parseFloat(medicalExpenses)  || 0,
@@ -69,7 +70,7 @@ exports.createUser = async (req, res) => {
     };
     Object.assign(userData, comp);
     // CTC = sum of all components
-    userData.baseSalary = comp.basicSalary + comp.hra + comp.conveyance
+    userData.baseSalary = comp.basicSalary + comp.da + comp.hra + comp.conveyance
       + comp.medicalExpenses + comp.specialAllowance + comp.bonus + comp.ta;
     if (pfApplicable !== undefined)         userData.pfApplicable         = pfApplicable;
     if (allowedLeavePerMonth !== undefined) userData.allowedLeavePerMonth = allowedLeavePerMonth;
@@ -95,7 +96,7 @@ exports.createUser = async (req, res) => {
 exports.updateUser = async (req, res) => {
   try {
     const { name, email, role, companyId, managerId, baseSalary,
-            basicSalary, hra, conveyance, medicalExpenses, specialAllowance, bonus, ta,
+            basicSalary, da, hra, conveyance, medicalExpenses, specialAllowance, bonus, ta,
             pfApplicable, allowedLeavePerMonth,
             status, department, phone, password, position, gender } = req.body;
     const user = await User.findByPk(req.params.id);
@@ -114,14 +115,14 @@ exports.updateUser = async (req, res) => {
     if (gender !== undefined)     user.gender     = gender || 'unspecified';
     if (status)                   user.status     = user.role === 'superadmin' ? 'active' : status;
     // Update salary structure components and recalculate CTC
-    const compFields = { basicSalary, hra, conveyance, medicalExpenses, specialAllowance, bonus, ta };
+    const compFields = { basicSalary, da, hra, conveyance, medicalExpenses, specialAllowance, bonus, ta };
     let anyComp = false;
     Object.entries(compFields).forEach(([k, v]) => {
       if (v !== undefined) { user[k] = parseFloat(v) || 0; anyComp = true; }
     });
     if (anyComp) {
       // Recalculate CTC as sum of all components
-      user.baseSalary = (user.basicSalary || 0) + (user.hra || 0) + (user.conveyance || 0)
+      user.baseSalary = (user.basicSalary || 0) + (user.da || 0) + (user.hra || 0) + (user.conveyance || 0)
         + (user.medicalExpenses || 0) + (user.specialAllowance || 0) + (user.bonus || 0) + (user.ta || 0);
     }
     if (pfApplicable !== undefined)         user.pfApplicable         = pfApplicable;

@@ -165,14 +165,24 @@
           var btn = document.createElement('button');
           btn.className = 'btn-back';
           btn.innerHTML = '<i class="bx bx-arrow-back"></i>';
-          btn.title = 'Back to Dashboard';
+          btn.title = 'Go Back';
           btn.onclick = function(){
-            var role = storedUser ? storedUser.role : null;
-            window.location.href = role ? '/' + role + '/dashboard' : '/';
+            // Use browser history if came from same origin, else go to dashboard
+            if (document.referrer && document.referrer.startsWith(window.location.origin)) {
+              history.back();
+            } else {
+              var role = storedUser ? storedUser.role : null;
+              window.location.href = role ? '/' + role + '/dashboard' : '/';
+            }
           };
           var insertContainer = document.querySelector('.navbar-center .flex.items-center') || document.querySelector('.navbar-center') || pageHeader;
-          var refNode = insertContainer.querySelector('.mobile-menu-btn') || insertContainer.firstChild;
-          insertContainer.insertBefore(btn, refNode);
+          var mobileMenuBtn = insertContainer.querySelector('.mobile-menu-btn');
+          if (mobileMenuBtn) {
+            // Insert AFTER the hamburger so order is: [hamburger][back][title]
+            mobileMenuBtn.insertAdjacentElement('afterend', btn);
+          } else {
+            insertContainer.insertBefore(btn, insertContainer.firstChild);
+          }
         }
 
         // ── Inject logout + bell + avatar into header-actions ──

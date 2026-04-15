@@ -106,6 +106,7 @@
         <div id="sal-section" style="display:none;padding:14px;">
           <div class="form-row" style="grid-template-columns:1fr 1fr 1fr">
             <div class="form-group"><label class="form-label">Basic Salary</label><input type="number" id="u-basic" class="form-control" min="0" value="0" oninput="calcUserCTC()"></div>
+            <div class="form-group"><label class="form-label">Dearness Allow. (DA)</label><input type="number" id="u-da" class="form-control" min="0" value="0" oninput="calcUserCTC()"></div>
             <div class="form-group"><label class="form-label">HRA</label><input type="number" id="u-hra" class="form-control" min="0" value="0" oninput="calcUserCTC()"></div>
             <div class="form-group"><label class="form-label">Conveyance</label><input type="number" id="u-conv" class="form-control" min="0" value="0" oninput="calcUserCTC()"></div>
           </div>
@@ -169,7 +170,7 @@ function toggleManagerField() {
 }
 
 function calcUserCTC() {
-  var total = ['u-basic','u-hra','u-conv','u-med','u-special','u-bonus','u-ta']
+  var total = ['u-basic','u-da','u-hra','u-conv','u-med','u-special','u-bonus','u-ta']
     .reduce(function(sum, id){ return sum + (parseFloat(document.getElementById(id).value) || 0); }, 0);
   document.getElementById('u-salary').value = total;
 }
@@ -187,7 +188,7 @@ function toggleSalarySection() {
 }
 
 function resetSalaryFields() {
-  ['u-basic','u-hra','u-conv','u-med','u-special','u-bonus','u-ta'].forEach(function(id){
+  ['u-basic','u-da','u-hra','u-conv','u-med','u-special','u-bonus','u-ta'].forEach(function(id){
     document.getElementById(id).value = 0;
   });
   document.getElementById('u-pf').value = 'true';
@@ -197,6 +198,7 @@ function resetSalaryFields() {
 
 function fillSalaryFields(u) {
   document.getElementById('u-basic').value   = u.basicSalary       || 0;
+  document.getElementById('u-da').value      = u.da                 || 0;
   document.getElementById('u-hra').value     = u.hra                || 0;
   document.getElementById('u-conv').value    = u.conveyance         || 0;
   document.getElementById('u-med').value     = u.medicalExpenses    || 0;
@@ -207,7 +209,7 @@ function fillSalaryFields(u) {
   document.getElementById('u-currency').value = u.currency || (function(){ var usr=getUser(); return (usr&&usr.company&&usr.company.currency)||'INR'; })();
   calcUserCTC();
   // Auto-expand if any value is set
-  var hasValues = [u.basicSalary,u.hra,u.conveyance,u.medicalExpenses,u.specialAllowance,u.bonus,u.ta].some(function(v){return v > 0;});
+  var hasValues = [u.basicSalary,u.da,u.hra,u.conveyance,u.medicalExpenses,u.specialAllowance,u.bonus,u.ta].some(function(v){return v > 0;});
   if (hasValues) {
     document.getElementById('sal-section').style.display = '';
     document.getElementById('sal-toggle-icon').textContent = '▲ Collapse';
@@ -346,6 +348,7 @@ async function saveUser() {
     managerId:        document.getElementById('u-manager').value               || null,
     // Salary structure components
     basicSalary:      parseFloat(document.getElementById('u-basic').value)     || 0,
+    da:               parseFloat(document.getElementById('u-da').value)        || 0,
     hra:              parseFloat(document.getElementById('u-hra').value)       || 0,
     conveyance:       parseFloat(document.getElementById('u-conv').value)      || 0,
     medicalExpenses:  parseFloat(document.getElementById('u-med').value)       || 0,

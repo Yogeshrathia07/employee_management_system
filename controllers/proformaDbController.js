@@ -4,6 +4,31 @@ const { Proforma, Invoice, Client, Quotation } = require('../models');
 
 function genCode() { return Math.random().toString(36).substr(2,6).toUpperCase(); }
 
+function currentFY() {
+  const now = new Date(), yr = now.getFullYear(), mo = now.getMonth() + 1;
+  const start = mo >= 4 ? yr : yr - 1;
+  return String(start).slice(-2) + '-' + String(start + 1).slice(-2);
+}
+
+async function nextInvoiceNumber(code) {
+  const safeFY   = currentFY();
+  const safeCode = ((code || '').toUpperCase().replace(/[^A-Z0-9]/g, '') || 'INV');
+  const random   = Math.random().toString(36).substr(2, 6).toUpperCase();
+  // Global max sequence across ALL invoices in this FY (any code),
+  // so converted invoices continue the same counter as manually created ones.
+  const rows = await Invoice.findAll({
+    attributes: ['invoiceNumber'],
+    where: { invoiceNumber: { [Op.like]: `%/${safeFY}/%` } },
+    raw: true,
+  });
+  let maxSeq = 0;
+  rows.forEach(r => {
+    const m = (r.invoiceNumber || '').match(/^(\d+)\//);
+    if (m) { const n = parseInt(m[1], 10); if (n > maxSeq) maxSeq = n; }
+  });
+  return `${String(maxSeq + 1).padStart(3, '0')}/${safeCode}/${safeFY}/${random}`;
+}
+
 // ── GET /proformas-db ─────────────────────────────────────────────────────────
 exports.getProformas = async (req, res) => {
   try {
@@ -75,8 +100,13 @@ exports.convertToInvoice = async (req, res) => {
     const p = await Proforma.findByPk(req.params.id);
     if (!p) return res.status(404).json({ message: 'Proforma not found' });
 
+    // Derive company code from seller name initials (e.g. "DHPE Pvt Ltd" → "DHPE")
+    const codeMatch = (p.sellerName || '').match(/^([A-Z0-9]+)/i);
+    const compCode  = codeMatch ? codeMatch[1].toUpperCase().slice(0, 6) : 'INV';
+    const invNumber = await nextInvoiceNumber(compCode);
+
     const inv = await Invoice.create({
-      invoiceNumber:  'INV-' + genCode(),
+      invoiceNumber:  invNumber,
       invoiceDate:    p.date,
       clientId:       p.clientId,
       customerName:   p.customerName,
