@@ -501,14 +501,11 @@
           <label style="display:block;font-size:13px;font-weight:500;color:#111;margin-bottom:6px;">Address</label>
           <textarea id="gst-s-addr" rows="2" style="width:100%;border:1px solid #d1d5db;border-radius:8px;padding:9px 12px;font-size:13px;color:#111;background:#fff;resize:vertical;box-sizing:border-box;" placeholder="Company address"></textarea>
         </div>
-        <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr 1fr;gap:14px;margin-top:14px;">
+        <div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:14px;margin-top:14px;">
           <div>
             <label style="display:block;font-size:13px;font-weight:500;color:#111;margin-bottom:6px;">State</label>
-            <input type="text" id="gst-s-state" style="width:100%;border:1px solid #d1d5db;border-radius:8px;padding:9px 12px;font-size:13px;color:#111;background:#fff;box-sizing:border-box;" placeholder="e.g. Maharashtra">
-          </div>
-          <div>
-            <label style="display:block;font-size:13px;font-weight:500;color:#111;margin-bottom:6px;">State Code</label>
-            <input type="text" id="gst-s-code" maxlength="2" style="width:100%;border:1px solid #d1d5db;border-radius:8px;padding:9px 12px;font-size:13px;color:#111;background:#fff;box-sizing:border-box;" placeholder="27" oninput="recalcGST()">
+            <select id="gst-s-state" onchange="syncStateCode(this,'gst-s-code');recalcGST();" style="width:100%;border:1px solid #d1d5db;border-radius:8px;padding:9px 12px;font-size:13px;color:#111;background:#fff;box-sizing:border-box;cursor:pointer;"></select>
+            <input type="hidden" id="gst-s-code">
           </div>
           <div>
             <label style="display:block;font-size:13px;font-weight:500;color:#111;margin-bottom:6px;">PAN</label>
@@ -549,7 +546,7 @@
           <label style="display:block;font-size:13px;font-weight:500;color:#111;margin-bottom:6px;">Customer Address</label>
           <textarea id="gst-c-addr" rows="3" style="width:100%;border:1px solid #d1d5db;border-radius:8px;padding:9px 12px;font-size:13px;color:#111;background:#fff;resize:vertical;box-sizing:border-box;" placeholder="Customer address"></textarea>
         </div>
-        <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:14px;margin-top:14px;">
+        <div style="display:grid;grid-template-columns:1fr 1fr 2fr;gap:14px;margin-top:14px;">
           <div>
             <label style="display:block;font-size:13px;font-weight:500;color:#111;margin-bottom:6px;">Customer GSTIN</label>
             <input type="text" id="gst-c-gstin" maxlength="15" style="width:100%;border:1px solid #d1d5db;border-radius:8px;padding:9px 12px;font-size:13px;color:#111;background:#fff;box-sizing:border-box;text-transform:uppercase;" placeholder="Customer GSTIN">
@@ -560,11 +557,8 @@
           </div>
           <div>
             <label style="display:block;font-size:13px;font-weight:500;color:#111;margin-bottom:6px;">Customer State</label>
-            <input type="text" id="gst-c-state" style="width:100%;border:1px solid #d1d5db;border-radius:8px;padding:9px 12px;font-size:13px;color:#111;background:#fff;box-sizing:border-box;" placeholder="e.g. Karnataka" oninput="recalcGST()">
-          </div>
-          <div>
-            <label style="display:block;font-size:13px;font-weight:500;color:#111;margin-bottom:6px;">Customer State Code</label>
-            <input type="text" id="gst-c-code" maxlength="2" style="width:100%;border:1px solid #d1d5db;border-radius:8px;padding:9px 12px;font-size:13px;color:#111;background:#fff;box-sizing:border-box;" placeholder="e.g. 29" oninput="recalcGST()">
+            <select id="gst-c-state" onchange="syncStateCode(this,'gst-c-code');recalcGST();" style="width:100%;border:1px solid #d1d5db;border-radius:8px;padding:9px 12px;font-size:13px;color:#111;background:#fff;box-sizing:border-box;cursor:pointer;"></select>
+            <input type="hidden" id="gst-c-code">
           </div>
         </div>
       </div>
@@ -605,8 +599,14 @@
 
       <!-- Tax & Status -->
       <div style="border:1px solid #e5e7eb;border-radius:10px;padding:20px;margin-bottom:16px;">
-        <div style="font-size:13px;font-weight:600;color:#111;margin-bottom:16px;">Tax &amp; Status</div>
-        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+          <div style="font-size:13px;font-weight:600;color:#111;">Tax &amp; Status</div>
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;font-weight:500;color:#374151;background:#fef3c7;border:1px solid #f59e0b;border-radius:8px;padding:6px 14px;">
+            <input type="checkbox" id="gst-tax-exempt" onchange="toggleTaxExempt()" style="width:16px;height:16px;accent-color:#f59e0b;cursor:pointer;">
+            Tax Exempt (No GST)
+          </label>
+        </div>
+        <div id="gst-tax-rate-fields" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;">
           <div>
             <label style="display:block;font-size:13px;font-weight:500;color:#111;margin-bottom:6px;">SGST Rate (%)</label>
             <input type="number" id="gst-sgst-rate" value="9" min="0" step="0.01" oninput="recalcGST()" onwheel="this.blur()" style="width:100%;border:1px solid #d1d5db;border-radius:8px;padding:9px 12px;font-size:13px;color:#111;background:#fff;box-sizing:border-box;">
@@ -625,6 +625,9 @@
               <option value="Cancelled">Cancelled</option>
             </select>
           </div>
+        </div>
+        <div id="gst-exempt-notice" style="display:none;margin-top:12px;padding:10px 14px;background:#fef3c7;border:1px solid #f59e0b;border-radius:8px;font-size:12px;color:#92400e;">
+          <b>Tax Exempt:</b> This invoice will be generated without GST (CGST / SGST / IGST). All tax values are set to zero. Suitable for exempt, nil-rated, zero-rated or non-GST supplies.
         </div>
       </div>
 
@@ -773,9 +776,10 @@
           <div class="form-group"><label class="form-label">Company Name <span style="color:#ef4444">*</span></label><input type="text" id="pro-s-name" class="form-control" placeholder="Your company name"></div>
           <div class="form-group"><label class="form-label">GSTIN</label><input type="text" id="pro-s-gstin" class="form-control" placeholder="22AAAAA0000A1Z5" maxlength="15" style="text-transform:uppercase"></div>
           <div class="form-group"><label class="form-label">Address</label><textarea id="pro-s-addr" class="form-control" rows="2" placeholder="Full address"></textarea></div>
-          <div style="display:grid;grid-template-columns:2fr 1fr;gap:8px;">
-            <div class="form-group"><label class="form-label">State</label><input type="text" id="pro-s-state" class="form-control" placeholder="e.g. Maharashtra"></div>
-            <div class="form-group"><label class="form-label">State Code</label><input type="text" id="pro-s-code" class="form-control" placeholder="27" maxlength="2"></div>
+          <div class="form-group">
+            <label class="form-label">State</label>
+            <select id="pro-s-state" onchange="syncStateCode(this,'pro-s-code');" class="form-control" style="cursor:pointer;"></select>
+            <input type="hidden" id="pro-s-code">
           </div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
             <div class="form-group"><label class="form-label">Phone</label><input type="text" id="pro-s-phone" class="form-control" placeholder="Contact number"></div>
@@ -795,9 +799,10 @@
           <div class="form-group"><label class="form-label">Customer Name <span style="color:#ef4444">*</span></label><input type="text" id="pro-c-name" class="form-control" list="acc-customer-list" placeholder="Customer / company name"></div>
           <div class="form-group"><label class="form-label">GSTIN</label><input type="text" id="pro-c-gstin" class="form-control" placeholder="Customer GSTIN" maxlength="15" style="text-transform:uppercase"></div>
           <div class="form-group"><label class="form-label">Address</label><textarea id="pro-c-addr" class="form-control" rows="2" placeholder="Customer address"></textarea></div>
-          <div style="display:grid;grid-template-columns:2fr 1fr;gap:8px;">
-            <div class="form-group"><label class="form-label">State</label><input type="text" id="pro-c-state" class="form-control" placeholder="e.g. Karnataka" oninput="recalcProforma()"></div>
-            <div class="form-group"><label class="form-label">State Code</label><input type="text" id="pro-c-code" class="form-control" placeholder="29" maxlength="2" oninput="recalcProforma()"></div>
+          <div class="form-group">
+            <label class="form-label">State</label>
+            <select id="pro-c-state" onchange="syncStateCode(this,'pro-c-code');recalcProforma();" class="form-control" style="cursor:pointer;"></select>
+            <input type="hidden" id="pro-c-code">
           </div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
             <div class="form-group"><label class="form-label">PAN</label><input type="text" id="pro-c-pan" class="form-control" placeholder="ABCDE1234F" maxlength="10" style="text-transform:uppercase"></div>
@@ -1813,6 +1818,8 @@ function openGSTModal(invId) {
       document.getElementById('gst-work-order').value  = inv.workOrder     || '';
       document.getElementById('gst-project').value     = inv.projectName   || '';
       document.getElementById('gst-work-details').value= inv.workDetails   || '';
+      document.getElementById('gst-tax-exempt').checked = !!inv.taxExempt;
+      toggleTaxExempt();
       document.getElementById('gst-sgst-rate').value   = inv.sgstRate != null ? inv.sgstRate : 9;
       document.getElementById('gst-cgst-rate').value   = inv.cgstRate != null ? inv.cgstRate : 9;
       document.getElementById('gst-status').value      = inv.status        || 'Draft';
@@ -1856,9 +1863,11 @@ function openGSTModal(invId) {
     document.getElementById('gst-bank-name').value   = '';
     document.getElementById('gst-bank-acname').value = '';
     document.getElementById('gst-bank-ac').value     = '';
-    document.getElementById('gst-bank-ifsc').value   = '';
-    document.getElementById('gst-bank-branch').value = '';
-    document.getElementById('gst-notes').value       = '';
+    document.getElementById('gst-bank-ifsc').value    = '';
+    document.getElementById('gst-bank-branch').value  = '';
+    document.getElementById('gst-notes').value        = '';
+    document.getElementById('gst-tax-exempt').checked = false;
+    toggleTaxExempt();
     addGSTItem();
     recalcGST();
     openModal('gst-inv-modal');
@@ -1921,12 +1930,28 @@ function removeGSTItem(cardId) {
 }
 
 /* ── Recalculate totals using global SGST/CGST rates ───── */
+function toggleTaxExempt() {
+  var exempt   = document.getElementById('gst-tax-exempt').checked;
+  var fields   = document.getElementById('gst-tax-rate-fields');
+  var notice   = document.getElementById('gst-exempt-notice');
+  var sumSgst  = document.getElementById('gst-sum-sgst-row');
+  var sumCgst  = document.getElementById('gst-sum-cgst-row');
+  var sumIgst  = document.getElementById('gst-sum-igst-row');
+  if (fields)  fields.style.display  = exempt ? 'none' : 'grid';
+  if (notice)  notice.style.display  = exempt ? 'block' : 'none';
+  if (sumSgst) sumSgst.style.display = exempt ? 'none' : '';
+  if (sumCgst) sumCgst.style.display = exempt ? 'none' : '';
+  if (sumIgst) sumIgst.style.display = 'none';
+  recalcGST();
+}
+
 function recalcGST() {
-  var sgstRate = parseFloat(document.getElementById('gst-sgst-rate') && document.getElementById('gst-sgst-rate').value) || 0;
-  var cgstRate = parseFloat(document.getElementById('gst-cgst-rate') && document.getElementById('gst-cgst-rate').value) || 0;
+  var exempt = document.getElementById('gst-tax-exempt') && document.getElementById('gst-tax-exempt').checked;
+  var sgstRate = exempt ? 0 : (parseFloat(document.getElementById('gst-sgst-rate') && document.getElementById('gst-sgst-rate').value) || 0);
+  var cgstRate = exempt ? 0 : (parseFloat(document.getElementById('gst-cgst-rate') && document.getElementById('gst-cgst-rate').value) || 0);
   var sellerCode   = (document.getElementById('gst-s-code')   && document.getElementById('gst-s-code').value   || '').trim();
   var customerCode = (document.getElementById('gst-c-code')   && document.getElementById('gst-c-code').value   || '').trim();
-  var useIGST = sellerCode && customerCode && sellerCode !== customerCode;
+  var useIGST = !exempt && sellerCode && customerCode && sellerCode !== customerCode;
   var totalTaxRate = sgstRate + cgstRate;
   var igstRate = totalTaxRate; // same total rate, applied as single IGST for inter-state
 
@@ -1990,12 +2015,13 @@ function recalcGST() {
 
 /* ── Collect Items from Cards ───────────────────────────── */
 function collectGSTItems() {
-  var sgstRate = parseFloat(document.getElementById('gst-sgst-rate').value) || 0;
-  var cgstRate = parseFloat(document.getElementById('gst-cgst-rate').value) || 0;
+  var exempt = document.getElementById('gst-tax-exempt') && document.getElementById('gst-tax-exempt').checked;
+  var sgstRate = exempt ? 0 : (parseFloat(document.getElementById('gst-sgst-rate').value) || 0);
+  var cgstRate = exempt ? 0 : (parseFloat(document.getElementById('gst-cgst-rate').value) || 0);
   var totalTaxRate = sgstRate + cgstRate;
   var sellerCode   = (document.getElementById('gst-s-code').value   || '').trim();
   var customerCode = (document.getElementById('gst-c-code').value   || '').trim();
-  var useIGST = sellerCode && customerCode && sellerCode !== customerCode;
+  var useIGST = !exempt && sellerCode && customerCode && sellerCode !== customerCode;
 
   var cards = document.getElementById('gst-items-body').querySelectorAll('[id^="gst-row-"]');
   var items = [];
@@ -2083,6 +2109,7 @@ function saveGSTInvoice() {
     totalAmount:       totalAmount,
     sgstRate:          sgstRate,
     cgstRate:          cgstRate,
+    taxExempt:         !!(document.getElementById('gst-tax-exempt') && document.getElementById('gst-tax-exempt').checked),
     status:            document.getElementById('gst-status').value,
     bankName:          document.getElementById('gst-bank-name').value,
     bankAcName:        document.getElementById('gst-bank-acname').value,
@@ -2132,6 +2159,70 @@ function initInvSettings() {
   if (savedCode) document.getElementById('inv-company-code').value = savedCode.toUpperCase();
   if (savedFY && sel.querySelector('option[value="'+savedFY+'"]')) sel.value = savedFY;
   updateInvNumPreview();
+}
+
+/* ── India GST States ───────────────────────────────────── */
+var INDIA_STATES = [
+  {name:'Andaman & Nicobar Islands',               code:'35'},
+  {name:'Andhra Pradesh',                           code:'37'},
+  {name:'Arunachal Pradesh',                        code:'12'},
+  {name:'Assam',                                    code:'18'},
+  {name:'Bihar',                                    code:'10'},
+  {name:'Chandigarh',                               code:'04'},
+  {name:'Chhattisgarh',                             code:'22'},
+  {name:'Dadra & Nagar Haveli and Daman & Diu',    code:'26'},
+  {name:'Delhi',                                    code:'07'},
+  {name:'Goa',                                      code:'30'},
+  {name:'Gujarat',                                  code:'24'},
+  {name:'Haryana',                                  code:'06'},
+  {name:'Himachal Pradesh',                         code:'02'},
+  {name:'Jammu & Kashmir',                          code:'01'},
+  {name:'Jharkhand',                                code:'20'},
+  {name:'Karnataka',                                code:'29'},
+  {name:'Kerala',                                   code:'32'},
+  {name:'Ladakh',                                   code:'38'},
+  {name:'Lakshadweep',                              code:'31'},
+  {name:'Madhya Pradesh',                           code:'23'},
+  {name:'Maharashtra',                              code:'27'},
+  {name:'Manipur',                                  code:'14'},
+  {name:'Meghalaya',                                code:'17'},
+  {name:'Mizoram',                                  code:'15'},
+  {name:'Nagaland',                                 code:'13'},
+  {name:'Odisha',                                   code:'21'},
+  {name:'Other Territory',                          code:'97'},
+  {name:'Puducherry',                               code:'34'},
+  {name:'Punjab',                                   code:'03'},
+  {name:'Rajasthan',                                code:'08'},
+  {name:'Sikkim',                                   code:'11'},
+  {name:'Tamil Nadu',                               code:'33'},
+  {name:'Telangana',                                code:'36'},
+  {name:'Tripura',                                  code:'16'},
+  {name:'Uttar Pradesh',                            code:'09'},
+  {name:'Uttarakhand',                              code:'05'},
+  {name:'West Bengal',                              code:'19'},
+];
+
+function syncStateCode(selectEl, codeInputId) {
+  var opt = selectEl.options[selectEl.selectedIndex];
+  var el  = document.getElementById(codeInputId);
+  if (el) el.value = (opt && opt.dataset.code) ? opt.dataset.code : '';
+}
+
+function populateStateSelects() {
+  ['gst-s-state','gst-c-state','pro-s-state','pro-c-state'].forEach(function(id) {
+    var sel = document.getElementById(id);
+    if (!sel || sel.tagName !== 'SELECT') return;
+    var prev = sel.value;
+    sel.innerHTML = '<option value="">— Select State —</option>';
+    INDIA_STATES.forEach(function(s) {
+      var o = document.createElement('option');
+      o.value = s.name;
+      o.dataset.code = s.code;
+      o.textContent  = s.name + ' (' + s.code + ')';
+      sel.appendChild(o);
+    });
+    if (prev) sel.value = prev;
+  });
 }
 
 function updateInvNumPreview() {
@@ -4471,6 +4562,7 @@ document.addEventListener('DOMContentLoaded', function(){
   refreshAccountsDataLists();
   populatePOVendorDropdown();
   populateVendorWODropdown();
+  populateStateSelects();
 });
 updateDashStats();
 

@@ -229,9 +229,10 @@ exports.downloadPDF = async (req, res) => {
     }
 
     let y = M;
-    const items    = inv.items || [];
-    const useIGST  = inv.sellerStateCode && inv.customerStateCode &&
-                     inv.sellerStateCode !== inv.customerStateCode;
+    const items     = inv.items || [];
+    const taxExempt = !!inv.taxExempt;
+    const useIGST   = !taxExempt && inv.sellerStateCode && inv.customerStateCode &&
+                      inv.sellerStateCode !== inv.customerStateCode;
 
     // ════════════════════════════════════════════════════════════════════════
     // 1. COMPANY HEADER  (left: company info | right: invoice meta)
@@ -370,12 +371,15 @@ exports.downloadPDF = async (req, res) => {
     // ════════════════════════════════════════════════════════════════════════
     // 4. ITEMS TABLE
     // Description is rendered as a separate sub-row; main row has all numeric cols.
-    // Column widths must sum to W (535).
-    // CGST: 18+48+50+32+55+32+30+48+30+48+164 = 555
-    // IGST: 20+50+55+35+65+35+35+65+195       = 555
-    const COL = useIGST
-      ? { sl:20, code:50, hsn:55, unit:35, rate:65, qty:35, igstP:35, igst:65, amt:195 }
-      : { sl:18, code:48, hsn:50, unit:32, rate:55, qty:32, cgstP:30, cgst:48, sgstP:30, sgst:48, amt:164 };
+    // Column widths must sum to W (555).
+    // EXEMPT: 20+60+65+45+80+45+240            = 555
+    // CGST:   18+48+50+32+55+32+30+48+30+48+164 = 555
+    // IGST:   20+50+55+35+65+35+35+65+195       = 555
+    const COL = taxExempt
+      ? { sl:20, code:60, hsn:65, unit:45, rate:80, qty:45, amt:240 }
+      : useIGST
+        ? { sl:20, code:50, hsn:55, unit:35, rate:65, qty:35, igstP:35, igst:65, amt:195 }
+        : { sl:18, code:48, hsn:50, unit:32, rate:55, qty:32, cgstP:30, cgst:48, sgstP:30, sgst:48, amt:164 };
 
     // Table section label
     y = checkPage(y, 26);
@@ -396,7 +400,12 @@ exports.downloadPDF = async (req, res) => {
         txt(label, cx + 2, hy + 3, w - 4, { size: 6.5, bold: true, color: BLK, align: 'center' });
         cx += w;
       }
-      if (useIGST) {
+      if (taxExempt) {
+        th('Sl.', COL.sl); th('Item Code', COL.code);
+        th('HSN/SAC', COL.hsn); th('Unit', COL.unit);
+        th('Rate (Rs.)', COL.rate); th('Qty', COL.qty);
+        th('Amount (Rs.)', COL.amt);
+      } else if (useIGST) {
         th('Sl.', COL.sl); th('Item Code', COL.code);
         th('HSN/SAC', COL.hsn); th('Unit', COL.unit);
         th('Rate (Rs.)', COL.rate); th('Qty', COL.qty);
@@ -448,7 +457,15 @@ exports.downloadPDF = async (req, res) => {
         cx += w;
       }
 
-      if (useIGST) {
+      if (taxExempt) {
+        td(idx + 1,                               COL.sl);
+        td(itemCode,                              COL.code);
+        td(it.hsnCode || '',                      COL.hsn);
+        td(it.unit    || '',                      COL.unit);
+        td(price.toFixed(2),                      COL.rate,  { align: 'right' });
+        td(qty % 1 === 0 ? qty : qty.toFixed(3),  COL.qty);
+        td(taxable.toFixed(2),                    COL.amt,   { align: 'right', bold: true });
+      } else if (useIGST) {
         td(idx + 1,                               COL.sl);
         td(itemCode,                              COL.code);
         td(it.hsnCode || '',                      COL.hsn);
@@ -491,12 +508,14 @@ exports.downloadPDF = async (req, res) => {
 
     const sumLines = [
       ['Subtotal:', fmtINR(inv.subtotal)],
-      ...(useIGST
-        ? [['IGST (' + (items[0] ? items[0].taxRate : '') + '%):', fmtINR(inv.totalIgst)]]
-        : [
-            ['SGST:', fmtINR(inv.totalSgst)],
-            ['CGST:', fmtINR(inv.totalCgst)],
-          ]),
+      ...(taxExempt
+        ? []
+        : useIGST
+          ? [['IGST (' + (items[0] ? items[0].taxRate : '') + '%):', fmtINR(inv.totalIgst)]]
+          : [
+              ['SGST:', fmtINR(inv.totalSgst)],
+              ['CGST:', fmtINR(inv.totalCgst)],
+            ]),
       ...(parseFloat(inv.roundOff) ? [['Round Off:', fmtINR(inv.roundOff)]] : []),
     ];
 
