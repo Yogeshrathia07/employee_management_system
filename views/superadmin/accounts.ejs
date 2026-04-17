@@ -27,7 +27,7 @@
           <button class="acc-tab" id="tab-ven"     onclick="showModule('ven')"><i class="bx bxs-user-badge"></i> Vendors <span id="tab-count-ven" class="acc-tab-badge"></span></button>
           <button class="acc-tab" id="tab-cwo"     onclick="showModule('cwo')"><i class="bx bxs-briefcase"></i> Client W/O <span id="tab-count-cwo" class="acc-tab-badge"></span></button>
           <button class="acc-tab" id="tab-vwo"     onclick="showModule('vwo')"><i class="bx bxs-wrench"></i> Vendor W/O <span id="tab-count-vwo" class="acc-tab-badge"></span></button>
-          <button class="acc-tab" id="tab-prj"     onclick="showModule('prj')"><i class="bx bxs-bar-chart-alt-2"></i> Project Accounts <span id="tab-count-prj" class="acc-tab-badge"></span></button>
+          <button class="acc-tab" id="tab-prj"     onclick="showModule('prj')"><i class="bx bxs-bar-chart-alt-2"></i> Projects <span id="tab-count-prj" class="acc-tab-badge"></span></button>
           <button class="acc-tab" id="tab-rep"     onclick="showModule('rep')"><i class="bx bxs-report"></i> Reports</button>
         </div>
 
@@ -43,7 +43,7 @@
               {key:'ven', icon:'bxs-user-badge',       title:'Vendor Registration', desc:'Register and manage vendor information'},
               {key:'cwo', icon:'bxs-briefcase',        title:'Client Work Orders',  desc:'Track work orders for clients'},
               {key:'vwo', icon:'bxs-wrench',           title:'Vendor Work Orders',  desc:'Assign and track vendor work orders'},
-              {key:'prj', icon:'bxs-bar-chart-alt-2',  title:'Project Accounts',   desc:'Budget and track project financials'}
+              {key:'prj', icon:'bxs-bar-chart-alt-2',  title:'Projects',           desc:'Plan and track projects'}
             ]; %>
             <% modules.forEach(function(m) { %>
             <div style="background:#fff;border:1px solid #e5e7eb;border-radius:14px;padding:20px;display:flex;flex-direction:column;gap:12px;cursor:pointer;transition:box-shadow .2s,border-color .2s;" onclick="showModule('<%= m.key %>')" onmouseover="this.style.boxShadow='0 4px 16px rgba(0,0,0,0.08)';this.style.borderColor='#d1d5db'" onmouseout="this.style.boxShadow='';this.style.borderColor='#e5e7eb'">
@@ -359,7 +359,7 @@
                   <option value="ven">Vendors</option>
                   <option value="cwo">Client Work Orders</option>
                   <option value="vwo">Vendor Work Orders</option>
-                  <option value="prj">Project Accounts</option>
+                  <option value="prj">Projects</option>
                 </select>
               </div>
               <div id="rep-date-from-wrap">
@@ -458,7 +458,7 @@
         <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-top:14px;">
           <div>
             <label style="display:block;font-size:13px;font-weight:500;color:#111;margin-bottom:6px;">Bill For Month</label>
-            <input type="text" id="gst-bill-month" style="width:100%;border:1px solid #d1d5db;border-radius:8px;padding:9px 12px;font-size:13px;color:#111;background:#fff;box-sizing:border-box;" placeholder="e.g. Apr-26">
+            <input type="month" id="gst-bill-month" style="width:100%;border:1px solid #d1d5db;border-radius:8px;padding:9px 12px;font-size:13px;color:#111;background:#fff;box-sizing:border-box;">
           </div>
           <div>
             <label style="display:block;font-size:13px;font-weight:500;color:#111;margin-bottom:6px;">Bill Period Start</label>
@@ -819,7 +819,7 @@
         <div class="gst-section" style="border-right:1px solid var(--border);">
           <div class="gst-section-title" style="color:#0891b2;"><i class="bx bxs-calendar"></i> Bill Details <span style="font-size:11px;font-weight:400;color:var(--text-muted);">(optional)</span></div>
           <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;">
-            <div class="form-group"><label class="form-label">Bill Month</label><input type="text" id="pro-bill-month" class="form-control" placeholder="e.g. Feb-26"></div>
+            <div class="form-group"><label class="form-label">Bill Month</label><input type="month" id="pro-bill-month" class="form-control"></div>
             <div class="form-group"><label class="form-label">Period From</label><input type="date" id="pro-bill-from" class="form-control"></div>
             <div class="form-group"><label class="form-label">Period To</label><input type="date" id="pro-bill-to" class="form-control"></div>
           </div>
@@ -846,17 +846,17 @@
           <table id="pro-items-table">
             <thead>
               <tr style="background:var(--bg-input);border-bottom:1px solid var(--border);">
-                <th class="acc-th" style="width:28px;">#</th>
-                <th class="acc-th" style="width:70px;">Item Code</th>
+                <th class="acc-th" style="width:30px;">#</th>
+                <th class="acc-th" style="width:80px;">Item Code</th>
                 <th class="acc-th">Item Name / Description</th>
-                <th class="acc-th" style="width:80px;">HSN/SAC</th>
-                <th class="acc-th" style="width:55px;">Qty</th>
-                <th class="acc-th" style="width:50px;">Unit</th>
-                <th class="acc-th" style="width:90px;">Unit Price (₹)</th>
-                <th class="acc-th" style="width:65px;">Disc %</th>
-                <th class="acc-th" style="width:75px;">Tax Rate %</th>
-                <th class="acc-th" style="width:95px;">Amount (₹)</th>
-                <th class="acc-th" style="width:32px;"></th>
+                <th class="acc-th" style="width:95px;">HSN / SAC</th>
+                <th class="acc-th" style="width:95px;">Quantity</th>
+                <th class="acc-th" style="width:72px;">Unit</th>
+                <th class="acc-th" style="width:110px;">Unit Price (₹)</th>
+                <th class="acc-th" style="width:90px;">Discount %</th>
+                <th class="acc-th" style="width:90px;">Tax Rate %</th>
+                <th class="acc-th" style="width:110px;">Amount (₹)</th>
+                <th class="acc-th" style="width:36px;"></th>
               </tr>
             </thead>
             <tbody id="pro-items-body"></tbody>
@@ -989,7 +989,7 @@
       <div class="form-row">
         <div class="form-group"><label class="form-label">PO Number</label><input type="text" id="po-id" class="form-control" readonly style="background:var(--bg-input);"></div>
         <div class="form-group"><label class="form-label">Vendor</label><select id="po-vendor" class="form-control"></select></div>
-        <div class="form-group"><label class="form-label">Linked Project</label><input type="text" id="po-project" class="form-control" list="acc-project-list" placeholder="Project name (optional)"></div>
+        <div class="form-group"><label class="form-label">Linked Project</label><select id="po-project-sel" class="form-control"><option value="">No linked project</option></select></div>
       </div>
       <div class="form-row">
         <div class="form-group"><label class="form-label">PO Date</label><input type="date" id="po-date" class="form-control"></div>
@@ -1041,12 +1041,25 @@
       </div>
       <div class="form-group"><label class="form-label">Address</label><textarea id="ven-address" class="form-control" rows="2" placeholder="Full address"></textarea></div>
       <div class="form-row">
-        <div class="form-group"><label class="form-label">State</label><input type="text" id="ven-state" class="form-control" placeholder="e.g. Maharashtra"></div>
-        <div class="form-group"><label class="form-label">State Code</label><input type="text" id="ven-statecode" class="form-control" placeholder="27" maxlength="2"></div>
+        <div class="form-group">
+          <label class="form-label">State</label>
+          <select id="ven-state" class="form-control" onchange="syncStateCode(this,'ven-statecode')"></select>
+          <input type="hidden" id="ven-statecode">
+        </div>
+        <div class="form-group"><label class="form-label">Status</label>
+          <select id="ven-status-sel" class="form-control"><option>Active</option><option>Inactive</option></select>
+        </div>
       </div>
-      <div class="form-group"><label class="form-label">Status</label>
-        <select id="ven-status-sel" class="form-control"><option>Active</option><option>Inactive</option></select>
+      <div style="border-top:1px solid var(--border);margin:12px 0 8px;font-size:12px;font-weight:600;color:var(--text-muted);letter-spacing:.5px;text-transform:uppercase;">Bank Details</div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Bank Name</label><input type="text" id="ven-bank-name" class="form-control" placeholder="e.g. State Bank of India"></div>
+        <div class="form-group"><label class="form-label">Account Holder Name</label><input type="text" id="ven-bank-acname" class="form-control" placeholder="Name on account"></div>
       </div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Account Number</label><input type="text" id="ven-bank-ac" class="form-control" placeholder="Account number"></div>
+        <div class="form-group"><label class="form-label">IFSC Code</label><input type="text" id="ven-bank-ifsc" class="form-control" placeholder="IFSC" style="text-transform:uppercase"></div>
+      </div>
+      <div class="form-group"><label class="form-label">Branch</label><input type="text" id="ven-bank-branch" class="form-control" placeholder="Branch name"></div>
     </div>
     <div class="modal-footer acc-form-modal-footer">
       <button class="btn btn-ghost" onclick="closeModal('ven-modal')">Cancel</button>
@@ -1080,9 +1093,10 @@
         </div>
       </div>
       <div class="form-group"><label class="form-label">Billing Address</label><textarea id="clt-address" class="form-control" rows="2" placeholder="Full billing address"></textarea></div>
-      <div class="form-row">
-        <div class="form-group"><label class="form-label">State</label><input type="text" id="clt-state" class="form-control" placeholder="e.g. Maharashtra"></div>
-        <div class="form-group"><label class="form-label">State Code</label><input type="text" id="clt-statecode" class="form-control" placeholder="27" maxlength="2"></div>
+      <div class="form-group">
+        <label class="form-label">State</label>
+        <select id="clt-state" class="form-control" onchange="syncStateCode(this,'clt-statecode')"></select>
+        <input type="hidden" id="clt-statecode">
       </div>
     </div>
     <div class="modal-footer acc-form-modal-footer">
@@ -1101,12 +1115,16 @@
       <div class="form-row">
         <div class="form-group"><label class="form-label">Work Order #</label><input type="text" id="wo-id" class="form-control" readonly style="background:var(--bg-input);"></div>
         <div class="form-group">
-          <label class="form-label" id="wo-party-label">Client Name</label>
-          <input type="text" id="wo-party" class="form-control" list="acc-customer-list" placeholder="Client / Vendor name">
-          <select id="wo-vendor" class="form-control" style="display:none;margin-top:8px;"></select>
+          <label class="form-label" id="wo-party-label">Client</label>
+          <select id="wo-client-sel" class="form-control"></select>
+          <select id="wo-vendor" class="form-control" style="display:none;"></select>
         </div>
       </div>
-      <div class="form-group"><label class="form-label">Project Name</label><input type="text" id="wo-project" class="form-control" list="acc-project-list" placeholder="Project name"></div>
+      <div class="form-group">
+        <label class="form-label">Project</label>
+        <select id="wo-project-sel" class="form-control"></select>
+        <input type="hidden" id="wo-project-id">
+      </div>
       <div class="form-row">
         <div class="form-group"><label class="form-label">Start Date</label><input type="date" id="wo-start" class="form-control"></div>
         <div class="form-group"><label class="form-label">End Date</label><input type="date" id="wo-end" class="form-control"></div>
@@ -1136,7 +1154,7 @@
         <div class="form-group"><label class="form-label">Project Name</label><input type="text" id="prj-name" class="form-control" placeholder="Project name"></div>
       </div>
       <div class="form-row">
-        <div class="form-group"><label class="form-label">Client</label><input type="text" id="prj-client" class="form-control" list="acc-customer-list" placeholder="Client name"></div>
+        <div class="form-group"><label class="form-label">Client</label><select id="prj-client-sel" class="form-control"></select><input type="hidden" id="prj-client-id"></div>
         <div class="form-group"><label class="form-label">Status</label>
           <select id="prj-status-sel" class="form-control"><option>Planning</option><option>Active</option><option>Completed</option><option>On Hold</option></select>
         </div>
@@ -1329,7 +1347,8 @@
 }
 #pro-items-table {
   width:100%;
-  min-width:1450px;
+  min-width:880px;
+  table-layout:fixed;
   border-collapse:separate;
   border-spacing:0;
 }
@@ -1341,10 +1360,11 @@
   border-bottom:1px solid var(--border);
 }
 #pro-items-table td {
-  padding:10px 8px;
+  padding:8px 6px;
   border-bottom:1px solid #e5e7eb;
   vertical-align:middle;
   background:#fff;
+  line-height:1;
 }
 #pro-items-table td input,
 #pro-items-table td select {
@@ -1361,10 +1381,7 @@
   border-color:var(--accent);
   box-shadow:0 0 0 3px rgba(37,99,235,.08);
 }
-#pro-items-table td:nth-child(3) input { min-width:320px; }
-#pro-items-table td:nth-child(4) input { min-width:110px; }
-#pro-items-table td:nth-child(7) input { min-width:130px; }
-#pro-items-table td:nth-child(10) select { min-width:96px; }
+#pro-items-table td:nth-child(3) input { min-width:0; }
 .acc-pro-items-wrap::-webkit-scrollbar,
 .acc-form-modal-body::-webkit-scrollbar {
   height:10px;
@@ -1444,6 +1461,23 @@
 }
 .inv-act-btn:hover { background:var(--bg-input);color:var(--accent);border-color:var(--accent); }
 .inv-act-del:hover { background:#fee2e2;color:#dc2626;border-color:#dc2626; }
+.acc-menu-trigger {
+  display:inline-flex;align-items:center;justify-content:center;
+  width:30px;height:30px;border-radius:7px;border:1px solid var(--border);
+  background:var(--bg-card);color:var(--text-muted);cursor:pointer;
+  font-size:16px;transition:all .15s;
+}
+.acc-menu-trigger:hover { background:var(--bg-input);color:var(--accent);border-color:var(--accent); }
+.acc-menu-item {
+  display:flex;align-items:center;gap:10px;
+  padding:9px 16px;cursor:pointer;font-size:13px;font-weight:500;
+  color:var(--text-primary);white-space:nowrap;
+  transition:background .12s;user-select:none;
+}
+.acc-menu-item:hover { background:var(--bg-input); }
+.acc-menu-item.acc-menu-danger { color:#dc2626; }
+.acc-menu-item.acc-menu-danger:hover { background:#fee2e2; }
+.acc-menu-item .bx { font-size:16px;flex-shrink:0;opacity:.85; }
 .inv-row:hover { background:var(--bg-input); }
 @media (max-width: 1200px) {
   .acc-inline-settings {
@@ -1599,8 +1633,18 @@ function renderDataList(id, values) {
 }
 function refreshAccountsDataLists() {
   renderDataList('acc-customer-list', getKnownCustomers().map(function(c){ return c.name; }));
-  renderDataList('acc-project-list', getKnownProjects());
-  renderDataList('acc-work-order-list', getKnownWorkOrders());
+  // Projects datalist from API (used in Invoice/Proforma/PO project text fields)
+  api('GET', '/project-accounts').then(function(projects) {
+    renderDataList('acc-project-list', (projects||[]).map(function(p){ return p.name; }));
+  }).catch(function(){
+    renderDataList('acc-project-list', getKnownProjects());
+  });
+  // WO datalist from API (used in Invoice/Proforma WO reference fields)
+  api('GET', '/work-orders').then(function(wos) {
+    renderDataList('acc-work-order-list', (wos||[]).map(function(w){ return w.woNumber; }));
+  }).catch(function(){
+    renderDataList('acc-work-order-list', getKnownWorkOrders());
+  });
 }
 
 var STATUS_COLORS = {
@@ -1619,11 +1663,53 @@ function badge(s) {
 function emptyRow(cols) {
   return '<tr><td colspan="'+cols+'" style="padding:48px;text-align:center;color:var(--text-muted);">No records found</td></tr>';
 }
+/* ── shared floating action menu ─────────────────────────── */
+var _accMenuReg = {};
+var _accMenuSeq = 0;
+
+function accMenuBtn(items) {
+  var id = ++_accMenuSeq;
+  _accMenuReg[id] = items;
+  return '<button class="acc-menu-trigger" onclick="openAccMenu(event,'+id+')"><i class="bx bx-dots-vertical-rounded"></i></button>';
+}
+
+function openAccMenu(event, id) {
+  event.stopPropagation();
+  var items = _accMenuReg[id];
+  if (!items) return;
+  var menu = document.getElementById('acc-action-menu');
+  var lastIdx = items.length - 1;
+  menu.innerHTML = items.map(function(item, i) {
+    var divider = (item.danger && i > 0) ? '<div style="height:1px;background:var(--border);margin:3px 0;"></div>' : '';
+    return divider + '<div class="acc-menu-item'+(item.danger?' acc-menu-danger':'')+'" onclick="closeAccMenu();'+item.fn+'">'+
+      '<i class="bx '+item.icon+'" style="width:18px;text-align:center;"></i><span>'+item.label+'</span></div>';
+  }).join('');
+  var btn = event.currentTarget;
+  var rect = btn.getBoundingClientRect();
+  var dangerCount = items.filter(function(x){return x.danger;}).length;
+  var menuW = 200, menuH = items.length * 37 + dangerCount * 7 + 10;
+  var left = rect.right - menuW;
+  if (left < 4) left = rect.left;
+  var top = rect.bottom + 4;
+  if (top + menuH > window.innerHeight - 8) top = rect.top - menuH - 4;
+  menu.style.left = left + 'px';
+  menu.style.top = top + 'px';
+  menu.style.display = 'block';
+}
+function closeAccMenu() {
+  var m = document.getElementById('acc-action-menu');
+  if (m) m.style.display = 'none';
+}
+document.addEventListener('click', function(e) {
+  if (!e.target.closest('#acc-action-menu') && !e.target.closest('.acc-menu-trigger')) closeAccMenu();
+});
+document.addEventListener('scroll', closeAccMenu, true);
+
 function actBtns(editFn, delFn) {
-  return '<div style="display:flex;gap:4px;">'+
-    '<button class="btn btn-ghost btn-sm" onclick="'+editFn+'"><i class="bx bx-edit"></i></button>'+
-    '<button class="btn btn-danger btn-sm" onclick="'+delFn+'"><i class="bx bx-trash"></i></button>'+
-  '</div>';
+  return accMenuBtn([
+    {icon:'bx-edit-alt', label:'Edit',   fn:editFn},
+    {icon:'bx-trash',    label:'Delete', fn:delFn, danger:true}
+  ]);
 }
 
 /* ── tab navigation ───────────────────────────────────── */
@@ -1794,7 +1880,7 @@ function openGSTModal(invId) {
       document.getElementById('gst-doc-type').value    = inv.documentType  || 'Tax Invoice';
       document.getElementById('gst-number').value      = inv.invoiceNumber || '';
       document.getElementById('gst-date').value        = inv.invoiceDate   || '';
-      document.getElementById('gst-bill-month').value  = inv.billMonth     || '';
+      document.getElementById('gst-bill-month').value  = monthToInput(inv.billMonth || '');
       document.getElementById('gst-bill-from').value   = inv.billPeriodFrom || '';
       document.getElementById('gst-bill-to').value     = inv.billPeriodTo   || '';
       document.getElementById('gst-ra-bill').checked   = !!inv.isRABill;
@@ -2077,7 +2163,7 @@ function saveGSTInvoice() {
     invoiceType:       'B2B',
     invoiceDate:       document.getElementById('gst-date').value,
     dueDate:           document.getElementById('gst-due').value    || null,
-    billMonth:         document.getElementById('gst-bill-month').value,
+    billMonth:         monthFromInput(document.getElementById('gst-bill-month').value),
     billPeriodFrom:    document.getElementById('gst-bill-from').value || null,
     billPeriodTo:      document.getElementById('gst-bill-to').value   || null,
     isRABill:          document.getElementById('gst-ra-bill').checked,
@@ -2208,8 +2294,31 @@ function syncStateCode(selectEl, codeInputId) {
   if (el) el.value = (opt && opt.dataset.code) ? opt.dataset.code : '';
 }
 
+// Convert "Feb-26" → "2026-02" for <input type="month">
+function monthToInput(val) {
+  if (!val) return '';
+  var MONTHS = {jan:'01',feb:'02',mar:'03',apr:'04',may:'05',jun:'06',
+                jul:'07',aug:'08',sep:'09',oct:'10',nov:'11',dec:'12'};
+  var m = val.match(/^([A-Za-z]{3})-(\d{2})$/);
+  if (!m) return '';
+  var mm = MONTHS[m[1].toLowerCase()];
+  if (!mm) return '';
+  var yy = parseInt(m[2], 10);
+  var yyyy = yy < 50 ? 2000 + yy : 1900 + yy;
+  return yyyy + '-' + mm;
+}
+
+// Convert "2026-02" → "Feb-26" for storage
+function monthFromInput(val) {
+  if (!val) return '';
+  var m = val.match(/^(\d{4})-(\d{2})$/);
+  if (!m) return val;
+  var NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  return NAMES[parseInt(m[2], 10) - 1] + '-' + m[1].slice(2);
+}
+
 function populateStateSelects() {
-  ['gst-s-state','gst-c-state','pro-s-state','pro-c-state'].forEach(function(id) {
+  ['gst-s-state','gst-c-state','pro-s-state','pro-c-state','ven-state','clt-state'].forEach(function(id) {
     var sel = document.getElementById(id);
     if (!sel || sel.tagName !== 'SELECT') return;
     var prev = sel.value;
@@ -2255,15 +2364,15 @@ function renderInvoices() {
         var typeBg    = r.invoiceType === 'B2C' ? '#ede9fe' : '#dbeafe';
 
         var _isSuperAdmin = (getUser() || {}).role === 'superadmin';
-        var actionBtns =
-          '<div style="display:flex;gap:2px;justify-content:center;">' +
-            '<button class="inv-act-btn" title="Share WhatsApp" onclick="shareWhatsApp(\'' + r.invoiceNumber + '\', ' + r.totalAmount + ')"><i class="bx bxl-whatsapp"></i></button>' +
-            '<button class="inv-act-btn" title="Print" onclick="printInvoice(' + r.id + ')"><i class="bx bx-printer"></i></button>' +
-            '<button class="inv-act-btn" title="Open PDF" onclick="downloadInvPDF(' + r.id + ')"><i class="bx bxs-file-pdf"></i></button>' +
-            (r.paymentStatus !== 'Paid' ? '<button class="inv-act-btn" title="Mark Paid" onclick="openMarkPaid(' + r.id + ', \'' + r.invoiceNumber + '\')"><i class="bx bx-check-circle"></i></button>' : '') +
-            '<button class="inv-act-btn" title="Edit" onclick="openGSTModal(' + r.id + ')"><i class="bx bx-edit-alt"></i></button>' +
-            (_isSuperAdmin ? '<button class="inv-act-btn inv-act-del" title="Delete" onclick="deleteInvoice(' + r.id + ', \'' + r.invoiceNumber + '\')"><i class="bx bx-trash"></i></button>' : '') +
-          '</div>';
+        var invItems = [
+          {icon:'bxl-whatsapp',  label:'Share on WhatsApp', fn:'shareWhatsApp(\''+r.invoiceNumber+'\','+r.totalAmount+')'},
+          {icon:'bx-printer',    label:'Print',             fn:'printInvoice('+r.id+')'},
+          {icon:'bxs-file-pdf',  label:'Download PDF',      fn:'downloadInvPDF('+r.id+')'},
+        ];
+        if (r.paymentStatus !== 'Paid') invItems.push({icon:'bx-check-circle', label:'Mark as Paid', fn:'openMarkPaid('+r.id+',\''+r.invoiceNumber+'\')'});
+        invItems.push({icon:'bx-edit-alt', label:'Edit', fn:'openGSTModal('+r.id+')'});
+        if (_isSuperAdmin) invItems.push({icon:'bx-trash', label:'Delete', fn:'deleteInvoice('+r.id+',\''+r.invoiceNumber+'\')', danger:true});
+        var actionBtns = accMenuBtn(invItems);
 
         return '<tr class="inv-row">' +
 '<td class="acc-td" style="font-weight:700;color:var(--accent);font-size:12px;white-space:nowrap;">' + (r.invoiceNumber||'') + '</td>' +
@@ -2828,7 +2937,7 @@ function openProformaModal(proId) {
     document.getElementById('pro-c-code').value          = rec.customerStateCode || '';
     document.getElementById('pro-c-pan').value           = rec.customerPan || '';
     document.getElementById('pro-c-email').value         = rec.customerEmail || '';
-    document.getElementById('pro-bill-month').value      = rec.billMonth || '';
+    document.getElementById('pro-bill-month').value      = monthToInput(rec.billMonth || '');
     document.getElementById('pro-bill-from').value       = rec.billPeriodFrom || '';
     document.getElementById('pro-bill-to').value         = rec.billPeriodTo || '';
     document.getElementById('pro-work-order').value      = rec.workOrder || '';
@@ -2872,9 +2981,9 @@ function addProformaItem(it) {
     '<td><input type="text"   class="pi-unit"  value="' + (it.unit||'')     + '" placeholder="Nos/Kg/Hr"></td>' +
     '<td><input type="number" class="pi-price" value="' + (it.unitPrice||0) + '" min="0" step="0.01" oninput="recalcProforma()"></td>' +
     '<td><input type="number" class="pi-disc"  value="' + (it.discount||0)  + '" min="0" max="100" step="0.01" oninput="recalcProforma()"></td>' +
-    '<td><input type="number" class="pi-tax" value="' + (it.taxRate||18) + '" min="0" max="100" step="0.01" oninput="recalcProforma()" style="width:60px;text-align:center;" onwheel="this.blur()"></td>' +
-    '<td style="text-align:right;font-weight:600;font-size:13px;white-space:nowrap;" id="pi-amt-' + idx + '">₹0.00</td>' +
-    '<td><button type="button" class="btn btn-danger btn-sm" style="padding:3px 7px;" onclick="removeProformaItem(\'pro-row-'+idx+'\')"><i class="bx bx-x"></i></button></td>';
+    '<td><input type="number" class="pi-tax" value="' + (it.taxRate||18) + '" min="0" max="100" step="0.01" oninput="recalcProforma()" style="text-align:center;" onwheel="this.blur()"></td>' +
+    '<td style="text-align:right;vertical-align:middle;font-weight:600;font-size:13px;white-space:nowrap;padding-right:12px;" id="pi-amt-' + idx + '">₹0.00</td>' +
+    '<td style="text-align:center;vertical-align:middle;"><button type="button" class="btn btn-danger btn-sm" style="padding:3px 7px;display:inline-flex;align-items:center;justify-content:center;" onclick="removeProformaItem(\'pro-row-'+idx+'\')"><i class="bx bx-x"></i></button></td>';
   document.getElementById('pro-items-body').appendChild(row);
   recalcProforma();
 }
@@ -3002,7 +3111,7 @@ function saveProforma(forceStatus) {
     customerStateCode:document.getElementById('pro-c-code').value,
     customerPan:      document.getElementById('pro-c-pan').value.toUpperCase(),
     customerEmail:    document.getElementById('pro-c-email').value,
-    billMonth:        document.getElementById('pro-bill-month').value,
+    billMonth:        monthFromInput(document.getElementById('pro-bill-month').value),
     billPeriodFrom:   document.getElementById('pro-bill-from').value,
     billPeriodTo:     document.getElementById('pro-bill-to').value,
     workOrder:        document.getElementById('pro-work-order').value,
@@ -3224,7 +3333,7 @@ function _applyProformaToInvoiceModal(rec) {
       document.getElementById('gst-c-gstin').value  = rec.customerGstin || '';
       document.getElementById('gst-c-code').value   = rec.customerStateCode || '';
       // Fill other fields
-      document.getElementById('gst-bill-month').value   = rec.billMonth || '';
+      document.getElementById('gst-bill-month').value   = monthToInput(rec.billMonth || '');
       document.getElementById('gst-bill-from').value    = rec.billPeriodFrom || '';
       document.getElementById('gst-bill-to').value      = rec.billPeriodTo || '';
       document.getElementById('gst-work-order').value   = rec.workOrder || '';
@@ -3282,6 +3391,22 @@ function populateClientDropdown(selId, selectedId, placeholder) {
   }).catch(function(){});
 }
 
+function populateProjectDropdown(selId, selectedId, placeholder) {
+  var sel = document.getElementById(selId);
+  if (!sel) return Promise.resolve();
+  return api('GET', '/project-accounts').then(function(projects) {
+    sel.innerHTML = '<option value="">' + (placeholder || '— Select project —') + '</option>';
+    (projects || []).forEach(function(p) {
+      var opt = document.createElement('option');
+      opt.value = p.id;
+      opt.dataset.name = p.name;
+      opt.textContent  = p.name + (p.projectCode ? ' (' + p.projectCode + ')' : '');
+      if (selectedId && p.id == selectedId) opt.selected = true;
+      sel.appendChild(opt);
+    });
+  }).catch(function(){});
+}
+
 function populateVendorDropdownAPI(selId, selectedId, placeholder) {
   var sel = document.getElementById(selId);
   if (!sel) return Promise.resolve();
@@ -3326,12 +3451,13 @@ function renderQuotations() {
       var convBadge = r.status === 'Converted'
         ? '<span style="font-size:10px;background:#dbeafe;color:#1d4ed8;border-radius:12px;padding:2px 8px;margin-left:4px;">Converted</span>' : '';
       var canConv = r.status !== 'Converted' && r.status !== 'Rejected';
-      var btns = '<div style="display:flex;gap:2px;justify-content:center;">' +
-        '<button class="inv-act-btn" title="Edit" onclick="openQuoModal('+r.id+')"><i class="bx bx-edit-alt"></i></button>' +
-        (canConv ? '<button class="inv-act-btn" style="color:#0891b2;" title="→ Proforma" onclick="convertQuoToProforma('+r.id+')"><i class="bx bxs-file-doc"></i></button>' +
-                   '<button class="inv-act-btn" style="color:#22c55e;" title="→ Invoice" onclick="convertQuoToInvoice('+r.id+')"><i class="bx bxs-receipt"></i></button>' : '') +
-        '<button class="inv-act-btn inv-act-del" title="Delete" onclick="deleteQuo('+r.id+')"><i class="bx bx-trash"></i></button>' +
-        '</div>';
+      var quoItems = [{icon:'bx-edit-alt', label:'Edit', fn:'openQuoModal('+r.id+')'}];
+      if (canConv) {
+        quoItems.push({icon:'bxs-file-doc', label:'Convert to Proforma', fn:'convertQuoToProforma('+r.id+')'});
+        quoItems.push({icon:'bxs-receipt',  label:'Convert to Invoice',  fn:'convertQuoToInvoice('+r.id+')'});
+      }
+      quoItems.push({icon:'bx-trash', label:'Delete', fn:'deleteQuo('+r.id+')', danger:true});
+      var btns = accMenuBtn(quoItems);
       return '<tr>' +
         '<td class="acc-td" style="font-weight:600;">'+(r.quotationNumber||'—')+convBadge+'</td>' +
         '<td class="acc-td">'+(r.clientName||'—')+'</td>' +
@@ -3446,13 +3572,14 @@ function renderProforma() {
       var convBadge = r.status === 'Converted'
         ? '<span style="font-size:10px;background:#dcfce7;color:#15803d;border-radius:12px;padding:2px 8px;margin-left:4px;">Invoiced</span>' : '';
       var canConv = r.status !== 'Converted' && r.status !== 'Rejected';
-      var proActBtns = '<div style="display:flex;gap:2px;justify-content:center;">' +
-        '<button class="inv-act-btn" title="Print" onclick="printProformaById(' + r.id + ')"><i class="bx bx-printer"></i></button>' +
-        '<button class="inv-act-btn" title="Open PDF" onclick="openProformaPDF(' + r.id + ')"><i class="bx bxs-file-pdf"></i></button>' +
-        (canConv ? '<button class="inv-act-btn" style="color:#22c55e;" title="→ Invoice" onclick="convertProToInvoice(' + r.id + ')"><i class="bx bxs-receipt"></i></button>' : '') +
-        '<button class="inv-act-btn" title="Edit" onclick="openProformaModal(' + r.id + ')"><i class="bx bx-edit-alt"></i></button>' +
-        '<button class="inv-act-btn inv-act-del" title="Delete" onclick="deletePro(' + r.id + ')"><i class="bx bx-trash"></i></button>' +
-        '</div>';
+      var proItems = [
+        {icon:'bx-printer',   label:'Print',        fn:'printProformaById('+r.id+')'},
+        {icon:'bxs-file-pdf', label:'Download PDF', fn:'openProformaPDF('+r.id+')'},
+      ];
+      if (canConv) proItems.push({icon:'bxs-receipt', label:'Convert to Invoice', fn:'convertProToInvoice('+r.id+')'});
+      proItems.push({icon:'bx-edit-alt', label:'Edit',   fn:'openProformaModal('+r.id+')'});
+      proItems.push({icon:'bx-trash',    label:'Delete', fn:'deletePro('+r.id+')', danger:true});
+      var proActBtns = accMenuBtn(proItems);
       return '<tr class="inv-row">' +
         '<td class="acc-td" style="font-weight:700;color:var(--accent);">' + (r.proformaNumber||'—') + convBadge + '</td>' +
         '<td class="acc-td">' + (r.customerName||'—') + '</td>' +
@@ -3522,7 +3649,7 @@ function saveProforma(forceStatus) {
     customerStateCode:document.getElementById('pro-c-code').value,
     customerPan:      document.getElementById('pro-c-pan').value.toUpperCase(),
     customerEmail:    document.getElementById('pro-c-email').value,
-    billMonth:        document.getElementById('pro-bill-month').value,
+    billMonth:        monthFromInput(document.getElementById('pro-bill-month').value),
     billPeriodFrom:   document.getElementById('pro-bill-from').value  || null,
     billPeriodTo:     document.getElementById('pro-bill-to').value    || null,
     workOrder:        document.getElementById('pro-work-order').value,
@@ -3603,7 +3730,7 @@ function openProformaModal(proId) {
       document.getElementById('pro-c-code').value          = rec.customerStateCode || '';
       document.getElementById('pro-c-pan').value           = rec.customerPan || '';
       document.getElementById('pro-c-email').value         = rec.customerEmail || '';
-      document.getElementById('pro-bill-month').value      = rec.billMonth || '';
+      document.getElementById('pro-bill-month').value      = monthToInput(rec.billMonth || '');
       document.getElementById('pro-bill-from').value       = rec.billPeriodFrom || '';
       document.getElementById('pro-bill-to').value         = rec.billPeriodTo || '';
       document.getElementById('pro-work-order').value      = rec.workOrder || '';
@@ -3658,6 +3785,7 @@ function openPOModal(id) {
   document.getElementById('po-modal-title').textContent = id ? 'Edit Purchase Order' : 'New Purchase Order';
   document.getElementById('po-items').innerHTML = '';
   populateVendorDropdownAPI('po-vendor', null, 'Select vendor');
+  populateProjectDropdown('po-project-sel', null, 'No linked project');
   if (id) {
     api('GET', '/purchase-orders/'+id).then(function(r) {
       document.getElementById('po-id').value = r.poNumber || '';
@@ -3666,6 +3794,7 @@ function openPOModal(id) {
       document.getElementById('po-status-sel').value = r.status || 'Draft';
       document.getElementById('po-notes').value = r.notes || '';
       populateVendorDropdownAPI('po-vendor', r.vendorId, 'Select vendor');
+      populateProjectDropdown('po-project-sel', r.projectAccountId, 'No linked project');
       (r.items||[]).forEach(function(it){ addPOItemRow(document.getElementById('po-items'), it); });
       updatePOTotal();
     }).catch(function(e){ toast(e.message,'error'); });
@@ -3686,14 +3815,16 @@ async function savePO() {
   var vendorId = document.getElementById('po-vendor').value;
   if (!vendorId) return toast('Select a vendor','error');
   if (!items.length) return toast('Add at least one item','error');
+  var projSel = document.getElementById('po-project-sel');
   var data = {
-    vendorId:     vendorId,
-    date:         document.getElementById('po-date').value,
-    deliveryDate: document.getElementById('po-delivery').value || null,
-    status:       document.getElementById('po-status-sel').value,
-    notes:        document.getElementById('po-notes').value,
-    items:        items,
-    totalAmount:  items.reduce(function(s,it){return s+(it.qty||0)*(it.rate||0);},0),
+    vendorId:         vendorId,
+    projectAccountId: projSel && projSel.value ? projSel.value : null,
+    date:             document.getElementById('po-date').value,
+    deliveryDate:     document.getElementById('po-delivery').value || null,
+    status:           document.getElementById('po-status-sel').value,
+    notes:            document.getElementById('po-notes').value,
+    items:            items,
+    totalAmount:      items.reduce(function(s,it){return s+(it.qty||0)*(it.rate||0);},0),
   };
   try {
     if (editingPOId) await api('PUT', '/purchase-orders/'+editingPOId, data);
@@ -3720,7 +3851,11 @@ function renderPO() {
         '<td class="acc-td">'+fmtD(r.deliveryDate)+'</td>' +
         '<td class="acc-td" style="font-weight:600;">'+fmtAmt(r.totalAmount||0)+'</td>' +
         '<td class="acc-td">'+badge(r.status)+'</td>' +
-        '<td class="acc-td">'+actBtns('openPOModal('+r.id+')','deletePO('+r.id+')')+'</td></tr>';
+        '<td class="acc-td">'+accMenuBtn([
+          {icon:'bx-printer',  label:'Print',  fn:'printPO('+r.id+')'},
+          {icon:'bx-edit-alt', label:'Edit',   fn:'openPOModal('+r.id+')'},
+          {icon:'bx-trash',    label:'Delete', fn:'deletePO('+r.id+')', danger:true}
+        ])+'</td></tr>';
     }).join('') : emptyRow(7);
   }).catch(function(e){ toast(e.message||'Error','error'); });
 }
@@ -3741,22 +3876,29 @@ function openVenModal(id) {
   document.getElementById('ven-modal-title').textContent = id ? 'Edit Vendor' : 'Register Vendor';
   if (id) {
     api('GET', '/vendors/'+id).then(function(r) {
-      document.getElementById('ven-id').value       = r.vendorCode || '';
-      document.getElementById('ven-name').value     = r.name || '';
-      document.getElementById('ven-contact').value  = r.contactPerson || '';
-      document.getElementById('ven-phone').value    = r.phone || '';
-      document.getElementById('ven-email').value    = r.email || '';
-      document.getElementById('ven-category').value = r.category || '';
-      document.getElementById('ven-gst').value      = r.gstin || '';
-      document.getElementById('ven-pan').value      = r.pan || '';
-      document.getElementById('ven-address').value  = r.address || '';
-      document.getElementById('ven-state').value    = r.state || '';
-      document.getElementById('ven-statecode').value= r.stateCode || '';
-      document.getElementById('ven-status-sel').value = r.status || 'Active';
+      document.getElementById('ven-id').value          = r.vendorCode || '';
+      document.getElementById('ven-name').value        = r.name || '';
+      document.getElementById('ven-contact').value     = r.contactPerson || '';
+      document.getElementById('ven-phone').value       = r.phone || '';
+      document.getElementById('ven-email').value       = r.email || '';
+      document.getElementById('ven-category').value    = r.category || '';
+      document.getElementById('ven-gst').value         = r.gstin || '';
+      document.getElementById('ven-pan').value         = r.pan || '';
+      document.getElementById('ven-address').value     = r.address || '';
+      document.getElementById('ven-state').value       = r.state || '';
+      document.getElementById('ven-statecode').value   = r.stateCode || '';
+      document.getElementById('ven-status-sel').value  = r.status || 'Active';
+      document.getElementById('ven-bank-name').value   = r.bankName || '';
+      document.getElementById('ven-bank-acname').value = r.bankAcName || '';
+      document.getElementById('ven-bank-ac').value     = r.bankAccount || '';
+      document.getElementById('ven-bank-ifsc').value   = (r.bankIfsc || '').toUpperCase();
+      document.getElementById('ven-bank-branch').value = r.bankBranch || '';
       openModal('ven-modal');
     }).catch(function(e){ toast(e.message,'error'); });
   } else {
-    ['ven-name','ven-contact','ven-phone','ven-email','ven-category','ven-gst','ven-pan','ven-address','ven-state','ven-statecode'].forEach(function(fid){ var el=document.getElementById(fid); if(el) el.value=''; });
+    ['ven-name','ven-contact','ven-phone','ven-email','ven-category','ven-gst','ven-pan','ven-address',
+     'ven-state','ven-statecode','ven-bank-name','ven-bank-acname','ven-bank-ac','ven-bank-ifsc','ven-bank-branch'
+    ].forEach(function(fid){ var el=document.getElementById(fid); if(el) el.value=''; });
     document.getElementById('ven-id').value = '';
     document.getElementById('ven-status-sel').value = 'Active';
     openModal('ven-modal');
@@ -3770,12 +3912,17 @@ async function saveVendor() {
     phone:         document.getElementById('ven-phone').value,
     email:         document.getElementById('ven-email').value,
     category:      document.getElementById('ven-category').value,
-    gstin:         document.getElementById('ven-gst').value.toUpperCase(),
-    pan:           document.getElementById('ven-pan').value.toUpperCase(),
+    gstin:         (document.getElementById('ven-gst').value || '').toUpperCase(),
+    pan:           (document.getElementById('ven-pan').value || '').toUpperCase(),
     address:       document.getElementById('ven-address').value,
     state:         document.getElementById('ven-state').value,
     stateCode:     document.getElementById('ven-statecode').value,
     status:        document.getElementById('ven-status-sel').value,
+    bankName:      document.getElementById('ven-bank-name').value,
+    bankAcName:    document.getElementById('ven-bank-acname').value,
+    bankAccount:   document.getElementById('ven-bank-ac').value,
+    bankIfsc:      (document.getElementById('ven-bank-ifsc').value || '').toUpperCase(),
+    bankBranch:    document.getElementById('ven-bank-branch').value,
   };
   if (!data.name) return toast('Vendor name required','error');
   try {
@@ -3805,7 +3952,11 @@ function renderVendors() {
         '<td class="acc-td">'+(r.category||'—')+'</td>' +
         '<td class="acc-td" style="font-size:12px;">'+(r.gstin||'—')+'</td>' +
         '<td class="acc-td">'+badge(r.status)+'</td>' +
-        '<td class="acc-td">'+actBtns('openVenModal('+r.id+')','deleteVen('+r.id+')')+'</td></tr>';
+        '<td class="acc-td">'+accMenuBtn([
+          {icon:'bx-printer',  label:'Print',  fn:'printVen('+r.id+')'},
+          {icon:'bx-edit-alt', label:'Edit',   fn:'openVenModal('+r.id+')'},
+          {icon:'bx-trash',    label:'Delete', fn:'deleteVen('+r.id+')', danger:true}
+        ])+'</td></tr>';
     }).join('') : emptyRow(8);
   }).catch(function(e){ toast(e.message||'Error','error'); });
 }
@@ -3839,7 +3990,11 @@ function renderClients() {
         '<td class="acc-td" style="font-size:12px;">'+(r.gstin||'—')+'</td>' +
         '<td class="acc-td">'+(r.state||'—')+'</td>' +
         '<td class="acc-td">'+badge(r.status)+'</td>' +
-        '<td class="acc-td">'+actBtns('openCltModal('+r.id+')','deleteClt('+r.id+')')+'</td></tr>';
+        '<td class="acc-td">'+accMenuBtn([
+          {icon:'bx-printer',  label:'Print',  fn:'printClt('+r.id+')'},
+          {icon:'bx-edit-alt', label:'Edit',   fn:'openCltModal('+r.id+')'},
+          {icon:'bx-trash',    label:'Delete', fn:'deleteClt('+r.id+')', danger:true}
+        ])+'</td></tr>';
     }).join('') : emptyRow(8);
   }).catch(function(e){ toast(e.message||'Error loading clients','error'); });
 }
@@ -3876,8 +4031,8 @@ async function saveClient() {
     contactPerson: document.getElementById('clt-contact').value,
     phone:         document.getElementById('clt-phone').value,
     email:         document.getElementById('clt-email').value,
-    gstin:         document.getElementById('clt-gst').value.toUpperCase(),
-    pan:           document.getElementById('clt-pan').value.toUpperCase(),
+    gstin:         (document.getElementById('clt-gst').value || '').toUpperCase(),
+    pan:           (document.getElementById('clt-pan').value || '').toUpperCase(),
     billingAddress:document.getElementById('clt-address').value,
     state:         document.getElementById('clt-state').value,
     stateCode:     document.getElementById('clt-statecode').value,
@@ -3912,37 +4067,42 @@ function openWOModal(type, id) {
     ? (id ? 'Edit Client Work Order' : 'New Client Work Order')
     : (id ? 'Edit Vendor Work Order' : 'New Vendor Work Order');
   document.getElementById('wo-party-label').textContent = isCWO ? 'Client' : 'Vendor';
-  var partyInput  = document.getElementById('wo-party');
+  var clientSel   = document.getElementById('wo-client-sel');
   var vendorSelect= document.getElementById('wo-vendor');
   if (isCWO) {
-    partyInput.style.display  = '';
+    clientSel.style.display   = '';
     vendorSelect.style.display= 'none';
   } else {
-    partyInput.style.display  = 'none';
+    clientSel.style.display   = 'none';
     vendorSelect.style.display= '';
-    populateVendorDropdownAPI('wo-vendor', id ? null : null, 'Select vendor');
   }
   if (id) {
     api('GET', '/work-orders/'+id).then(function(r) {
-      document.getElementById('wo-id').value      = r.woNumber || '';
-      partyInput.value = r.partyName || '';
-      if (!isCWO) populateVendorDropdownAPI('wo-vendor', r.vendorId, 'Select vendor');
-      document.getElementById('wo-project').value = r.projectName || '';
-      document.getElementById('wo-start').value   = r.startDate || '';
-      document.getElementById('wo-end').value     = r.endDate || '';
-      document.getElementById('wo-scope').value   = r.scope || '';
-      document.getElementById('wo-amount').value  = r.totalAmount || 0;
+      document.getElementById('wo-id').value = r.woNumber || '';
+      if (isCWO) {
+        populateClientDropdown('wo-client-sel', r.clientId, '— Select client —');
+      } else {
+        populateVendorDropdownAPI('wo-vendor', r.vendorId, '— Select vendor —');
+      }
+      populateProjectDropdown('wo-project-sel', r.projectAccountId, '— Select project —');
+      document.getElementById('wo-project-id').value = r.projectAccountId || '';
+      document.getElementById('wo-start').value      = r.startDate || '';
+      document.getElementById('wo-end').value        = r.endDate || '';
+      document.getElementById('wo-scope').value      = r.scope || '';
+      document.getElementById('wo-amount').value     = r.totalAmount || 0;
       document.getElementById('wo-status-sel').value = r.status || 'Draft';
     }).catch(function(e){ toast(e.message,'error'); });
   } else {
-    document.getElementById('wo-id').value = '';
-    partyInput.value = '';
-    document.getElementById('wo-project').value = '';
-    document.getElementById('wo-start').value = today();
-    document.getElementById('wo-end').value = '';
-    document.getElementById('wo-scope').value = '';
-    document.getElementById('wo-amount').value = 0;
+    document.getElementById('wo-id').value       = '';
+    document.getElementById('wo-project-id').value = '';
+    populateProjectDropdown('wo-project-sel', null, '— Select project —');
+    document.getElementById('wo-start').value    = today();
+    document.getElementById('wo-end').value     = '';
+    document.getElementById('wo-scope').value   = '';
+    document.getElementById('wo-amount').value  = 0;
     document.getElementById('wo-status-sel').value = 'Draft';
+    if (isCWO) populateClientDropdown('wo-client-sel', null, '— Select client —');
+    else        populateVendorDropdownAPI('wo-vendor', null, '— Select vendor —');
   }
   openModal('wo-modal');
 }
@@ -3950,29 +4110,37 @@ function openWOModal(type, id) {
 async function saveWO() {
   var type    = document.getElementById('wo-type').value;
   var isCWO   = type === 'cwo';
-  var partyInput  = document.getElementById('wo-party');
-  var vendorSel   = document.getElementById('wo-vendor');
-  var vendorOpt   = vendorSel && vendorSel.selectedIndex >= 0 ? vendorSel.options[vendorSel.selectedIndex] : null;
+  var clientSel  = document.getElementById('wo-client-sel');
+  var vendorSel  = document.getElementById('wo-vendor');
+  var clientOpt  = clientSel  && clientSel.selectedIndex  > 0 ? clientSel.options[clientSel.selectedIndex]   : null;
+  var vendorOpt  = vendorSel  && vendorSel.selectedIndex  > 0 ? vendorSel.options[vendorSel.selectedIndex]   : null;
+  var clientId   = isCWO  ? (clientOpt  ? clientOpt.value           : null) : null;
+  var vendorId   = !isCWO ? (vendorOpt  ? vendorOpt.value           : null) : null;
+  var partyName  = isCWO  ? (clientOpt  ? clientOpt.dataset.name    : '')   :
+                            (vendorOpt  ? vendorOpt.dataset.name    : '');
+  if (!partyName) return toast(isCWO ? 'Select a client' : 'Select a vendor', 'error');
+  var projSel  = document.getElementById('wo-project-sel');
+  var projOpt  = projSel && projSel.selectedIndex > 0 ? projSel.options[projSel.selectedIndex] : null;
   var data = {
-    type:       type.toUpperCase(),
-    partyName:  isCWO ? partyInput.value : (vendorOpt && vendorOpt.dataset ? vendorOpt.dataset.name : vendorSel.value),
-    clientId:   isCWO ? null : null,
-    vendorId:   !isCWO && vendorSel && vendorSel.value ? vendorSel.value : null,
-    projectName:document.getElementById('wo-project').value,
-    startDate:  document.getElementById('wo-start').value || null,
-    endDate:    document.getElementById('wo-end').value || null,
-    scope:      document.getElementById('wo-scope').value,
-    totalAmount:parseFloat(document.getElementById('wo-amount').value)||0,
-    status:     document.getElementById('wo-status-sel').value,
+    type:             type.toUpperCase(),
+    partyName:        partyName,
+    clientId:         clientId,
+    vendorId:         vendorId,
+    projectAccountId: projOpt ? projOpt.value      : null,
+    projectName:      projOpt ? projOpt.dataset.name : '',
+    startDate:        document.getElementById('wo-start').value  || null,
+    endDate:     document.getElementById('wo-end').value    || null,
+    scope:       document.getElementById('wo-scope').value,
+    totalAmount: parseFloat(document.getElementById('wo-amount').value) || 0,
+    status:      document.getElementById('wo-status-sel').value,
   };
-  if (!data.partyName && !data.vendorId) return toast(isCWO ? 'Client name required' : 'Select a vendor','error');
   try {
     if (editingWOId) await api('PUT', '/work-orders/'+editingWOId, data);
-    else await api('POST', '/work-orders', data);
+    else             await api('POST', '/work-orders', data);
     closeModal('wo-modal');
     if (isCWO) renderCWO(); else renderVWO();
-    toast('Work Order saved!','success');
-  } catch(e){ toast(e.message||'Error','error'); }
+    toast('Work Order saved!', 'success');
+  } catch(e) { toast(e.message || 'Error', 'error'); }
 }
 
 function renderCWO() {
@@ -3992,7 +4160,11 @@ function renderCWO() {
         '<td class="acc-td">'+fmtD(r.endDate)+'</td>' +
         '<td class="acc-td" style="font-weight:600;">'+fmtAmt(r.totalAmount||0)+'</td>' +
         '<td class="acc-td">'+badge(r.status)+'</td>' +
-        '<td class="acc-td">'+actBtns('openWOModal(\'cwo\','+r.id+')','deleteWO('+r.id+')')+'</td></tr>';
+        '<td class="acc-td">'+accMenuBtn([
+          {icon:'bx-printer',  label:'Print',  fn:'printWO('+r.id+')'},
+          {icon:'bx-edit-alt', label:'Edit',   fn:'openWOModal(\'cwo\','+r.id+')'},
+          {icon:'bx-trash',    label:'Delete', fn:'deleteWO('+r.id+')', danger:true}
+        ])+'</td></tr>';
     }).join('') : emptyRow(8);
   }).catch(function(e){ toast(e.message||'Error','error'); });
 }
@@ -4014,7 +4186,11 @@ function renderVWO() {
         '<td class="acc-td">'+fmtD(r.endDate)+'</td>' +
         '<td class="acc-td" style="font-weight:600;">'+fmtAmt(r.totalAmount||0)+'</td>' +
         '<td class="acc-td">'+badge(r.status)+'</td>' +
-        '<td class="acc-td">'+actBtns('openWOModal(\'vwo\','+r.id+')','deleteWO('+r.id+')')+'</td></tr>';
+        '<td class="acc-td">'+accMenuBtn([
+          {icon:'bx-printer',  label:'Print',  fn:'printWO('+r.id+')'},
+          {icon:'bx-edit-alt', label:'Edit',   fn:'openWOModal(\'vwo\','+r.id+')'},
+          {icon:'bx-trash',    label:'Delete', fn:'deleteWO('+r.id+')', danger:true}
+        ])+'</td></tr>';
     }).join('') : emptyRow(8);
   }).catch(function(e){ toast(e.message||'Error','error'); });
 }
@@ -4051,7 +4227,11 @@ function renderProjects() {
         '<td class="acc-td">'+fmtAmt(spent)+'</td>' +
         '<td class="acc-td" style="font-weight:600;color:'+(rem<0?'#ef4444':'var(--text-primary)')+';">'+fmtAmt(rem)+'</td>' +
         '<td class="acc-td">'+badge(r.status)+'</td>' +
-        '<td class="acc-td">'+actBtns('openPrjModal('+r.id+')','deletePrj('+r.id+')')+'</td></tr>';
+        '<td class="acc-td">'+accMenuBtn([
+          {icon:'bx-printer',  label:'Print',  fn:'printPrj('+r.id+')'},
+          {icon:'bx-edit-alt', label:'Edit',   fn:'openPrjModal('+r.id+')'},
+          {icon:'bx-trash',    label:'Delete', fn:'deletePrj('+r.id+')', danger:true}
+        ])+'</td></tr>';
     }).join('') : emptyRow(8);
   }).catch(function(e){ toast(e.message||'Error','error'); });
 }
@@ -4061,9 +4241,10 @@ function openPrjModal(id) {
   document.getElementById('prj-modal-title').textContent = id ? 'Edit Project' : 'New Project';
   if (id) {
     api('GET', '/project-accounts/'+id).then(function(r) {
-      document.getElementById('prj-id').value     = r.projectCode || '';
-      document.getElementById('prj-name').value   = r.name || '';
-      document.getElementById('prj-client').value = r.clientName || '';
+      document.getElementById('prj-id').value      = r.projectCode || '';
+      document.getElementById('prj-name').value    = r.name || '';
+      document.getElementById('prj-client-id').value = r.clientId || '';
+      populateClientDropdown('prj-client-sel', r.clientId, '— Select client —');
       document.getElementById('prj-status-sel').value = r.status || 'Planning';
       document.getElementById('prj-start').value  = r.startDate || '';
       document.getElementById('prj-end').value    = r.endDate || '';
@@ -4073,7 +4254,9 @@ function openPrjModal(id) {
       openModal('prj-modal');
     }).catch(function(e){ toast(e.message,'error'); });
   } else {
-    ['prj-name','prj-client','prj-desc'].forEach(function(fid){ var el=document.getElementById(fid); if(el) el.value=''; });
+    ['prj-name','prj-desc'].forEach(function(fid){ var el=document.getElementById(fid); if(el) el.value=''; });
+    document.getElementById('prj-client-id').value = '';
+    populateClientDropdown('prj-client-sel', null, '— Select client —');
     document.getElementById('prj-id').value = '';
     document.getElementById('prj-status-sel').value = 'Planning';
     document.getElementById('prj-start').value = today();
@@ -4085,9 +4268,12 @@ function openPrjModal(id) {
 }
 
 async function saveProject() {
+  var clientSel  = document.getElementById('prj-client-sel');
+  var clientOpt  = clientSel && clientSel.selectedIndex > 0 ? clientSel.options[clientSel.selectedIndex] : null;
   var data = {
     name:        document.getElementById('prj-name').value,
-    clientName:  document.getElementById('prj-client').value,
+    clientId:    clientOpt ? clientOpt.value          : null,
+    clientName:  clientOpt ? clientOpt.dataset.name   : '',
     status:      document.getElementById('prj-status-sel').value,
     startDate:   document.getElementById('prj-start').value || null,
     endDate:     document.getElementById('prj-end').value || null,
@@ -4250,98 +4436,7 @@ function addPOItemRow(container, item) {
   container.appendChild(div);
   wireLineItemTotal(div);
 }
-function openPOModal(id) {
-  editingPOId=id||null;
-  document.getElementById('po-modal-title').textContent=id?'Edit Purchase Order':'New Purchase Order';
-  document.getElementById('po-items').innerHTML='';
-  populatePOVendorDropdown();
-  if(id){
-    var rec=load('po').find(function(x){return x.id===id;}); if(!rec)return;
-    document.getElementById('po-id').value=rec.id;
-    populatePOVendorDropdown(rec.vendor||'');
-    document.getElementById('po-date').value=rec.date;
-    document.getElementById('po-delivery').value=rec.deliveryDate||'';
-    document.getElementById('po-status-sel').value=rec.status;
-    document.getElementById('po-notes').value=rec.notes||'';
-    (rec.items||[]).forEach(function(it){addPOItemRow(document.getElementById('po-items'),it);});
-  } else {
-    document.getElementById('po-id').value=genId('PO');
-    document.getElementById('po-vendor').value='';
-    document.getElementById('po-date').value=today();
-    document.getElementById('po-delivery').value='';
-    document.getElementById('po-status-sel').value='Draft';
-    document.getElementById('po-notes').value='';
-    addPOItemRow(document.getElementById('po-items'),null);
-  }
-  updatePOTotal();
-  openModal('po-modal');
-}
-function savePO() {
-  var items=getDocItems(document.getElementById('po-items'));
-  var vendorName=document.getElementById('po-vendor').value||'';
-  if(!vendorName) return toast('Select a vendor','error');
-  if(!items.length) return toast('Add at least one item','error');
-  var rec={id:document.getElementById('po-id').value, vendor:vendorName,
-    date:document.getElementById('po-date').value, deliveryDate:document.getElementById('po-delivery').value,
-    status:document.getElementById('po-status-sel').value, notes:document.getElementById('po-notes').value,
-    items:items, amount:items.reduce(function(s,it){return s+it.qty*it.rate;},0)};
-  var arr=load('po');
-  if(editingPOId){var i=arr.findIndex(function(x){return x.id===editingPOId;});if(i>=0)arr[i]=rec;}else arr.unshift(rec);
-  save('po',arr); closeModal('po-modal'); renderPO(); toast('Saved!','success');
-}
-function openWOModal(type, id) {
-  editingWOType=type; editingWOId=id||null;
-  var labels={cwo:{title:id?'Edit Client Work Order':'New Client Work Order', party:'Client Name'},
-               vwo:{title:id?'Edit Vendor Work Order':'New Vendor Work Order', party:'Vendor'}};
-  document.getElementById('wo-type').value=type;
-  document.getElementById('wo-modal-title').textContent=labels[type].title;
-  document.getElementById('wo-party-label').textContent=labels[type].party;
-  var partyInput=document.getElementById('wo-party');
-  var vendorSelect=document.getElementById('wo-vendor');
-  if(type==='vwo'){
-    partyInput.style.display='none';
-    vendorSelect.style.display='';
-    populateVendorWODropdown();
-  } else {
-    partyInput.style.display='';
-    vendorSelect.style.display='none';
-    vendorSelect.value='';
-  }
-  if(id){
-    var rec=load(type).find(function(x){return x.id===id;}); if(!rec)return;
-    document.getElementById('wo-id').value=rec.id;
-    partyInput.value=rec.party||'';
-    if(type==='vwo') populateVendorWODropdown(rec.party||'');
-    document.getElementById('wo-project').value=rec.project||'';
-    document.getElementById('wo-start').value=rec.startDate||'';
-    document.getElementById('wo-end').value=rec.endDate||'';
-    document.getElementById('wo-scope').value=rec.scope||'';
-    document.getElementById('wo-amount').value=rec.amount||0;
-    document.getElementById('wo-status-sel').value=rec.status||'Draft';
-  } else {
-    ['wo-party','wo-project','wo-scope'].forEach(function(i){document.getElementById(i).value='';});
-    if(type==='vwo') populateVendorWODropdown();
-    document.getElementById('wo-id').value=genId(type==='cwo'?'CWO':'VWO');
-    document.getElementById('wo-start').value=today();
-    document.getElementById('wo-end').value='';
-    document.getElementById('wo-amount').value=0;
-    document.getElementById('wo-status-sel').value='Draft';
-  }
-  openModal('wo-modal');
-}
-function saveWO() {
-  var type=document.getElementById('wo-type').value;
-  var partyName=type==='vwo' ? (document.getElementById('wo-vendor').value||'') : document.getElementById('wo-party').value;
-  var rec={id:document.getElementById('wo-id').value, party:partyName,
-    project:document.getElementById('wo-project').value, startDate:document.getElementById('wo-start').value,
-    endDate:document.getElementById('wo-end').value, scope:document.getElementById('wo-scope').value,
-    amount:parseFloat(document.getElementById('wo-amount').value)||0, status:document.getElementById('wo-status-sel').value};
-  if(!rec.party) return toast(type==='vwo'?'Select a vendor':'Name required','error');
-  var arr=load(type);
-  if(editingWOId){var i=arr.findIndex(function(x){return x.id===editingWOId;});if(i>=0)arr[i]=rec;}else arr.unshift(rec);
-  save(type,arr); closeModal('wo-modal');
-  if(type==='cwo') renderCWO(); else renderVWO(); toast('Saved!','success');
-}
+// openPOModal, savePO, openWOModal, saveWO are defined earlier as API-backed functions
 
 var _saveDoc = saveDoc;
 var _saveGSTInvoice = saveGSTInvoice;
@@ -4477,35 +4572,15 @@ savePO = function() {
   renderPO();
 };
 
-openWOModal = function(type, id) {
-  _openWOModal(type, id);
-  var partyInput = document.getElementById('wo-party');
-  var vendorSelect = document.getElementById('wo-vendor');
-  if (type === 'cwo' && partyInput) {
-    partyInput.setAttribute('list', 'acc-customer-list');
-  }
-  if (type === 'vwo' && vendorSelect) {
-    populateVendorWODropdown(id ? vendorSelect.value : '');
-  }
-};
-
-saveWO = function() {
-  var type = document.getElementById('wo-type').value;
-  var partyName = type === 'vwo' ? (document.getElementById('wo-vendor').value || '') : (document.getElementById('wo-party').value || '');
-  var woId = document.getElementById('wo-id').value;
-  var project = document.getElementById('wo-project').value;
-  rememberCustomer(partyName);
-  rememberProject(project);
-  rememberWorkOrder(woId);
-  _saveWO();
-  refreshAccountsDataLists();
-};
+// Intermediate overrides consolidated below — final overrides appear later in file
 
 saveProject = function() {
-  var name = document.getElementById('prj-name').value;
-  var client = document.getElementById('prj-client').value;
-  rememberProject(name);
-  rememberCustomer(client);
+  var name      = document.getElementById('prj-name').value;
+  var clientSel = document.getElementById('prj-client-sel');
+  var clientOpt = clientSel && clientSel.selectedIndex > 0 ? clientSel.options[clientSel.selectedIndex] : null;
+  var clientName = clientOpt ? clientOpt.dataset.name : '';
+  if (name) rememberProject(name);
+  if (clientName) rememberCustomer(clientName);
   _saveProject();
   refreshAccountsDataLists();
 };
@@ -4525,43 +4600,33 @@ function fmtAmtCompact(n) {
     });
 }
 
+// openWOModal override: delegate fully to API-backed version
 openWOModal = function(type, id) {
   _openWOModal(type, id);
-  var partyInput = document.getElementById('wo-party');
-  var vendorSelect = document.getElementById('wo-vendor');
-  var projectInput = document.getElementById('wo-project');
-  if (projectInput) projectInput.setAttribute('list', 'acc-project-list');
-  if (type === 'cwo' && partyInput) {
-    partyInput.style.display = '';
-    partyInput.placeholder = 'Select or type client name';
-    partyInput.setAttribute('list', 'acc-customer-list');
-  }
-  if (type === 'vwo' && vendorSelect) {
-    vendorSelect.style.display = '';
-    populateVendorWODropdown(id ? vendorSelect.value : '');
-  }
 };
 
+// saveWO override: register names in datalists then delegate to API-backed save
 saveWO = function() {
-  var type = document.getElementById('wo-type').value;
-  var partyName = type === 'vwo'
-    ? (document.getElementById('wo-vendor').value || '')
-    : (document.getElementById('wo-party').value || '');
-  var woId = document.getElementById('wo-id').value;
-  var project = document.getElementById('wo-project').value;
-  if (!partyName) return toast(type === 'vwo' ? 'Select a vendor' : 'Select or enter a client name', 'error');
-  rememberCustomer(partyName);
-  rememberProject(project);
-  rememberWorkOrder(woId);
-  _saveWO();
-  refreshAccountsDataLists();
-  if (type === 'cwo') renderCWO(); else renderVWO();
+  var type      = document.getElementById('wo-type').value;
+  var isCWO     = type === 'cwo';
+  var clientSel = document.getElementById('wo-client-sel');
+  var vendorSel = document.getElementById('wo-vendor');
+  var clientOpt = clientSel && clientSel.selectedIndex > 0 ? clientSel.options[clientSel.selectedIndex] : null;
+  var vendorOpt = vendorSel && vendorSel.selectedIndex > 0 ? vendorSel.options[vendorSel.selectedIndex] : null;
+  var partyName = isCWO ? (clientOpt ? clientOpt.dataset.name : '') : (vendorOpt ? vendorOpt.dataset.name : '');
+  var projSel   = document.getElementById('wo-project-sel');
+  var projOpt   = projSel && projSel.selectedIndex > 0 ? projSel.options[projSel.selectedIndex] : null;
+  var project   = projOpt ? projOpt.dataset.name : '';
+  var woId      = document.getElementById('wo-id').value;
+  if (partyName) rememberCustomer(partyName);
+  if (project)   rememberProject(project);
+  if (woId)      rememberWorkOrder(woId);
+  _saveWO().then(function() { refreshAccountsDataLists(); }).catch(function(){});
 };
 
 document.addEventListener('DOMContentLoaded', function(){
   refreshAccountsDataLists();
-  populatePOVendorDropdown();
-  populateVendorWODropdown();
+  populateVendorDropdownAPI('po-vendor', null, 'Select vendor');
   populateStateSelects();
 });
 updateDashStats();
@@ -4822,5 +4887,102 @@ function exportReportExcel() {
   XLSX.writeFile(wb, fname);
   toast('Exported ' + repFiltered.length + ' records \u2192 ' + fname, 'success');
 }
+
+/* ── generic print helper ────────────────────────────────── */
+function printAccountRecord(apiPath, title, fields) {
+  api('GET', apiPath).then(function(r) {
+    var rows = fields.map(function(f) {
+      var val = r[f.key];
+      if (val === null || val === undefined || val === '') return '';
+      if (typeof val === 'number') val = f.money ? fmtAmt(val) : val;
+      return '<tr><th>'+f.label+'</th><td>'+val+'</td></tr>';
+    }).filter(Boolean).join('');
+    var html = '<!DOCTYPE html><html><head><title>'+title+'</title>'+
+      '<style>*{box-sizing:border-box}body{font-family:Arial,sans-serif;font-size:13px;padding:32px;color:#1a1a1a;margin:0}'+
+      'h2{font-size:18px;margin:0 0 4px;color:#111}p.sub{margin:0 0 20px;font-size:12px;color:#666}'+
+      'table{width:100%;border-collapse:collapse}th,td{padding:9px 14px;border:1px solid #d1d5db;text-align:left;vertical-align:top}'+
+      'th{background:#f8fafc;width:36%;font-weight:600;color:#374151;white-space:nowrap}'+
+      '.btn{margin-top:20px;padding:8px 22px;background:#1d4ed8;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px}'+
+      '@media print{.btn{display:none}}</style></head>'+
+      '<body><h2>'+title+'</h2><p class="sub">Generated on '+new Date().toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'})+'</p>'+
+      '<table>'+rows+'</table>'+
+      '<button class="btn" onclick="window.print()">Print</button>'+
+      '</body></html>';
+    var w = window.open('', '_blank', 'width=680,height=640');
+    if (w) { w.document.write(html); w.document.close(); }
+  }).catch(function(e){ toast(e.message||'Error loading record','error'); });
+}
+
+function printPO(id) {
+  printAccountRecord('/purchase-orders/'+id, 'Purchase Order', [
+    {label:'PO Number',      key:'poNumber'},
+    {label:'Vendor',         key:'vendorName'},
+    {label:'Date',           key:'date'},
+    {label:'Delivery Date',  key:'deliveryDate'},
+    {label:'Status',         key:'status'},
+    {label:'Total Amount',   key:'totalAmount', money:true},
+    {label:'Notes',          key:'notes'},
+  ]);
+}
+function printVen(id) {
+  printAccountRecord('/vendors/'+id, 'Vendor Details', [
+    {label:'Vendor Code',    key:'vendorCode'},
+    {label:'Name',           key:'name'},
+    {label:'Contact Person', key:'contactPerson'},
+    {label:'Phone',          key:'phone'},
+    {label:'Email',          key:'email'},
+    {label:'Category',       key:'category'},
+    {label:'GSTIN',          key:'gstin'},
+    {label:'PAN',            key:'pan'},
+    {label:'Address',        key:'address'},
+    {label:'State',          key:'state'},
+    {label:'Status',         key:'status'},
+    {label:'Bank Name',      key:'bankName'},
+    {label:'Account Number', key:'bankAccount'},
+    {label:'IFSC Code',      key:'bankIfsc'},
+    {label:'Branch',         key:'bankBranch'},
+  ]);
+}
+function printClt(id) {
+  printAccountRecord('/clients/'+id, 'Client Details', [
+    {label:'Client Code',    key:'clientCode'},
+    {label:'Name',           key:'name'},
+    {label:'Contact Person', key:'contactPerson'},
+    {label:'Phone',          key:'phone'},
+    {label:'Email',          key:'email'},
+    {label:'GSTIN',          key:'gstin'},
+    {label:'PAN',            key:'pan'},
+    {label:'Billing Address',key:'billingAddress'},
+    {label:'State',          key:'state'},
+    {label:'Status',         key:'status'},
+  ]);
+}
+function printWO(id) {
+  printAccountRecord('/work-orders/'+id, 'Work Order', [
+    {label:'WO Number',      key:'woNumber'},
+    {label:'Type',           key:'type'},
+    {label:'Party',          key:'partyName'},
+    {label:'Project',        key:'projectName'},
+    {label:'Start Date',     key:'startDate'},
+    {label:'End Date',       key:'endDate'},
+    {label:'Total Amount',   key:'totalAmount', money:true},
+    {label:'Status',         key:'status'},
+    {label:'Description',    key:'description'},
+  ]);
+}
+function printPrj(id) {
+  printAccountRecord('/project-accounts/'+id, 'Project Details', [
+    {label:'Project Code',   key:'projectCode'},
+    {label:'Name',           key:'name'},
+    {label:'Client',         key:'clientName'},
+    {label:'Budget',         key:'budget', money:true},
+    {label:'Spent',          key:'spent',  money:true},
+    {label:'Start Date',     key:'startDate'},
+    {label:'End Date',       key:'endDate'},
+    {label:'Status',         key:'status'},
+    {label:'Description',    key:'description'},
+  ]);
+}
 </script>
+<div id="acc-action-menu" style="display:none;position:fixed;z-index:9999;background:var(--bg-card);border:1px solid var(--border);border-radius:10px;box-shadow:0 8px 28px rgba(0,0,0,0.18);min-width:200px;overflow:hidden;padding:4px 0;"></div>
 </body></html>
