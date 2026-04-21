@@ -24,9 +24,17 @@ exports.getCompanyStats = async (req, res) => {
 
 exports.createCompany = async (req, res) => {
   try {
-    const { name, email, phone, industry, address, status, logoUrl, authorizedSignatory, panNo, gstNo } = req.body;
+    const {
+      name, email, phone, industry, address, status, logoUrl,
+      authorizedSignatory, panNo, gstNo, state, stateCode,
+      bankName, bankAcName, bankAccount, bankIfsc, bankBranch, currency,
+    } = req.body;
     if (!name || !email) return res.status(400).json({ message: 'Name and email are required' });
-    const company = await Company.create({ name, email, phone, industry, address, status, logoUrl, authorizedSignatory, panNo, gstNo });
+    const company = await Company.create({
+      name, email, phone, industry, address, status, logoUrl,
+      authorizedSignatory, panNo, gstNo, state, stateCode,
+      bankName, bankAcName, bankAccount, bankIfsc, bankBranch, currency,
+    });
     res.status(201).json(company);
   } catch (err) {
     res.status(500).json({ message: err.message });

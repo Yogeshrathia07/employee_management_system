@@ -6,6 +6,7 @@ const Invoice = sequelize.define('Invoice', {
   // ── Identification ────────────────────────────────────────────────────────
   invoiceNumber: { type: DataTypes.STRING(50),  allowNull: false },
   taxExempt:     { type: DataTypes.BOOLEAN,     defaultValue: false },
+  showTaxInPdf:  { type: DataTypes.BOOLEAN,     defaultValue: true },
   documentType:  { type: DataTypes.STRING(50),  defaultValue: 'Tax Invoice' },
   invoiceType:   { type: DataTypes.ENUM('B2B', 'B2C'), defaultValue: 'B2B' },
   invoiceDate:   { type: DataTypes.DATEONLY,    allowNull: false },

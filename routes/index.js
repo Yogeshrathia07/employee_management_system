@@ -227,6 +227,7 @@ router.delete('/clients/:id',    auth, requireRole('superadmin'), clientCtrl.del
 const quotationCtrl = require('../controllers/quotationController');
 router.get('/quotations',                         auth, requireRole('superadmin'), quotationCtrl.getQuotations);
 router.get('/quotations/:id',                     auth, requireRole('superadmin'), quotationCtrl.getQuotation);
+router.get('/quotations/:id/pdf',                 auth, requireRole('superadmin'), quotationCtrl.generatePDF);
 router.post('/quotations',                        auth, requireRole('superadmin'), quotationCtrl.createQuotation);
 router.put('/quotations/:id',                     auth, requireRole('superadmin'), quotationCtrl.updateQuotation);
 router.delete('/quotations/:id',                  auth, requireRole('superadmin'), quotationCtrl.deleteQuotation);
@@ -237,6 +238,7 @@ router.post('/quotations/:id/convert-to-invoice', auth, requireRole('superadmin'
 const proformaDbCtrl = require('../controllers/proformaDbController');
 router.get('/proformas-db',                          auth, requireRole('superadmin'), proformaDbCtrl.getProformas);
 router.get('/proformas-db/:id',                      auth, requireRole('superadmin'), proformaDbCtrl.getProforma);
+router.get('/proformas-db/:id/pdf',                  auth, requireRole('superadmin'), proformaDbCtrl.generatePDF);
 router.post('/proformas-db',                         auth, requireRole('superadmin'), proformaDbCtrl.createProforma);
 router.put('/proformas-db/:id',                      auth, requireRole('superadmin'), proformaDbCtrl.updateProforma);
 router.delete('/proformas-db/:id',                   auth, requireRole('superadmin'), proformaDbCtrl.deleteProforma);
@@ -246,6 +248,7 @@ router.post('/proformas-db/:id/convert-to-invoice',  auth, requireRole('superadm
 const poCtrl = require('../controllers/purchaseOrderController');
 router.get('/purchase-orders',        auth, requireRole('superadmin'), poCtrl.getPurchaseOrders);
 router.get('/purchase-orders/:id',    auth, requireRole('superadmin'), poCtrl.getPurchaseOrder);
+router.get('/purchase-orders/:id/pdf',auth, requireRole('superadmin'), poCtrl.generatePDF);
 router.post('/purchase-orders',       auth, requireRole('superadmin'), poCtrl.createPurchaseOrder);
 router.put('/purchase-orders/:id',    auth, requireRole('superadmin'), poCtrl.updatePurchaseOrder);
 router.delete('/purchase-orders/:id', auth, requireRole('superadmin'), poCtrl.deletePurchaseOrder);
@@ -254,6 +257,7 @@ router.delete('/purchase-orders/:id', auth, requireRole('superadmin'), poCtrl.de
 const woCtrl = require('../controllers/workOrderController');
 router.get('/work-orders',        auth, requireRole('superadmin'), woCtrl.getWorkOrders);
 router.get('/work-orders/:id',    auth, requireRole('superadmin'), woCtrl.getWorkOrder);
+router.get('/work-orders/:id/pdf',auth, requireRole('superadmin'), woCtrl.generatePDF);
 router.post('/work-orders',       auth, requireRole('superadmin'), woCtrl.createWorkOrder);
 router.put('/work-orders/:id',    auth, requireRole('superadmin'), woCtrl.updateWorkOrder);
 router.delete('/work-orders/:id', auth, requireRole('superadmin'), woCtrl.deleteWorkOrder);
@@ -262,6 +266,7 @@ router.delete('/work-orders/:id', auth, requireRole('superadmin'), woCtrl.delete
 const paCtrl = require('../controllers/projectAccountController');
 router.get('/project-accounts',        auth, requireRole('superadmin'), paCtrl.getProjectAccounts);
 router.get('/project-accounts/:id',    auth, requireRole('superadmin'), paCtrl.getProjectAccount);
+router.get('/project-accounts/:id/pdf',auth, requireRole('superadmin'), paCtrl.generatePDF);
 router.post('/project-accounts',       auth, requireRole('superadmin'), paCtrl.createProjectAccount);
 router.put('/project-accounts/:id',    auth, requireRole('superadmin'), paCtrl.updateProjectAccount);
 router.delete('/project-accounts/:id', auth, requireRole('superadmin'), paCtrl.deleteProjectAccount);

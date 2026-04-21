@@ -5,6 +5,7 @@ const Proforma = sequelize.define('Proforma', {
   proformaNumber: { type: DataTypes.STRING(50), allowNull: false },
   clientId:       { type: DataTypes.INTEGER,    allowNull: true },
   sourceQuotationId: { type: DataTypes.INTEGER, allowNull: true },
+  showTaxInPdf:   { type: DataTypes.BOOLEAN,    defaultValue: true },
 
   // Customer / Buyer
   customerName:      { type: DataTypes.STRING(200), defaultValue: '' },

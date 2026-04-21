@@ -2,6 +2,11 @@
 const { Op } = require('sequelize');
 const { Vendor, PurchaseOrder, WorkOrder, Invoice } = require('../models');
 
+function cleanGeneratedCode(value, prefix) {
+  const code = String(value || '').trim().toUpperCase();
+  return code && code !== 'AUTO-GENERATED' ? code : prefix + '-' + Math.random().toString(36).substr(2,6).toUpperCase();
+}
+
 // ── GET /vendors ──────────────────────────────────────────────────────────────
 exports.getVendors = async (req, res) => {
   try {
@@ -38,7 +43,7 @@ exports.createVendor = async (req, res) => {
   try {
     const data = req.body;
     if (!data.name) return res.status(400).json({ message: 'Vendor name required' });
-    data.vendorCode = 'VEN-' + Math.random().toString(36).substr(2,6).toUpperCase();
+    data.vendorCode = cleanGeneratedCode(data.vendorCode, 'VEN');
     data.createdBy  = req.user.id;
     const v = await Vendor.create(data);
     res.status(201).json(v);

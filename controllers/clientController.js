@@ -2,6 +2,11 @@
 const { Op } = require('sequelize');
 const { Client, Quotation, Proforma, Invoice, WorkOrder, ProjectAccount } = require('../models');
 
+function cleanGeneratedCode(value, prefix) {
+  const code = String(value || '').trim().toUpperCase();
+  return code && code !== 'AUTO-GENERATED' ? code : prefix + '-' + Math.random().toString(36).substr(2,6).toUpperCase();
+}
+
 // ── GET /clients ──────────────────────────────────────────────────────────────
 exports.getClients = async (req, res) => {
   try {
@@ -40,7 +45,7 @@ exports.createClient = async (req, res) => {
   try {
     const data = req.body;
     if (!data.name) return res.status(400).json({ message: 'Client name required' });
-    data.clientCode = 'CLT-' + Math.random().toString(36).substr(2,6).toUpperCase();
+    data.clientCode = cleanGeneratedCode(data.clientCode, 'CLT');
     data.createdBy  = req.user.id;
     const c = await Client.create(data);
     res.status(201).json(c);

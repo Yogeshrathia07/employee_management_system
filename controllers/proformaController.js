@@ -42,7 +42,7 @@ exports.generatePDF = async (req, res) => {
     const doc = new PDFDocument({ margin: 0, size: 'A4', bufferPages: true });
     doc.pipe(res);
 
-    const M=30, PW=595, PH=842, W=PW-M*2, X=M;
+    const M=10, PW=595, PH=842, W=PW-M*2, X=M;
     const BLK='#000000', DRK='#1a1a1a', GRY='#555555', HBG='#f2f2f2', LBD=0.4, HBD=1.0;
 
     const hLine = (y,x1,x2,lw)=>{ doc.moveTo(x1!==undefined?x1:X,y).lineTo(x2!==undefined?x2:X+W,y).lineWidth(lw||LBD).strokeColor(BLK).stroke(); };
@@ -58,7 +58,7 @@ exports.generatePDF = async (req, res) => {
       doc.fontSize(size||8).font(bold?'Helvetica-Bold':'Helvetica');
       return doc.heightOfString(String(text||''),{width:w,lineGap:0.5});
     }
-    function checkPage(y,needed){ if(y+needed>PH-M){ doc.addPage(); return M; } return y; }
+    function checkPage(y,needed){ if(y+needed>PH-M-24){ doc.addPage(); return M; } return y; }
 
     let y=M;
     const items=inv.items||[];
@@ -136,8 +136,8 @@ exports.generatePDF = async (req, res) => {
 
     // ── 4. ITEMS TABLE ────────────────────────────────────────────────────────
     const COL=useIGST
-      ?{sl:20,code:45,desc:183,hsn:48,unit:35,rate:58,qty:45,amt:101}
-      :{sl:18,code:38,desc:126,hsn:42,unit:30,rate:48,qty:33,cgstP:30,cgst:38,sgstP:30,sgst:38};
+      ?{sl:18,code:38,desc:260,hsn:40,unit:28,rate:52,qty:34,amt:105}
+      :{sl:16,code:32,desc:217,hsn:36,unit:26,rate:42,qty:30,cgstP:26,cgst:34,sgstP:26,sgst:34};
 
     y=checkPage(y,30);
     fillBox(X,y,W,14,HBG); box(X,y,W,14,LBD);
@@ -178,7 +178,7 @@ exports.generatePDF = async (req, res) => {
       box(X,y,W,rowH,LBD);
 
       let cx=X;
-      const td=(text,w,opts)=>{ vLine(cx,y,y+rowH,LBD); txt(text,cx+2,y+(rowH-(opts&&opts.size?opts.size+2:9))/2+1,w-4,Object.assign({size:7.5,align:'center',lineGap:0.5},opts||{})); cx+=w; };
+      const td=(text,w,opts)=>{ vLine(cx,y,y+rowH,LBD); txt(text,cx+2,y+3,w-4,Object.assign({size:7.5,align:'center',lineGap:0.5},opts||{})); cx+=w; };
       const tdDesc=(text,w)=>{ vLine(cx,y,y+rowH,LBD); txt(text,cx+3,y+3,w-6,{size:7.5,align:'left',lineGap:1}); cx+=w; };
 
       if(useIGST){
@@ -194,7 +194,7 @@ exports.generatePDF = async (req, res) => {
         td((taxRate/2).toFixed(0)+'%',COL.sgstP);td(cgst.toFixed(2),COL.sgst,{align:'right'});
         const amtW=W-(COL.sl+COL.code+COL.desc+COL.hsn+COL.unit+COL.rate+COL.qty+COL.cgstP+COL.cgst+COL.sgstP+COL.sgst);
         vLine(cx,y,y+rowH,LBD);
-        txt(total.toFixed(2),cx+2,y+(rowH-10)/2+1,amtW-4,{size:7.5,align:'right',bold:true,lineGap:0.5});
+        txt(total.toFixed(2),cx+2,y+3,amtW-4,{size:7.5,align:'right',bold:true,lineGap:0.5});
       }
       y+=rowH;
     });
@@ -217,9 +217,9 @@ exports.generatePDF = async (req, res) => {
 
     let sy=y+4;
     sumLines.forEach(([label,val])=>{ hLine(sy,X+HW,X+W,LBD); txt(label,X+HW+4,sy+3,HW/2-6,{size:8,color:BLK}); txt(val,X+HW+HW/2,sy+3,HW/2-6,{size:8,align:'right',color:BLK}); sy+=sumRowH; });
-    fillBox(X+HW,sy,HW,sumTotalH,'#1d4ed8');
-    txt('Total Amount:',X+HW+4,sy+4,HW/2-6,{size:9,bold:true,color:'#ffffff'});
-    txt(fmtINR(inv.totalAmount),X+HW+HW/2,sy+4,HW/2-6,{size:9,bold:true,color:'#ffffff',align:'right'});
+    fillBox(X+HW,sy,HW,sumTotalH,HBG);
+    txt('Total Amount:',X+HW+4,sy+4,HW/2-6,{size:9,bold:true,color:BLK});
+    txt(fmtINR(inv.totalAmount),X+HW+HW/2,sy+4,HW/2-6,{size:9,bold:true,color:BLK,align:'right'});
     y+=botH;
 
     // ── 6. PAYMENT TERMS ─────────────────────────────────────────────────────
@@ -253,6 +253,20 @@ exports.generatePDF = async (req, res) => {
     box(X,y,W,footLines.length*11+10,LBD);
     let ny=y+5;
     footLines.forEach(line=>{ txt(line,X+6,ny,W-12,{size:7,color:GRY}); ny+=11; });
+
+    const CONF_TEXT =
+      'Note: This document is the property of DHPE and is confidential. It must not be disclosed, ' +
+      'shared, or transmitted to any person or firm not authorized by us. No part of this ' +
+      'document may be copied, reproduced, or used in whole or in part without our prior written consent.';
+    const pageRange = doc.bufferedPageRange();
+    const totalPages = pageRange.count;
+    if (totalPages) {
+      doc.switchToPage(pageRange.start + totalPages - 1);
+      const fy = PH - M - 20;
+      doc.moveTo(X, fy).lineTo(X + W, fy).lineWidth(0.3).strokeColor('#aaaaaa').stroke();
+      doc.fontSize(5.5).font('Helvetica').fillColor('#888888')
+        .text(CONF_TEXT, X, fy + 4, { width: W, align: 'left', lineGap: 0.5 });
+    }
 
     doc.end();
   } catch(err) {

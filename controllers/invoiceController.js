@@ -163,18 +163,19 @@ exports.downloadPDF = async (req, res) => {
     const inv = await Invoice.findByPk(req.params.id);
     if (!inv) return res.status(404).json({ message: 'Invoice not found' });
 
+    const inline = req.query.view === '1';
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition',
-      `attachment; filename="Invoice-${inv.invoiceNumber}.pdf"`);
+      (inline?'inline':'attachment') + `; filename="Invoice-${inv.invoiceNumber}.pdf"`);
 
     const doc = new PDFDocument({ margin: 0, size: 'A4', bufferPages: true });
     doc.pipe(res);
 
     // ── Constants ────────────────────────────────────────────────────────────
-    const M   = 20;           // page margin
+    const M   = 10;           // page margin
     const PW  = 595;          // page width
     const PH  = 842;          // page height
-    const W   = PW - M * 2;  // 555 usable width
+    const W   = PW - M * 2;  // 575 usable width
     const X   = M;
     const BLK = '#000000';
     const DRK = '#1a1a1a';
@@ -231,7 +232,8 @@ exports.downloadPDF = async (req, res) => {
     let y = M;
     const items     = inv.items || [];
     const taxExempt = !!inv.taxExempt;
-    const useIGST   = !taxExempt && inv.sellerStateCode && inv.customerStateCode &&
+    const showTax   = !taxExempt && inv.showTaxInPdf !== false;
+    const useIGST   = showTax && inv.sellerStateCode && inv.customerStateCode &&
                       inv.sellerStateCode !== inv.customerStateCode;
 
     // ════════════════════════════════════════════════════════════════════════
@@ -372,10 +374,10 @@ exports.downloadPDF = async (req, res) => {
     // 4. ITEMS TABLE
     // Description is rendered as a separate sub-row; main row has all numeric cols.
     // Column widths must sum to W (555).
-    // EXEMPT: 20+60+65+45+80+45+240            = 555
+    // NO TAX: 20+60+65+45+80+45+240            = 555
     // CGST:   18+48+50+32+55+32+30+48+30+48+164 = 555
     // IGST:   20+50+55+35+65+35+35+65+195       = 555
-    const COL = taxExempt
+    const COL = !showTax
       ? { sl:20, code:60, hsn:65, unit:45, rate:80, qty:45, amt:240 }
       : useIGST
         ? { sl:20, code:50, hsn:55, unit:35, rate:65, qty:35, igstP:35, igst:65, amt:195 }
@@ -400,7 +402,7 @@ exports.downloadPDF = async (req, res) => {
         txt(label, cx + 2, hy + 3, w - 4, { size: 6.5, bold: true, color: BLK, align: 'center' });
         cx += w;
       }
-      if (taxExempt) {
+      if (!showTax) {
         th('Sl.', COL.sl); th('Item Code', COL.code);
         th('HSN/SAC', COL.hsn); th('Unit', COL.unit);
         th('Rate (Rs.)', COL.rate); th('Qty', COL.qty);
@@ -457,14 +459,14 @@ exports.downloadPDF = async (req, res) => {
         cx += w;
       }
 
-      if (taxExempt) {
+      if (!showTax) {
         td(idx + 1,                               COL.sl);
         td(itemCode,                              COL.code);
         td(it.hsnCode || '',                      COL.hsn);
         td(it.unit    || '',                      COL.unit);
         td(price.toFixed(2),                      COL.rate,  { align: 'right' });
         td(qty % 1 === 0 ? qty : qty.toFixed(3),  COL.qty);
-        td(taxable.toFixed(2),                    COL.amt,   { align: 'right', bold: true });
+        td(total.toFixed(2),                      COL.amt,   { align: 'right', bold: true });
       } else if (useIGST) {
         td(idx + 1,                               COL.sl);
         td(itemCode,                              COL.code);
@@ -507,15 +509,15 @@ exports.downloadPDF = async (req, res) => {
     y = checkPage(y, 60);
 
     const sumLines = [
-      ['Subtotal:', fmtINR(inv.subtotal)],
-      ...(taxExempt
-        ? []
-        : useIGST
+      ['Total Amount:', fmtINR(inv.subtotal)],
+      ...(showTax
+        ? (useIGST
           ? [['IGST (' + (items[0] ? items[0].taxRate : '') + '%):', fmtINR(inv.totalIgst)]]
           : [
               ['SGST:', fmtINR(inv.totalSgst)],
               ['CGST:', fmtINR(inv.totalCgst)],
-            ]),
+            ])
+        : []),
       ...(parseFloat(inv.roundOff) ? [['Round Off:', fmtINR(inv.roundOff)]] : []),
     ];
 
@@ -526,9 +528,9 @@ exports.downloadPDF = async (req, res) => {
     const wordH    = txtH(wordText, HW - 14, 7.5, false);
     const botH     = Math.max(sumH + 3, wordH + 18);
 
-    // Fill blue Total Amount area FIRST, then draw all borders on top
+    // Fill total row first, then draw all borders on top
     const sy0 = y + 3 + sumLines.length * sumRowH;
-    fillBox(X + HW, sy0, HW, sumTotalH, '#1d4ed8');
+    fillBox(X + HW, sy0, HW, sumTotalH, HBG);
 
     // Now draw all borders (they paint over the fill, keeping lines clean)
     box(X, y, W, botH, LBD);
@@ -546,11 +548,11 @@ exports.downloadPDF = async (req, res) => {
       sy += sumRowH;
     });
 
-    // Total Amount row text (drawn after borders so text is on top of blue)
-    txt('Total Amount:', X + HW + 4, sy + 3, HW / 2 - 6,
-        { size: 8, bold: true, color: '#ffffff' });
+    // Total Amount row text (drawn after borders so text is on top)
+    txt('Amount After Tax:', X + HW + 4, sy + 3, HW / 2 - 6,
+        { size: 8, bold: true, color: BLK });
     txt(fmtINR(inv.totalAmount), X + HW + HW / 2, sy + 3, HW / 2 - 6,
-        { size: 8, bold: true, color: '#ffffff', align: 'right' });
+        { size: 8, bold: true, color: BLK, align: 'right' });
 
     y += botH;
 
@@ -610,33 +612,28 @@ exports.downloadPDF = async (req, res) => {
     });
 
     // ════════════════════════════════════════════════════════════════════════
-    // 8. FOOTER: confidentiality notice + page numbers (printed on every page)
+    // 8. FOOTER: confidentiality notice on the last page only
     // ════════════════════════════════════════════════════════════════════════
     const CONF_TEXT =
-      'This document is the property of DHPE and is confidential. It must not be disclosed, ' +
+      'Note: This document is the property of DHPE and is confidential. It must not be disclosed, ' +
       'shared, or transmitted to any person or firm not authorized by us. No part of this ' +
       'document may be copied, reproduced, or used in whole or in part without our prior written consent.';
 
     const pageRange  = doc.bufferedPageRange();
     const totalPages = pageRange.count;
 
-    for (let i = 0; i < totalPages; i++) {
-      doc.switchToPage(pageRange.start + i);
+    if (totalPages) {
+      doc.switchToPage(pageRange.start + totalPages - 1);
       const fy = PH - M - FOOTER_H + 2;
 
       // Separator line
       doc.moveTo(X, fy).lineTo(X + W, fy)
          .lineWidth(0.3).strokeColor('#aaaaaa').stroke();
 
-      // Page number — right side
-      doc.fontSize(6.5).font('Helvetica-Bold').fillColor(GRY)
-         .text('Page ' + (i + 1) + ' of ' + totalPages,
-               X + W - 55, fy + 4, { width: 55, align: 'right' });
-
-      // Confidentiality notice — centred, leaves room for page number
+      // Confidentiality notice
       doc.fontSize(5.5).font('Helvetica').fillColor(LGY)
          .text(CONF_TEXT, X, fy + 4,
-               { width: W - 60, align: 'center', lineGap: 0.5 });
+               { width: W, align: 'left', lineGap: 0.5 });
     }
 
     doc.end();
