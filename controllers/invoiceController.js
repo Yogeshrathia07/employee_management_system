@@ -43,6 +43,31 @@ function currentFY() {
   return String(start).slice(-2) + '-' + String(start + 1).slice(-2);
 }
 
+function pdfSafePart(value) {
+  return String(value || '')
+    .replace(/[\\/:*?"<>|]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function invoicePdfFilename(inv) {
+  const company = pdfSafePart(inv.sellerName || 'DHPE')
+    .replace(/[^a-z0-9]+/gi, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-+|-+$/g, '');
+  const docType = pdfSafePart(inv.documentType || 'Tax Invoice')
+    .replace(/[^a-z0-9]+/gi, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-+|-+$/g, '');
+  const number = pdfSafePart(inv.invoiceNumber || 'invoice')
+    .replace(/[^a-z0-9]+/gi, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-+|-+$/g, '');
+  return [company || 'DHPE', docType || 'Tax-Invoice', number || 'invoice']
+    .filter(Boolean)
+    .join('-') + '.pdf';
+}
+
 // Format: {SEQ}/{CODE}/{FY}/{RANDOM}  e.g. 004/DHPE/26-27/GDTYJH
 // Sequence is global per FY (shared across all codes) so manual + converted invoices
 // always increment together and never restart at 001.
@@ -166,7 +191,7 @@ exports.downloadPDF = async (req, res) => {
     const inline = req.query.view === '1';
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition',
-      (inline?'inline':'attachment') + `; filename="Invoice-${inv.invoiceNumber}.pdf"`);
+      (inline ? 'inline' : 'attachment') + `; filename="${invoicePdfFilename(inv)}"`);
 
     const doc = new PDFDocument({ margin: 0, size: 'A4', bufferPages: true });
     doc.pipe(res);
@@ -217,8 +242,116 @@ exports.downloadPDF = async (req, res) => {
       doc.fontSize(size || 8).font(bold ? 'Helvetica-Bold' : 'Helvetica');
       return doc.heightOfString(String(text || ''), { width: w, lineGap: 0.5 });
     }
+    function txtMeasure(text, w, size, bold, lineGap) {
+      doc.fontSize(size || 8).font(bold ? 'Helvetica-Bold' : 'Helvetica');
+      return doc.heightOfString(String(text || ''), { width: w, lineGap: lineGap !== undefined ? lineGap : 0.5 });
+    }
+    function cellMoney(n) {
+      return Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+    function textW(text, size, bold) {
+      doc.fontSize(size || 7.2).font(bold ? 'Helvetica-Bold' : 'Helvetica');
+      return doc.widthOfString(String(text || ''));
+    }
+    function cleanText(value) {
+      return String(value || '').replace(/\r/g, '').replace(/\t/g, ' ').replace(/[ ]{2,}/g, ' ').trim();
+    }
+    function taxAmount(value) {
+      return Math.abs(Number(value || 0));
+    }
+    function taxSummaryMode() {
+      if (!showTax) return 'none';
+      if (taxAmount(inv.totalIgst) > 0.004 && taxAmount(inv.totalCgst) <= 0.004 && taxAmount(inv.totalSgst) <= 0.004) return 'igst';
+      if (taxAmount(inv.totalCgst) > 0.004 || taxAmount(inv.totalSgst) > 0.004) return 'split';
+      if (items.some(it => taxAmount(it.igst) > 0.004)) return 'igst';
+      if (items.some(it => taxAmount(it.cgst) > 0.004 || taxAmount(it.sgst) > 0.004)) return 'split';
+      if (inv.sellerStateCode && inv.customerStateCode && inv.sellerStateCode !== inv.customerStateCode) return 'igst';
+      return 'split';
+    }
+    function breakLongToken(token, maxWidth, size, bold) {
+      const chunks = [];
+      let current = '';
+      doc.fontSize(size || 7.2).font(bold ? 'Helvetica-Bold' : 'Helvetica');
+      String(token || '').split('').forEach(ch => {
+        const probe = current + ch;
+        if (current && doc.widthOfString(probe) > maxWidth) {
+          chunks.push(current);
+          current = ch;
+        } else {
+          current = probe;
+        }
+      });
+      if (current) chunks.push(current);
+      return chunks;
+    }
+    function wrapTextLines(text, maxWidth, size, bold) {
+      const lines = [];
+      doc.fontSize(size || 7.2).font(bold ? 'Helvetica-Bold' : 'Helvetica');
+      String(text || '-')
+        .replace(/\r/g, '')
+        .split('\n')
+        .forEach(raw => {
+          const words = raw.trim().split(/\s+/).filter(Boolean);
+          if (!words.length) {
+            lines.push('');
+            return;
+          }
+          let line = '';
+          words.forEach(word => {
+            const fragments = doc.widthOfString(word) > maxWidth
+              ? breakLongToken(word, maxWidth, size, bold)
+              : [word];
+            fragments.forEach(fragment => {
+              const probe = line ? line + ' ' + fragment : fragment;
+              if (line && doc.widthOfString(probe) > maxWidth) {
+                lines.push(line);
+                line = fragment;
+              } else {
+                line = probe;
+              }
+            });
+          });
+          if (line) lines.push(line);
+        });
+      return lines.length ? lines : ['-'];
+    }
+    function clamp(n, min, max) {
+      return Math.max(min, Math.min(max, n));
+    }
+    function dynamicColWidth(values, min, max, size, bold, padding) {
+      const widest = values.reduce((mx, value) => Math.max(mx, textW(value, size, bold)), 0);
+      return clamp(Math.ceil(widest + (padding || 8)), min, max);
+    }
+    function fitTextSize(text, maxWidth, baseSize, minSize, bold) {
+      let size = baseSize;
+      while (size > minSize) {
+        if (textW(text, size, bold) <= maxWidth) return size;
+        size -= 0.2;
+      }
+      return minSize;
+    }
+    function assignDesc(layout, minDesc, adjustable) {
+      let fixed = Object.keys(layout).reduce((sum, key) => sum + layout[key], 0);
+      let desc = W - fixed;
+      let deficit = minDesc - desc;
+      if (deficit > 0) {
+        adjustable.forEach(item => {
+          if (deficit <= 0) return;
+          const current = layout[item.key];
+          const canReduce = current - item.min;
+          if (canReduce <= 0) return;
+          const reduceBy = Math.min(canReduce, deficit);
+          layout[item.key] = current - reduceBy;
+          deficit -= reduceBy;
+        });
+        fixed = Object.keys(layout).reduce((sum, key) => sum + layout[key], 0);
+        desc = W - fixed;
+      }
+      layout.desc = desc;
+      return layout;
+    }
 
-    const FOOTER_H = 22;  // reserved at bottom of every page for footer
+    const FOOTER_H = 36;  // reserved at bottom of every page for footer
 
     // check page space, add new page if needed
     function checkPage(y, needed) {
@@ -230,11 +363,12 @@ exports.downloadPDF = async (req, res) => {
     }
 
     let y = M;
-    const items     = inv.items || [];
-    const taxExempt = !!inv.taxExempt;
-    const showTax   = !taxExempt && inv.showTaxInPdf !== false;
-    const useIGST   = showTax && inv.sellerStateCode && inv.customerStateCode &&
-                      inv.sellerStateCode !== inv.customerStateCode;
+    const items        = inv.items || [];
+    const taxExempt    = !!inv.taxExempt;
+    const showTax      = !taxExempt && inv.showTaxInPdf !== false;
+    const taxMode      = taxSummaryMode();
+    const useIGST      = taxMode === 'igst';
+    const useSplitGST  = taxMode === 'split';
 
     // ════════════════════════════════════════════════════════════════════════
     // 1. COMPANY HEADER  (left: company info | right: invoice meta)
@@ -318,9 +452,10 @@ exports.downloadPDF = async (req, res) => {
       inv.customerAddress || '',
     ].filter(Boolean);
     const custRight = [
-      inv.customerGstin  ? 'GSTIN: ' + inv.customerGstin + (inv.customerPan ? ' | PAN: ' + inv.customerPan : '') : '',
-      inv.customerEmail  ? 'Email: ' + inv.customerEmail : '',
-      inv.customerState  ? 'State: ' + inv.customerState + (inv.customerStateCode ? ', Code: ' + inv.customerStateCode : '') : '',
+      inv.customerGstin ? 'GSTIN: ' + inv.customerGstin : '',
+      inv.customerPan   ? 'PAN: ' + inv.customerPan : '',
+      inv.customerEmail ? 'Email: ' + inv.customerEmail : '',
+      inv.customerState ? 'State: ' + inv.customerState + (inv.customerStateCode ? ', Code: ' + inv.customerStateCode : '') : '',
     ].filter(Boolean);
 
     let billH = 6;
@@ -372,182 +507,247 @@ exports.downloadPDF = async (req, res) => {
 
     // ════════════════════════════════════════════════════════════════════════
     // 4. ITEMS TABLE
-    // Description is rendered as a separate sub-row; main row has all numeric cols.
-    // Column widths must sum to W (555).
-    // NO TAX: 20+60+65+45+80+45+240            = 555
-    // CGST:   18+48+50+32+55+32+30+48+30+48+164 = 555
-    // IGST:   20+50+55+35+65+35+35+65+195       = 555
+    // Description gets the widest stable column. Amount keeps enough room for
+    // large values, while the shorter header label avoids wasting width.
+    const priceTexts = items.map(it => cellMoney(parseFloat(it.unitPrice || 0))).concat(['Rate']);
+    const amountTexts = items.map(it => {
+      const qty = parseFloat(it.quantity || 0);
+      const price = parseFloat(it.unitPrice || 0);
+      const disc = parseFloat(it.discount || 0);
+      const taxable = parseFloat(it.taxableAmount || (qty * price * (1 - disc / 100)));
+      const igstAmt = parseFloat(it.igst || 0);
+      const cgstAmt = parseFloat(it.cgst || 0);
+      const sgstAmt = parseFloat(it.sgst || 0);
+      const total = parseFloat(it.itemTotal || (taxable + igstAmt + cgstAmt + sgstAmt));
+      return cellMoney(total);
+    }).concat(['Total']);
+    const igstTexts = items.map(it => cellMoney(parseFloat(it.igst || 0))).concat(['IGST Amt']);
+    const splitTaxTexts = items.map(it => cellMoney(parseFloat(it.cgst || 0) + parseFloat(it.sgst || 0))).concat(['Tax Amt']);
+    const taxPctTexts = ['Tax %'];
+
     const COL = !showTax
-      ? { sl:20, code:60, hsn:65, unit:45, rate:80, qty:45, amt:240 }
+      ? assignDesc({
+          sl: 18,
+          code: 34,
+          hsn: 40,
+          unit: 22,
+          rate: dynamicColWidth(priceTexts, 38, 52, 7.1, false, 8),
+          qty: 22,
+          amt: dynamicColWidth(amountTexts, 74, 92, 7.1, true, 10),
+        }, 220, [
+          { key: 'amt', min: 74 },
+          { key: 'rate', min: 38 },
+          { key: 'code', min: 28 },
+          { key: 'hsn', min: 34 },
+        ])
       : useIGST
-        ? { sl:20, code:50, hsn:55, unit:35, rate:65, qty:35, igstP:35, igst:65, amt:195 }
-        : { sl:18, code:48, hsn:50, unit:32, rate:55, qty:32, cgstP:30, cgst:48, sgstP:30, sgst:48, amt:164 };
+        ? assignDesc({
+            sl: 18,
+            code: 34,
+            hsn: 40,
+            unit: 22,
+            rate: dynamicColWidth(priceTexts, 38, 52, 7.1, false, 8),
+            qty: 22,
+            taxP: dynamicColWidth(taxPctTexts, 24, 32, 6.3, true, 8),
+            taxAmt: dynamicColWidth(igstTexts, 38, 56, 7.1, false, 8),
+            amt: dynamicColWidth(amountTexts, 72, 88, 7.1, true, 10),
+          }, 180, [
+            { key: 'amt', min: 72 },
+            { key: 'taxAmt', min: 38 },
+            { key: 'rate', min: 38 },
+            { key: 'code', min: 28 },
+            { key: 'hsn', min: 34 },
+          ])
+        : assignDesc({
+            sl: 18,
+            code: 30,
+            hsn: 36,
+            unit: 22,
+            rate: dynamicColWidth(priceTexts, 36, 48, 7.1, false, 8),
+            qty: 20,
+            taxP: dynamicColWidth(taxPctTexts, 22, 30, 6.3, true, 8),
+            taxAmt: dynamicColWidth(splitTaxTexts, 46, 66, 7.1, false, 8),
+            amt: dynamicColWidth(amountTexts, 68, 84, 7.1, true, 10),
+          }, 170, [
+            { key: 'amt', min: 68 },
+            { key: 'taxAmt', min: 46 },
+            { key: 'rate', min: 36 },
+            { key: 'code', min: 26 },
+            { key: 'hsn', min: 32 },
+          ]);
 
-    // Table section label
-    y = checkPage(y, 26);
-    fillBox(X, y, W, 11, HBG);
-    box(X, y, W, 11, LBD);
-    txt('Item Details', X + 5, y + 2, W - 10, { size: 7.5, bold: true, color: BLK });
-    y += 11;
-
-    // Header row
     const ROW_H = 14;
-    fillBox(X, y, W, ROW_H, HBG);
-    box(X, y, W, ROW_H, LBD);
+    const DATA_ROW_MIN_H = 16;
+    const ROW_LINE_H = 8;
+    const ITEM_SECTION_H = 11;
 
-    function drawColHeaders(hy) {
+    function drawItemsHeader(startY, includeSectionLabel) {
+      let hy = startY;
+      if (includeSectionLabel) {
+        fillBox(X, hy, W, ITEM_SECTION_H, HBG);
+        box(X, hy, W, ITEM_SECTION_H, LBD);
+        txt('Item Details', X + 5, hy + 2, W - 10, { size: 7.5, bold: true, color: BLK });
+        hy += ITEM_SECTION_H;
+      }
+
+      fillBox(X, hy, W, ROW_H, HBG);
+      box(X, hy, W, ROW_H, LBD);
+
       let cx = X;
       function th(label, w) {
         vLine(cx, hy, hy + ROW_H, LBD);
-        txt(label, cx + 2, hy + 3, w - 4, { size: 6.5, bold: true, color: BLK, align: 'center' });
+        txt(label, cx + 2, hy + 3, w - 4, { size: 6.3, bold: true, color: BLK, align: 'center' });
         cx += w;
       }
+
       if (!showTax) {
-        th('Sl.', COL.sl); th('Item Code', COL.code);
-        th('HSN/SAC', COL.hsn); th('Unit', COL.unit);
-        th('Rate (Rs.)', COL.rate); th('Qty', COL.qty);
-        th('Amount (Rs.)', COL.amt);
+        th('Sl.', COL.sl); th('Code', COL.code);
+        th('Description', COL.desc); th('HSN/SAC', COL.hsn); th('Unit', COL.unit);
+        th('Rate', COL.rate); th('Qty', COL.qty); th('Total', COL.amt);
       } else if (useIGST) {
-        th('Sl.', COL.sl); th('Item Code', COL.code);
-        th('HSN/SAC', COL.hsn); th('Unit', COL.unit);
-        th('Rate (Rs.)', COL.rate); th('Qty', COL.qty);
-        th('IGST%', COL.igstP); th('IGST', COL.igst);
-        th('Amount (Rs.)', COL.amt);
+        th('Sl.', COL.sl); th('Code', COL.code);
+        th('Description', COL.desc); th('HSN/SAC', COL.hsn); th('Unit', COL.unit);
+        th('Rate', COL.rate); th('Qty', COL.qty);
+        th('Tax %', COL.taxP); th('IGST Amt', COL.taxAmt); th('Total', COL.amt);
       } else {
-        th('Sl.', COL.sl); th('Item Code', COL.code);
-        th('HSN/SAC', COL.hsn); th('Unit', COL.unit);
-        th('Rate (Rs.)', COL.rate); th('Qty', COL.qty);
-        th('CGST%', COL.cgstP); th('CGST', COL.cgst);
-        th('SGST%', COL.sgstP); th('SGST', COL.sgst);
-        th('Amount (Rs.)', COL.amt);
+        th('Sl.', COL.sl); th('Code', COL.code);
+        th('Description', COL.desc); th('HSN/SAC', COL.hsn); th('Unit', COL.unit);
+        th('Rate', COL.rate); th('Qty', COL.qty);
+        th('Tax %', COL.taxP); th('Tax Amt', COL.taxAmt); th('Total', COL.amt);
       }
+      return hy + ROW_H;
     }
-    drawColHeaders(y);
-    y += ROW_H;
 
-    // Item rows — data row + description sub-row
-    const DATA_ROW_H = 14;
+    y = checkPage(y, ITEM_SECTION_H + ROW_H + DATA_ROW_MIN_H);
+    y = drawItemsHeader(y, true);
+
     items.forEach((it, idx) => {
-      const qty      = parseFloat(it.quantity       || 0);
-      const price    = parseFloat(it.unitPrice      || 0);
-      const disc     = parseFloat(it.discount       || 0);
-      const taxRate  = parseFloat(it.taxRate        || 0);
-      const taxable  = parseFloat(it.taxableAmount  || (qty * price * (1 - disc / 100)));
-      const igstAmt  = parseFloat(it.igst  || 0);
-      const cgstAmt  = parseFloat(it.cgst  || 0);
-      const sgstAmt  = parseFloat(it.sgst  || 0);
-      const total    = parseFloat(it.itemTotal      || (taxable + igstAmt + cgstAmt + sgstAmt));
-      const itemCode = it.itemCode || '';
-      const descText = (it.name || '').trim();
+      const qty = parseFloat(it.quantity || 0);
+      const price = parseFloat(it.unitPrice || 0);
+      const disc = parseFloat(it.discount || 0);
+      const taxRate = parseFloat(it.taxRate || 0);
+      const taxable = parseFloat(it.taxableAmount || (qty * price * (1 - disc / 100)));
+      const igstAmt = parseFloat(it.igst || 0);
+      const cgstAmt = parseFloat(it.cgst || 0);
+      const sgstAmt = parseFloat(it.sgst || 0);
+      const total = parseFloat(it.itemTotal || (taxable + igstAmt + cgstAmt + sgstAmt));
+      const itemCode = cleanText(it.itemCode || '');
+      const descText = cleanText(it.name || it.description || it.itemName || '') || '-';
+      const descLines = wrapTextLines(descText, COL.desc - 10, 7.1, false);
+      let lineIndex = 0;
+      let firstSegment = true;
 
-      // Description sub-row height — lineGap must match the txt() call below
-      const descH    = descText ? txtH(descText, W - 16, 7.5, false) + 7 : 0;
-      const totalRowH = DATA_ROW_H + (descText ? descH : 0);
+      while (lineIndex < descLines.length) {
+        let available = PH - M - FOOTER_H - y;
+        if (available < DATA_ROW_MIN_H) {
+          doc.addPage();
+          y = drawItemsHeader(M, false);
+          available = PH - M - FOOTER_H - y;
+        }
 
-      y = checkPage(y, totalRowH + 1);
+        let segmentLineCount = Math.min(descLines.length - lineIndex, Math.max(1, Math.floor((available - 6) / ROW_LINE_H)));
+        let rowH = Math.max(DATA_ROW_MIN_H, segmentLineCount * ROW_LINE_H + 6);
 
-      // ── data row background
-      if (idx % 2 === 0) fillBox(X, y, W, DATA_ROW_H, '#fafafa');
-      box(X, y, W, DATA_ROW_H, LBD);
+        if (!segmentLineCount) {
+          doc.addPage();
+          y = drawItemsHeader(M, false);
+          continue;
+        }
 
-      let cx = X;
-      function td(text, w, opts) {
-        vLine(cx, y, y + DATA_ROW_H, LBD);
-        const to = Object.assign({ size: 7.5, align: 'center', lineGap: 0.5 }, opts || {});
-        const textY = y + (DATA_ROW_H - (to.size + 2)) / 2 + 1;
-        txt(String(text), cx + 3, textY, w - 6, to);
-        cx += w;
-      }
+        if ((idx + (firstSegment ? 0 : 1)) % 2 === 0) fillBox(X, y, W, rowH, '#fafafa');
+        box(X, y, W, rowH, LBD);
 
-      if (!showTax) {
-        td(idx + 1,                               COL.sl);
-        td(itemCode,                              COL.code);
-        td(it.hsnCode || '',                      COL.hsn);
-        td(it.unit    || '',                      COL.unit);
-        td(price.toFixed(2),                      COL.rate,  { align: 'right' });
-        td(qty % 1 === 0 ? qty : qty.toFixed(3),  COL.qty);
-        td(total.toFixed(2),                      COL.amt,   { align: 'right', bold: true });
-      } else if (useIGST) {
-        td(idx + 1,                               COL.sl);
-        td(itemCode,                              COL.code);
-        td(it.hsnCode || '',                      COL.hsn);
-        td(it.unit    || '',                      COL.unit);
-        td(price.toFixed(2),                      COL.rate,  { align: 'right' });
-        td(qty % 1 === 0 ? qty : qty.toFixed(3),  COL.qty);
-        td((taxRate).toFixed(0) + '%',            COL.igstP);
-        td(igstAmt.toFixed(2),                    COL.igst,  { align: 'right' });
-        td(total.toFixed(2),                      COL.amt,   { align: 'right', bold: true });
-      } else {
-        td(idx + 1,                               COL.sl);
-        td(itemCode,                              COL.code);
-        td(it.hsnCode || '',                      COL.hsn);
-        td(it.unit    || '',                      COL.unit);
-        td(price.toFixed(2),                      COL.rate,  { align: 'right' });
-        td(qty % 1 === 0 ? qty : qty.toFixed(3),  COL.qty);
-        td((taxRate / 2).toFixed(0) + '%',        COL.cgstP);
-        td(cgstAmt.toFixed(2),                    COL.cgst,  { align: 'right' });
-        td((taxRate / 2).toFixed(0) + '%',        COL.sgstP);
-        td(sgstAmt.toFixed(2),                    COL.sgst,  { align: 'right' });
-        td(total.toFixed(2),                      COL.amt,   { align: 'right', bold: true });
-      }
+        let cx = X;
+        function td(text, w, opts) {
+          vLine(cx, y, y + rowH, LBD);
+          const to = Object.assign({ size: 7.4, align: 'center', lineGap: 0.5 }, opts || {});
+          const raw = String(text || '');
+          const size = to.fit ? fitTextSize(raw, w - 6, to.size, to.minSize || 6.2, !!to.bold) : to.size;
+          txt(raw, cx + 3, y + 3, w - 6, Object.assign({}, to, { size: size }));
+          cx += w;
+        }
+        function tdDesc(lines, w) {
+          vLine(cx, y, y + rowH, LBD);
+          lines.forEach((line, i) => {
+            txt(line, cx + 3, y + 3 + (i * ROW_LINE_H), w - 6, { size: 7.1, align: 'left', lineGap: 0, color: DRK });
+          });
+          cx += w;
+        }
 
-      y += DATA_ROW_H;
+        const descSlice = descLines.slice(lineIndex, lineIndex + segmentLineCount);
+        td(firstSegment ? idx + 1 : '',                    COL.sl);
+        td(firstSegment ? itemCode : '',                   COL.code);
+        tdDesc(descSlice,                                  COL.desc);
+        td(firstSegment ? (it.hsnCode || '') : '',         COL.hsn);
+        td(firstSegment ? (it.unit || '') : '',            COL.unit);
+        td(firstSegment ? cellMoney(price) : '',           COL.rate, { align: 'right', fit: true });
+        td(firstSegment ? (qty % 1 === 0 ? qty : qty.toFixed(3)) : '', COL.qty);
 
-      // ── description sub-row (page-safe, same lineGap as txtH)
-      if (descText) {
-        y = checkPage(y, descH);
-        fillBox(X, y, W, descH, '#f9fafb');
-        box(X, y, W, descH, LBD);
-        txt(descText, X + 8, y + 3, W - 16, { size: 7.5, align: 'left', lineGap: 0.5, color: GRY });
-        y += descH;
+        if (showTax && useIGST) {
+          td(firstSegment ? taxRate.toFixed(0) + '%' : '', COL.taxP);
+          td(firstSegment ? cellMoney(igstAmt) : '',       COL.taxAmt, { align: 'right', fit: true });
+        } else if (showTax && useSplitGST) {
+          td(firstSegment ? taxRate.toFixed(0) + '%' : '', COL.taxP);
+          td(firstSegment ? cellMoney(cgstAmt + sgstAmt) : '', COL.taxAmt, { align: 'right', fit: true });
+        }
+
+        td(firstSegment ? cellMoney(total) : '', COL.amt, { align: 'right', bold: true, size: 7.2, fit: true, minSize: 5.8 });
+
+        y += rowH;
+        lineIndex += segmentLineCount;
+        firstSegment = false;
+
+        if (lineIndex < descLines.length) {
+          doc.addPage();
+          y = drawItemsHeader(M, false);
+        }
       }
     });
 
-    // ════════════════════════════════════════════════════════════════════════
     // 5. AMOUNT IN WORDS  +  SUMMARY  (side by side)
     // ════════════════════════════════════════════════════════════════════════
     y = checkPage(y, 60);
 
+    const igstV = showTax ? taxAmount(inv.totalIgst) : 0;
+    const cgstV = showTax ? taxAmount(inv.totalCgst) : 0;
+    const sgstV = showTax ? taxAmount(inv.totalSgst) : 0;
+    const hasSplit = cgstV > 0.004 || sgstV > 0.004;
+    const splitTotal = cgstV + sgstV;
+
     const sumLines = [
-      ['Total Amount:', fmtINR(inv.subtotal)],
-      ...(showTax
-        ? (useIGST
-          ? [['IGST (' + (items[0] ? items[0].taxRate : '') + '%):', fmtINR(inv.totalIgst)]]
-          : [
-              ['SGST:', fmtINR(inv.totalSgst)],
-              ['CGST:', fmtINR(inv.totalCgst)],
-            ])
-        : []),
+      ['Subtotal:', fmtINR(inv.subtotal)],
+      ...(igstV > 0.004 ? [['IGST:', fmtINR(igstV)]] : []),
+      ...(cgstV > 0.004 ? [['CGST:', fmtINR(cgstV)]] : []),
+      ...(sgstV > 0.004 ? [['SGST:', fmtINR(sgstV)]] : []),
+      ...(hasSplit && splitTotal > 0.004 ? [['Total Tax:', fmtINR(splitTotal)]] : []),
       ...(parseFloat(inv.roundOff) ? [['Round Off:', fmtINR(inv.roundOff)]] : []),
     ];
 
-    const sumRowH  = 12;
+    const sumRowH  = 11;
     const sumTotalH = 14;
     const sumH = sumLines.length * sumRowH + sumTotalH;
     const wordText = numWords(parseFloat(inv.totalAmount || 0));
     const wordH    = txtH(wordText, HW - 14, 7.5, false);
-    const botH     = Math.max(sumH + 3, wordH + 18);
-
-    // Fill total row first, then draw all borders on top
-    const sy0 = y + 3 + sumLines.length * sumRowH;
-    fillBox(X + HW, sy0, HW, sumTotalH, HBG);
+    const botH     = Math.max(sumH, wordH + 16);
 
     // Now draw all borders (they paint over the fill, keeping lines clean)
     box(X, y, W, botH, LBD);
     vLine(X + HW, y, y + botH, LBD);
 
-    txt('Amount in Words (This Bill):', X + 5, y + 4, HW - 10, { size: 7.5, bold: true, color: BLK });
+    txt('Amount in Words:', X + 5, y + 4, HW - 10, { size: 7.5, bold: true, color: BLK });
     txt(wordText, X + 5, y + 14, HW - 10, { size: 7.5, color: BLK });
 
     // Summary rows (right half)
-    let sy = y + 3;
+    let sy = y;
     sumLines.forEach(([label, val]) => {
-      hLine(sy, X + HW, X + W, LBD);
-      txt(label, X + HW + 4, sy + 2, HW / 2 - 6, { size: 7.5, color: BLK });
-      txt(val,   X + HW + HW / 2, sy + 2, HW / 2 - 6, { size: 7.5, align: 'right', color: BLK });
       sy += sumRowH;
+      txt(label, X + HW + 4, sy - 8, HW / 2 - 6, { size: 7.5, color: BLK });
+      txt(val,   X + HW + HW / 2, sy - 8, HW / 2 - 6, { size: 7.5, align: 'right', color: BLK });
+      hLine(sy, X + HW, X + W, LBD);
     });
 
+    fillBox(X + HW, sy, HW, sumTotalH, HBG);
+    box(X + HW, sy, HW, sumTotalH, LBD);
     // Total Amount row text (drawn after borders so text is on top)
     txt('Amount After Tax:', X + HW + 4, sy + 3, HW / 2 - 6,
         { size: 8, bold: true, color: BLK });
@@ -622,18 +822,29 @@ exports.downloadPDF = async (req, res) => {
     const pageRange  = doc.bufferedPageRange();
     const totalPages = pageRange.count;
 
+    for (let pageIndex = 0; pageIndex < totalPages; pageIndex += 1) {
+      doc.switchToPage(pageRange.start + pageIndex);
+      box(X, M, W, PH - (M * 2), LBD);
+    }
+
     if (totalPages) {
-      doc.switchToPage(pageRange.start + totalPages - 1);
-      const fy = PH - M - FOOTER_H + 2;
+      for (let pageIndex = 0; pageIndex < totalPages; pageIndex += 1) {
+        doc.switchToPage(pageRange.start + pageIndex);
+        const fy = PH - M - FOOTER_H;
+        const pageLabel = `Page ${pageIndex + 1} of ${totalPages}`;
+        const pageLabelW = 62;
+        const noteX = X + 4;
+        const noteW = W - pageLabelW - 14;
 
-      // Separator line
-      doc.moveTo(X, fy).lineTo(X + W, fy)
-         .lineWidth(0.3).strokeColor('#aaaaaa').stroke();
+        doc.moveTo(X, fy).lineTo(X + W, fy)
+           .lineWidth(0.3).strokeColor('#aaaaaa').stroke();
 
-      // Confidentiality notice
-      doc.fontSize(5.5).font('Helvetica').fillColor(LGY)
-         .text(CONF_TEXT, X, fy + 4,
-               { width: W, align: 'left', lineGap: 0.5 });
+        doc.fontSize(5.8).font('Helvetica').fillColor(LGY)
+           .text(CONF_TEXT, noteX, fy + 6, { width: noteW, align: 'left', lineGap: 0.7 });
+
+        doc.fontSize(6.2).font('Helvetica').fillColor(GRY)
+           .text(pageLabel, X + W - pageLabelW - 4, fy + 18, pageLabelW, { align: 'right', lineGap: 0 });
+      }
     }
 
     doc.end();

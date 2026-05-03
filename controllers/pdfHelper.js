@@ -12,7 +12,7 @@ const GRY      = '#555555';
 const LGY      = '#888888';
 const HBG      = '#f2f2f2';
 const LBD      = 0.5;
-const FOOTER_H = 22;
+const FOOTER_H = 30;
 
 const CONF_TEXT =
   'Note: This document is the property of DHPE and is confidential. It must not be disclosed, ' +
@@ -48,6 +48,24 @@ function numWords(n) {
   let result = toWords(intPart).trim() + ' Rupees';
   if (decPart > 0) result += ' and ' + toWords(decPart).trim() + ' Paise';
   return 'Rupees ' + result + '.';
+}
+
+function pdfSafePart(value) {
+  return String(value || '')
+    .replace(/[\\/:*?"<>|]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .replace(/[^a-z0-9]+/gi, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
+function buildPdfFilename(parts) {
+  const base = (parts || [])
+    .map(pdfSafePart)
+    .filter(Boolean)
+    .join('-');
+  return (base || 'document') + '.pdf';
 }
 
 function createDoc() {
@@ -93,7 +111,7 @@ function addFooters(doc) {
   const total = range.count;
   if (!total) return;
   doc.switchToPage(range.start + total - 1);
-  const fy = PH - M - FOOTER_H + 2;
+  const fy = PH - M - FOOTER_H;
   doc.moveTo(X, fy).lineTo(X + W, fy).lineWidth(0.3).strokeColor('#aaaaaa').stroke();
   doc.fontSize(5.5).font('Helvetica').fillColor(LGY)
      .text(CONF_TEXT, X, fy + 4, { width: W, align: 'left', lineGap: 0.5 });
@@ -170,6 +188,6 @@ function drawSignature(h, y, companyName, bankLines) {
 
 module.exports = {
   M, PW, PH, W, X, BLK, DRK, GRY, LGY, HBG, LBD, FOOTER_H,
-  fmtDate, fmtINR, numWords, createDoc, addFooters,
+  fmtDate, fmtINR, numWords, pdfSafePart, buildPdfFilename, createDoc, addFooters,
   drawHeader, drawSectionLabel, drawSignature,
 };

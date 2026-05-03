@@ -3,7 +3,7 @@ const { Op } = require('sequelize');
 const { PurchaseOrder, Vendor, ProjectAccount, Company } = require('../models');
 const {
   M, PH, W, X, BLK, DRK, GRY, LGY, HBG, LBD, FOOTER_H,
-  fmtDate, fmtINR, numWords, createDoc, addFooters,
+  fmtDate, fmtINR, numWords, buildPdfFilename, createDoc, addFooters,
   drawSectionLabel, drawSignature,
 } = require('./pdfHelper');
 
@@ -90,7 +90,11 @@ exports.generatePDF = async (req, res) => {
     const inline = req.query.view === '1';
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition',
-      (inline?'inline':'attachment') + `; filename="PO-${po.poNumber}.pdf"`);
+      (inline?'inline':'attachment') + `; filename="${buildPdfFilename([
+        (company && company.name) || 'DHPE',
+        'Purchase-Order',
+        po.poNumber || po.id,
+      ])}"`);
 
     const { doc, hLine, vLine, box, fillBox, txt, txtH, checkPage } = createDoc();
     doc.pipe(res);

@@ -3,7 +3,7 @@ const { Op } = require('sequelize');
 const { WorkOrder, Client, Vendor, ProjectAccount, Company } = require('../models');
 const {
   M, PH, W, X, BLK, DRK, GRY, LGY, HBG, LBD, FOOTER_H,
-  fmtDate, fmtINR, numWords, createDoc, addFooters,
+  fmtDate, fmtINR, numWords, buildPdfFilename, createDoc, addFooters,
   drawSectionLabel, drawSignature,
 } = require('./pdfHelper');
 
@@ -11,6 +11,44 @@ function genCode() { return Math.random().toString(36).substr(2,6).toUpperCase()
 function cleanGeneratedCode(value, prefix) {
   const code = String(value || '').trim().toUpperCase();
   return code && code !== 'AUTO-GENERATED' ? code : prefix + '-' + genCode();
+}
+
+async function resolveWorkOrderCompany(req, requestedCompanyId) {
+  const actorCompanyId = Number((req.user && req.user.companyId) || 0) || null;
+  let targetCompanyId = Number(requestedCompanyId || 0) || null;
+  if (req.user && req.user.role !== 'superadmin' && actorCompanyId) {
+    targetCompanyId = actorCompanyId;
+  }
+  let company = null;
+  if (targetCompanyId) company = await Company.findByPk(targetCompanyId);
+  if (!company && actorCompanyId) company = await Company.findByPk(actorCompanyId);
+  if (!company) {
+    company = await Company.findOne({
+      where: { status: 'active' },
+      order: [['createdAt', 'ASC']],
+    });
+  }
+  return company;
+}
+
+function applyCompanySnapshot(target, company) {
+  if (!target || !company) return target;
+  target.companyId = company.id || null;
+  target.sellerName = company.name || '';
+  target.sellerAddress = company.address || '';
+  target.sellerPhone = company.phone || '';
+  target.sellerEmail = company.email || '';
+  target.sellerGstin = company.gstNo || '';
+  target.sellerPan = company.panNo || '';
+  target.sellerState = company.state || '';
+  target.sellerStateCode = company.stateCode || '';
+  target.sellerAuthorizedSignatory = company.authorizedSignatory || '';
+  target.bankName = company.bankName || '';
+  target.bankAcName = company.bankAcName || '';
+  target.bankAccount = company.bankAccount || '';
+  target.bankIfsc = company.bankIfsc || '';
+  target.bankBranch = company.bankBranch || '';
+  return target;
 }
 
 // ── GET /work-orders ──────────────────────────────────────────────────────────
@@ -30,6 +68,7 @@ exports.getWorkOrders = async (req, res) => {
         { model: Client, as: 'client', attributes: ['id','name','clientCode'], required: false },
         { model: Vendor, as: 'vendor', attributes: ['id','name','vendorCode'], required: false },
         { model: ProjectAccount, as: 'projectAccount', attributes: ['id','name','projectCode'], required: false },
+        { model: Company, as: 'company', attributes: ['id','name','gstNo'], required: false },
       ],
     });
     res.json(rows);
@@ -44,6 +83,7 @@ exports.getWorkOrder = async (req, res) => {
         { model: Client, as: 'client', required: false },
         { model: Vendor, as: 'vendor', required: false },
         { model: ProjectAccount, as: 'projectAccount', required: false },
+        { model: Company, as: 'company', required: false },
       ],
     });
     if (!wo) return res.status(404).json({ message: 'Work Order not found' });
@@ -70,6 +110,8 @@ exports.createWorkOrder = async (req, res) => {
       const v = await Vendor.findByPk(data.vendorId);
       if (v) data.partyName = v.name;
     }
+    const company = await resolveWorkOrderCompany(req, data.companyId);
+    applyCompanySnapshot(data, company);
     const wo = await WorkOrder.create(data);
     res.status(201).json(wo);
   } catch (err) { res.status(500).json({ message: err.message }); }
@@ -80,7 +122,22 @@ exports.updateWorkOrder = async (req, res) => {
   try {
     const wo = await WorkOrder.findByPk(req.params.id);
     if (!wo) return res.status(404).json({ message: 'Work Order not found' });
-    await wo.update(req.body);
+    const updates = Object.assign({}, req.body);
+    const nextType = updates.type || wo.type;
+    if (updates.woNumber !== undefined) {
+      updates.woNumber = cleanGeneratedCode(updates.woNumber, nextType === 'CWO' ? 'CWO' : 'VWO');
+    }
+    if (nextType === 'CWO' && updates.clientId && !updates.partyName) {
+      const client = await Client.findByPk(updates.clientId);
+      if (client) updates.partyName = client.name;
+    }
+    if (nextType === 'VWO' && updates.vendorId && !updates.partyName) {
+      const vendor = await Vendor.findByPk(updates.vendorId);
+      if (vendor) updates.partyName = vendor.name;
+    }
+    const company = await resolveWorkOrderCompany(req, updates.companyId || wo.companyId);
+    applyCompanySnapshot(updates, company);
+    await wo.update(updates);
     res.json(wo);
   } catch (err) { res.status(500).json({ message: err.message }); }
 };
@@ -92,25 +149,43 @@ exports.generatePDF = async (req, res) => {
       include: [
         { model: Client, as: 'client', required: false },
         { model: Vendor, as: 'vendor', required: false },
+        { model: Company, as: 'company', required: false },
       ],
     });
     if (!wo) return res.status(404).json({ message: 'Work Order not found' });
 
-    const company = req.user.companyId
-      ? await Company.findByPk(req.user.companyId)
-      : null;
+    const company = wo.company || await resolveWorkOrderCompany(req, wo.companyId);
+    const co = Object.assign({}, company && company.toJSON ? company.toJSON() : (company || {}), {
+      name: wo.sellerName || (company && company.name) || 'DHPE',
+      address: wo.sellerAddress || (company && company.address) || '',
+      phone: wo.sellerPhone || (company && company.phone) || '',
+      email: wo.sellerEmail || (company && company.email) || '',
+      gstNo: wo.sellerGstin || (company && company.gstNo) || '',
+      panNo: wo.sellerPan || (company && company.panNo) || '',
+      state: wo.sellerState || (company && company.state) || '',
+      stateCode: wo.sellerStateCode || (company && company.stateCode) || '',
+      authorizedSignatory: wo.sellerAuthorizedSignatory || (company && company.authorizedSignatory) || '',
+      bankName: wo.bankName || (company && company.bankName) || '',
+      bankAcName: wo.bankAcName || (company && company.bankAcName) || '',
+      bankAccount: wo.bankAccount || (company && company.bankAccount) || '',
+      bankIfsc: wo.bankIfsc || (company && company.bankIfsc) || '',
+      bankBranch: wo.bankBranch || (company && company.bankBranch) || '',
+    });
 
     const inline = req.query.view === '1';
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition',
-      (inline?'inline':'attachment') + `; filename="WO-${wo.woNumber}.pdf"`);
+      (inline?'inline':'attachment') + `; filename="${buildPdfFilename([
+        co.name || 'DHPE',
+        wo.type === 'CWO' ? 'Client-Work-Order' : 'Vendor-Work-Order',
+        wo.woNumber || wo.id,
+      ])}"`);
 
     const { doc, hLine, vLine, box, fillBox, txt, txtH, checkPage } = createDoc();
     doc.pipe(res);
 
     const HW = W / 2;
     const RX = X + HW;
-    const co   = company || {};
     const isCWO = wo.type === 'CWO';
     const party = isCWO ? (wo.client || {}) : (wo.vendor || {});
     const milestones = wo.milestones || [];

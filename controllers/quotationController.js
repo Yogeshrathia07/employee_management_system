@@ -3,7 +3,7 @@ const { Op } = require('sequelize');
 const { Quotation, Proforma, Invoice, Client } = require('../models');
 const {
   M, W, X, BLK, GRY, HBG, LBD,
-  fmtDate, fmtINR, numWords, createDoc, addFooters,
+  fmtDate, fmtINR, numWords, buildPdfFilename, createDoc, addFooters,
   drawSectionLabel, drawSignature,
 } = require('./pdfHelper');
 
@@ -190,7 +190,11 @@ exports.generatePDF = async (req, res) => {
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader(
       'Content-Disposition',
-      (inline ? 'inline' : 'attachment') + `; filename="Quotation-${q.quotationNumber}.pdf"`
+      (inline ? 'inline' : 'attachment') + `; filename="${buildPdfFilename([
+        q.sellerName || 'DHPE',
+        'Quotation',
+        q.quotationNumber || q.id,
+      ])}"`
     );
 
     const { doc, hLine, vLine, box, fillBox, txt, txtH, checkPage } = createDoc();
@@ -203,10 +207,10 @@ exports.generatePDF = async (req, res) => {
                     q.sellerStateCode !== q.clientStateCode;
 
     const sellerLines = [
-      q.sellerName || '',
-      q.sellerAddress ? 'Address: ' + q.sellerAddress : '',
+      q.sellerName || 'DHPE',
+      q.sellerAddress ? 'Address: ' + q.sellerAddress : 'Address: 182 / 1 Purbachal, Rahara, Khardaha, North 24 PGS, Kolkata, West Bengal, Pin-700118',
       (q.sellerPhone || q.sellerEmail)
-        ? 'Phone: ' + (q.sellerPhone || '') + (q.sellerEmail ? ' | Email: ' + q.sellerEmail : '') : '',
+        ? 'Phone: ' + (q.sellerPhone || '') + (q.sellerEmail ? ' | Email: ' + q.sellerEmail : '') : 'Phone: +91-9876543210 | Email: contact@dhpe.in',
       [
         q.sellerGstin ? 'GSTIN: ' + q.sellerGstin : '',
         q.sellerPan ? 'PAN: ' + q.sellerPan : '',
@@ -245,7 +249,8 @@ exports.generatePDF = async (req, res) => {
 
     const clientLeft = [q.clientName || '', q.clientAddress || ''].filter(Boolean);
     const clientRight = [
-      q.clientGstin ? 'GSTIN: ' + q.clientGstin + (q.clientPan ? ' | PAN: ' + q.clientPan : '') : '',
+      q.clientGstin ? 'GSTIN: ' + q.clientGstin : '',
+      q.clientPan ? 'PAN: ' + q.clientPan : '',
       q.clientEmail ? 'Email: ' + q.clientEmail : '',
       q.clientState ? 'State: ' + q.clientState + (q.clientStateCode ? ', Code: ' + q.clientStateCode : '') : '',
     ].filter(Boolean);

@@ -107,6 +107,9 @@ Invoice.belongsTo(Client, { foreignKey: 'clientId', as: 'client' });
 Client.hasMany(WorkOrder, { foreignKey: 'clientId', as: 'clientWorkOrders' });
 WorkOrder.belongsTo(Client, { foreignKey: 'clientId', as: 'client' });
 
+Company.hasMany(WorkOrder, { foreignKey: 'companyId', as: 'workOrders' });
+WorkOrder.belongsTo(Company, { foreignKey: 'companyId', as: 'company' });
+
 Client.hasMany(ProjectAccount, { foreignKey: 'clientId', as: 'projectAccounts' });
 ProjectAccount.belongsTo(Client, { foreignKey: 'clientId', as: 'client' });
 

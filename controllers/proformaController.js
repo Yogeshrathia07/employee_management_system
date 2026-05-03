@@ -262,7 +262,7 @@ exports.generatePDF = async (req, res) => {
     const totalPages = pageRange.count;
     if (totalPages) {
       doc.switchToPage(pageRange.start + totalPages - 1);
-      const fy = PH - M - 20;
+      const fy = PH - M - 30;
       doc.moveTo(X, fy).lineTo(X + W, fy).lineWidth(0.3).strokeColor('#aaaaaa').stroke();
       doc.fontSize(5.5).font('Helvetica').fillColor('#888888')
         .text(CONF_TEXT, X, fy + 4, { width: W, align: 'left', lineGap: 0.5 });
