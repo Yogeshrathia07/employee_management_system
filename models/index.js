@@ -86,6 +86,9 @@ SpreadsheetWorkbook.belongsTo(User, { foreignKey: 'userId', as: 'owner' });
 // ══════════════════════════════════════════════════════════════════════════
 
 // ─── Vendor Associations ───
+Company.hasMany(Vendor, { foreignKey: 'companyId', as: 'vendors' });
+Vendor.belongsTo(Company, { foreignKey: 'companyId', as: 'company' });
+
 Vendor.hasMany(PurchaseOrder, { foreignKey: 'vendorId', as: 'purchaseOrders' });
 PurchaseOrder.belongsTo(Vendor, { foreignKey: 'vendorId', as: 'vendor' });
 
@@ -95,6 +98,9 @@ WorkOrder.belongsTo(Vendor, { foreignKey: 'vendorId', as: 'vendor' });
 Vendor.hasMany(Invoice, { foreignKey: 'vendorId', as: 'vendorInvoices' });
 
 // ─── Client Associations ───
+Company.hasMany(Client, { foreignKey: 'companyId', as: 'clients' });
+Client.belongsTo(Company, { foreignKey: 'companyId', as: 'company' });
+
 Client.hasMany(Quotation, { foreignKey: 'clientId', as: 'quotations' });
 Quotation.belongsTo(Client, { foreignKey: 'clientId', as: 'client' });
 
@@ -112,6 +118,21 @@ WorkOrder.belongsTo(Company, { foreignKey: 'companyId', as: 'company' });
 
 Client.hasMany(ProjectAccount, { foreignKey: 'clientId', as: 'projectAccounts' });
 ProjectAccount.belongsTo(Client, { foreignKey: 'clientId', as: 'client' });
+
+Company.hasMany(Quotation, { foreignKey: 'companyId', as: 'quotations' });
+Quotation.belongsTo(Company, { foreignKey: 'companyId', as: 'company' });
+
+Company.hasMany(Proforma, { foreignKey: 'companyId', as: 'proformas' });
+Proforma.belongsTo(Company, { foreignKey: 'companyId', as: 'company' });
+
+Company.hasMany(Invoice, { foreignKey: 'companyId', as: 'invoices' });
+Invoice.belongsTo(Company, { foreignKey: 'companyId', as: 'company' });
+
+Company.hasMany(PurchaseOrder, { foreignKey: 'companyId', as: 'purchaseOrders' });
+PurchaseOrder.belongsTo(Company, { foreignKey: 'companyId', as: 'company' });
+
+Company.hasMany(ProjectAccount, { foreignKey: 'companyId', as: 'projectAccounts' });
+ProjectAccount.belongsTo(Company, { foreignKey: 'companyId', as: 'company' });
 
 // ─── ProjectAccount Associations ───
 ProjectAccount.hasMany(PurchaseOrder, { foreignKey: 'projectAccountId', as: 'purchaseOrders' });

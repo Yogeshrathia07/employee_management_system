@@ -1,6 +1,12 @@
 'use strict';
 const { Op } = require('sequelize');
 const { Client, Quotation, Proforma, Invoice, WorkOrder, ProjectAccount } = require('../models');
+const {
+  applyCompanyScope,
+  findScopedByPk,
+  getActorCompanyId,
+  syncAccountsCompanyIds,
+} = require('./accountsCompanyScope');
 
 function cleanGeneratedCode(value, prefix) {
   const code = String(value || '').trim().toUpperCase();
@@ -11,7 +17,8 @@ function cleanGeneratedCode(value, prefix) {
 exports.getClients = async (req, res) => {
   try {
     const { q, status } = req.query;
-    const where = {};
+    if (req.user.role === 'admin') await syncAccountsCompanyIds();
+    const where = applyCompanyScope(req, {});
     if (status) where.status = status;
     if (q) where[Op.or] = [
       { name:       { [Op.like]: `%${q}%` } },
@@ -27,14 +34,15 @@ exports.getClients = async (req, res) => {
 // ── GET /clients/:id ──────────────────────────────────────────────────────────
 exports.getClient = async (req, res) => {
   try {
-    const c = await Client.findByPk(req.params.id, {
+    if (req.user.role === 'admin') await syncAccountsCompanyIds();
+    const c = await findScopedByPk(Client, 'client', req, req.params.id, {
       include: [
         { model: Quotation, as: 'quotations' },
         { model: Proforma,  as: 'proformas' },
         { model: Invoice,   as: 'clientInvoices' },
         { model: WorkOrder, as: 'clientWorkOrders' },
       ],
-    });
+    }, 'Client not found');
     if (!c) return res.status(404).json({ message: 'Client not found' });
     res.json(c);
   } catch (err) { res.status(500).json({ message: err.message }); }
@@ -43,9 +51,10 @@ exports.getClient = async (req, res) => {
 // ── POST /clients ─────────────────────────────────────────────────────────────
 exports.createClient = async (req, res) => {
   try {
-    const data = req.body;
+    const data = Object.assign({}, req.body);
     if (!data.name) return res.status(400).json({ message: 'Client name required' });
     data.clientCode = cleanGeneratedCode(data.clientCode, 'CLT');
+    data.companyId  = getActorCompanyId(req) || data.companyId || null;
     data.createdBy  = req.user.id;
     const c = await Client.create(data);
     res.status(201).json(c);
@@ -55,9 +64,12 @@ exports.createClient = async (req, res) => {
 // ── PUT /clients/:id ──────────────────────────────────────────────────────────
 exports.updateClient = async (req, res) => {
   try {
-    const c = await Client.findByPk(req.params.id);
+    if (req.user.role === 'admin') await syncAccountsCompanyIds();
+    const c = await findScopedByPk(Client, 'client', req, req.params.id, null, 'Client not found');
     if (!c) return res.status(404).json({ message: 'Client not found' });
-    await c.update(req.body);
+    const updates = Object.assign({}, req.body);
+    if (getActorCompanyId(req)) updates.companyId = getActorCompanyId(req);
+    await c.update(updates);
     res.json(c);
   } catch (err) { res.status(500).json({ message: err.message }); }
 };
@@ -65,7 +77,8 @@ exports.updateClient = async (req, res) => {
 // ── DELETE /clients/:id ───────────────────────────────────────────────────────
 exports.deleteClient = async (req, res) => {
   try {
-    const c = await Client.findByPk(req.params.id);
+    if (req.user.role === 'admin') await syncAccountsCompanyIds();
+    const c = await findScopedByPk(Client, 'client', req, req.params.id, null, 'Client not found');
     if (!c) return res.status(404).json({ message: 'Client not found' });
     const { moveToRecycleBin } = require('./recycleBinController');
     await moveToRecycleBin('client', c.id, req.user, c.toJSON(), c.name || 'Client #' + c.id);

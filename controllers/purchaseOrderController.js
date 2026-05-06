@@ -2,6 +2,13 @@
 const { Op } = require('sequelize');
 const { PurchaseOrder, Vendor, ProjectAccount, Company } = require('../models');
 const {
+  applyCompanyScope,
+  assertScopedRelation,
+  findScopedByPk,
+  getActorCompanyId,
+  syncAccountsCompanyIds,
+} = require('./accountsCompanyScope');
+const {
   M, PH, W, X, BLK, DRK, GRY, LGY, HBG, LBD, FOOTER_H,
   fmtDate, fmtINR, numWords, buildPdfFilename, createDoc, addFooters,
   drawSectionLabel, drawSignature,
@@ -17,7 +24,8 @@ function cleanGeneratedCode(value, prefix) {
 exports.getPurchaseOrders = async (req, res) => {
   try {
     const { q, status } = req.query;
-    const where = {};
+    if (req.user.role === 'admin') await syncAccountsCompanyIds();
+    const where = applyCompanyScope(req, {});
     if (status) where.status = status;
     if (q) where[Op.or] = [
       { poNumber:   { [Op.like]: `%${q}%` } },
@@ -25,6 +33,7 @@ exports.getPurchaseOrders = async (req, res) => {
     ];
     const rows = await PurchaseOrder.findAll({ where, order: [['createdAt','DESC']],
       include: [
+        { model: Company, as: 'company', attributes: ['id','name','gstNo'], required: false },
         { model: Vendor, as: 'vendor', attributes: ['id','name','vendorCode','gstin'] },
         { model: ProjectAccount, as: 'projectAccount', attributes: ['id','name','projectCode'] },
       ] });
@@ -35,12 +44,14 @@ exports.getPurchaseOrders = async (req, res) => {
 // ── GET /purchase-orders/:id ──────────────────────────────────────────────────
 exports.getPurchaseOrder = async (req, res) => {
   try {
-    const po = await PurchaseOrder.findByPk(req.params.id, {
+    if (req.user.role === 'admin') await syncAccountsCompanyIds();
+    const po = await findScopedByPk(PurchaseOrder, 'purchaseOrder', req, req.params.id, {
       include: [
+        { model: Company, as: 'company', required: false },
         { model: Vendor, as: 'vendor' },
         { model: ProjectAccount, as: 'projectAccount' },
       ],
-    });
+    }, 'PO not found');
     if (!po) return res.status(404).json({ message: 'PO not found' });
     res.json(po);
   } catch (err) { res.status(500).json({ message: err.message }); }
@@ -49,15 +60,25 @@ exports.getPurchaseOrder = async (req, res) => {
 // ── POST /purchase-orders ─────────────────────────────────────────────────────
 exports.createPurchaseOrder = async (req, res) => {
   try {
-    const data = req.body;
+    const data = Object.assign({}, req.body);
     if (!data.date) return res.status(400).json({ message: 'Date required' });
     if (!data.vendorName && !data.vendorId) return res.status(400).json({ message: 'Vendor required' });
     data.poNumber = cleanGeneratedCode(data.poNumber, 'PO');
     data.createdBy = req.user.id;
+    const vendor = data.vendorId
+      ? await assertScopedRelation(Vendor, 'vendor', req, data.vendorId, 'Vendor not found')
+      : null;
+    const projectAccount = data.projectAccountId
+      ? await assertScopedRelation(ProjectAccount, 'projectAccount', req, data.projectAccountId, 'Project account not found')
+      : null;
+    data.companyId = getActorCompanyId(req)
+      || (projectAccount && projectAccount.companyId)
+      || (vendor && vendor.companyId)
+      || data.companyId
+      || null;
     // auto-fill vendorName from vendorId if provided
     if (data.vendorId && !data.vendorName) {
-      const v = await Vendor.findByPk(data.vendorId);
-      if (v) data.vendorName = v.name;
+      if (vendor) data.vendorName = vendor.name;
     }
     const po = await PurchaseOrder.create(data);
     res.status(201).json(po);
@@ -67,9 +88,23 @@ exports.createPurchaseOrder = async (req, res) => {
 // ── PUT /purchase-orders/:id ──────────────────────────────────────────────────
 exports.updatePurchaseOrder = async (req, res) => {
   try {
-    const po = await PurchaseOrder.findByPk(req.params.id);
+    if (req.user.role === 'admin') await syncAccountsCompanyIds();
+    const po = await findScopedByPk(PurchaseOrder, 'purchaseOrder', req, req.params.id, null, 'PO not found');
     if (!po) return res.status(404).json({ message: 'PO not found' });
-    await po.update(req.body);
+    const updates = Object.assign({}, req.body);
+    const vendor = updates.vendorId
+      ? await assertScopedRelation(Vendor, 'vendor', req, updates.vendorId, 'Vendor not found')
+      : null;
+    const projectAccount = updates.projectAccountId
+      ? await assertScopedRelation(ProjectAccount, 'projectAccount', req, updates.projectAccountId, 'Project account not found')
+      : null;
+    if (updates.vendorId && !updates.vendorName && vendor) updates.vendorName = vendor.name;
+    updates.companyId = getActorCompanyId(req)
+      || (projectAccount && projectAccount.companyId)
+      || (vendor && vendor.companyId)
+      || po.companyId
+      || null;
+    await po.update(updates);
     res.json(po);
   } catch (err) { res.status(500).json({ message: err.message }); }
 };
@@ -77,15 +112,17 @@ exports.updatePurchaseOrder = async (req, res) => {
 // ── GET /purchase-orders/:id/pdf ─────────────────────────────────────────────
 exports.generatePDF = async (req, res) => {
   try {
-    const po = await PurchaseOrder.findByPk(req.params.id, {
-      include: [{ model: Vendor, as: 'vendor' }],
-    });
+    if (req.user.role === 'admin') await syncAccountsCompanyIds();
+    const po = await findScopedByPk(PurchaseOrder, 'purchaseOrder', req, req.params.id, {
+      include: [
+        { model: Vendor, as: 'vendor' },
+        { model: Company, as: 'company', required: false },
+      ],
+    }, 'PO not found');
     if (!po) return res.status(404).json({ message: 'PO not found' });
 
     // Fetch company for header
-    const company = req.user.companyId
-      ? await Company.findByPk(req.user.companyId)
-      : null;
+    const company = po.company || (po.companyId ? await Company.findByPk(po.companyId) : null);
 
     const inline = req.query.view === '1';
     res.setHeader('Content-Type', 'application/pdf');
@@ -279,7 +316,8 @@ exports.generatePDF = async (req, res) => {
 // ── DELETE /purchase-orders/:id ───────────────────────────────────────────────
 exports.deletePurchaseOrder = async (req, res) => {
   try {
-    const po = await PurchaseOrder.findByPk(req.params.id);
+    if (req.user.role === 'admin') await syncAccountsCompanyIds();
+    const po = await findScopedByPk(PurchaseOrder, 'purchaseOrder', req, req.params.id, null, 'PO not found');
     if (!po) return res.status(404).json({ message: 'PO not found' });
     const { moveToRecycleBin } = require('./recycleBinController');
     await moveToRecycleBin('purchase_order', po.id, req.user, po.toJSON(), po.poNumber);

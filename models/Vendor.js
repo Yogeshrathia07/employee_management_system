@@ -23,6 +23,7 @@ const Vendor = sequelize.define('Vendor', {
 
   paymentTerms: { type: DataTypes.STRING(200), defaultValue: '' },
   status:       { type: DataTypes.ENUM('Active', 'Inactive'), defaultValue: 'Active' },
+  companyId:    { type: DataTypes.INTEGER, allowNull: true },
   createdBy:    { type: DataTypes.INTEGER, allowNull: true },
 }, { timestamps: true });
 

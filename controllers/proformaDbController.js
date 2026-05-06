@@ -2,12 +2,59 @@
 const { Op } = require('sequelize');
 const { Proforma, Invoice, Client, Quotation } = require('../models');
 const {
+  applyCompanyScope,
+  applySellerCompanySnapshot,
+  assertScopedRelation,
+  findScopedByPk,
+  getActorCompanyId,
+  resolveScopedCompany,
+  syncAccountsCompanyIds,
+} = require('./accountsCompanyScope');
+const {
   M, PH, W, X, BLK, DRK, GRY, LGY, HBG, LBD, FOOTER_H,
   fmtDate, fmtINR, numWords, buildPdfFilename, createDoc, addFooters,
   drawSectionLabel, drawSignature,
 } = require('./pdfHelper');
 
 function genCode() { return Math.random().toString(36).substr(2,6).toUpperCase(); }
+function normalizeRoundOffMode(mode, amount) {
+  if (mode === 'plus' || mode === 'minus' || mode === 'none') return mode;
+  const value = Number(amount || 0);
+  if (value > 0.004) return 'plus';
+  if (value < -0.004) return 'minus';
+  return 'none';
+}
+function fmtSignedINR(amount, mode) {
+  const normalized = normalizeRoundOffMode(mode, amount);
+  const prefix = normalized === 'plus' ? '+ ' : normalized === 'minus' ? '- ' : '';
+  return prefix + fmtINR(Math.abs(Number(amount || 0)));
+}
+function shouldShowTaxPercentColumn(record) {
+  if (!record) return true;
+  if (record.showTaxPercentInPdf === false) return false;
+  if (record.showTaxPercentInPdf === true) return true;
+  return record.showTaxInPdf !== false;
+}
+function normalizedStateCode(code, gstin) {
+  const raw = String(code || '').trim();
+  if (raw) return raw.length === 1 ? '0' + raw : raw;
+  const match = String(gstin || '').trim().match(/^(\d{2})/);
+  return match ? match[1] : '';
+}
+function taxModeFromRecord(record, buyerStateCodeField, buyerGstinField) {
+  const totalIgst = Number(record && record.totalIgst || 0);
+  const totalCgst = Number(record && record.totalCgst || 0);
+  const totalSgst = Number(record && record.totalSgst || 0);
+  if (totalIgst > 0.004 && totalCgst <= 0.004 && totalSgst <= 0.004) return 'igst';
+  if (totalCgst > 0.004 || totalSgst > 0.004) return 'split';
+  const items = Array.isArray(record && record.items) ? record.items : [];
+  if (items.some(it => Number(it && it.igst || 0) > 0.004)) return 'igst';
+  if (items.some(it => Number(it && it.cgst || 0) > 0.004 || Number(it && it.sgst || 0) > 0.004)) return 'split';
+  const sellerStateCode = normalizedStateCode(record && record.sellerStateCode, record && record.sellerGstin);
+  const buyerStateCode = normalizedStateCode(record && record[buyerStateCodeField], record && record[buyerGstinField]);
+  if (sellerStateCode && buyerStateCode && sellerStateCode !== buyerStateCode) return 'igst';
+  return 'split';
+}
 
 function currentFY() {
   const now = new Date(), yr = now.getFullYear(), mo = now.getMonth() + 1;
@@ -38,7 +85,8 @@ async function nextInvoiceNumber(code) {
 exports.getProformas = async (req, res) => {
   try {
     const { q, status } = req.query;
-    const where = {};
+    if (req.user.role === 'admin') await syncAccountsCompanyIds();
+    const where = applyCompanyScope(req, {});
     if (status) where.status = status;
     if (q) where[Op.or] = [
       { proformaNumber: { [Op.like]: `%${q}%` } },
@@ -53,12 +101,13 @@ exports.getProformas = async (req, res) => {
 // ── GET /proformas-db/:id ─────────────────────────────────────────────────────
 exports.getProforma = async (req, res) => {
   try {
-    const p = await Proforma.findByPk(req.params.id, {
+    if (req.user.role === 'admin') await syncAccountsCompanyIds();
+    const p = await findScopedByPk(Proforma, 'proforma', req, req.params.id, {
       include: [
         { model: Client, as: 'client' },
         { model: Quotation, as: 'sourceQuotation', attributes: ['id','quotationNumber'] },
       ],
-    });
+    }, 'Proforma not found');
     if (!p) return res.status(404).json({ message: 'Proforma not found' });
     res.json(p);
   } catch (err) { res.status(500).json({ message: err.message }); }
@@ -67,9 +116,20 @@ exports.getProforma = async (req, res) => {
 // ── POST /proformas-db ────────────────────────────────────────────────────────
 exports.createProforma = async (req, res) => {
   try {
-    const data = req.body;
+    const data = Object.assign({}, req.body);
     if (!data.date) return res.status(400).json({ message: 'Date required' });
     if (!data.customerName) return res.status(400).json({ message: 'Customer name required' });
+    if (data.clientId) {
+      await assertScopedRelation(Client, 'client', req, data.clientId, 'Client not found');
+    }
+    if (data.sourceQuotationId) {
+      await assertScopedRelation(Quotation, 'quotation', req, data.sourceQuotationId, 'Quotation not found');
+    }
+    const company = await resolveScopedCompany(req, data);
+    if (company) applySellerCompanySnapshot(data, company);
+    if (getActorCompanyId(req) && !data.companyId) {
+      return res.status(400).json({ message: 'Admin company not found' });
+    }
     data.proformaNumber = 'PRO-' + genCode();
     data.createdBy = req.user.id;
     const p = await Proforma.create(data);
@@ -80,9 +140,20 @@ exports.createProforma = async (req, res) => {
 // ── PUT /proformas-db/:id ─────────────────────────────────────────────────────
 exports.updateProforma = async (req, res) => {
   try {
-    const p = await Proforma.findByPk(req.params.id);
+    if (req.user.role === 'admin') await syncAccountsCompanyIds();
+    const p = await findScopedByPk(Proforma, 'proforma', req, req.params.id, null, 'Proforma not found');
     if (!p) return res.status(404).json({ message: 'Proforma not found' });
-    await p.update(req.body);
+    const updates = Object.assign({}, req.body);
+    if (updates.clientId) {
+      await assertScopedRelation(Client, 'client', req, updates.clientId, 'Client not found');
+    }
+    if (updates.sourceQuotationId) {
+      await assertScopedRelation(Quotation, 'quotation', req, updates.sourceQuotationId, 'Quotation not found');
+    }
+    const company = await resolveScopedCompany(req, Object.assign({}, p.toJSON(), updates));
+    if (company) applySellerCompanySnapshot(updates, company);
+    if (getActorCompanyId(req)) updates.companyId = getActorCompanyId(req);
+    await p.update(updates);
     res.json(p);
   } catch (err) { res.status(500).json({ message: err.message }); }
 };
@@ -90,7 +161,8 @@ exports.updateProforma = async (req, res) => {
 // ── DELETE /proformas-db/:id ──────────────────────────────────────────────────
 exports.deleteProforma = async (req, res) => {
   try {
-    const p = await Proforma.findByPk(req.params.id);
+    if (req.user.role === 'admin') await syncAccountsCompanyIds();
+    const p = await findScopedByPk(Proforma, 'proforma', req, req.params.id, null, 'Proforma not found');
     if (!p) return res.status(404).json({ message: 'Proforma not found' });
     const { moveToRecycleBin } = require('./recycleBinController');
     await moveToRecycleBin('proforma', p.id, req.user, p.toJSON(), p.proformaNumber);
@@ -102,7 +174,8 @@ exports.deleteProforma = async (req, res) => {
 // ── POST /proformas-db/:id/convert-to-invoice ─────────────────────────────────
 exports.convertToInvoice = async (req, res) => {
   try {
-    const p = await Proforma.findByPk(req.params.id);
+    if (req.user.role === 'admin') await syncAccountsCompanyIds();
+    const p = await findScopedByPk(Proforma, 'proforma', req, req.params.id, null, 'Proforma not found');
     if (!p) return res.status(404).json({ message: 'Proforma not found' });
 
     // Derive company code from seller name initials (e.g. "DHPE Pvt Ltd" → "DHPE")
@@ -112,6 +185,7 @@ exports.convertToInvoice = async (req, res) => {
 
     const inv = await Invoice.create({
       invoiceNumber:  invNumber,
+      companyId:      p.companyId || null,
       invoiceDate:    p.date,
       clientId:       p.clientId,
       customerName:   p.customerName,
@@ -144,9 +218,11 @@ exports.convertToInvoice = async (req, res) => {
       totalSgst:      p.totalSgst,
       totalIgst:      p.totalIgst,
       totalTax:       p.totalTax,
+      roundOffMode:   normalizeRoundOffMode(p.roundOffMode, p.roundOff),
       roundOff:       p.roundOff,
       totalAmount:    p.totalAmount,
       showTaxInPdf:   p.showTaxInPdf,
+      showTaxPercentInPdf: shouldShowTaxPercentColumn(p),
       bankName:       p.bankName,
       bankAcName:     p.bankAcName,
       bankAccount:    p.bankAccount,
@@ -169,7 +245,8 @@ exports.convertToInvoice = async (req, res) => {
 // ── GET /proformas-db/:id/pdf ─────────────────────────────────────────────────
 exports.generatePDF = async (req, res) => {
   try {
-    const p = await Proforma.findByPk(req.params.id);
+    if (req.user.role === 'admin') await syncAccountsCompanyIds();
+    const p = await findScopedByPk(Proforma, 'proforma', req, req.params.id, null, 'Proforma not found');
     if (!p) return res.status(404).json({ message: 'Proforma not found' });
 
     const inline = req.query.view === '1';
@@ -188,9 +265,10 @@ exports.generatePDF = async (req, res) => {
     const HW = W / 2;
     const RX = X + HW;
     const items   = p.items || [];
-    const showTax = p.showTaxInPdf !== false;
-    const useIGST = showTax && p.sellerStateCode && p.customerStateCode &&
-                    p.sellerStateCode !== p.customerStateCode;
+    const showItemTaxColumns = shouldShowTaxPercentColumn(p);
+    const showTaxPercent = showItemTaxColumns;
+    const useIGST = taxModeFromRecord(p, 'customerStateCode', 'customerGstin') === 'igst';
+    const roundOffMode = normalizeRoundOffMode(p.roundOffMode, p.roundOff);
 
     // ── 1. HEADER ──────────────────────────────────────────────────────────────
     const sellerLines = [
@@ -302,6 +380,34 @@ exports.generatePDF = async (req, res) => {
       const widest = values.reduce((mx, v) => Math.max(mx, textW(v, size, bold)), 0);
       return Math.max(min, Math.min(max, Math.ceil(widest + (pad || 8))));
     }
+    function fitLayout(layout, minDesc, adjustable) {
+      let fixed = Object.keys(layout).reduce((sum, key) => sum + layout[key], 0);
+      let desc = W - fixed;
+      let deficit = minDesc - desc;
+      if (deficit > 0) {
+        adjustable.forEach(item => {
+          if (deficit <= 0) return;
+          const current = layout[item.key];
+          const canReduce = current - item.min;
+          if (canReduce <= 0) return;
+          const reduceBy = Math.min(canReduce, deficit);
+          layout[item.key] = current - reduceBy;
+          deficit -= reduceBy;
+        });
+        fixed = Object.keys(layout).reduce((sum, key) => sum + layout[key], 0);
+        desc = W - fixed;
+      }
+      layout.desc = desc;
+      return layout;
+    }
+    function fitTextSize(text, maxWidth, baseSize, minSize, bold) {
+      let size = baseSize;
+      while (size > minSize) {
+        if (textW(text, size, bold) <= maxWidth) return size;
+        size -= 0.2;
+      }
+      return minSize;
+    }
     function breakToken(token, maxW, size, bold) {
       const chunks = []; let cur = '';
       doc.fontSize(size || 7.2).font(bold ? 'Helvetica-Bold' : 'Helvetica');
@@ -334,26 +440,63 @@ exports.generatePDF = async (req, res) => {
     }
 
     // Compute per-column content widths
+    const codeTexts = items.map(it => String(it.itemCode || '').trim() || '-').concat(['Code']);
+    const hsnTexts = items.map(it => String(it.hsnCode || '').trim() || '-').concat(['HSN/SAC']);
+    const unitTexts = items.map(it => String(it.unit || '').trim() || '-').concat(['Unit']);
+    const qtyTexts = items.map(it => {
+      const qty = parseFloat(it.quantity || 0);
+      return qty % 1 === 0 ? String(qty) : qty.toFixed(3);
+    }).concat(['Qty']);
     const priceTexts = items.map(it => cellMoney(parseFloat(it.unitPrice || 0))).concat(['Rate']);
     const amtTexts = items.map(it => {
       const qty = parseFloat(it.quantity || 0), price = parseFloat(it.unitPrice || 0);
       const disc = parseFloat(it.discount || 0);
       const taxable = parseFloat(it.taxableAmount || (qty * price * (1 - disc / 100)));
-      const tot = parseFloat(it.itemTotal || (taxable + parseFloat(it.igst || 0) + parseFloat(it.cgst || 0) + parseFloat(it.sgst || 0)));
-      return cellMoney(tot);
-    }).concat(['Total']);
-    const taxAmtTexts = showTax ? items.map(it =>
+      return cellMoney(taxable);
+    }).concat(['Amount']);
+    const taxPctTexts = items.map(it => parseFloat(it.taxRate || 0).toFixed(0) + '%').concat(['Tax %']);
+    const taxAmtTexts = items.map(it =>
       useIGST ? cellMoney(parseFloat(it.igst || 0))
               : cellMoney(parseFloat(it.cgst || 0) + parseFloat(it.sgst || 0))
-    ).concat(['Tax Amt']) : [];
+    ).concat(['Tax Amt']);
 
-    const rateW  = dynW(priceTexts, 36, 52, 7.1, false, 8);
-    const amtW   = dynW(amtTexts, 70, 88, 7.1, true, 10);
-    const taxPW  = showTax ? 28 : 0;
-    const taxAmtW = showTax ? dynW(taxAmtTexts, 44, 64, 7.1, false, 8) : 0;
-    const fixedSum = 18 + 30 + 36 + 22 + 20 + rateW + taxPW + taxAmtW + amtW;
-    const descW = Math.max(120, W - fixedSum);
-    const COL = { sl: 18, code: 30, desc: descW, hsn: 36, unit: 22, qty: 20, rate: rateW, taxP: taxPW, taxAmt: taxAmtW, amt: amtW };
+    const COL = !showItemTaxColumns
+      ? fitLayout({
+          sl: 18,
+          code: dynW(codeTexts, 28, 50, 7.1, false, 8),
+          hsn: dynW(hsnTexts, 34, 58, 7.1, false, 8),
+          unit: dynW(unitTexts, 26, 44, 7.1, false, 8),
+          qty: dynW(qtyTexts, 22, 36, 7.1, false, 8),
+          rate: dynW(priceTexts, 42, 72, 7.1, false, 10),
+          amt: dynW(amtTexts, 82, 112, 7.1, true, 12),
+        }, 180, [
+          { key: 'amt', min: 82 },
+          { key: 'rate', min: 42 },
+          { key: 'hsn', min: 34 },
+          { key: 'unit', min: 26 },
+          { key: 'code', min: 28 },
+          { key: 'qty', min: 22 },
+        ])
+      : fitLayout({
+          sl: 18,
+          code: dynW(codeTexts, 26, 48, 7.1, false, 8),
+          hsn: dynW(hsnTexts, 32, 54, 7.1, false, 8),
+          unit: dynW(unitTexts, 26, 42, 7.1, false, 8),
+          qty: dynW(qtyTexts, 20, 34, 7.1, false, 8),
+          rate: dynW(priceTexts, 40, 66, 7.1, false, 10),
+          taxP: showTaxPercent ? dynW(taxPctTexts, 22, 36, 6.3, true, 8) : 0,
+          taxAmt: dynW(taxAmtTexts, 48, 82, 7.1, false, 10),
+          amt: dynW(amtTexts, 78, 110, 7.1, true, 12),
+        }, showTaxPercent ? 145 : 165, [
+          { key: 'amt', min: 78 },
+          { key: 'taxAmt', min: 48 },
+          { key: 'rate', min: 40 },
+          { key: 'hsn', min: 32 },
+          { key: 'unit', min: 26 },
+          { key: 'code', min: 26 },
+          { key: 'qty', min: 20 },
+          ...(showTaxPercent ? [{ key: 'taxP', min: 22 }] : []),
+        ]);
 
     const ROW_H = 14;
     const DATA_ROW_MIN = 16;
@@ -378,11 +521,11 @@ exports.generatePDF = async (req, res) => {
       }
       th('Sl.', COL.sl); th('Code', COL.code); th('Description', COL.desc);
       th('HSN/SAC', COL.hsn); th('Unit', COL.unit); th('Rate', COL.rate); th('Qty', COL.qty);
-      if (showTax) {
-        th('Tax %', COL.taxP);
+      if (showItemTaxColumns) {
+        if (showTaxPercent) th('Tax %', COL.taxP);
         th(useIGST ? 'IGST Amt' : 'Tax Amt', COL.taxAmt);
       }
-      th('Total', COL.amt);
+      th('Amount', COL.amt);
       return hy + ROW_H;
     }
 
@@ -398,7 +541,6 @@ exports.generatePDF = async (req, res) => {
       const igstAmt = parseFloat(it.igst  || 0);
       const cgstAmt = parseFloat(it.cgst  || 0);
       const sgstAmt = parseFloat(it.sgst  || 0);
-      const total   = parseFloat(it.itemTotal || (taxable + igstAmt + cgstAmt + sgstAmt));
       const itemCode  = String(it.itemCode || '').trim();
       const descText  = String(it.name || it.description || it.itemName || '').trim() || '-';
       const descLns   = wrapLines(descText, COL.desc - 10, 7.1, false);
@@ -418,7 +560,9 @@ exports.generatePDF = async (req, res) => {
         function td(text, w, opts) {
           vLine(dcx, y, y+rowH, LBD);
           const to = Object.assign({ size:7.4, align:'center', lineGap:0.5 }, opts||{});
-          txt(String(text), dcx+3, y+3, w-6, to);
+          const raw = String(text || '');
+          const size = to.fit ? fitTextSize(raw, w - 6, to.size, to.minSize || 6.2, !!to.bold) : to.size;
+          txt(raw, dcx+3, y+3, w-6, Object.assign({}, to, { size }));
           dcx += w;
         }
         function tdDesc(lns, w) {
@@ -431,17 +575,19 @@ exports.generatePDF = async (req, res) => {
 
         const seg = descLns.slice(lineIdx, lineIdx + segCount);
         td(firstSeg ? idx + 1 : '',                                 COL.sl);
-        td(firstSeg ? itemCode : '',                                COL.code);
+        td(firstSeg ? itemCode : '',                                COL.code, { fit:true, minSize:5.6, lineBreak:false, ellipsis:true });
         tdDesc(seg,                                                 COL.desc);
-        td(firstSeg ? (it.hsnCode || '') : '',                     COL.hsn);
-        td(firstSeg ? (it.unit || '') : '',                        COL.unit);
-        td(firstSeg ? cellMoney(price) : '',                       COL.rate, { align:'right' });
-        td(firstSeg ? (qty % 1 === 0 ? qty : qty.toFixed(3)) : '', COL.qty);
-        if (showTax) {
-          td(firstSeg ? taxRate.toFixed(0) + '%' : '', COL.taxP);
-          td(firstSeg ? cellMoney(useIGST ? igstAmt : cgstAmt + sgstAmt) : '', COL.taxAmt, { align:'right' });
+        td(firstSeg ? (it.hsnCode || '') : '',                     COL.hsn, { fit:true, minSize:5.6, lineBreak:false, ellipsis:true });
+        td(firstSeg ? (it.unit || '') : '',                        COL.unit, { fit:true, minSize:5.6, lineBreak:false, ellipsis:true });
+        td(firstSeg ? cellMoney(price) : '',                       COL.rate, { align:'right', fit:true, minSize:5.8, lineBreak:false });
+        td(firstSeg ? (qty % 1 === 0 ? qty : qty.toFixed(3)) : '', COL.qty, { fit:true, minSize:5.8, lineBreak:false });
+        if (showItemTaxColumns) {
+          if (showTaxPercent) {
+            td(firstSeg ? taxRate.toFixed(0) + '%' : '', COL.taxP, { fit:true, minSize:5.8, lineBreak:false });
+          }
+          td(firstSeg ? cellMoney(useIGST ? igstAmt : cgstAmt + sgstAmt) : '', COL.taxAmt, { align:'right', fit:true, minSize:5.8, lineBreak:false });
         }
-        td(firstSeg ? cellMoney(total) : '', COL.amt, { align:'right', bold:true });
+        td(firstSeg ? cellMoney(taxable) : '', COL.amt, { align:'right', bold:true, size:7.2, fit:true, minSize:5.6, lineBreak:false });
 
         y += rowH;
         lineIdx += segCount;
@@ -452,9 +598,9 @@ exports.generatePDF = async (req, res) => {
 
     // ── 5. AMOUNT IN WORDS + SUMMARY ───────────────────────────────────────────
     y = checkPage(y, 60);
-    const igstV = showTax ? parseFloat(p.totalIgst || 0) : 0;
-    const cgstV = showTax ? parseFloat(p.totalCgst || 0) : 0;
-    const sgstV = showTax ? parseFloat(p.totalSgst || 0) : 0;
+    const igstV = parseFloat(p.totalIgst || 0);
+    const cgstV = parseFloat(p.totalCgst || 0);
+    const sgstV = parseFloat(p.totalSgst || 0);
     const hasSplit = cgstV > 0.004 || sgstV > 0.004;
     const splitTotal = cgstV + sgstV;
 
@@ -464,7 +610,7 @@ exports.generatePDF = async (req, res) => {
       ...(cgstV > 0.004 ? [['CGST:', fmtINR(cgstV)]] : []),
       ...(sgstV > 0.004 ? [['SGST:', fmtINR(sgstV)]] : []),
       ...(hasSplit && splitTotal > 0.004 ? [['Total Tax:', fmtINR(splitTotal)]] : []),
-      ...(parseFloat(p.roundOff) ? [['Round Off:', fmtINR(p.roundOff)]] : []),
+      ...(roundOffMode !== 'none' ? [['Round Off:', fmtSignedINR(p.roundOff, roundOffMode)]] : []),
     ];
     const sumRowH   = 11;
     const sumTotalH = 14;
@@ -527,17 +673,21 @@ exports.generatePDF = async (req, res) => {
 
     // ── 8. NOTES / TERMS ───────────────────────────────────────────────────────
     const noteLines = [
-      p.termsConditions || '',
-      'Note: This is a Proforma Invoice — not a Tax Invoice. No legal payment obligation.',
+      String(p.notes || '').trim() ? 'Remarks: ' + String(p.notes).trim() : '',
+      String(p.termsConditions || '').trim() ? 'Terms & Conditions: ' + String(p.termsConditions).trim() : '',
     ].filter(Boolean);
-    y = checkPage(y, 32);
-    box(X, y, W, noteLines.length*9+7, LBD);
-    let ny = y+4;
-    noteLines.forEach(line => {
-      txt(line, X+5, ny, W-10, { size:7, color:GRY });
-      ny += 9;
-    });
+    if (noteLines.length) {
+      const noteH = noteLines.reduce((sum, line) => sum + txtH(line, W - 10, 7, false) + 2, 5);
+      y = checkPage(y, noteH);
+      box(X, y, W, noteH, LBD);
+      let ny = y + 4;
+      noteLines.forEach(line => {
+        txt(line, X + 5, ny, W - 10, { size: 7, color: GRY });
+        ny = doc.y + 2;
+      });
+    }
 
+    const footerInfoText = 'This is a computer-generated proforma invoice, not a tax invoice.';
     const CONF_TEXT =
       'Note: This document is the property of DHPE and is confidential. It must not be disclosed, ' +
       'shared, or transmitted to any person or firm not authorized by us. No part of this ' +
@@ -552,13 +702,29 @@ exports.generatePDF = async (req, res) => {
     if (totalPages) {
       for (let pi = 0; pi < totalPages; pi++) {
         doc.switchToPage(pageRange.start + pi);
-        const fy = PH - M - FOOTER_H;
-        const pageLabelW = 62;
-        doc.moveTo(X, fy).lineTo(X + W, fy).lineWidth(0.3).strokeColor('#aaaaaa').stroke();
-        doc.fontSize(5.8).font('Helvetica').fillColor(LGY)
-           .text(CONF_TEXT, X+4, fy+6, { width: W - pageLabelW - 14, align:'left', lineGap:0.7 });
-        doc.fontSize(6.2).font('Helvetica').fillColor(GRY)
-           .text(`Page ${pi + 1} of ${totalPages}`, X + W - pageLabelW - 4, fy + 18, pageLabelW, { align:'right', lineGap:0 });
+        const footerY = PH - M - FOOTER_H + 3;
+        const pageLabelW = 60;
+        const sepX = X + W - pageLabelW - 8;
+        const noteW = sepX - X - 6;
+        const showInfo = pi === totalPages - 1;
+        doc.moveTo(X, footerY).lineTo(X + W, footerY).lineWidth(0.3).strokeColor('#d7dce5').stroke();
+        doc.moveTo(sepX, footerY + 2).lineTo(sepX, footerY + FOOTER_H - 8).lineWidth(0.3).strokeColor('#d7dce5').stroke();
+        if (showInfo) {
+          doc.fontSize(5.5).font('Helvetica-Oblique').fillColor('#8a94a3')
+             .text(footerInfoText, X + 4, footerY + 1, { width: noteW, align: 'left', lineGap: 0 });
+        }
+        doc.fontSize(showInfo ? 4.9 : 5.2).font('Helvetica').fillColor('#7c8797')
+           .text(CONF_TEXT, X + 4, showInfo ? footerY + 8 : footerY + 3, {
+             width: noteW,
+             align: 'center',
+             lineGap: showInfo ? 0.1 : 0.15,
+           });
+        doc.fontSize(5.8).font('Helvetica').fillColor('#7c8797')
+           .text(`Page ${pi + 1} of ${totalPages}`, sepX + 4, showInfo ? footerY + 7 : footerY + 4, {
+             width: pageLabelW,
+             align: 'right',
+             lineGap: 0,
+           });
       }
     }
 

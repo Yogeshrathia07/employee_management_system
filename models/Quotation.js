@@ -3,6 +3,7 @@ const sequelize = require('../config/database');
 
 const Quotation = sequelize.define('Quotation', {
   quotationNumber: { type: DataTypes.STRING(50),  allowNull: false },
+  companyId:       { type: DataTypes.INTEGER,     allowNull: true },
   clientId:        { type: DataTypes.INTEGER,     allowNull: true },
   clientName:      { type: DataTypes.STRING(200), defaultValue: '' },
   clientGstin:     { type: DataTypes.STRING(20),  defaultValue: '' },

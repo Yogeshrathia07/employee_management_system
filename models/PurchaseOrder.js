@@ -3,6 +3,7 @@ const sequelize = require('../config/database');
 
 const PurchaseOrder = sequelize.define('PurchaseOrder', {
   poNumber:   { type: DataTypes.STRING(50),  allowNull: false },
+  companyId:  { type: DataTypes.INTEGER,     allowNull: true },
   vendorId:   { type: DataTypes.INTEGER,     allowNull: true },
   vendorName: { type: DataTypes.STRING(200), defaultValue: '' },
   projectAccountId: { type: DataTypes.INTEGER, allowNull: true },

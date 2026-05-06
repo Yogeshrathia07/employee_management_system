@@ -1,7 +1,16 @@
 'use strict';
 const { Op } = require('sequelize');
-const Invoice  = require('../models/Invoice');
+const { Invoice, Client, Vendor, ProjectAccount } = require('../models');
 const PDFDocument = require('pdfkit');
+const {
+  applyCompanyScope,
+  applySellerCompanySnapshot,
+  assertScopedRelation,
+  findScopedByPk,
+  getActorCompanyId,
+  resolveScopedCompany,
+  syncAccountsCompanyIds,
+} = require('./accountsCompanyScope');
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -93,7 +102,8 @@ async function nextInvoiceNumber(fy, code) {
 exports.getInvoices = async (req, res) => {
   try {
     const { q, status, type, from, to } = req.query;
-    const where = {};
+    if (req.user.role === 'admin') await syncAccountsCompanyIds();
+    const where = applyCompanyScope(req, {});
     if (status)        where.status      = status;
     if (type)          where.invoiceType = type;
     if (q)             where[Op.or] = [
@@ -116,7 +126,8 @@ exports.getInvoices = async (req, res) => {
 // ── GET /invoices/:id ─────────────────────────────────────────────────────────
 exports.getInvoice = async (req, res) => {
   try {
-    const inv = await Invoice.findByPk(req.params.id);
+    if (req.user.role === 'admin') await syncAccountsCompanyIds();
+    const inv = await findScopedByPk(Invoice, 'invoice', req, req.params.id, null, 'Invoice not found');
     if (!inv) return res.status(404).json({ message: 'Invoice not found' });
     res.json(inv);
   } catch (err) {
@@ -127,9 +138,19 @@ exports.getInvoice = async (req, res) => {
 // ── POST /invoices ────────────────────────────────────────────────────────────
 exports.createInvoice = async (req, res) => {
   try {
-    const data = req.body;
+    const data = Object.assign({}, req.body);
     if (!data.invoiceDate)    return res.status(400).json({ message: 'Invoice date required' });
     if (!data.customerName)   return res.status(400).json({ message: 'Customer name required' });
+    if (data.clientId) await assertScopedRelation(Client, 'client', req, data.clientId, 'Client not found');
+    if (data.vendorId) await assertScopedRelation(Vendor, 'vendor', req, data.vendorId, 'Vendor not found');
+    if (data.projectAccountId) {
+      await assertScopedRelation(ProjectAccount, 'projectAccount', req, data.projectAccountId, 'Project account not found');
+    }
+    const company = await resolveScopedCompany(req, data);
+    if (company) applySellerCompanySnapshot(data, company);
+    if (getActorCompanyId(req) && !data.companyId) {
+      return res.status(400).json({ message: 'Admin company not found' });
+    }
     data.invoiceNumber = await nextInvoiceNumber(data.financialYear, data.companyCode);
     data.createdBy     = req.user.id;
     const inv = await Invoice.create(data);
@@ -142,9 +163,19 @@ exports.createInvoice = async (req, res) => {
 // ── PUT /invoices/:id ─────────────────────────────────────────────────────────
 exports.updateInvoice = async (req, res) => {
   try {
-    const inv = await Invoice.findByPk(req.params.id);
+    if (req.user.role === 'admin') await syncAccountsCompanyIds();
+    const inv = await findScopedByPk(Invoice, 'invoice', req, req.params.id, null, 'Invoice not found');
     if (!inv) return res.status(404).json({ message: 'Invoice not found' });
-    await inv.update(req.body);
+    const updates = Object.assign({}, req.body);
+    if (updates.clientId) await assertScopedRelation(Client, 'client', req, updates.clientId, 'Client not found');
+    if (updates.vendorId) await assertScopedRelation(Vendor, 'vendor', req, updates.vendorId, 'Vendor not found');
+    if (updates.projectAccountId) {
+      await assertScopedRelation(ProjectAccount, 'projectAccount', req, updates.projectAccountId, 'Project account not found');
+    }
+    const company = await resolveScopedCompany(req, Object.assign({}, inv.toJSON(), updates));
+    if (company) applySellerCompanySnapshot(updates, company);
+    if (getActorCompanyId(req)) updates.companyId = getActorCompanyId(req);
+    await inv.update(updates);
     res.json(inv);
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -154,7 +185,8 @@ exports.updateInvoice = async (req, res) => {
 // ── DELETE /invoices/:id ──────────────────────────────────────────────────────
 exports.deleteInvoice = async (req, res) => {
   try {
-    const inv = await Invoice.findByPk(req.params.id);
+    if (req.user.role === 'admin') await syncAccountsCompanyIds();
+    const inv = await findScopedByPk(Invoice, 'invoice', req, req.params.id, null, 'Invoice not found');
     if (!inv) return res.status(404).json({ message: 'Invoice not found' });
     const { moveToRecycleBin } = require('./recycleBinController');
     await moveToRecycleBin('invoice', inv.id, req.user, inv.toJSON(), inv.invoiceNumber || ('Invoice #' + inv.id));
@@ -168,7 +200,8 @@ exports.deleteInvoice = async (req, res) => {
 // ── PATCH /invoices/:id/pay ───────────────────────────────────────────────────
 exports.markPaid = async (req, res) => {
   try {
-    const inv = await Invoice.findByPk(req.params.id);
+    if (req.user.role === 'admin') await syncAccountsCompanyIds();
+    const inv = await findScopedByPk(Invoice, 'invoice', req, req.params.id, null, 'Invoice not found');
     if (!inv) return res.status(404).json({ message: 'Invoice not found' });
     await inv.update({
       paymentStatus: 'Paid',
@@ -185,7 +218,8 @@ exports.markPaid = async (req, res) => {
 // ── GET /invoices/:id/pdf  (DHPE-style layout) ────────────────────────────────
 exports.downloadPDF = async (req, res) => {
   try {
-    const inv = await Invoice.findByPk(req.params.id);
+    if (req.user.role === 'admin') await syncAccountsCompanyIds();
+    const inv = await findScopedByPk(Invoice, 'invoice', req, req.params.id, null, 'Invoice not found');
     if (!inv) return res.status(404).json({ message: 'Invoice not found' });
 
     const inline = req.query.view === '1';
@@ -234,7 +268,9 @@ exports.downloadPDF = async (req, res) => {
            width:    w,
            align:    opts.align || 'left',
            lineGap:  opts.lineGap !== undefined ? opts.lineGap : 0.5,
-           ellipsis: false,
+           ellipsis: opts.ellipsis !== undefined ? opts.ellipsis : false,
+           lineBreak: opts.lineBreak !== undefined ? opts.lineBreak : true,
+           height: opts.height,
          });
     }
     // returns height of text block
@@ -259,13 +295,39 @@ exports.downloadPDF = async (req, res) => {
     function taxAmount(value) {
       return Math.abs(Number(value || 0));
     }
+    function normalizeRoundOffMode(mode, amount) {
+      if (mode === 'plus' || mode === 'minus' || mode === 'none') return mode;
+      const value = Number(amount || 0);
+      if (value > 0.004) return 'plus';
+      if (value < -0.004) return 'minus';
+      return 'none';
+    }
+    function fmtSignedINR(amount, mode) {
+      const normalized = normalizeRoundOffMode(mode, amount);
+      const prefix = normalized === 'plus' ? '+ ' : normalized === 'minus' ? '- ' : '';
+      return prefix + fmtINR(Math.abs(Number(amount || 0)));
+    }
+    function showTaxPercentColumn() {
+      if (taxExempt) return false;
+      if (inv.showTaxPercentInPdf === false) return false;
+      if (inv.showTaxPercentInPdf === true) return true;
+      return inv.showTaxInPdf !== false;
+    }
+    function normalizedStateCode(code, gstin) {
+      const raw = String(code || '').trim();
+      if (raw) return raw.length === 1 ? '0' + raw : raw;
+      const match = String(gstin || '').trim().match(/^(\d{2})/);
+      return match ? match[1] : '';
+    }
     function taxSummaryMode() {
-      if (!showTax) return 'none';
+      const sellerStateCode = normalizedStateCode(inv.sellerStateCode, inv.sellerGstin);
+      const customerStateCode = normalizedStateCode(inv.customerStateCode, inv.customerGstin);
+      if (!showTaxSummary) return 'none';
       if (taxAmount(inv.totalIgst) > 0.004 && taxAmount(inv.totalCgst) <= 0.004 && taxAmount(inv.totalSgst) <= 0.004) return 'igst';
       if (taxAmount(inv.totalCgst) > 0.004 || taxAmount(inv.totalSgst) > 0.004) return 'split';
       if (items.some(it => taxAmount(it.igst) > 0.004)) return 'igst';
       if (items.some(it => taxAmount(it.cgst) > 0.004 || taxAmount(it.sgst) > 0.004)) return 'split';
-      if (inv.sellerStateCode && inv.customerStateCode && inv.sellerStateCode !== inv.customerStateCode) return 'igst';
+      if (sellerStateCode && customerStateCode && sellerStateCode !== customerStateCode) return 'igst';
       return 'split';
     }
     function breakLongToken(token, maxWidth, size, bold) {
@@ -351,7 +413,7 @@ exports.downloadPDF = async (req, res) => {
       return layout;
     }
 
-    const FOOTER_H = 36;  // reserved at bottom of every page for footer
+    const FOOTER_H = 24;  // reserved at bottom of every page for footer
 
     // check page space, add new page if needed
     function checkPage(y, needed) {
@@ -365,7 +427,10 @@ exports.downloadPDF = async (req, res) => {
     let y = M;
     const items        = inv.items || [];
     const taxExempt    = !!inv.taxExempt;
-    const showTax      = !taxExempt && inv.showTaxInPdf !== false;
+    const showTaxSummary = !taxExempt;
+    const showItemTaxColumns = showTaxPercentColumn();
+    const showTaxPercent = showItemTaxColumns;
+    const roundOffMode = normalizeRoundOffMode(inv.roundOffMode, inv.roundOff);
     const taxMode      = taxSummaryMode();
     const useIGST      = taxMode === 'igst';
     const useSplitGST  = taxMode === 'split';
@@ -509,71 +574,82 @@ exports.downloadPDF = async (req, res) => {
     // 4. ITEMS TABLE
     // Description gets the widest stable column. Amount keeps enough room for
     // large values, while the shorter header label avoids wasting width.
+    const codeTexts = items.map(it => cleanText(it.itemCode || '') || '-').concat(['Code']);
+    const hsnTexts = items.map(it => cleanText(it.hsnCode || '') || '-').concat(['HSN/SAC']);
+    const unitTexts = items.map(it => cleanText(it.unit || '') || '-').concat(['Unit']);
+    const qtyTexts = items.map(it => {
+      const qty = parseFloat(it.quantity || 0);
+      return qty % 1 === 0 ? String(qty) : qty.toFixed(3);
+    }).concat(['Qty']);
     const priceTexts = items.map(it => cellMoney(parseFloat(it.unitPrice || 0))).concat(['Rate']);
     const amountTexts = items.map(it => {
       const qty = parseFloat(it.quantity || 0);
       const price = parseFloat(it.unitPrice || 0);
       const disc = parseFloat(it.discount || 0);
       const taxable = parseFloat(it.taxableAmount || (qty * price * (1 - disc / 100)));
-      const igstAmt = parseFloat(it.igst || 0);
-      const cgstAmt = parseFloat(it.cgst || 0);
-      const sgstAmt = parseFloat(it.sgst || 0);
-      const total = parseFloat(it.itemTotal || (taxable + igstAmt + cgstAmt + sgstAmt));
-      return cellMoney(total);
-    }).concat(['Total']);
+      return cellMoney(taxable);
+    }).concat(['Amount']);
     const igstTexts = items.map(it => cellMoney(parseFloat(it.igst || 0))).concat(['IGST Amt']);
     const splitTaxTexts = items.map(it => cellMoney(parseFloat(it.cgst || 0) + parseFloat(it.sgst || 0))).concat(['Tax Amt']);
-    const taxPctTexts = ['Tax %'];
+    const taxPctTexts = items.map(it => parseFloat(it.taxRate || 0).toFixed(0) + '%').concat(['Tax %']);
 
-    const COL = !showTax
+    const COL = !showTaxSummary || !showItemTaxColumns
       ? assignDesc({
           sl: 18,
-          code: 34,
-          hsn: 40,
-          unit: 22,
-          rate: dynamicColWidth(priceTexts, 38, 52, 7.1, false, 8),
-          qty: 22,
-          amt: dynamicColWidth(amountTexts, 74, 92, 7.1, true, 10),
-        }, 220, [
-          { key: 'amt', min: 74 },
-          { key: 'rate', min: 38 },
-          { key: 'code', min: 28 },
+          code: dynamicColWidth(codeTexts, 28, 50, 7.1, false, 8),
+          hsn: dynamicColWidth(hsnTexts, 34, 58, 7.1, false, 8),
+          unit: dynamicColWidth(unitTexts, 26, 44, 7.1, false, 8),
+          rate: dynamicColWidth(priceTexts, 42, 72, 7.1, false, 10),
+          qty: dynamicColWidth(qtyTexts, 22, 36, 7.1, false, 8),
+          amt: dynamicColWidth(amountTexts, 82, 112, 7.1, true, 12),
+        }, 180, [
+          { key: 'amt', min: 82 },
+          { key: 'rate', min: 42 },
           { key: 'hsn', min: 34 },
+          { key: 'unit', min: 26 },
+          { key: 'code', min: 28 },
+          { key: 'qty', min: 22 },
         ])
       : useIGST
         ? assignDesc({
             sl: 18,
-            code: 34,
-            hsn: 40,
-            unit: 22,
-            rate: dynamicColWidth(priceTexts, 38, 52, 7.1, false, 8),
-            qty: 22,
-            taxP: dynamicColWidth(taxPctTexts, 24, 32, 6.3, true, 8),
-            taxAmt: dynamicColWidth(igstTexts, 38, 56, 7.1, false, 8),
-            amt: dynamicColWidth(amountTexts, 72, 88, 7.1, true, 10),
-          }, 180, [
-            { key: 'amt', min: 72 },
-            { key: 'taxAmt', min: 38 },
-            { key: 'rate', min: 38 },
-            { key: 'code', min: 28 },
+            code: dynamicColWidth(codeTexts, 28, 50, 7.1, false, 8),
+            hsn: dynamicColWidth(hsnTexts, 34, 58, 7.1, false, 8),
+            unit: dynamicColWidth(unitTexts, 26, 44, 7.1, false, 8),
+            rate: dynamicColWidth(priceTexts, 42, 72, 7.1, false, 10),
+            qty: dynamicColWidth(qtyTexts, 22, 36, 7.1, false, 8),
+            ...(showTaxPercent ? { taxP: dynamicColWidth(taxPctTexts, 24, 40, 6.3, true, 8) } : {}),
+            taxAmt: dynamicColWidth(igstTexts, 44, 88, 7.1, false, 10),
+            amt: dynamicColWidth(amountTexts, 82, 118, 7.1, true, 12),
+          }, showTaxPercent ? 150 : 170, [
+            { key: 'amt', min: 82 },
+            { key: 'taxAmt', min: 44 },
+            { key: 'rate', min: 42 },
             { key: 'hsn', min: 34 },
+            { key: 'unit', min: 26 },
+            { key: 'code', min: 28 },
+            { key: 'qty', min: 22 },
+            ...(showTaxPercent ? [{ key: 'taxP', min: 24 }] : []),
           ])
         : assignDesc({
             sl: 18,
-            code: 30,
-            hsn: 36,
-            unit: 22,
-            rate: dynamicColWidth(priceTexts, 36, 48, 7.1, false, 8),
-            qty: 20,
-            taxP: dynamicColWidth(taxPctTexts, 22, 30, 6.3, true, 8),
-            taxAmt: dynamicColWidth(splitTaxTexts, 46, 66, 7.1, false, 8),
-            amt: dynamicColWidth(amountTexts, 68, 84, 7.1, true, 10),
-          }, 170, [
-            { key: 'amt', min: 68 },
-            { key: 'taxAmt', min: 46 },
-            { key: 'rate', min: 36 },
-            { key: 'code', min: 26 },
+            code: dynamicColWidth(codeTexts, 26, 48, 7.1, false, 8),
+            hsn: dynamicColWidth(hsnTexts, 32, 54, 7.1, false, 8),
+            unit: dynamicColWidth(unitTexts, 26, 42, 7.1, false, 8),
+            rate: dynamicColWidth(priceTexts, 40, 66, 7.1, false, 10),
+            qty: dynamicColWidth(qtyTexts, 20, 34, 7.1, false, 8),
+            ...(showTaxPercent ? { taxP: dynamicColWidth(taxPctTexts, 22, 36, 6.3, true, 8) } : {}),
+            taxAmt: dynamicColWidth(splitTaxTexts, 48, 82, 7.1, false, 10),
+            amt: dynamicColWidth(amountTexts, 78, 110, 7.1, true, 12),
+          }, showTaxPercent ? 145 : 165, [
+            { key: 'amt', min: 78 },
+            { key: 'taxAmt', min: 48 },
+            { key: 'rate', min: 40 },
             { key: 'hsn', min: 32 },
+            { key: 'unit', min: 26 },
+            { key: 'code', min: 26 },
+            { key: 'qty', min: 20 },
+            ...(showTaxPercent ? [{ key: 'taxP', min: 22 }] : []),
           ]);
 
     const ROW_H = 14;
@@ -600,20 +676,22 @@ exports.downloadPDF = async (req, res) => {
         cx += w;
       }
 
-      if (!showTax) {
+      if (!showTaxSummary || !showItemTaxColumns) {
         th('Sl.', COL.sl); th('Code', COL.code);
         th('Description', COL.desc); th('HSN/SAC', COL.hsn); th('Unit', COL.unit);
-        th('Rate', COL.rate); th('Qty', COL.qty); th('Total', COL.amt);
+        th('Rate', COL.rate); th('Qty', COL.qty); th('Amount', COL.amt);
       } else if (useIGST) {
         th('Sl.', COL.sl); th('Code', COL.code);
         th('Description', COL.desc); th('HSN/SAC', COL.hsn); th('Unit', COL.unit);
         th('Rate', COL.rate); th('Qty', COL.qty);
-        th('Tax %', COL.taxP); th('IGST Amt', COL.taxAmt); th('Total', COL.amt);
+        if (showTaxPercent) th('Tax %', COL.taxP);
+        th('IGST Amt', COL.taxAmt); th('Amount', COL.amt);
       } else {
         th('Sl.', COL.sl); th('Code', COL.code);
         th('Description', COL.desc); th('HSN/SAC', COL.hsn); th('Unit', COL.unit);
         th('Rate', COL.rate); th('Qty', COL.qty);
-        th('Tax %', COL.taxP); th('Tax Amt', COL.taxAmt); th('Total', COL.amt);
+        if (showTaxPercent) th('Tax %', COL.taxP);
+        th('Tax Amt', COL.taxAmt); th('Amount', COL.amt);
       }
       return hy + ROW_H;
     }
@@ -630,8 +708,10 @@ exports.downloadPDF = async (req, res) => {
       const igstAmt = parseFloat(it.igst || 0);
       const cgstAmt = parseFloat(it.cgst || 0);
       const sgstAmt = parseFloat(it.sgst || 0);
-      const total = parseFloat(it.itemTotal || (taxable + igstAmt + cgstAmt + sgstAmt));
       const itemCode = cleanText(it.itemCode || '');
+      const hsnCode = cleanText(it.hsnCode || '');
+      const unitText = cleanText(it.unit || '');
+      const qtyText = qty % 1 === 0 ? String(qty) : qty.toFixed(3);
       const descText = cleanText(it.name || it.description || it.itemName || '') || '-';
       const descLines = wrapTextLines(descText, COL.desc - 10, 7.1, false);
       let lineIndex = 0;
@@ -676,22 +756,22 @@ exports.downloadPDF = async (req, res) => {
 
         const descSlice = descLines.slice(lineIndex, lineIndex + segmentLineCount);
         td(firstSegment ? idx + 1 : '',                    COL.sl);
-        td(firstSegment ? itemCode : '',                   COL.code);
+        td(firstSegment ? itemCode : '',                   COL.code, { fit: true, minSize: 5.6, lineBreak: false, ellipsis: true });
         tdDesc(descSlice,                                  COL.desc);
-        td(firstSegment ? (it.hsnCode || '') : '',         COL.hsn);
-        td(firstSegment ? (it.unit || '') : '',            COL.unit);
-        td(firstSegment ? cellMoney(price) : '',           COL.rate, { align: 'right', fit: true });
-        td(firstSegment ? (qty % 1 === 0 ? qty : qty.toFixed(3)) : '', COL.qty);
+        td(firstSegment ? hsnCode : '',                    COL.hsn, { fit: true, minSize: 5.6, lineBreak: false, ellipsis: true });
+        td(firstSegment ? unitText : '',                   COL.unit, { fit: true, minSize: 5.6, lineBreak: false, ellipsis: true });
+        td(firstSegment ? cellMoney(price) : '',           COL.rate, { align: 'right', fit: true, minSize: 5.8, lineBreak: false });
+        td(firstSegment ? qtyText : '',                    COL.qty, { fit: true, minSize: 5.8, lineBreak: false });
 
-        if (showTax && useIGST) {
-          td(firstSegment ? taxRate.toFixed(0) + '%' : '', COL.taxP);
-          td(firstSegment ? cellMoney(igstAmt) : '',       COL.taxAmt, { align: 'right', fit: true });
-        } else if (showTax && useSplitGST) {
-          td(firstSegment ? taxRate.toFixed(0) + '%' : '', COL.taxP);
-          td(firstSegment ? cellMoney(cgstAmt + sgstAmt) : '', COL.taxAmt, { align: 'right', fit: true });
+        if (showItemTaxColumns && useIGST) {
+          if (showTaxPercent) td(firstSegment ? taxRate.toFixed(0) + '%' : '', COL.taxP, { fit: true, minSize: 5.8, lineBreak: false });
+          td(firstSegment ? cellMoney(igstAmt) : '',       COL.taxAmt, { align: 'right', fit: true, minSize: 5.8, lineBreak: false });
+        } else if (showItemTaxColumns && useSplitGST) {
+          if (showTaxPercent) td(firstSegment ? taxRate.toFixed(0) + '%' : '', COL.taxP, { fit: true, minSize: 5.8, lineBreak: false });
+          td(firstSegment ? cellMoney(cgstAmt + sgstAmt) : '', COL.taxAmt, { align: 'right', fit: true, minSize: 5.8, lineBreak: false });
         }
 
-        td(firstSegment ? cellMoney(total) : '', COL.amt, { align: 'right', bold: true, size: 7.2, fit: true, minSize: 5.8 });
+        td(firstSegment ? cellMoney(taxable) : '', COL.amt, { align: 'right', bold: true, size: 7.2, fit: true, minSize: 5.6, lineBreak: false });
 
         y += rowH;
         lineIndex += segmentLineCount;
@@ -708,9 +788,9 @@ exports.downloadPDF = async (req, res) => {
     // ════════════════════════════════════════════════════════════════════════
     y = checkPage(y, 60);
 
-    const igstV = showTax ? taxAmount(inv.totalIgst) : 0;
-    const cgstV = showTax ? taxAmount(inv.totalCgst) : 0;
-    const sgstV = showTax ? taxAmount(inv.totalSgst) : 0;
+    const igstV = showTaxSummary ? taxAmount(inv.totalIgst) : 0;
+    const cgstV = showTaxSummary ? taxAmount(inv.totalCgst) : 0;
+    const sgstV = showTaxSummary ? taxAmount(inv.totalSgst) : 0;
     const hasSplit = cgstV > 0.004 || sgstV > 0.004;
     const splitTotal = cgstV + sgstV;
 
@@ -720,7 +800,7 @@ exports.downloadPDF = async (req, res) => {
       ...(cgstV > 0.004 ? [['CGST:', fmtINR(cgstV)]] : []),
       ...(sgstV > 0.004 ? [['SGST:', fmtINR(sgstV)]] : []),
       ...(hasSplit && splitTotal > 0.004 ? [['Total Tax:', fmtINR(splitTotal)]] : []),
-      ...(parseFloat(inv.roundOff) ? [['Round Off:', fmtINR(inv.roundOff)]] : []),
+      ...(roundOffMode !== 'none' ? [['Round Off:', fmtSignedINR(inv.roundOff, roundOffMode)]] : []),
     ];
 
     const sumRowH  = 11;
@@ -798,22 +878,26 @@ exports.downloadPDF = async (req, res) => {
     // ════════════════════════════════════════════════════════════════════════
     // 7. FOOTER NOTE
     // ════════════════════════════════════════════════════════════════════════
-    y = checkPage(y, 32);
     const noteLines = [
-      inv.termsConditions || '',
-      'Note: This is a computer-generated invoice.',
+      String(inv.notes || '').trim() ? 'Remarks: ' + String(inv.notes).trim() : '',
+      String(inv.termsConditions || '').trim() ? 'Terms & Conditions: ' + String(inv.termsConditions).trim() : '',
     ].filter(Boolean);
+    if (noteLines.length) {
+      const noteH = noteLines.reduce((sum, line) => sum + txtH(line, W - 10, 7, false) + 2, 5);
+      y = checkPage(y, noteH);
 
-    box(X, y, W, noteLines.length * 9 + 7, LBD);
-    let ny = y + 4;
-    noteLines.forEach(line => {
-      txt(line, X + 5, ny, W - 10, { size: 7, color: GRY });
-      ny += 9;
-    });
+      box(X, y, W, noteH, LBD);
+      let ny = y + 4;
+      noteLines.forEach(line => {
+        txt(line, X + 5, ny, W - 10, { size: 7, color: GRY });
+        ny = doc.y + 2;
+      });
+    }
 
     // ════════════════════════════════════════════════════════════════════════
-    // 8. FOOTER: confidentiality notice on the last page only
+    // 8. FOOTER: slim full-width footer strip on every page
     // ════════════════════════════════════════════════════════════════════════
+    const footerInfoText = 'This is a computer-generated invoice.';
     const CONF_TEXT =
       'Note: This document is the property of DHPE and is confidential. It must not be disclosed, ' +
       'shared, or transmitted to any person or firm not authorized by us. No part of this ' +
@@ -830,20 +914,47 @@ exports.downloadPDF = async (req, res) => {
     if (totalPages) {
       for (let pageIndex = 0; pageIndex < totalPages; pageIndex += 1) {
         doc.switchToPage(pageRange.start + pageIndex);
-        const fy = PH - M - FOOTER_H;
         const pageLabel = `Page ${pageIndex + 1} of ${totalPages}`;
-        const pageLabelW = 62;
-        const noteX = X + 4;
-        const noteW = W - pageLabelW - 14;
+        const footerY = PH - M - FOOTER_H + 3;
+        const pageLabelW = 60;
+        const sepX = X + W - pageLabelW - 8;
+        const noteW = sepX - X - 6;
+        const showInfo = pageIndex === totalPages - 1;
 
-        doc.moveTo(X, fy).lineTo(X + W, fy)
-           .lineWidth(0.3).strokeColor('#aaaaaa').stroke();
+        doc.moveTo(X, footerY)
+           .lineTo(X + W, footerY)
+           .lineWidth(0.3)
+           .strokeColor('#d7dce5')
+           .stroke();
 
-        doc.fontSize(5.8).font('Helvetica').fillColor(LGY)
-           .text(CONF_TEXT, noteX, fy + 6, { width: noteW, align: 'left', lineGap: 0.7 });
+        doc.moveTo(sepX, footerY + 2)
+           .lineTo(sepX, footerY + FOOTER_H - 8)
+           .lineWidth(0.3)
+           .strokeColor('#d7dce5')
+           .stroke();
 
-        doc.fontSize(6.2).font('Helvetica').fillColor(GRY)
-           .text(pageLabel, X + W - pageLabelW - 4, fy + 18, pageLabelW, { align: 'right', lineGap: 0 });
+        if (showInfo) {
+          doc.fontSize(5.7).font('Helvetica-Bold').fillColor('#4b5563')
+             .text(footerInfoText, X + 4, footerY + 1, {
+               width: noteW,
+               align: 'center',
+               lineGap: 0,
+             });
+        }
+
+        doc.fontSize(showInfo ? 4.9 : 5.2).font('Helvetica').fillColor('#7c8797')
+           .text(CONF_TEXT, X + 4, showInfo ? footerY + 8 : footerY + 3, {
+             width: noteW,
+             align: 'center',
+             lineGap: showInfo ? 0.1 : 0.15,
+           });
+
+        doc.fontSize(5.8).font('Helvetica').fillColor('#7c8797')
+           .text(pageLabel, sepX + 4, showInfo ? footerY + 7 : footerY + 4, {
+             width: pageLabelW,
+             align: 'right',
+             lineGap: 0,
+           });
       }
     }
 

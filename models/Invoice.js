@@ -7,6 +7,7 @@ const Invoice = sequelize.define('Invoice', {
   invoiceNumber: { type: DataTypes.STRING(50),  allowNull: false },
   taxExempt:     { type: DataTypes.BOOLEAN,     defaultValue: false },
   showTaxInPdf:  { type: DataTypes.BOOLEAN,     defaultValue: true },
+  showTaxPercentInPdf: { type: DataTypes.BOOLEAN, defaultValue: true },
   documentType:  { type: DataTypes.STRING(50),  defaultValue: 'Tax Invoice' },
   invoiceType:   { type: DataTypes.ENUM('B2B', 'B2C'), defaultValue: 'B2B' },
   invoiceDate:   { type: DataTypes.DATEONLY,    allowNull: false },
@@ -64,6 +65,7 @@ const Invoice = sequelize.define('Invoice', {
   totalSgst:   { type: DataTypes.DECIMAL(14, 2), defaultValue: 0 },
   totalIgst:   { type: DataTypes.DECIMAL(14, 2), defaultValue: 0 },
   totalTax:    { type: DataTypes.DECIMAL(14, 2), defaultValue: 0 },
+  roundOffMode:{ type: DataTypes.ENUM('none', 'plus', 'minus'), defaultValue: 'none' },
   roundOff:    { type: DataTypes.DECIMAL(8, 2),  defaultValue: 0 },
   totalAmount: { type: DataTypes.DECIMAL(14, 2), defaultValue: 0 },
 
@@ -90,6 +92,7 @@ const Invoice = sequelize.define('Invoice', {
   termsConditions: { type: DataTypes.TEXT, defaultValue: '' },
 
   // ── Metadata ──────────────────────────────────────────────────────────────
+  companyId: { type: DataTypes.INTEGER, allowNull: true },
   createdBy: { type: DataTypes.INTEGER, allowNull: true },
 
   // ── Linked Records (Accounts interconnection) ─────────────────────────

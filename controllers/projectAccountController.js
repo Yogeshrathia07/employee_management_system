@@ -2,6 +2,13 @@
 const { Op } = require('sequelize');
 const { ProjectAccount, PurchaseOrder, Invoice, WorkOrder, Client, Company } = require('../models');
 const {
+  applyCompanyScope,
+  assertScopedRelation,
+  findScopedByPk,
+  getActorCompanyId,
+  syncAccountsCompanyIds,
+} = require('./accountsCompanyScope');
+const {
   M, W, X, BLK, GRY, HBG, LBD,
   fmtDate, fmtINR, buildPdfFilename, createDoc, addFooters,
   drawSectionLabel, drawSignature,
@@ -17,7 +24,8 @@ function cleanGeneratedCode(value, prefix) {
 exports.getProjectAccounts = async (req, res) => {
   try {
     const { q, status } = req.query;
-    const where = {};
+    if (req.user.role === 'admin') await syncAccountsCompanyIds();
+    const where = applyCompanyScope(req, {});
     if (status) where.status = status;
     if (q) where[Op.or] = [
       { name:        { [Op.like]: `%${q}%` } },
@@ -26,6 +34,7 @@ exports.getProjectAccounts = async (req, res) => {
     ];
     const rows = await ProjectAccount.findAll({ where, order: [['createdAt','DESC']],
       include: [
+        { model: Company, as: 'company', attributes: ['id','name','gstNo'], required: false },
         { model: Client, as: 'client', attributes: ['id','name','clientCode'], required: false },
         { model: PurchaseOrder, as: 'purchaseOrders', attributes: ['id','totalAmount'] },
         { model: Invoice, as: 'invoices', attributes: ['id','totalAmount'] },
@@ -48,14 +57,16 @@ exports.getProjectAccounts = async (req, res) => {
 // ── GET /project-accounts/:id ─────────────────────────────────────────────────
 exports.getProjectAccount = async (req, res) => {
   try {
-    const pa = await ProjectAccount.findByPk(req.params.id, {
+    if (req.user.role === 'admin') await syncAccountsCompanyIds();
+    const pa = await findScopedByPk(ProjectAccount, 'projectAccount', req, req.params.id, {
       include: [
+        { model: Company, as: 'company', required: false },
         { model: Client, as: 'client', required: false },
         { model: PurchaseOrder, as: 'purchaseOrders' },
         { model: Invoice, as: 'invoices' },
         { model: WorkOrder, as: 'workOrders' },
       ],
-    });
+    }, 'Project Account not found');
     if (!pa) return res.status(404).json({ message: 'Project Account not found' });
     const plain = pa.toJSON();
     plain.spent = (plain.purchaseOrders || []).reduce((s, po) => s + parseFloat(po.totalAmount || 0), 0);
@@ -68,17 +79,19 @@ exports.getProjectAccount = async (req, res) => {
 // ── GET /project-accounts/:id/pdf ─────────────────────────────────────────────
 exports.generatePDF = async (req, res) => {
   try {
-    const pa = await ProjectAccount.findByPk(req.params.id, {
+    if (req.user.role === 'admin') await syncAccountsCompanyIds();
+    const pa = await findScopedByPk(ProjectAccount, 'projectAccount', req, req.params.id, {
       include: [
+        { model: Company, as: 'company', required: false },
         { model: Client, as: 'client', required: false },
         { model: PurchaseOrder, as: 'purchaseOrders' },
         { model: Invoice, as: 'invoices' },
         { model: WorkOrder, as: 'workOrders' },
       ],
-    });
+    }, 'Project Account not found');
     if (!pa) return res.status(404).json({ message: 'Project Account not found' });
 
-    const company = req.user.companyId ? await Company.findByPk(req.user.companyId) : null;
+    const company = pa.company || (pa.companyId ? await Company.findByPk(pa.companyId) : null);
     const plain = pa.toJSON();
     const spent = (plain.purchaseOrders || []).reduce((sum, po) => sum + parseFloat(po.totalAmount || 0), 0);
     const billed = (plain.invoices || []).reduce((sum, inv) => sum + parseFloat(inv.totalAmount || 0), 0);
@@ -189,14 +202,20 @@ exports.generatePDF = async (req, res) => {
 // ── POST /project-accounts ────────────────────────────────────────────────────
 exports.createProjectAccount = async (req, res) => {
   try {
-    const data = req.body;
+    const data = Object.assign({}, req.body);
     if (!data.name) return res.status(400).json({ message: 'Project name required' });
     data.projectCode = cleanGeneratedCode(data.projectCode, 'PRJ');
     data.createdBy = req.user.id;
+    const client = data.clientId
+      ? await assertScopedRelation(Client, 'client', req, data.clientId, 'Client not found')
+      : null;
+    data.companyId = getActorCompanyId(req)
+      || (client && client.companyId)
+      || data.companyId
+      || null;
     // auto-fill clientName
     if (data.clientId && !data.clientName) {
-      const c = await Client.findByPk(data.clientId);
-      if (c) data.clientName = c.name;
+      if (client) data.clientName = client.name;
     }
     const pa = await ProjectAccount.create(data);
     res.status(201).json(pa);
@@ -206,9 +225,19 @@ exports.createProjectAccount = async (req, res) => {
 // ── PUT /project-accounts/:id ─────────────────────────────────────────────────
 exports.updateProjectAccount = async (req, res) => {
   try {
-    const pa = await ProjectAccount.findByPk(req.params.id);
+    if (req.user.role === 'admin') await syncAccountsCompanyIds();
+    const pa = await findScopedByPk(ProjectAccount, 'projectAccount', req, req.params.id, null, 'Project Account not found');
     if (!pa) return res.status(404).json({ message: 'Project Account not found' });
-    await pa.update(req.body);
+    const updates = Object.assign({}, req.body);
+    const client = updates.clientId
+      ? await assertScopedRelation(Client, 'client', req, updates.clientId, 'Client not found')
+      : null;
+    if (updates.clientId && !updates.clientName && client) updates.clientName = client.name;
+    updates.companyId = getActorCompanyId(req)
+      || (client && client.companyId)
+      || pa.companyId
+      || null;
+    await pa.update(updates);
     res.json(pa);
   } catch (err) { res.status(500).json({ message: err.message }); }
 };
@@ -216,7 +245,8 @@ exports.updateProjectAccount = async (req, res) => {
 // ── DELETE /project-accounts/:id ──────────────────────────────────────────────
 exports.deleteProjectAccount = async (req, res) => {
   try {
-    const pa = await ProjectAccount.findByPk(req.params.id);
+    if (req.user.role === 'admin') await syncAccountsCompanyIds();
+    const pa = await findScopedByPk(ProjectAccount, 'projectAccount', req, req.params.id, null, 'Project Account not found');
     if (!pa) return res.status(404).json({ message: 'Project Account not found' });
     const { moveToRecycleBin } = require('./recycleBinController');
     await moveToRecycleBin('project_account', pa.id, req.user, pa.toJSON(), pa.name);

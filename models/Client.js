@@ -13,6 +13,7 @@ const Client = sequelize.define('Client', {
   state:         { type: DataTypes.STRING(100), defaultValue: '' },
   stateCode:     { type: DataTypes.STRING(5),   defaultValue: '' },
   status:        { type: DataTypes.ENUM('Active', 'Inactive'), defaultValue: 'Active' },
+  companyId:     { type: DataTypes.INTEGER, allowNull: true },
   createdBy:     { type: DataTypes.INTEGER, allowNull: true },
 }, { timestamps: true });
 

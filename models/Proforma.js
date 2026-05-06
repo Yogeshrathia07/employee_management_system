@@ -3,9 +3,11 @@ const sequelize = require('../config/database');
 
 const Proforma = sequelize.define('Proforma', {
   proformaNumber: { type: DataTypes.STRING(50), allowNull: false },
+  companyId:      { type: DataTypes.INTEGER,    allowNull: true },
   clientId:       { type: DataTypes.INTEGER,    allowNull: true },
   sourceQuotationId: { type: DataTypes.INTEGER, allowNull: true },
   showTaxInPdf:   { type: DataTypes.BOOLEAN,    defaultValue: true },
+  showTaxPercentInPdf: { type: DataTypes.BOOLEAN, defaultValue: true },
 
   // Customer / Buyer
   customerName:      { type: DataTypes.STRING(200), defaultValue: '' },
@@ -56,6 +58,7 @@ const Proforma = sequelize.define('Proforma', {
   totalSgst:   { type: DataTypes.DECIMAL(14,2), defaultValue: 0 },
   totalIgst:   { type: DataTypes.DECIMAL(14,2), defaultValue: 0 },
   totalTax:    { type: DataTypes.DECIMAL(14,2), defaultValue: 0 },
+  roundOffMode:{ type: DataTypes.ENUM('none','plus','minus'), defaultValue: 'none' },
   roundOff:    { type: DataTypes.DECIMAL(8,2),  defaultValue: 0 },
   totalAmount: { type: DataTypes.DECIMAL(14,2), defaultValue: 0 },
 

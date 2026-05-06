@@ -67,6 +67,7 @@ app.get('/admin/notifications', (req, res) => res.render('admin/notifications', 
 app.get('/admin/policies',      (req, res) => res.render('admin/policies',      { title: 'Company Policy' }));
 app.get('/admin/recycle-bin',   (req, res) => res.redirect('/admin/dashboard'));
 app.get('/admin/tasks',         (req, res) => res.render('admin/tasks',         { title: 'Tasks' }));
+app.get('/admin/accounts',      (req, res) => res.render('superadmin/accounts', { title: 'Accounts', pageRole: 'admin' }));
 
 // Super Admin pages
 app.get('/superadmin/dashboard',   (req, res) => res.render('superadmin/dashboard',   { title: 'Dashboard' }));
@@ -75,7 +76,7 @@ app.get('/superadmin/users',       (req, res) => res.render('superadmin/users', 
 app.get('/superadmin/salary',      (req, res) => res.render('admin/payroll_spreadsheet', { title: 'All Payroll', pageRole: 'superadmin' }));
 app.get('/superadmin/recycle-bin', (req, res) => res.render('superadmin/recycle-bin', { title: 'Recycle Bin' }));
 app.get('/superadmin/policies',    (req, res) => res.render('superadmin/policies',    { title: 'Company Policies' }));
-app.get('/superadmin/accounts',    (req, res) => res.render('superadmin/accounts',    { title: 'Accounts' }));
+app.get('/superadmin/accounts',    (req, res) => res.render('superadmin/accounts',    { title: 'Accounts', pageRole: 'superadmin' }));
 app.get('/superadmin/projects',    (req, res) => res.render('superadmin/projects',    { title: 'Projects' }));
 app.get('/superadmin/tasks',       (req, res) => res.render('superadmin/tasks',       { title: 'Tasks' }));
 

@@ -1,6 +1,10 @@
 <%- include('../partials/head', {title: 'Accounts'}) %>
 <div class="app-layout">
-  <%- include('../partials/sidebar-superadmin') %>
+  <% if (pageRole === 'admin') { %>
+    <%- include('../partials/sidebar-admin') %>
+  <% } else { %>
+    <%- include('../partials/sidebar-superadmin') %>
+  <% } %>
   <div class="main-content">
     <header class="page-header">
       <div class="flex items-center gap-3">
@@ -617,11 +621,19 @@
           <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
             <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;font-weight:500;color:#075985;background:#e0f2fe;border:1px solid #38bdf8;border-radius:8px;padding:6px 14px;">
               <input type="checkbox" id="gst-show-tax-pdf" checked style="width:16px;height:16px;accent-color:#0284c7;cursor:pointer;">
-              Show Tax in PDF
+              Show Tax Columns in PDF
             </label>
             <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;font-weight:500;color:#374151;background:#fef3c7;border:1px solid #f59e0b;border-radius:8px;padding:6px 14px;">
               <input type="checkbox" id="gst-tax-exempt" onchange="toggleTaxExempt()" style="width:16px;height:16px;accent-color:#f59e0b;cursor:pointer;">
               Tax Exempt (No GST)
+            </label>
+            <label style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:500;color:#374151;background:#f8fafc;border:1px solid #cbd5e1;border-radius:8px;padding:6px 12px;">
+              Round Off
+              <select id="gst-roundoff-mode" class="form-control" onchange="recalcGST()" style="min-width:110px;height:34px;padding:6px 10px;">
+                <option value="none">Off</option>
+                <option value="plus">+</option>
+                <option value="minus">-</option>
+              </select>
             </label>
           </div>
         </div>
@@ -658,7 +670,7 @@
           <div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid #e5e7eb;" id="gst-sum-sgst-row"><span style="color:#6b7280;" id="gst-sum-sgst-label">SGST (9%)</span><span id="gst-sum-sgst" style="font-weight:600;color:#111;">₹0.00</span></div>
           <div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid #e5e7eb;" id="gst-sum-cgst-row"><span style="color:#6b7280;" id="gst-sum-cgst-label">CGST (9%)</span><span id="gst-sum-cgst" style="font-weight:600;color:#111;">₹0.00</span></div>
           <div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid #e5e7eb;" id="gst-sum-igst-row" style="display:none;"><span style="color:#6b7280;" id="gst-sum-igst-label">IGST (18%)</span><span id="gst-sum-igst" style="font-weight:600;color:#111;">₹0.00</span></div>
-          <div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid #e5e7eb;"><span style="color:#6b7280;">Round Off</span><span id="gst-sum-round" style="font-weight:600;color:#111;">₹0.00</span></div>
+          <div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid #e5e7eb;" id="gst-sum-round-row"><span style="color:#6b7280;">Round Off</span><span id="gst-sum-round" style="font-weight:600;color:#111;">₹0.00</span></div>
           <div style="display:flex;justify-content:space-between;padding:10px 0;grid-column:1/-1;border-top:2px solid #111;margin-top:4px;"><span style="font-size:14px;font-weight:700;color:#111;">Amount After Tax</span><span id="gst-sum-total" style="font-size:16px;font-weight:800;color:#111;">₹0.00</span></div>
         </div>
         <div id="gst-sum-tax-hint" style="font-size:11px;color:#9ca3af;margin-top:6px;"></div>
@@ -892,15 +904,23 @@
           <div class="gst-section-title"><i class="bx bx-calculator"></i> Tax Calculation</div>
           <label style="display:flex;align-items:center;gap:8px;width:max-content;cursor:pointer;font-size:13px;font-weight:600;color:#075985;background:#e0f2fe;border:1px solid #38bdf8;border-radius:8px;padding:7px 12px;margin-bottom:10px;">
             <input type="checkbox" id="pro-show-tax-pdf" checked style="width:16px;height:16px;accent-color:#0284c7;cursor:pointer;">
-            Show Tax in PDF
+            Show Tax Columns in PDF
           </label>
+          <div style="display:flex;align-items:center;gap:8px;width:max-content;font-size:13px;font-weight:600;color:#374151;background:#f8fafc;border:1px solid #cbd5e1;border-radius:8px;padding:7px 12px;margin-bottom:10px;">
+            <span>Round Off</span>
+            <select id="pro-roundoff-mode" class="form-control" onchange="recalcProforma()" style="min-width:110px;height:34px;padding:6px 10px;">
+              <option value="none">Off</option>
+              <option value="plus">+</option>
+              <option value="minus">-</option>
+            </select>
+          </div>
           <div class="gst-summary-table">
             <div class="gst-sum-row"><span>Total Amount</span><span id="pro-sub">₹0.00</span></div>
             <div class="gst-sum-row" id="pro-row-cgst"><span>CGST</span><span id="pro-cgst-val">₹0.00</span></div>
             <div class="gst-sum-row" id="pro-row-sgst"><span>SGST</span><span id="pro-sgst-val">₹0.00</span></div>
             <div class="gst-sum-row" id="pro-row-igst"><span>IGST</span><span id="pro-igst-val">₹0.00</span></div>
             <div class="gst-sum-row"><span>Total Tax</span><span id="pro-tax-total">₹0.00</span></div>
-            <div class="gst-sum-row" style="border-top:1px solid var(--border);padding-top:8px;"><span>Round Off</span><span id="pro-roundoff">₹0.00</span></div>
+            <div class="gst-sum-row" id="pro-roundoff-row" style="border-top:1px solid var(--border);padding-top:8px;"><span>Round Off</span><span id="pro-roundoff">₹0.00</span></div>
             <div class="gst-sum-row gst-total-row"><span>AMOUNT AFTER TAX</span><span id="pro-total-amt" style="font-size:18px;color:var(--accent);">₹0.00</span></div>
           </div>
         </div>
@@ -1479,20 +1499,22 @@
   overflow:visible;
   overflow-wrap:anywhere;
   page-break-after:auto;
-  padding-bottom:56px;
+  padding-bottom:24px;
 }
 .acc-doc-content {
   display:block;
   padding:8px 10px 0;
 }
 .acc-doc-footer {
-  border-top:1px solid #b8c0cc;
-  padding:5px 10px 6px;
-  margin-top:10px;
-  font-size:9.5px;
-  line-height:1.25;
-  color:#475569;
-  background:#fff;
+  width:100%;
+  margin:8px 0 0;
+  border-top:1px solid #d7dce5;
+  padding:4px 10px 0;
+  font-size:8.6px;
+  line-height:1.18;
+  color:#7c8797;
+  background:transparent;
+  text-align:center;
   break-inside:avoid;
   page-break-inside:avoid;
 }
@@ -1809,6 +1831,81 @@ function genId(prefix) { return prefix + '-' + Math.random().toString(36).substr
 function today() { return new Date().toISOString().slice(0,10); }
 function fmtAmt(n) { return '₹ ' + Number(n||0).toLocaleString('en-IN'); }
 function fmtD(s) { if(!s) return '-'; var d=new Date(s); return d.getDate()+' '+['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][d.getMonth()]+' '+d.getFullYear(); }
+function accountNumber(value) {
+  var num = parseFloat(value);
+  return isFinite(num) ? num : 0;
+}
+function accountShowTaxPercentColumn(record) {
+  if (!record) return true;
+  if (record.showTaxPercentInPdf === false) return false;
+  if (record.showTaxPercentInPdf === true) return true;
+  return record.showTaxInPdf !== false;
+}
+function accountItemTaxableAmount(item) {
+  item = item || {};
+  if (item.taxableAmount !== undefined && item.taxableAmount !== null && item.taxableAmount !== '') {
+    return accRoundMoney(item.taxableAmount);
+  }
+  var qty = accNumber(item.quantity || item.qty || 0);
+  var rate = accRoundMoney(item.unitPrice || item.rate || 0);
+  var discount = accNumber(item.discount || 0);
+  var computed = accRoundMoney(qty * rate * (1 - discount / 100));
+  if (computed || qty || rate || discount) return computed;
+  var fallback = item.amount;
+  if (fallback === undefined || fallback === null || fallback === '') fallback = item.total;
+  if (fallback === undefined || fallback === null || fallback === '') fallback = item.itemTotal;
+  return accRoundMoney(fallback);
+}
+function accountNormalizedStateCode(code, gstin) {
+  code = String(code || '').trim();
+  if (code.length === 1) code = '0' + code;
+  if (code) return code;
+  return accountStateCodeFromGstin(gstin);
+}
+function accountStateTaxMode(sellerCode, customerCode, sellerGstin, customerGstin) {
+  var seller = accountNormalizedStateCode(sellerCode, sellerGstin);
+  var customer = accountNormalizedStateCode(customerCode, customerGstin);
+  return seller && customer && seller !== customer ? 'igst' : 'split';
+}
+function accountDocumentTaxMode(record) {
+  if (!record || record.taxExempt) return 'split';
+  var totalIgst = accountNumber(record.totalIgst);
+  var totalCgst = accountNumber(record.totalCgst);
+  var totalSgst = accountNumber(record.totalSgst);
+  if (totalIgst > 0.004 && totalCgst <= 0.004 && totalSgst <= 0.004) return 'igst';
+  if (totalCgst > 0.004 || totalSgst > 0.004) return 'split';
+  var items = Array.isArray(record.items) ? record.items : [];
+  if (items.some(function(it) { return accountNumber(it && it.igst) > 0.004; })) return 'igst';
+  if (items.some(function(it) { return accountNumber(it && it.cgst) > 0.004 || accountNumber(it && it.sgst) > 0.004; })) return 'split';
+  return accountStateTaxMode(
+    record.sellerStateCode,
+    record.customerStateCode != null ? record.customerStateCode : record.clientStateCode,
+    record.sellerGstin,
+    record.customerGstin != null ? record.customerGstin : record.clientGstin
+  );
+}
+function accountRoundOffMode(mode, amount) {
+  if (mode === 'plus' || mode === 'minus' || mode === 'none') return mode;
+  var value = accountNumber(amount);
+  if (value > 0.004) return 'plus';
+  if (value < -0.004) return 'minus';
+  return 'none';
+}
+function accountCalcRoundOff(gross, mode) {
+  var value = accountNumber(gross);
+  var normalized = accountRoundOffMode(mode, 0);
+  if (normalized === 'plus') return parseFloat((Math.ceil(value) - value).toFixed(2));
+  if (normalized === 'minus') return parseFloat((Math.floor(value) - value).toFixed(2));
+  return 0;
+}
+function accountFmtRupee(amount) {
+  return '\u20B9' + accountNumber(amount).toFixed(2);
+}
+function accountFmtSignedRupee(amount, mode) {
+  var normalized = accountRoundOffMode(mode, amount);
+  var prefix = normalized === 'plus' ? '+ ' : normalized === 'minus' ? '- ' : '';
+  return prefix + accountFmtRupee(Math.abs(accountNumber(amount)));
+}
 var ACCOUNTS_REGISTRY_KEYS = {
   customers: 'acc_customer_registry',
   projects: 'acc_project_registry',
@@ -2257,7 +2354,8 @@ function openGSTModal(invId) {
       document.getElementById('gst-project').value     = inv.projectName   || '';
       document.getElementById('gst-work-details').value= inv.workDetails   || '';
       document.getElementById('gst-tax-exempt').checked = !!inv.taxExempt;
-      document.getElementById('gst-show-tax-pdf').checked = inv.showTaxInPdf !== false;
+      document.getElementById('gst-show-tax-pdf').checked = accountShowTaxPercentColumn(inv);
+      document.getElementById('gst-roundoff-mode').value = accountRoundOffMode(inv.roundOffMode, inv.roundOff);
       toggleTaxExempt();
       document.getElementById('gst-sgst-rate').value   = inv.sgstRate != null ? inv.sgstRate : 9;
       document.getElementById('gst-cgst-rate').value   = inv.cgstRate != null ? inv.cgstRate : 9;
@@ -2306,6 +2404,7 @@ function openGSTModal(invId) {
     document.getElementById('gst-notes').value        = '';
     document.getElementById('gst-tax-exempt').checked = false;
     document.getElementById('gst-show-tax-pdf').checked = true;
+    document.getElementById('gst-roundoff-mode').value = 'none';
     toggleTaxExempt();
     addGSTItem();
     recalcGST();
@@ -2397,7 +2496,9 @@ function recalcGST() {
   var cgstRate = exempt ? 0 : (parseFloat(document.getElementById('gst-cgst-rate') && document.getElementById('gst-cgst-rate').value) || 0);
   var sellerCode   = (document.getElementById('gst-s-code')   && document.getElementById('gst-s-code').value   || '').trim();
   var customerCode = (document.getElementById('gst-c-code')   && document.getElementById('gst-c-code').value   || '').trim();
-  var useIGST = !exempt && sellerCode && customerCode && sellerCode !== customerCode;
+  var sellerGstin  = document.getElementById('gst-s-gstin') ? document.getElementById('gst-s-gstin').value : '';
+  var customerGstin = document.getElementById('gst-c-gstin') ? document.getElementById('gst-c-gstin').value : '';
+  var useIGST = !exempt && accountStateTaxMode(sellerCode, customerCode, sellerGstin, customerGstin) === 'igst';
   var totalTaxRate = sgstRate + cgstRate;
   var igstRate = totalTaxRate; // same total rate, applied as single IGST for inter-state
 
@@ -2419,22 +2520,25 @@ function recalcGST() {
   var totalCgst = useIGST ? 0 : subtotal * cgstRate / 100;
   var totalIgst = useIGST ? subtotal * igstRate / 100 : 0;
   var gross     = subtotal + totalSgst + totalCgst + totalIgst;
-  var roundOff  = parseFloat((Math.round(gross) - gross).toFixed(2));
+  var roundMode = accountRoundOffMode(document.getElementById('gst-roundoff-mode') && document.getElementById('gst-roundoff-mode').value, 0);
+  var roundOff  = accountCalcRoundOff(gross, roundMode);
   var total     = gross + roundOff;
 
   // Update summary panel
-  function fmt(n) { return '₹' + n.toFixed(2); }
+  function fmt(n) { return accountFmtRupee(n); }
   var subEl = document.getElementById('gst-sum-sub');
   if (subEl) subEl.textContent = fmt(subtotal);
   var roundEl = document.getElementById('gst-sum-round');
-  if (roundEl) roundEl.textContent = fmt(roundOff);
+  if (roundEl) roundEl.textContent = accountFmtSignedRupee(roundOff, roundMode);
   var totalEl = document.getElementById('gst-sum-total');
   if (totalEl) totalEl.textContent = fmt(total);
 
   var sgstRow  = document.getElementById('gst-sum-sgst-row');
   var cgstRow  = document.getElementById('gst-sum-cgst-row');
   var igstRow  = document.getElementById('gst-sum-igst-row');
+  var roundRow = document.getElementById('gst-sum-round-row');
   var hintEl   = document.getElementById('gst-sum-tax-hint');
+  if (roundRow) roundRow.style.display = roundMode === 'none' ? 'none' : 'flex';
 
   if (useIGST) {
     if (sgstRow) sgstRow.style.display = 'none';
@@ -2469,7 +2573,9 @@ function collectGSTItems() {
   var totalTaxRate = sgstRate + cgstRate;
   var sellerCode   = (document.getElementById('gst-s-code').value   || '').trim();
   var customerCode = (document.getElementById('gst-c-code').value   || '').trim();
-  var useIGST = !exempt && sellerCode && customerCode && sellerCode !== customerCode;
+  var sellerGstin  = document.getElementById('gst-s-gstin') ? document.getElementById('gst-s-gstin').value : '';
+  var customerGstin = document.getElementById('gst-c-gstin') ? document.getElementById('gst-c-gstin').value : '';
+  var useIGST = !exempt && accountStateTaxMode(sellerCode, customerCode, sellerGstin, customerGstin) === 'igst';
 
   var cards = document.getElementById('gst-items-body').querySelectorAll('[id^="gst-row-"]');
   var items = [];
@@ -2517,8 +2623,9 @@ function saveGSTInvoice() {
     totalSgst += it.sgst;
     totalIgst += it.igst;
   });
+  var roundOffMode = accountRoundOffMode(document.getElementById('gst-roundoff-mode') && document.getElementById('gst-roundoff-mode').value, 0);
   var gross      = subtotal + totalCgst + totalSgst + totalIgst;
-  var roundOff   = parseFloat((Math.round(gross) - gross).toFixed(2));
+  var roundOff   = accountCalcRoundOff(gross, roundOffMode);
   var totalAmount= parseFloat((gross + roundOff).toFixed(2));
 
   var payload = {
@@ -2554,12 +2661,14 @@ function saveGSTInvoice() {
     totalSgst:         parseFloat(totalSgst.toFixed(2)),
     totalIgst:         parseFloat(totalIgst.toFixed(2)),
     totalTax:          parseFloat((totalCgst + totalSgst + totalIgst).toFixed(2)),
+    roundOffMode:      roundOffMode,
     roundOff:          roundOff,
     totalAmount:       totalAmount,
     sgstRate:          sgstRate,
     cgstRate:          cgstRate,
     taxExempt:         !!(document.getElementById('gst-tax-exempt') && document.getElementById('gst-tax-exempt').checked),
     showTaxInPdf:      !!(document.getElementById('gst-show-tax-pdf') && document.getElementById('gst-show-tax-pdf').checked),
+    showTaxPercentInPdf: !!(document.getElementById('gst-show-tax-pdf') && document.getElementById('gst-show-tax-pdf').checked),
     status:            document.getElementById('gst-status').value,
     bankName:          document.getElementById('gst-bank-name').value,
     bankAcName:        document.getElementById('gst-bank-acname').value,
@@ -2928,7 +3037,7 @@ function printInvoice(id) {
 /* ── Preview Invoice ────────────────────────────────────── */
 function previewInvoice(id) {
   api('GET', '/invoices/' + id).then(function(inv) {
-    var useIGST = inv.sellerStateCode && inv.customerStateCode && inv.sellerStateCode !== inv.customerStateCode;
+    var useIGST = accountDocumentTaxMode(inv) === 'igst';
     var items   = inv.items || [];
     var fmt = function(n) { return '₹' + Number(n||0).toLocaleString('en-IN', {minimumFractionDigits:2, maximumFractionDigits:2}); };
 
@@ -2936,6 +3045,7 @@ function previewInvoice(id) {
 
     var TD = 'padding:7px 10px;font-size:12px;border-bottom:1px solid #f1f5f9;vertical-align:top;';
     var itemRows = items.map(function(it, i) {
+      var lineAmount = accountItemTaxableAmount(it);
       var dataRow =
         '<tr>' +
           '<td style="' + TD + 'color:#64748b;text-align:center;">' + (i+1) + '</td>' +
@@ -2951,7 +3061,7 @@ function previewInvoice(id) {
               '<td style="' + TD + 'text-align:right;color:#0891b2;">' + fmt(it.cgst) + '</td>' +
               '<td style="' + TD + 'text-align:center;color:#0891b2;">' + ((it.taxRate||0)/2) + '%</td>' +
               '<td style="' + TD + 'text-align:right;color:#0891b2;">' + fmt(it.sgst) + '</td>') +
-          '<td style="' + TD + 'text-align:right;font-weight:700;">' + fmt(it.itemTotal) + '</td>' +
+          '<td style="' + TD + 'text-align:right;font-weight:700;">' + fmt(lineAmount) + '</td>' +
         '</tr>';
       var descRow = it.name
         ? '<tr><td colspan="' + (useIGST ? 9 : 11) + '" style="padding:4px 10px 8px 10px;font-size:12px;color:#475569;background:#f8fafc;border-bottom:1px solid #e2e8f0;">' + it.name + '</td></tr>'
@@ -3048,7 +3158,7 @@ function previewInvoice(id) {
               ? '<div style="display:flex;justify-content:space-between;font-size:12px;padding:4px 0;"><span style="color:#7c3aed;">IGST</span><span style="font-weight:600;color:#7c3aed;">' + fmt(inv.totalIgst) + '</span></div>'
               : '<div style="display:flex;justify-content:space-between;font-size:12px;padding:4px 0;"><span style="color:#0891b2;">CGST</span><span style="font-weight:600;color:#0891b2;">' + fmt(inv.totalCgst) + '</span></div>' +
                 '<div style="display:flex;justify-content:space-between;font-size:12px;padding:4px 0;"><span style="color:#0891b2;">SGST</span><span style="font-weight:600;color:#0891b2;">' + fmt(inv.totalSgst) + '</span></div>') +
-            (parseFloat(inv.roundOff) ? '<div style="display:flex;justify-content:space-between;font-size:12px;padding:4px 0;"><span style="color:#64748b;">Round Off</span><span>' + fmt(inv.roundOff) + '</span></div>' : '') +
+            (accountRoundOffMode(inv.roundOffMode, inv.roundOff) !== 'none' ? '<div style="display:flex;justify-content:space-between;font-size:12px;padding:4px 0;"><span style="color:#64748b;">Round Off</span><span>' + accountFmtSignedRupee(inv.roundOff, inv.roundOffMode) + '</span></div>' : '') +
           '</div>' +
           '<div style="display:flex;justify-content:space-between;align-items:center;padding:12px 14px;background:#f3f4f6;border-top:1px solid #b8c0cc;">' +
             '<span style="font-size:13px;font-weight:700;color:#111827;">Total Amount</span>' +
@@ -3060,12 +3170,12 @@ function previewInvoice(id) {
       /* ── Notes / Terms ── */
       ((inv.notes || inv.termsConditions)
         ? '<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:12px 14px;margin-bottom:12px;">' +
-            (inv.notes ? '<div style="margin-bottom:6px;"><span style="font-size:11px;font-weight:700;text-transform:uppercase;color:#64748b;">Notes</span><div style="font-size:12px;color:#334155;margin-top:3px;">' + inv.notes + '</div></div>' : '') +
+            (inv.notes ? '<div style="margin-bottom:6px;"><span style="font-size:11px;font-weight:700;text-transform:uppercase;color:#64748b;">Remarks</span><div style="font-size:12px;color:#334155;margin-top:3px;">' + inv.notes + '</div></div>' : '') +
             (inv.termsConditions ? '<div><span style="font-size:11px;font-weight:700;text-transform:uppercase;color:#64748b;">Terms & Conditions</span><div style="font-size:12px;color:#334155;margin-top:3px;">' + inv.termsConditions + '</div></div>' : '') +
           '</div>'
         : '') +
 
-      '<div style="text-align:center;font-size:11px;color:#94a3b8;padding:8px 0;">Computer-generated invoice preview</div>' +
+      '<div style="text-align:center;font-size:11px;font-weight:700;color:#475569;padding:8px 0;">Computer-generated invoice preview</div>' +
       '</div>';
 
     document.getElementById('inv-preview-body').innerHTML = html;
@@ -3448,6 +3558,7 @@ function openProformaModal(proId) {
   fields.forEach(function(id) { var el = document.getElementById(id); if (el) el.value = ''; });
   document.getElementById('pro-vendor-sel').value = '';
   document.getElementById('pro-show-tax-pdf').checked = true;
+  document.getElementById('pro-roundoff-mode').value = 'none';
 
   if (proId) {
     var rec = load('pro').find(function(r) { return r.id === proId; });
@@ -3487,7 +3598,8 @@ function openProformaModal(proId) {
     document.getElementById('pro-warranty').value        = rec.warranty || '';
     document.getElementById('pro-notes').value           = rec.notes || '';
     document.getElementById('pro-terms').value           = rec.termsConditions || '';
-    document.getElementById('pro-show-tax-pdf').checked  = rec.showTaxInPdf !== false;
+    document.getElementById('pro-show-tax-pdf').checked  = accountShowTaxPercentColumn(rec);
+    document.getElementById('pro-roundoff-mode').value   = accountRoundOffMode(rec.roundOffMode, rec.roundOff);
     (rec.items || []).forEach(function(it) { addProformaItem(it); });
   } else {
     document.getElementById('pro-number').value       = 'Auto-generated';
@@ -3536,7 +3648,9 @@ function removeProformaItem(rowId) {
 function recalcProforma() {
   var selCode = (document.getElementById('pro-s-code').value || '').trim();
   var cusCode = (document.getElementById('pro-c-code').value || '').trim();
-  var useIGST = selCode && cusCode && selCode !== cusCode;
+  var sellerGstin = document.getElementById('pro-s-gstin') ? document.getElementById('pro-s-gstin').value : '';
+  var customerGstin = document.getElementById('pro-c-gstin') ? document.getElementById('pro-c-gstin').value : '';
+  var useIGST = accountStateTaxMode(selCode, cusCode, sellerGstin, customerGstin) === 'igst';
 
   document.getElementById('pro-tax-hint').textContent = useIGST
     ? 'IGST applied (inter-state).' : 'CGST + SGST applied (intra-state).';
@@ -3564,24 +3678,28 @@ function recalcProforma() {
     if (amtEl) amtEl.textContent = '₹' + lineTotal.toFixed(2);
   });
 
+  var roundMode = accountRoundOffMode(document.getElementById('pro-roundoff-mode') && document.getElementById('pro-roundoff-mode').value, 0);
   var gross    = subtotal + totalCgst + totalSgst + totalIgst;
-  var roundOff = parseFloat((Math.round(gross) - gross).toFixed(2));
+  var roundOff = accountCalcRoundOff(gross, roundMode);
   var total    = gross + roundOff;
 
-  document.getElementById('pro-sub').textContent      = '₹' + subtotal.toFixed(2);
-  document.getElementById('pro-cgst-val').textContent = '₹' + totalCgst.toFixed(2);
-  document.getElementById('pro-sgst-val').textContent = '₹' + totalSgst.toFixed(2);
-  document.getElementById('pro-igst-val').textContent = '₹' + totalIgst.toFixed(2);
-  document.getElementById('pro-tax-total').textContent= '₹' + (totalCgst+totalSgst+totalIgst).toFixed(2);
-  document.getElementById('pro-roundoff').textContent = '₹' + roundOff.toFixed(2);
-  document.getElementById('pro-total-amt').textContent= '₹' + total.toFixed(2);
+  document.getElementById('pro-sub').textContent      = accountFmtRupee(subtotal);
+  document.getElementById('pro-cgst-val').textContent = accountFmtRupee(totalCgst);
+  document.getElementById('pro-sgst-val').textContent = accountFmtRupee(totalSgst);
+  document.getElementById('pro-igst-val').textContent = accountFmtRupee(totalIgst);
+  document.getElementById('pro-tax-total').textContent= accountFmtRupee(totalCgst + totalSgst + totalIgst);
+  document.getElementById('pro-roundoff').textContent = accountFmtSignedRupee(roundOff, roundMode);
+  document.getElementById('pro-total-amt').textContent= accountFmtRupee(total);
+  document.getElementById('pro-roundoff-row').style.display = roundMode === 'none' ? 'none' : '';
 }
 
 /* ── Collect proforma items ─────────────────────────────── */
 function collectProformaItems() {
   var selCode = (document.getElementById('pro-s-code').value || '').trim();
   var cusCode = (document.getElementById('pro-c-code').value || '').trim();
-  var useIGST = selCode && cusCode && selCode !== cusCode;
+  var sellerGstin = document.getElementById('pro-s-gstin') ? document.getElementById('pro-s-gstin').value : '';
+  var customerGstin = document.getElementById('pro-c-gstin') ? document.getElementById('pro-c-gstin').value : '';
+  var useIGST = accountStateTaxMode(selCode, cusCode, sellerGstin, customerGstin) === 'igst';
 
   var rows = document.getElementById('pro-items-body').querySelectorAll('tr');
   var items = [];
@@ -3616,7 +3734,9 @@ function saveProforma(forceStatus) {
 
   var selCode = (document.getElementById('pro-s-code').value || '').trim();
   var cusCode = (document.getElementById('pro-c-code').value || '').trim();
-  var useIGST = selCode && cusCode && selCode !== cusCode;
+  var sellerGstin = document.getElementById('pro-s-gstin') ? document.getElementById('pro-s-gstin').value : '';
+  var customerGstin = document.getElementById('pro-c-gstin') ? document.getElementById('pro-c-gstin').value : '';
+  var useIGST = accountStateTaxMode(selCode, cusCode, sellerGstin, customerGstin) === 'igst';
   var items   = collectProformaItems();
 
   var subtotal=0, totalCgst=0, totalSgst=0, totalIgst=0;
@@ -3625,8 +3745,9 @@ function saveProforma(forceStatus) {
     if (useIGST) totalIgst += it.igst;
     else { totalCgst += it.cgst; totalSgst += it.sgst; }
   });
+  var roundOffMode = accountRoundOffMode(document.getElementById('pro-roundoff-mode') && document.getElementById('pro-roundoff-mode').value, 0);
   var gross    = subtotal + totalCgst + totalSgst + totalIgst;
-  var roundOff = parseFloat((Math.round(gross) - gross).toFixed(2));
+  var roundOff = accountCalcRoundOff(gross, roundOffMode);
 
   var payTerms = document.getElementById('pro-pay-terms').value;
   var payTermsCustom = document.getElementById('pro-pay-terms-custom').value;
@@ -3675,9 +3796,11 @@ function saveProforma(forceStatus) {
     totalSgst:        parseFloat(totalSgst.toFixed(2)),
     totalIgst:        parseFloat(totalIgst.toFixed(2)),
     totalTax:         parseFloat((totalCgst+totalSgst+totalIgst).toFixed(2)),
+    roundOffMode:     roundOffMode,
     roundOff:         roundOff,
     totalAmount:      parseFloat((gross + roundOff).toFixed(2)),
     showTaxInPdf:     !!(document.getElementById('pro-show-tax-pdf') && document.getElementById('pro-show-tax-pdf').checked),
+    showTaxPercentInPdf: !!(document.getElementById('pro-show-tax-pdf') && document.getElementById('pro-show-tax-pdf').checked),
   };
 
   var all = load('pro');
@@ -3698,11 +3821,12 @@ function saveProforma(forceStatus) {
 function previewProforma(proId) {
   var rec = load('pro').find(function(r) { return r.id === proId; });
   if (!rec) return toast('Proforma not found', 'error');
-  var useIGST = rec.sellerStateCode && rec.customerStateCode && rec.sellerStateCode !== rec.customerStateCode;
+  var useIGST = accountDocumentTaxMode(rec) === 'igst';
   var fmt = function(n) { return '₹' + Number(n||0).toLocaleString('en-IN', {minimumFractionDigits:2, maximumFractionDigits:2}); };
   var statusColor = {Draft:'#64748b',Sent:'#3b82f6',Accepted:'#22c55e',Rejected:'#ef4444'}[rec.status] || '#64748b';
 
   var itemRows = (rec.items||[]).map(function(it, i) {
+    var lineAmount = accountItemTaxableAmount(it);
     return '<tr style="border-bottom:1px solid #f1f5f9;">' +
       '<td style="padding:7px 10px;color:#64748b;font-size:12px;">' + (i+1) + '</td>' +
       '<td style="padding:7px 10px;">' +
@@ -3717,7 +3841,7 @@ function previewProforma(proId) {
       (useIGST ? '<td style="padding:7px 10px;text-align:right;font-size:12px;color:#7c3aed;">' + fmt(it.igst) + '</td>'
                : '<td style="padding:7px 10px;text-align:right;font-size:12px;color:#0891b2;">' + fmt(it.cgst) + '</td>' +
                  '<td style="padding:7px 10px;text-align:right;font-size:12px;color:#0891b2;">' + fmt(it.sgst) + '</td>') +
-      '<td style="padding:7px 10px;text-align:right;font-weight:700;font-size:13px;">' + fmt(it.itemTotal) + '</td>' +
+      '<td style="padding:7px 10px;text-align:right;font-weight:700;font-size:13px;">' + fmt(lineAmount) + '</td>' +
     '</tr>';
   }).join('');
 
@@ -3763,7 +3887,7 @@ function previewProforma(proId) {
         '<th style="padding:7px 10px;font-size:11px;font-weight:700;color:#64748b;text-align:center;">Tax</th>' +
         (useIGST ? '<th style="padding:7px 10px;font-size:11px;font-weight:700;color:#7c3aed;text-align:right;">IGST</th>'
                  : '<th style="padding:7px 10px;font-size:11px;font-weight:700;color:#0891b2;text-align:right;">CGST</th><th style="padding:7px 10px;font-size:11px;font-weight:700;color:#0891b2;text-align:right;">SGST</th>') +
-        '<th style="padding:7px 10px;font-size:11px;font-weight:700;color:#64748b;text-align:right;">Total</th>' +
+        '<th style="padding:7px 10px;font-size:11px;font-weight:700;color:#64748b;text-align:right;">Amount</th>' +
       '</tr></thead><tbody>' + itemRows + '</tbody></table>' +
     '</div>' +
     '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">' +
@@ -3790,7 +3914,7 @@ function previewProforma(proId) {
     '</div>' +
     ((rec.notes||rec.termsConditions) ?
       '<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:12px 14px;margin-bottom:12px;">' +
-        (rec.notes ? '<div style="margin-bottom:6px;"><span style="font-size:11px;font-weight:700;text-transform:uppercase;color:#64748b;">Notes</span><div style="font-size:12px;color:#334155;margin-top:3px;">'+rec.notes+'</div></div>' : '') +
+        (rec.notes ? '<div style="margin-bottom:6px;"><span style="font-size:11px;font-weight:700;text-transform:uppercase;color:#64748b;">Remarks</span><div style="font-size:12px;color:#334155;margin-top:3px;">'+rec.notes+'</div></div>' : '') +
         (rec.termsConditions ? '<div><span style="font-size:11px;font-weight:700;text-transform:uppercase;color:#64748b;">Terms & Conditions</span><div style="font-size:12px;color:#334155;margin-top:3px;">'+rec.termsConditions+'</div></div>' : '') +
       '</div>' : '') +
     '<div style="text-align:center;font-size:11px;color:#94a3b8;padding:8px 0;">This is a Proforma Invoice — not a Tax Invoice. No legal payment obligation.</div>' +
@@ -4217,7 +4341,9 @@ function saveProforma(forceStatus) {
 
   var selCode = (document.getElementById('pro-s-code').value || '').trim();
   var cusCode = (document.getElementById('pro-c-code').value || '').trim();
-  var useIGST = selCode && cusCode && selCode !== cusCode;
+  var sellerGstin = document.getElementById('pro-s-gstin') ? document.getElementById('pro-s-gstin').value : '';
+  var customerGstin = document.getElementById('pro-c-gstin') ? document.getElementById('pro-c-gstin').value : '';
+  var useIGST = accountStateTaxMode(selCode, cusCode, sellerGstin, customerGstin) === 'igst';
   var items   = collectProformaItems();
 
   var subtotal=0, totalCgst=0, totalSgst=0, totalIgst=0;
@@ -4226,8 +4352,9 @@ function saveProforma(forceStatus) {
     if (useIGST) { totalIgst += it.igst; }
     else { totalCgst += it.cgst; totalSgst += it.sgst; }
   });
+  var roundOffMode = accountRoundOffMode(document.getElementById('pro-roundoff-mode') && document.getElementById('pro-roundoff-mode').value, 0);
   var gross    = subtotal + totalCgst + totalSgst + totalIgst;
-  var roundOff = parseFloat((Math.round(gross) - gross).toFixed(2));
+  var roundOff = accountCalcRoundOff(gross, roundOffMode);
 
   var payTerms       = document.getElementById('pro-pay-terms').value;
   var payTermsCustom = document.getElementById('pro-pay-terms-custom').value;
@@ -4274,9 +4401,11 @@ function saveProforma(forceStatus) {
     totalSgst:        parseFloat(totalSgst.toFixed(2)),
     totalIgst:        parseFloat(totalIgst.toFixed(2)),
     totalTax:         parseFloat((totalCgst + totalSgst + totalIgst).toFixed(2)),
+    roundOffMode:     roundOffMode,
     roundOff:         roundOff,
     totalAmount:      parseFloat((gross + roundOff).toFixed(2)),
     showTaxInPdf:     !!(document.getElementById('pro-show-tax-pdf') && document.getElementById('pro-show-tax-pdf').checked),
+    showTaxPercentInPdf: !!(document.getElementById('pro-show-tax-pdf') && document.getElementById('pro-show-tax-pdf').checked),
   };
 
   var method = proEditingId ? 'PUT' : 'POST';
@@ -4348,7 +4477,8 @@ function openProformaModal(proId) {
       document.getElementById('pro-warranty').value        = rec.warranty || '';
       document.getElementById('pro-notes').value           = rec.notes || '';
       document.getElementById('pro-terms').value           = rec.termsConditions || '';
-      document.getElementById('pro-show-tax-pdf').checked  = rec.showTaxInPdf !== false;
+      document.getElementById('pro-show-tax-pdf').checked  = accountShowTaxPercentColumn(rec);
+      document.getElementById('pro-roundoff-mode').value   = accountRoundOffMode(rec.roundOffMode, rec.roundOff);
       (rec.items || []).forEach(function(it) { addProformaItem(it); });
       recalcProforma();
     }).catch(function(e) { toast(e.message || 'Error loading proforma', 'error'); });
@@ -5710,14 +5840,6 @@ function accNormalizeItems(rec) {
     var qty = accNumber(it.quantity || it.qty || 0);
     var rate = accRoundMoney(it.unitPrice || it.rate || 0);
     var taxRate = accNumber(it.taxRate || 0);
-    var amountSource = it.itemTotal;
-    if (amountSource === undefined || amountSource === null || amountSource === '') amountSource = it.total;
-    if (amountSource === undefined || amountSource === null || amountSource === '') amountSource = it.amount;
-    var amount = accRoundMoney(
-      amountSource === undefined || amountSource === null || amountSource === ''
-        ? (qty * rate * (1 + taxRate / 100))
-        : amountSource
-    );
     return {
       code: it.itemCode || it.code || '',
       name: it.name || it.description || it.itemName || '',
@@ -5726,7 +5848,7 @@ function accNormalizeItems(rec) {
       unit: it.unit || '',
       rate: rate,
       taxRate: taxRate,
-      amount: amount
+      amount: accountItemTaxableAmount(it)
     };
   });
 }
@@ -5809,11 +5931,15 @@ function accBuildDocument(kind, rec) {
   var customerState = rec.customerState || rec.clientState || '';
   var customerStateCode = rec.customerStateCode || rec.clientStateCode || '';
   var items = accNormalizeItems(rec);
-  var computedSubtotal = items.reduce(function(sum, it) { return sum + accRoundMoney(it.qty * it.rate); }, 0);
+  var computedSubtotal = items.reduce(function(sum, it) { return sum + accRoundMoney(it.amount); }, 0);
   var subtotal = accRoundMoney(rec.subtotal || rec.budget || (items.length ? computedSubtotal : rec.totalAmount) || 0);
   var totalTax = accRoundMoney(rec.totalTax || 0) || accRoundMoney((rec.totalIgst || 0) + (rec.totalCgst || 0) + (rec.totalSgst || 0));
-  var total = accRoundMoney(rec.totalAmount || rec.budget || rec.spent || (subtotal + totalTax) || 0);
-  var showTax = rec.showTaxInPdf !== false && !rec.taxExempt;
+  var roundOffMode = accountRoundOffMode(rec.roundOffMode, rec.roundOff);
+  var roundOffValue = roundOffMode === 'none' ? 0 : accRoundMoney(Math.abs(accNumber(rec.roundOff || 0)));
+  var roundOffSigned = roundOffMode === 'minus' ? -roundOffValue : roundOffValue;
+  var total = accRoundMoney(rec.totalAmount || rec.budget || rec.spent || (subtotal + totalTax + roundOffSigned) || 0);
+  var showTaxPercent = !rec.taxExempt && accountShowTaxPercentColumn(rec);
+  var showTaxSummary = !rec.taxExempt && totalTax > 0.004;
   var details = [];
   var detailBorder = 'border:1px solid #b8c0cc;';
   var cellPad = 'padding:6px 7px;';
@@ -5909,13 +6035,13 @@ function accBuildDocument(kind, rec) {
       '<td style="' + itemCellBase + 'color:#475569;word-break:break-word;">' + accEsc(it.hsn || '-') + '</td>' +
       '<td style="' + itemCellBase + 'text-align:right;white-space:nowrap;">' + accEsc(accFormatQty(it.qty)) + '</td>' +
       '<td style="' + itemCellBase + 'text-align:right;white-space:nowrap;font-size:10px;">' + accMoney(it.rate) + '</td>' +
-      (showTax ? '<td style="' + itemCellBase + 'text-align:right;white-space:nowrap;font-size:10px;">' + accEsc(accFormatPercent(it.taxRate)) + '</td>' : '') +
+      (showTaxPercent ? '<td style="' + itemCellBase + 'text-align:right;white-space:nowrap;font-size:10px;">' + accEsc(accFormatPercent(it.taxRate)) + '</td>' : '') +
       '<td style="' + itemCellBase + 'text-align:right;font-weight:800;color:#111827;white-space:nowrap;font-size:10px;">' + accMoney(it.amount) + '</td>' +
     '</tr>';
   }).join('');
 
   var itemsBlock = items.length
-    ? '<div style="margin-top:8px;"><div style="font-size:11px;font-weight:900;letter-spacing:.08em;text-transform:uppercase;color:#374151;margin-bottom:5px;">Item Detail</div><table style="width:100%;border-collapse:collapse;font-size:10.5px;table-layout:fixed;border:1px solid #b8c0cc;"><thead><tr style="background:#f3f4f6;color:#374151;text-transform:uppercase;letter-spacing:.06em;"><th style="' + detailBorder + 'padding:6px 4px;width:28px;text-align:left;">Sl</th><th style="' + detailBorder + 'padding:6px 6px;text-align:left;">Description</th><th style="' + detailBorder + 'padding:6px 4px;width:64px;text-align:left;">HSN/SAC</th><th style="' + detailBorder + 'padding:6px 4px;width:42px;text-align:right;">Qty</th><th style="' + detailBorder + 'padding:6px 4px;width:90px;text-align:right;white-space:nowrap;">Rate</th>' + (showTax ? '<th style="' + detailBorder + 'padding:6px 4px;width:46px;text-align:right;white-space:nowrap;">Tax %</th>' : '') + '<th style="' + detailBorder + 'padding:6px 4px;width:108px;text-align:right;white-space:nowrap;">Amount</th></tr></thead><tbody>' + itemRows + '</tbody></table></div>'
+    ? '<div style="margin-top:8px;"><div style="font-size:11px;font-weight:900;letter-spacing:.08em;text-transform:uppercase;color:#374151;margin-bottom:5px;">Item Detail</div><table style="width:100%;border-collapse:collapse;font-size:10.5px;table-layout:fixed;border:1px solid #b8c0cc;"><thead><tr style="background:#f3f4f6;color:#374151;text-transform:uppercase;letter-spacing:.06em;"><th style="' + detailBorder + 'padding:6px 4px;width:28px;text-align:left;">Sl</th><th style="' + detailBorder + 'padding:6px 6px;text-align:left;">Description</th><th style="' + detailBorder + 'padding:6px 4px;width:64px;text-align:left;">HSN/SAC</th><th style="' + detailBorder + 'padding:6px 4px;width:42px;text-align:right;">Qty</th><th style="' + detailBorder + 'padding:6px 4px;width:90px;text-align:right;white-space:nowrap;">Rate</th>' + (showTaxPercent ? '<th style="' + detailBorder + 'padding:6px 4px;width:46px;text-align:right;white-space:nowrap;">Tax %</th>' : '') + '<th style="' + detailBorder + 'padding:6px 4px;width:108px;text-align:right;white-space:nowrap;">Amount</th></tr></thead><tbody>' + itemRows + '</tbody></table></div>'
     : '<table style="width:100%;border-collapse:collapse;font-size:12px;margin-top:14px;border:1px solid #b8c0cc;">' + accDetailRows(details) + '</table>';
 
   var bankBlock = (rec.bankName || rec.bankAccount || rec.bankIfsc)
@@ -5983,7 +6109,7 @@ function accBuildDocument(kind, rec) {
         ((showBothPartyCards || showCustomerOnlyCard) ? '' : (customerAddress ? '<div style="border:1px solid #b8c0cc;background:#fff;padding:7px 10px;margin-bottom:8px;"><b style="color:#111827;">Address:</b> ' + accEsc(customerAddress) + '</div>' : '')) +
         (rec.workOrder || rec.projectName || rec.billMonth ? '<div style="border:1px solid #b8c0cc;background:#fff;padding:7px 10px;margin-bottom:8px;display:flex;gap:14px;flex-wrap:wrap;">' + (rec.workOrder ? '<span><b>Work Order:</b> ' + accEsc(rec.workOrder) + '</span>' : '') + (rec.projectName ? '<span><b>Project:</b> ' + accEsc(rec.projectName) + '</span>' : '') + (rec.billMonth ? '<span><b>Bill Month:</b> ' + accEsc(rec.billMonth) + '</span>' : '') + '</div>' : '') +
         itemsBlock +
-        (items.length ? '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px;"><div style="border:1px solid #b8c0cc;background:#fff;padding:8px 10px;"><div style="font-weight:900;color:#111827;margin-bottom:3px;">Amount in Words</div><div style="line-height:1.35;">' + accEsc(accWords(total)) + '</div></div><div style="border:1px solid #b8c0cc;background:#fff;padding:8px 10px;"><div style="display:grid;grid-template-columns:1fr max-content;gap:12px;padding-bottom:5px;"><span style="color:#4b5563;">Total Amount</span><b style="white-space:nowrap;text-align:right;">' + accMoney(subtotal) + '</b></div>' + (showTax && totalTax ? '<div style="display:grid;grid-template-columns:1fr max-content;gap:12px;padding-bottom:5px;"><span style="color:#4b5563;">Total Tax</span><b style="white-space:nowrap;text-align:right;">' + accMoney(totalTax) + '</b></div>' : '') + '<div style="display:grid;grid-template-columns:1fr max-content;gap:12px;border-top:1px solid #b8c0cc;margin-top:3px;padding-top:6px;font-size:13px;"><span style="font-weight:900;color:#111827;">Amount After Tax</span><b style="font-size:14px;white-space:nowrap;text-align:right;">' + accMoney(total) + '</b></div></div></div>' : '') +
+        (items.length ? '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px;"><div style="border:1px solid #b8c0cc;background:#fff;padding:8px 10px;"><div style="font-weight:900;color:#111827;margin-bottom:3px;">Amount in Words</div><div style="line-height:1.35;">' + accEsc(accWords(total)) + '</div></div><div style="border:1px solid #b8c0cc;background:#fff;padding:8px 10px;"><div style="display:grid;grid-template-columns:1fr max-content;gap:12px;padding-bottom:5px;"><span style="color:#4b5563;">Subtotal</span><b style="white-space:nowrap;text-align:right;">' + accMoney(subtotal) + '</b></div>' + (showTaxSummary ? '<div style="display:grid;grid-template-columns:1fr max-content;gap:12px;padding-bottom:5px;"><span style="color:#4b5563;">Total Tax</span><b style="white-space:nowrap;text-align:right;">' + accMoney(totalTax) + '</b></div>' : '') + (roundOffMode !== 'none' ? '<div style="display:grid;grid-template-columns:1fr max-content;gap:12px;padding-bottom:5px;"><span style="color:#4b5563;">Round Off</span><b style="white-space:nowrap;text-align:right;">' + accountFmtSignedRupee(roundOffSigned, roundOffMode) + '</b></div>' : '') + '<div style="display:grid;grid-template-columns:1fr max-content;gap:12px;border-top:1px solid #b8c0cc;margin-top:3px;padding-top:6px;font-size:13px;"><span style="font-weight:900;color:#111827;">Amount After Tax</span><b style="font-size:14px;white-space:nowrap;text-align:right;">' + accMoney(total) + '</b></div></div></div>' : '') +
         bankBlock +
         (rec.notes || rec.termsConditions || rec.scope || rec.description ? '<div style="border:1px solid #b8c0cc;background:#fff;padding:8px 10px;margin-top:8px;"><div style="font-weight:900;color:#111827;margin-bottom:4px;">Notes / Terms</div>' + accEsc(rec.notes || rec.termsConditions || rec.scope || rec.description) + '</div>' : '') +
         '<div style="display:flex;justify-content:flex-end;margin-top:18px;padding-bottom:10px;"><div style="text-align:center;width:190px;border-top:1px solid #111827;padding-top:6px;color:#111827;font-size:11px;">Authorized Signatory</div></div>' +
@@ -5995,7 +6121,7 @@ function accBuildDocument(kind, rec) {
 function accPrintFrame(title, html, autoPrint) {
   var page =
     '<!DOCTYPE html><html><head><title>' + accEsc(title) + '</title>' +
-    '<style>@page{size:A4;margin:0;}*{box-sizing:border-box}html,body{margin:0!important;padding:0!important;background:#fff;color:#111;font-family:Arial,sans-serif}.acc-doc-page{box-shadow:none!important;width:210mm!important;min-height:297mm!important;max-width:none!important;margin:0!important;padding:0!important;border:1px solid #9ca3af!important;page-break-after:auto;break-after:auto;display:block}.acc-doc-content{display:block;padding:8px 10px 0}.acc-doc-footer{border-top:1px solid #b8c0cc;padding:5px 10px 6px;margin-top:10px;font-size:9.5px;line-height:1.25;color:#475569;background:#fff;break-inside:avoid;page-break-inside:avoid}td,th{vertical-align:top}table{page-break-inside:auto;border-collapse:collapse}tr{page-break-inside:auto;break-inside:auto}thead{display:table-header-group}tfoot{display:table-footer-group}.no-print{display:none!important}@media print{html,body{margin:0!important;padding:0!important;print-color-adjust:exact;-webkit-print-color-adjust:exact}.acc-doc-page{width:210mm!important;min-height:297mm!important}}</style>' +
+    '<style>@page{size:A4;margin:0;}*{box-sizing:border-box}html,body{margin:0!important;padding:0!important;background:#fff;color:#111;font-family:Arial,sans-serif}.acc-doc-page{box-shadow:none!important;width:210mm!important;min-height:297mm!important;max-width:none!important;margin:0!important;padding:0 0 24px!important;border:1px solid #9ca3af!important;page-break-after:auto;break-after:auto;display:block}.acc-doc-content{display:block;padding:8px 10px 0}.acc-doc-footer{width:100%;margin:8px 0 0;border-top:1px solid #d7dce5;padding:4px 10px 0;font-size:8.6px;line-height:1.18;color:#7c8797;background:transparent;text-align:center;break-inside:avoid;page-break-inside:avoid}td,th{vertical-align:top}table{page-break-inside:auto;border-collapse:collapse}tr{page-break-inside:auto;break-inside:auto}thead{display:table-header-group}tfoot{display:table-footer-group}.no-print{display:none!important}@media print{html,body{margin:0!important;padding:0!important;print-color-adjust:exact;-webkit-print-color-adjust:exact}.acc-doc-page{width:210mm!important;min-height:297mm!important}}</style>' +
     '</head><body>' + html + (autoPrint ? '<script>window.onload=function(){window.focus();window.print();};<\/script>' : '') + '</body></html>';
   var w = window.open('', '_blank', 'width=980,height=720');
   if (!w) return toast('Allow popups to open PDF/print preview', 'error');

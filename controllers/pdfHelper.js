@@ -12,7 +12,7 @@ const GRY      = '#555555';
 const LGY      = '#888888';
 const HBG      = '#f2f2f2';
 const LBD      = 0.5;
-const FOOTER_H = 30;
+const FOOTER_H = 24;
 
 const CONF_TEXT =
   'Note: This document is the property of DHPE and is confidential. It must not be disclosed, ' +
@@ -91,7 +91,9 @@ function createDoc() {
        .text(String(text||''), x, y, {
          width:w, align:opts.align||'left',
          lineGap:opts.lineGap!==undefined?opts.lineGap:0.5,
-         ellipsis:false,
+         ellipsis:opts.ellipsis!==undefined?opts.ellipsis:false,
+         lineBreak:opts.lineBreak!==undefined?opts.lineBreak:true,
+         height:opts.height,
        });
   }
   function txtH(text, w, size, bold) {
@@ -106,15 +108,56 @@ function createDoc() {
   return { doc, hLine, vLine, box, fillBox, txt, txtH, checkPage };
 }
 
-function addFooters(doc) {
+function addFooters(doc, options) {
+  options = options || {};
+  const infoText = String(options.infoText || '').trim();
+  const infoOnAllPages = options.infoOnAllPages === true;
   const range = doc.bufferedPageRange();
   const total = range.count;
   if (!total) return;
-  doc.switchToPage(range.start + total - 1);
-  const fy = PH - M - FOOTER_H;
-  doc.moveTo(X, fy).lineTo(X + W, fy).lineWidth(0.3).strokeColor('#aaaaaa').stroke();
-  doc.fontSize(5.5).font('Helvetica').fillColor(LGY)
-     .text(CONF_TEXT, X, fy + 4, { width: W, align: 'left', lineGap: 0.5 });
+  for (let pageIndex = 0; pageIndex < total; pageIndex += 1) {
+    doc.switchToPage(range.start + pageIndex);
+    const footerY = PH - M - FOOTER_H + 3;
+    const pageLabelW = 60;
+    const sepX = X + W - pageLabelW - 8;
+    const noteW = sepX - X - 6;
+    const showInfo = !!infoText && (infoOnAllPages || pageIndex === total - 1);
+
+    doc.moveTo(X, footerY)
+      .lineTo(X + W, footerY)
+      .lineWidth(0.3)
+      .strokeColor('#d7dce5')
+      .stroke();
+
+    doc.moveTo(sepX, footerY + 2)
+      .lineTo(sepX, footerY + FOOTER_H - 8)
+      .lineWidth(0.3)
+      .strokeColor('#d7dce5')
+      .stroke();
+
+    if (showInfo) {
+      doc.fontSize(5.5).font('Helvetica-Oblique').fillColor('#8a94a3')
+        .text(infoText, X + 4, footerY + 1, {
+          width: noteW,
+          align: 'left',
+          lineGap: 0,
+        });
+    }
+
+    doc.fontSize(showInfo ? 4.9 : 5.2).font('Helvetica').fillColor('#7c8797')
+      .text(CONF_TEXT, X + 4, showInfo ? footerY + 8 : footerY + 3, {
+        width: noteW,
+        align: 'center',
+        lineGap: showInfo ? 0.1 : 0.15,
+      });
+
+    doc.fontSize(5.8).font('Helvetica').fillColor('#7c8797')
+      .text(`Page ${pageIndex + 1} of ${total}`, sepX + 4, showInfo ? footerY + 7 : footerY + 4, {
+        width: pageLabelW,
+        align: 'right',
+        lineGap: 0,
+      });
+  }
 }
 
 // ── Standard header box: company info (left) | doc meta (right) ───────────────

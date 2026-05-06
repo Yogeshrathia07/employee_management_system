@@ -1,5 +1,6 @@
 'use strict';
 const PDFDocument = require('pdfkit');
+const { applySellerCompanySnapshot, getRequestCompany } = require('./accountsCompanyScope');
 
 function fmtINR(n) {
   return '₹ ' + Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -31,10 +32,42 @@ function numWords(n) {
 }
 
 // POST /api/proformas/pdf  — accepts full proforma object in body
+function shouldShowItemTaxColumns(record) {
+  if (!record) return true;
+  if (record.showTaxPercentInPdf === false) return false;
+  if (record.showTaxPercentInPdf === true) return true;
+  return record.showTaxInPdf !== false;
+}
+function normalizedStateCode(code, gstin) {
+  const raw = String(code || '').trim();
+  if (raw) return raw.length === 1 ? '0' + raw : raw;
+  const match = String(gstin || '').trim().match(/^(\d{2})/);
+  return match ? match[1] : '';
+}
+function taxModeFromRecord(record) {
+  const totalIgst = Number(record && record.totalIgst || 0);
+  const totalCgst = Number(record && record.totalCgst || 0);
+  const totalSgst = Number(record && record.totalSgst || 0);
+  if (totalIgst > 0.004 && totalCgst <= 0.004 && totalSgst <= 0.004) return 'igst';
+  if (totalCgst > 0.004 || totalSgst > 0.004) return 'split';
+  const items = Array.isArray(record && record.items) ? record.items : [];
+  if (items.some(it => Number(it && it.igst || 0) > 0.004)) return 'igst';
+  if (items.some(it => Number(it && it.cgst || 0) > 0.004 || Number(it && it.sgst || 0) > 0.004)) return 'split';
+  const sellerStateCode = normalizedStateCode(record && record.sellerStateCode, record && record.sellerGstin);
+  const customerStateCode = normalizedStateCode(record && record.customerStateCode, record && record.customerGstin);
+  if (sellerStateCode && customerStateCode && sellerStateCode !== customerStateCode) return 'igst';
+  return 'split';
+}
+
 exports.generatePDF = async (req, res) => {
   try {
-    const inv = req.body;
+    const inv = Object.assign({}, req.body);
     if (!inv || !inv.customerName) return res.status(400).json({ message: 'Proforma data required' });
+    if (req.user && req.user.role === 'admin') {
+      const company = await getRequestCompany(req);
+      if (!company) return res.status(400).json({ message: 'Admin company not found' });
+      applySellerCompanySnapshot(inv, company);
+    }
 
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename="Proforma-${inv.id||'PRO'}.pdf"`);
@@ -62,7 +95,8 @@ exports.generatePDF = async (req, res) => {
 
     let y=M;
     const items=inv.items||[];
-    const useIGST=inv.sellerStateCode&&inv.customerStateCode&&inv.sellerStateCode!==inv.customerStateCode;
+    const useIGST=taxModeFromRecord(inv)==='igst';
+    const showItemTaxColumns = shouldShowItemTaxColumns(inv);
     const HW=W/2, RX=X+HW;
 
     // ── 1. HEADER ─────────────────────────────────────────────────────────────
@@ -135,7 +169,7 @@ exports.generatePDF = async (req, res) => {
     }
 
     // ── 4. ITEMS TABLE ────────────────────────────────────────────────────────
-    const COL=useIGST
+    const COL=useIGST||!showItemTaxColumns
       ?{sl:18,code:38,desc:260,hsn:40,unit:28,rate:52,qty:34,amt:105}
       :{sl:16,code:32,desc:217,hsn:36,unit:26,rate:42,qty:30,cgstP:26,cgst:34,sgstP:26,sgst:34};
 
@@ -150,7 +184,7 @@ exports.generatePDF = async (req, res) => {
     (function drawHdr(y){
       let cx=X;
       const th=(label,w)=>{ vLine(cx,y,y+ROW_H,LBD); txt(label,cx+2,y+4,w-4,{size:7,bold:true,color:BLK,align:'center'}); cx+=w; };
-      if(useIGST){
+      if(useIGST||!showItemTaxColumns){
         th('Sl.',COL.sl);th('Item Code',COL.code);th('Description',COL.desc);
         th('HSN/SAC',COL.hsn);th('Unit',COL.unit);th('Rate (₹)',COL.rate);th('Qty',COL.qty);th('Amount (₹)',COL.amt);
       } else {
@@ -168,7 +202,6 @@ exports.generatePDF = async (req, res) => {
       const taxable=parseFloat(it.taxableAmount||(qty*price*(1-disc/100)));
       const igst=parseFloat(it.igst||(taxable*taxRate/100));
       const cgst=parseFloat(it.cgst||(igst/2));
-      const total=parseFloat(it.itemTotal||(taxable+igst));
       const itemCode=it.itemCode||'N/A';
       const descH=txtH(it.name||'',COL.desc-6,7.5,false);
       const rowH=Math.max(descH+8,18);
@@ -181,11 +214,11 @@ exports.generatePDF = async (req, res) => {
       const td=(text,w,opts)=>{ vLine(cx,y,y+rowH,LBD); txt(text,cx+2,y+3,w-4,Object.assign({size:7.5,align:'center',lineGap:0.5},opts||{})); cx+=w; };
       const tdDesc=(text,w)=>{ vLine(cx,y,y+rowH,LBD); txt(text,cx+3,y+3,w-6,{size:7.5,align:'left',lineGap:1}); cx+=w; };
 
-      if(useIGST){
+      if(useIGST||!showItemTaxColumns){
         td(idx+1,COL.sl);td(itemCode,COL.code);tdDesc(it.name||'',COL.desc);
         td(it.hsnCode||'',COL.hsn);td(it.unit||'',COL.unit);
         td(price.toFixed(2),COL.rate,{align:'right'});td(qty%1===0?qty:qty.toFixed(3),COL.qty);
-        td(total.toFixed(2),COL.amt,{align:'right',bold:true});
+        td(taxable.toFixed(2),COL.amt,{align:'right',bold:true});
       } else {
         td(idx+1,COL.sl);td(itemCode,COL.code);tdDesc(it.name||'',COL.desc);
         td(it.hsnCode||'',COL.hsn);td(it.unit||'',COL.unit);
@@ -194,7 +227,7 @@ exports.generatePDF = async (req, res) => {
         td((taxRate/2).toFixed(0)+'%',COL.sgstP);td(cgst.toFixed(2),COL.sgst,{align:'right'});
         const amtW=W-(COL.sl+COL.code+COL.desc+COL.hsn+COL.unit+COL.rate+COL.qty+COL.cgstP+COL.cgst+COL.sgstP+COL.sgst);
         vLine(cx,y,y+rowH,LBD);
-        txt(total.toFixed(2),cx+2,y+3,amtW-4,{size:7.5,align:'right',bold:true,lineGap:0.5});
+        txt(taxable.toFixed(2),cx+2,y+3,amtW-4,{size:7.5,align:'right',bold:true,lineGap:0.5});
       }
       y+=rowH;
     });
@@ -248,12 +281,22 @@ exports.generatePDF = async (req, res) => {
     y+=bankH;
 
     // ── 8. FOOTER ─────────────────────────────────────────────────────────────
-    y=checkPage(y,32);
-    const footLines=[inv.termsConditions||'','Note: This is a Proforma Invoice only. Not a Tax Invoice — no legal payment obligation is created.'].filter(Boolean);
-    box(X,y,W,footLines.length*11+10,LBD);
-    let ny=y+5;
-    footLines.forEach(line=>{ txt(line,X+6,ny,W-12,{size:7,color:GRY}); ny+=11; });
+    const footLines=[
+      String(inv.notes || '').trim() ? 'Remarks: ' + String(inv.notes).trim() : '',
+      String(inv.termsConditions || '').trim() ? 'Terms & Conditions: ' + String(inv.termsConditions).trim() : '',
+    ].filter(Boolean);
+    if (footLines.length) {
+      const footH = footLines.reduce((sum, line) => sum + txtH(line, W - 12, 7, false) + 2, 6);
+      y = checkPage(y, footH);
+      box(X, y, W, footH, LBD);
+      let ny = y + 5;
+      footLines.forEach(line => {
+        txt(line, X + 6, ny, W - 12, { size: 7, color: GRY });
+        ny = doc.y + 2;
+      });
+    }
 
+    const footerInfoText = 'This is a computer-generated proforma invoice, not a tax invoice.';
     const CONF_TEXT =
       'Note: This document is the property of DHPE and is confidential. It must not be disclosed, ' +
       'shared, or transmitted to any person or firm not authorized by us. No part of this ' +
@@ -264,8 +307,10 @@ exports.generatePDF = async (req, res) => {
       doc.switchToPage(pageRange.start + totalPages - 1);
       const fy = PH - M - 30;
       doc.moveTo(X, fy).lineTo(X + W, fy).lineWidth(0.3).strokeColor('#aaaaaa').stroke();
-      doc.fontSize(5.5).font('Helvetica').fillColor('#888888')
-        .text(CONF_TEXT, X, fy + 4, { width: W, align: 'left', lineGap: 0.5 });
+      doc.fontSize(5.5).font('Helvetica-Oblique').fillColor('#8a94a3')
+        .text(footerInfoText, X, fy + 3, { width: W, align: 'left', lineGap: 0 });
+      doc.fontSize(4.9).font('Helvetica').fillColor('#888888')
+        .text(CONF_TEXT, X, fy + 10, { width: W, align: 'left', lineGap: 0.4 });
     }
 
     doc.end();

@@ -2,18 +2,54 @@
 const { Op } = require('sequelize');
 const { Quotation, Proforma, Invoice, Client } = require('../models');
 const {
+  applyCompanyScope,
+  applySellerCompanySnapshot,
+  assertScopedRelation,
+  findScopedByPk,
+  getActorCompanyId,
+  resolveScopedCompany,
+  syncAccountsCompanyIds,
+} = require('./accountsCompanyScope');
+const {
   M, W, X, BLK, GRY, HBG, LBD,
   fmtDate, fmtINR, numWords, buildPdfFilename, createDoc, addFooters,
   drawSectionLabel, drawSignature,
 } = require('./pdfHelper');
 
 function genCode() { return Math.random().toString(36).substr(2,6).toUpperCase(); }
+function inferRoundOffMode(value) {
+  const amount = Number(value || 0);
+  if (amount > 0.004) return 'plus';
+  if (amount < -0.004) return 'minus';
+  return 'none';
+}
+function normalizedStateCode(code, gstin) {
+  const raw = String(code || '').trim();
+  if (raw) return raw.length === 1 ? '0' + raw : raw;
+  const match = String(gstin || '').trim().match(/^(\d{2})/);
+  return match ? match[1] : '';
+}
+function taxModeFromQuotation(record) {
+  const totalIgst = Number(record && record.totalIgst || 0);
+  const totalCgst = Number(record && record.totalCgst || 0);
+  const totalSgst = Number(record && record.totalSgst || 0);
+  if (totalIgst > 0.004 && totalCgst <= 0.004 && totalSgst <= 0.004) return 'igst';
+  if (totalCgst > 0.004 || totalSgst > 0.004) return 'split';
+  const items = Array.isArray(record && record.items) ? record.items : [];
+  if (items.some(it => Number(it && it.igst || 0) > 0.004)) return 'igst';
+  if (items.some(it => Number(it && it.cgst || 0) > 0.004 || Number(it && it.sgst || 0) > 0.004)) return 'split';
+  const sellerStateCode = normalizedStateCode(record && record.sellerStateCode, record && record.sellerGstin);
+  const clientStateCode = normalizedStateCode(record && record.clientStateCode, record && record.clientGstin);
+  if (sellerStateCode && clientStateCode && sellerStateCode !== clientStateCode) return 'igst';
+  return 'split';
+}
 
 // ── GET /quotations ───────────────────────────────────────────────────────────
 exports.getQuotations = async (req, res) => {
   try {
     const { q, status } = req.query;
-    const where = {};
+    if (req.user.role === 'admin') await syncAccountsCompanyIds();
+    const where = applyCompanyScope(req, {});
     if (status) where.status = status;
     if (q) where[Op.or] = [
       { quotationNumber: { [Op.like]: `%${q}%` } },
@@ -28,9 +64,10 @@ exports.getQuotations = async (req, res) => {
 // ── GET /quotations/:id ──────────────────────────────────────────────────────
 exports.getQuotation = async (req, res) => {
   try {
-    const q = await Quotation.findByPk(req.params.id, {
+    if (req.user.role === 'admin') await syncAccountsCompanyIds();
+    const q = await findScopedByPk(Quotation, 'quotation', req, req.params.id, {
       include: [{ model: Client, as: 'client' }]
-    });
+    }, 'Quotation not found');
     if (!q) return res.status(404).json({ message: 'Quotation not found' });
     res.json(q);
   } catch (err) { res.status(500).json({ message: err.message }); }
@@ -39,9 +76,17 @@ exports.getQuotation = async (req, res) => {
 // ── POST /quotations ─────────────────────────────────────────────────────────
 exports.createQuotation = async (req, res) => {
   try {
-    const data = req.body;
+    const data = Object.assign({}, req.body);
     if (!data.date) return res.status(400).json({ message: 'Date required' });
     if (!data.clientName) return res.status(400).json({ message: 'Client name required' });
+    if (data.clientId) {
+      await assertScopedRelation(Client, 'client', req, data.clientId, 'Client not found');
+    }
+    const company = await resolveScopedCompany(req, data);
+    if (company) applySellerCompanySnapshot(data, company);
+    if (getActorCompanyId(req) && !data.companyId) {
+      return res.status(400).json({ message: 'Admin company not found' });
+    }
     data.quotationNumber = 'QUO-' + genCode();
     data.createdBy = req.user.id;
     const q = await Quotation.create(data);
@@ -52,9 +97,17 @@ exports.createQuotation = async (req, res) => {
 // ── PUT /quotations/:id ──────────────────────────────────────────────────────
 exports.updateQuotation = async (req, res) => {
   try {
-    const q = await Quotation.findByPk(req.params.id);
+    if (req.user.role === 'admin') await syncAccountsCompanyIds();
+    const q = await findScopedByPk(Quotation, 'quotation', req, req.params.id, null, 'Quotation not found');
     if (!q) return res.status(404).json({ message: 'Quotation not found' });
-    await q.update(req.body);
+    const updates = Object.assign({}, req.body);
+    if (updates.clientId) {
+      await assertScopedRelation(Client, 'client', req, updates.clientId, 'Client not found');
+    }
+    const company = await resolveScopedCompany(req, Object.assign({}, q.toJSON(), updates));
+    if (company) applySellerCompanySnapshot(updates, company);
+    if (getActorCompanyId(req)) updates.companyId = getActorCompanyId(req);
+    await q.update(updates);
     res.json(q);
   } catch (err) { res.status(500).json({ message: err.message }); }
 };
@@ -62,7 +115,8 @@ exports.updateQuotation = async (req, res) => {
 // ── DELETE /quotations/:id ───────────────────────────────────────────────────
 exports.deleteQuotation = async (req, res) => {
   try {
-    const q = await Quotation.findByPk(req.params.id);
+    if (req.user.role === 'admin') await syncAccountsCompanyIds();
+    const q = await findScopedByPk(Quotation, 'quotation', req, req.params.id, null, 'Quotation not found');
     if (!q) return res.status(404).json({ message: 'Quotation not found' });
     const { moveToRecycleBin } = require('./recycleBinController');
     await moveToRecycleBin('quotation', q.id, req.user, q.toJSON(), q.quotationNumber);
@@ -74,11 +128,13 @@ exports.deleteQuotation = async (req, res) => {
 // ── POST /quotations/:id/convert-to-proforma ─────────────────────────────────
 exports.convertToProforma = async (req, res) => {
   try {
-    const q = await Quotation.findByPk(req.params.id);
+    if (req.user.role === 'admin') await syncAccountsCompanyIds();
+    const q = await findScopedByPk(Quotation, 'quotation', req, req.params.id, null, 'Quotation not found');
     if (!q) return res.status(404).json({ message: 'Quotation not found' });
 
     const pro = await Proforma.create({
       proformaNumber: 'PRO-' + genCode(),
+      companyId:      q.companyId || null,
       clientId:       q.clientId,
       sourceQuotationId: q.id,
       customerName:      q.clientName,
@@ -106,8 +162,10 @@ exports.convertToProforma = async (req, res) => {
       totalSgst:     q.totalSgst,
       totalIgst:     q.totalIgst,
       totalTax:      q.totalTax,
+      roundOffMode:  inferRoundOffMode(q.roundOff),
       roundOff:      q.roundOff,
       totalAmount:   q.totalAmount,
+      showTaxPercentInPdf: true,
       bankName:      q.bankName,
       bankAcName:    q.bankAcName,
       bankAccount:   q.bankAccount,
@@ -127,11 +185,13 @@ exports.convertToProforma = async (req, res) => {
 // ── POST /quotations/:id/convert-to-invoice ──────────────────────────────────
 exports.convertToInvoice = async (req, res) => {
   try {
-    const q = await Quotation.findByPk(req.params.id);
+    if (req.user.role === 'admin') await syncAccountsCompanyIds();
+    const q = await findScopedByPk(Quotation, 'quotation', req, req.params.id, null, 'Quotation not found');
     if (!q) return res.status(404).json({ message: 'Quotation not found' });
 
     const inv = await Invoice.create({
       invoiceNumber:  'INV-' + genCode(),
+      companyId:      q.companyId || null,
       invoiceDate:    q.date,
       clientId:       q.clientId,
       customerName:   q.clientName,
@@ -157,8 +217,10 @@ exports.convertToInvoice = async (req, res) => {
       totalSgst:      q.totalSgst,
       totalIgst:      q.totalIgst,
       totalTax:       q.totalTax,
+      roundOffMode:   inferRoundOffMode(q.roundOff),
       roundOff:       q.roundOff,
       totalAmount:    q.totalAmount,
+      showTaxPercentInPdf: true,
       bankName:       q.bankName,
       bankAcName:     q.bankAcName,
       bankAccount:    q.bankAccount,
@@ -181,9 +243,10 @@ exports.convertToInvoice = async (req, res) => {
 // ── GET /quotations/:id/pdf ───────────────────────────────────────────────────
 exports.generatePDF = async (req, res) => {
   try {
-    const q = await Quotation.findByPk(req.params.id, {
+    if (req.user.role === 'admin') await syncAccountsCompanyIds();
+    const q = await findScopedByPk(Quotation, 'quotation', req, req.params.id, {
       include: [{ model: Client, as: 'client', required: false }],
-    });
+    }, 'Quotation not found');
     if (!q) return res.status(404).json({ message: 'Quotation not found' });
 
     const inline = req.query.view === '1';
@@ -203,8 +266,7 @@ exports.generatePDF = async (req, res) => {
     const HW = W / 2;
     const RX = X + HW;
     const items = q.items || [];
-    const useIGST = q.sellerStateCode && q.clientStateCode &&
-                    q.sellerStateCode !== q.clientStateCode;
+    const useIGST = taxModeFromQuotation(q) === 'igst';
 
     const sellerLines = [
       q.sellerName || 'DHPE',
@@ -308,7 +370,6 @@ exports.generatePDF = async (req, res) => {
       const igstAmt = parseFloat(it.igst || 0);
       const cgstAmt = parseFloat(it.cgst || 0);
       const sgstAmt = parseFloat(it.sgst || 0);
-      const total = parseFloat(it.itemTotal || (taxable + igstAmt + cgstAmt + sgstAmt));
       const descText = (it.name || '').trim();
       const descH = descText ? txtH(descText, W - 16, 7.5) + 7 : 0;
       y = checkPage(y, ROW_H + descH + 1);
@@ -325,12 +386,12 @@ exports.generatePDF = async (req, res) => {
       if (useIGST) {
         td(idx + 1, COL.sl); td(it.itemCode || '', COL.code); td(it.hsnCode || '', COL.hsn); td(it.unit || '', COL.unit);
         td(price.toFixed(2), COL.rate, { align: 'right' }); td(qty % 1 === 0 ? qty : qty.toFixed(3), COL.qty);
-        td(taxRate.toFixed(0) + '%', COL.igstP); td(igstAmt.toFixed(2), COL.igst, { align: 'right' }); td(total.toFixed(2), COL.amt, { align: 'right', bold: true });
+        td(taxRate.toFixed(0) + '%', COL.igstP); td(igstAmt.toFixed(2), COL.igst, { align: 'right' }); td(taxable.toFixed(2), COL.amt, { align: 'right', bold: true });
       } else {
         td(idx + 1, COL.sl); td(it.itemCode || '', COL.code); td(it.hsnCode || '', COL.hsn); td(it.unit || '', COL.unit);
         td(price.toFixed(2), COL.rate, { align: 'right' }); td(qty % 1 === 0 ? qty : qty.toFixed(3), COL.qty);
         td((taxRate / 2).toFixed(0) + '%', COL.cgstP); td(cgstAmt.toFixed(2), COL.cgst, { align: 'right' });
-        td((taxRate / 2).toFixed(0) + '%', COL.sgstP); td(sgstAmt.toFixed(2), COL.sgst, { align: 'right' }); td(total.toFixed(2), COL.amt, { align: 'right', bold: true });
+        td((taxRate / 2).toFixed(0) + '%', COL.sgstP); td(sgstAmt.toFixed(2), COL.sgst, { align: 'right' }); td(taxable.toFixed(2), COL.amt, { align: 'right', bold: true });
       }
       y += ROW_H;
 
@@ -379,16 +440,24 @@ exports.generatePDF = async (req, res) => {
     ];
     y = drawSignature({ fillBox, box, vLine, hLine, txt }, y, q.sellerName, bankLines);
 
-    const noteLines = [q.termsConditions || q.notes || '', 'This is a quotation and is valid as per the terms stated above.'].filter(Boolean);
-    y = checkPage(y, 32);
-    box(X, y, W, noteLines.length * 9 + 7, LBD);
-    let ny = y + 4;
-    noteLines.forEach(line => {
-      txt(line, X + 5, ny, W - 10, { size: 7, color: GRY });
-      ny += 9;
-    });
+    const noteLines = [
+      String(q.notes || '').trim() ? 'Remarks: ' + String(q.notes).trim() : '',
+      String(q.termsConditions || '').trim() ? 'Terms & Conditions: ' + String(q.termsConditions).trim() : '',
+    ].filter(Boolean);
+    if (noteLines.length) {
+      const noteH = noteLines.reduce((sum, line) => sum + txtH(line, W - 10, 7, false) + 2, 5);
+      y = checkPage(y, noteH);
+      box(X, y, W, noteH, LBD);
+      let ny = y + 4;
+      noteLines.forEach(line => {
+        txt(line, X + 5, ny, W - 10, { size: 7, color: GRY });
+        ny = doc.y + 2;
+      });
+    }
 
-    addFooters(doc);
+    addFooters(doc, {
+      infoText: 'This is a computer-generated quotation and remains subject to the terms stated above.',
+    });
     doc.end();
   } catch (err) {
     if (!res.headersSent) res.status(500).json({ message: err.message });

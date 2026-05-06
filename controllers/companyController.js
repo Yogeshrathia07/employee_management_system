@@ -2,7 +2,17 @@ const { Company, User } = require('../models');
 
 exports.getCompanies = async (req, res) => {
   try {
-    const companies = await Company.findAll({ order: [['createdAt', 'DESC']] });
+    let companies;
+    if (req.user.role === 'admin') {
+      companies = req.user.companyId
+        ? await Company.findAll({
+            where: { id: req.user.companyId },
+            order: [['createdAt', 'DESC']],
+          })
+        : [];
+    } else {
+      companies = await Company.findAll({ order: [['createdAt', 'DESC']] });
+    }
     res.json(companies);
   } catch (err) {
     res.status(500).json({ message: err.message });

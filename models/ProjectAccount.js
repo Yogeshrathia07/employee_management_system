@@ -4,6 +4,7 @@ const sequelize = require('../config/database');
 const ProjectAccount = sequelize.define('ProjectAccount', {
   projectCode: { type: DataTypes.STRING(20),  allowNull: true, unique: true },
   name:        { type: DataTypes.STRING(200), allowNull: false },
+  companyId:   { type: DataTypes.INTEGER,     allowNull: true },
 
   clientId:   { type: DataTypes.INTEGER,     allowNull: true },
   clientName: { type: DataTypes.STRING(200), defaultValue: '' },

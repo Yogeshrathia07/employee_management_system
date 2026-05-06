@@ -2,6 +2,12 @@
 const { Op } = require('sequelize');
 const { WorkOrder, Client, Vendor, ProjectAccount, Company } = require('../models');
 const {
+  applyCompanyScope,
+  assertScopedRelation,
+  findScopedByPk,
+  syncAccountsCompanyIds,
+} = require('./accountsCompanyScope');
+const {
   M, PH, W, X, BLK, DRK, GRY, LGY, HBG, LBD, FOOTER_H,
   fmtDate, fmtINR, numWords, buildPdfFilename, createDoc, addFooters,
   drawSectionLabel, drawSignature,
@@ -55,7 +61,8 @@ function applyCompanySnapshot(target, company) {
 exports.getWorkOrders = async (req, res) => {
   try {
     const { q, status, type } = req.query;
-    const where = {};
+    if (req.user.role === 'admin') await syncAccountsCompanyIds();
+    const where = applyCompanyScope(req, {});
     if (type)   where.type = type;
     if (status) where.status = status;
     if (q) where[Op.or] = [
@@ -78,14 +85,15 @@ exports.getWorkOrders = async (req, res) => {
 // ── GET /work-orders/:id ──────────────────────────────────────────────────────
 exports.getWorkOrder = async (req, res) => {
   try {
-    const wo = await WorkOrder.findByPk(req.params.id, {
+    if (req.user.role === 'admin') await syncAccountsCompanyIds();
+    const wo = await findScopedByPk(WorkOrder, 'workOrder', req, req.params.id, {
       include: [
         { model: Client, as: 'client', required: false },
         { model: Vendor, as: 'vendor', required: false },
         { model: ProjectAccount, as: 'projectAccount', required: false },
         { model: Company, as: 'company', required: false },
       ],
-    });
+    }, 'Work Order not found');
     if (!wo) return res.status(404).json({ message: 'Work Order not found' });
     res.json(wo);
   } catch (err) { res.status(500).json({ message: err.message }); }
@@ -94,10 +102,19 @@ exports.getWorkOrder = async (req, res) => {
 // ── POST /work-orders ─────────────────────────────────────────────────────────
 exports.createWorkOrder = async (req, res) => {
   try {
-    const data = req.body;
+    const data = Object.assign({}, req.body);
     if (!data.type) return res.status(400).json({ message: 'Type (CWO/VWO) required' });
     if (!data.partyName && !data.clientId && !data.vendorId) {
       return res.status(400).json({ message: 'Party (client or vendor) required' });
+    }
+    if (data.clientId) {
+      await assertScopedRelation(Client, 'client', req, data.clientId, 'Client not found');
+    }
+    if (data.vendorId) {
+      await assertScopedRelation(Vendor, 'vendor', req, data.vendorId, 'Vendor not found');
+    }
+    if (data.projectAccountId) {
+      await assertScopedRelation(ProjectAccount, 'projectAccount', req, data.projectAccountId, 'Project account not found');
     }
     data.woNumber = cleanGeneratedCode(data.woNumber, data.type === 'CWO' ? 'CWO' : 'VWO');
     data.createdBy = req.user.id;
@@ -120,9 +137,19 @@ exports.createWorkOrder = async (req, res) => {
 // ── PUT /work-orders/:id ──────────────────────────────────────────────────────
 exports.updateWorkOrder = async (req, res) => {
   try {
-    const wo = await WorkOrder.findByPk(req.params.id);
+    if (req.user.role === 'admin') await syncAccountsCompanyIds();
+    const wo = await findScopedByPk(WorkOrder, 'workOrder', req, req.params.id, null, 'Work Order not found');
     if (!wo) return res.status(404).json({ message: 'Work Order not found' });
     const updates = Object.assign({}, req.body);
+    if (updates.clientId) {
+      await assertScopedRelation(Client, 'client', req, updates.clientId, 'Client not found');
+    }
+    if (updates.vendorId) {
+      await assertScopedRelation(Vendor, 'vendor', req, updates.vendorId, 'Vendor not found');
+    }
+    if (updates.projectAccountId) {
+      await assertScopedRelation(ProjectAccount, 'projectAccount', req, updates.projectAccountId, 'Project account not found');
+    }
     const nextType = updates.type || wo.type;
     if (updates.woNumber !== undefined) {
       updates.woNumber = cleanGeneratedCode(updates.woNumber, nextType === 'CWO' ? 'CWO' : 'VWO');
@@ -145,13 +172,14 @@ exports.updateWorkOrder = async (req, res) => {
 // ── GET /work-orders/:id/pdf ──────────────────────────────────────────────────
 exports.generatePDF = async (req, res) => {
   try {
-    const wo = await WorkOrder.findByPk(req.params.id, {
+    if (req.user.role === 'admin') await syncAccountsCompanyIds();
+    const wo = await findScopedByPk(WorkOrder, 'workOrder', req, req.params.id, {
       include: [
         { model: Client, as: 'client', required: false },
         { model: Vendor, as: 'vendor', required: false },
         { model: Company, as: 'company', required: false },
       ],
-    });
+    }, 'Work Order not found');
     if (!wo) return res.status(404).json({ message: 'Work Order not found' });
 
     const company = wo.company || await resolveWorkOrderCompany(req, wo.companyId);
@@ -356,7 +384,8 @@ exports.generatePDF = async (req, res) => {
 // ── DELETE /work-orders/:id ───────────────────────────────────────────────────
 exports.deleteWorkOrder = async (req, res) => {
   try {
-    const wo = await WorkOrder.findByPk(req.params.id);
+    if (req.user.role === 'admin') await syncAccountsCompanyIds();
+    const wo = await findScopedByPk(WorkOrder, 'workOrder', req, req.params.id, null, 'Work Order not found');
     if (!wo) return res.status(404).json({ message: 'Work Order not found' });
     const { moveToRecycleBin } = require('./recycleBinController');
     await moveToRecycleBin(wo.type === 'CWO' ? 'client_work_order' : 'vendor_work_order',
