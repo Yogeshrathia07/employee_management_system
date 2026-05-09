@@ -2,6 +2,7 @@ require('dotenv').config();
 const express = require('express');
 const path = require('path');
 const { sequelize, Company, User } = require('./models');
+const { pageAuth, redirectAuthenticatedUser } = require('./middleware/auth');
 
 const app = express();
 
@@ -28,7 +29,12 @@ app.use('/api', require('./routes/index'));
 app.get('/', (req, res) => res.redirect('/login'));
 
 // Login
-app.get('/login', (req, res) => res.render('login'));
+app.get('/login', redirectAuthenticatedUser, (req, res) => res.render('login'));
+
+app.use('/employee', pageAuth('employee'));
+app.use('/manager', pageAuth('manager'));
+app.use('/admin', pageAuth('admin', 'superadmin'));
+app.use('/superadmin', pageAuth('superadmin'));
 
 // Employee pages
 app.get('/employee/dashboard',      (req, res) => res.render('employee/dashboard',       { title: 'Dashboard' }));

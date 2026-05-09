@@ -10,7 +10,7 @@ const Vendor = sequelize.define('Vendor', {
   category:      { type: DataTypes.STRING(100), defaultValue: '' },
   gstin:         { type: DataTypes.STRING(20),  defaultValue: '' },
   pan:           { type: DataTypes.STRING(20),  defaultValue: '' },
-  address:       { type: DataTypes.TEXT,        defaultValue: '' },
+  address:       { type: DataTypes.TEXT },
   state:         { type: DataTypes.STRING(100), defaultValue: '' },
   stateCode:     { type: DataTypes.STRING(5),   defaultValue: '' },
 

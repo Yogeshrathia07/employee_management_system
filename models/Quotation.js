@@ -9,14 +9,14 @@ const Quotation = sequelize.define('Quotation', {
   clientGstin:     { type: DataTypes.STRING(20),  defaultValue: '' },
   clientPan:       { type: DataTypes.STRING(20),  defaultValue: '' },
   clientEmail:     { type: DataTypes.STRING(200), defaultValue: '' },
-  clientAddress:   { type: DataTypes.TEXT,        defaultValue: '' },
+  clientAddress:   { type: DataTypes.TEXT },
   clientState:     { type: DataTypes.STRING(100), defaultValue: '' },
   clientStateCode: { type: DataTypes.STRING(5),   defaultValue: '' },
 
   // Seller
   sellerName:      { type: DataTypes.STRING(200), defaultValue: '' },
   sellerGstin:     { type: DataTypes.STRING(20),  defaultValue: '' },
-  sellerAddress:   { type: DataTypes.TEXT,        defaultValue: '' },
+  sellerAddress:   { type: DataTypes.TEXT },
   sellerState:     { type: DataTypes.STRING(100), defaultValue: '' },
   sellerStateCode: { type: DataTypes.STRING(5),   defaultValue: '' },
   sellerPhone:     { type: DataTypes.STRING(20),  defaultValue: '' },
@@ -28,7 +28,6 @@ const Quotation = sequelize.define('Quotation', {
 
   items: {
     type: DataTypes.TEXT,
-    defaultValue: '[]',
     get() { try { return JSON.parse(this.getDataValue('items') || '[]'); } catch(e) { return []; } },
     set(v) { this.setDataValue('items', JSON.stringify(v || [])); },
   },
@@ -48,8 +47,8 @@ const Quotation = sequelize.define('Quotation', {
     type: DataTypes.ENUM('Draft','Sent','Accepted','Rejected','Converted'),
     defaultValue: 'Draft',
   },
-  notes:           { type: DataTypes.TEXT, defaultValue: '' },
-  termsConditions: { type: DataTypes.TEXT, defaultValue: '' },
+  notes:           { type: DataTypes.TEXT },
+  termsConditions: { type: DataTypes.TEXT },
 
   // Conversion tracking
   convertedToId:   { type: DataTypes.INTEGER,    allowNull: true },

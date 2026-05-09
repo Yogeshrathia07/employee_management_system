@@ -4,7 +4,7 @@ const sequelize = require('../config/database');
 const Notification = sequelize.define('Notification', {
   companyId: { type: DataTypes.INTEGER, allowNull: true },
   title: { type: DataTypes.STRING, allowNull: false },
-  message: { type: DataTypes.TEXT, defaultValue: '' },
+  message: { type: DataTypes.TEXT },
   type: { type: DataTypes.ENUM('info', 'warning', 'success', 'urgent'), defaultValue: 'info' },
   status: { type: DataTypes.ENUM('active', 'inactive'), defaultValue: 'active' },
   // File attachment (optional — admin can upload file for employees to download)

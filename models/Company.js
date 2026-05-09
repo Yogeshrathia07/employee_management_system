@@ -6,7 +6,7 @@ const Company = sequelize.define('Company', {
   email: { type: DataTypes.STRING, allowNull: false },
   phone: { type: DataTypes.STRING, defaultValue: '' },
   industry: { type: DataTypes.STRING, defaultValue: '' },
-  address: { type: DataTypes.TEXT, defaultValue: '' },
+  address: { type: DataTypes.TEXT },
   panNo: { type: DataTypes.STRING, defaultValue: '' },
   gstNo: { type: DataTypes.STRING, defaultValue: '' },
   status: { type: DataTypes.ENUM('active', 'inactive'), defaultValue: 'active' },

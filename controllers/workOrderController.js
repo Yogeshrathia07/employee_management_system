@@ -21,20 +21,20 @@ function cleanGeneratedCode(value, prefix) {
 
 async function resolveWorkOrderCompany(req, requestedCompanyId) {
   const actorCompanyId = Number((req.user && req.user.companyId) || 0) || null;
-  let targetCompanyId = Number(requestedCompanyId || 0) || null;
-  if (req.user && req.user.role !== 'superadmin' && actorCompanyId) {
-    targetCompanyId = actorCompanyId;
+  if (req.user && req.user.role !== 'superadmin') {
+    if (!actorCompanyId) return null;
+    return Company.findByPk(actorCompanyId);
   }
-  let company = null;
-  if (targetCompanyId) company = await Company.findByPk(targetCompanyId);
-  if (!company && actorCompanyId) company = await Company.findByPk(actorCompanyId);
-  if (!company) {
-    company = await Company.findOne({
-      where: { status: 'active' },
-      order: [['createdAt', 'ASC']],
-    });
-  }
-  return company;
+
+  const targetCompanyId = Number(requestedCompanyId || 0) || null;
+  if (!targetCompanyId) return null;
+  return Company.findByPk(targetCompanyId);
+}
+
+function missingWorkOrderCompanyMessage(req) {
+  return req.user && req.user.role === 'superadmin'
+    ? 'Select a company'
+    : 'Admin account is not associated with a company';
 }
 
 function applyCompanySnapshot(target, company) {
@@ -128,6 +128,7 @@ exports.createWorkOrder = async (req, res) => {
       if (v) data.partyName = v.name;
     }
     const company = await resolveWorkOrderCompany(req, data.companyId);
+    if (!company) return res.status(400).json({ message: missingWorkOrderCompanyMessage(req) });
     applyCompanySnapshot(data, company);
     const wo = await WorkOrder.create(data);
     res.status(201).json(wo);
@@ -163,6 +164,7 @@ exports.updateWorkOrder = async (req, res) => {
       if (vendor) updates.partyName = vendor.name;
     }
     const company = await resolveWorkOrderCompany(req, updates.companyId || wo.companyId);
+    if (!company) return res.status(400).json({ message: missingWorkOrderCompanyMessage(req) });
     applyCompanySnapshot(updates, company);
     await wo.update(updates);
     res.json(wo);

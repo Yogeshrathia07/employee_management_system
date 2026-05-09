@@ -8,6 +8,15 @@ function isStrongPassword(p) {
   return /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&#^()_\-+=])[A-Za-z\d@$!%*?&#^()_\-+=]{8,}$/.test(p);
 }
 
+function normalizeCompanyId(value) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+}
+
+function roleRequiresCompany(role) {
+  return role !== 'superadmin';
+}
+
 exports.getUsers = async (req, res) => {
   try {
     const where = {};
@@ -46,6 +55,8 @@ exports.createUser = async (req, res) => {
     if (exists) return res.status(400).json({ message: 'Email already exists' });
 
     const finalRole = role || 'employee';
+    const actorCompanyId = normalizeCompanyId(req.user.companyId);
+    const requestedCompanyId = normalizeCompanyId(companyId);
     const userData = {
       name, email,
       password: password || 'Employee@123',
@@ -77,10 +88,14 @@ exports.createUser = async (req, res) => {
     if (req.body.currency)                  userData.currency              = req.body.currency;
 
     if (req.user.role === 'admin') {
-      userData.companyId = req.user.companyId;
+      if (!actorCompanyId) return res.status(400).json({ message: 'Admin account is not associated with a company' });
+      userData.companyId = actorCompanyId;
       if (managerId) userData.managerId = managerId;
     } else if (req.user.role === 'superadmin') {
-      userData.companyId = companyId;
+      if (roleRequiresCompany(finalRole) && !requestedCompanyId) {
+        return res.status(400).json({ message: 'Company is required for this role' });
+      }
+      userData.companyId = finalRole === 'superadmin' ? null : requestedCompanyId;
       if (managerId) userData.managerId = managerId;
     }
 
@@ -134,12 +149,21 @@ exports.updateUser = async (req, res) => {
     }
 
     if (req.user.role === 'superadmin') {
-      if (role)                        user.role      = role;
-      if (companyId)                   user.companyId = companyId;
+      const nextCompanyId = companyId !== undefined
+        ? normalizeCompanyId(companyId)
+        : normalizeCompanyId(user.companyId);
+      if (role) user.role = role;
+      if (roleRequiresCompany(nextRole) && !nextCompanyId) {
+        return res.status(400).json({ message: 'Company is required for this role' });
+      }
+      user.companyId = nextRole === 'superadmin' ? null : nextCompanyId;
       if (managerId !== undefined)     user.managerId = managerId || null;
     }
     if (req.user.role === 'admin') {
+      const actorCompanyId = normalizeCompanyId(req.user.companyId);
+      if (!actorCompanyId) return res.status(400).json({ message: 'Admin account is not associated with a company' });
       if (role && ['employee', 'manager'].includes(role)) user.role = role;
+      user.companyId = actorCompanyId;
       if (managerId !== undefined) user.managerId = managerId || null;
     }
 

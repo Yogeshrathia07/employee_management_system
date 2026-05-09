@@ -13,7 +13,6 @@ const PurchaseOrder = sequelize.define('PurchaseOrder', {
 
   items: {
     type: DataTypes.TEXT,
-    defaultValue: '[]',
     get() { try { return JSON.parse(this.getDataValue('items') || '[]'); } catch(e) { return []; } },
     set(v) { this.setDataValue('items', JSON.stringify(v || [])); },
   },
@@ -24,7 +23,7 @@ const PurchaseOrder = sequelize.define('PurchaseOrder', {
     type: DataTypes.ENUM('Draft','Sent','Received','Closed','Cancelled'),
     defaultValue: 'Draft',
   },
-  notes: { type: DataTypes.TEXT, defaultValue: '' },
+  notes: { type: DataTypes.TEXT },
   createdBy: { type: DataTypes.INTEGER, allowNull: true },
 }, { timestamps: true });
 

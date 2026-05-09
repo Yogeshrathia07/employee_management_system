@@ -4,7 +4,7 @@ const sequelize = require('../config/database');
 const Task = sequelize.define('Task', {
   title:       { type: DataTypes.STRING, allowNull: false },
   projectName: { type: DataTypes.STRING(200), defaultValue: '' },
-  description: { type: DataTypes.TEXT, defaultValue: '' },
+  description: { type: DataTypes.TEXT },
   assignedTo:  { type: DataTypes.INTEGER, allowNull: false },
   assignedBy:  { type: DataTypes.INTEGER, allowNull: false },
   companyId:   { type: DataTypes.INTEGER, allowNull: true },
@@ -18,7 +18,7 @@ const Task = sequelize.define('Task', {
     type: DataTypes.STRING(30),
     defaultValue: 'none',
   },
-  refusalReason: { type: DataTypes.TEXT, defaultValue: '' },
+  refusalReason: { type: DataTypes.TEXT },
   refusedAt:     { type: DataTypes.DATE, allowNull: true },
 }, { timestamps: true });
 

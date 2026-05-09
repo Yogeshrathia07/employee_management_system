@@ -1,5 +1,6 @@
 const jwt = require('jsonwebtoken');
 const { User, Company } = require('../models');
+const { setAuthCookie } = require('../middleware/auth');
 
 exports.login = async (req, res) => {
   try {
@@ -19,6 +20,7 @@ exports.login = async (req, res) => {
     if (!match) return res.status(401).json({ message: 'Invalid credentials' });
 
     const token = jwt.sign({ id: user.id }, process.env.JWT_SECRET, { expiresIn: process.env.JWT_EXPIRE });
+    setAuthCookie(res, req, token);
 
     res.json({
       token,

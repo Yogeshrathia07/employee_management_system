@@ -1,0 +1,10 @@
+HTTP/1.1 400 Bad Request
+X-Powered-By: Express
+Content-Security-Policy: default-src 'none'
+X-Content-Type-Options: nosniff
+Content-Type: text/html; charset=utf-8
+Content-Length: 1168
+Date: Sat, 09 May 2026 21:47:54 GMT
+Connection: keep-alive
+Keep-Alive: timeout=5
+

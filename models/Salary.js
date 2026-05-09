@@ -55,7 +55,7 @@ const Salary = sequelize.define('Salary', {
   // ── Status & audit ────────────────────────────────────────────────
   status:      { type: DataTypes.STRING(20), defaultValue: 'draft' },
   paidAt:      { type: DataTypes.DATE, allowNull: true },
-  notes:       { type: DataTypes.TEXT, defaultValue: '' },
+  notes:       { type: DataTypes.TEXT },
   generatedBy: { type: DataTypes.INTEGER, allowNull: true },
   finalizedBy: { type: DataTypes.INTEGER, allowNull: true },
   finalizedAt: { type: DataTypes.DATE, allowNull: true },

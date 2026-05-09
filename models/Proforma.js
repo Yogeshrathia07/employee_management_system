@@ -14,14 +14,14 @@ const Proforma = sequelize.define('Proforma', {
   customerGstin:     { type: DataTypes.STRING(20),  defaultValue: '' },
   customerPan:       { type: DataTypes.STRING(20),  defaultValue: '' },
   customerEmail:     { type: DataTypes.STRING(200), defaultValue: '' },
-  customerAddress:   { type: DataTypes.TEXT,        defaultValue: '' },
+  customerAddress:   { type: DataTypes.TEXT },
   customerState:     { type: DataTypes.STRING(100), defaultValue: '' },
   customerStateCode: { type: DataTypes.STRING(5),   defaultValue: '' },
 
   // Seller
   sellerName:      { type: DataTypes.STRING(200), defaultValue: '' },
   sellerGstin:     { type: DataTypes.STRING(20),  defaultValue: '' },
-  sellerAddress:   { type: DataTypes.TEXT,        defaultValue: '' },
+  sellerAddress:   { type: DataTypes.TEXT },
   sellerState:     { type: DataTypes.STRING(100), defaultValue: '' },
   sellerStateCode: { type: DataTypes.STRING(5),   defaultValue: '' },
   sellerPhone:     { type: DataTypes.STRING(20),  defaultValue: '' },
@@ -39,12 +39,11 @@ const Proforma = sequelize.define('Proforma', {
   billPeriodTo:   { type: DataTypes.DATEONLY,    allowNull: true },
   workOrder:      { type: DataTypes.STRING(200), defaultValue: '' },
   projectName:    { type: DataTypes.STRING(300), defaultValue: '' },
-  workDetails:    { type: DataTypes.TEXT,        defaultValue: '' },
+  workDetails:    { type: DataTypes.TEXT },
 
   // Items
   items: {
     type: DataTypes.TEXT,
-    defaultValue: '[]',
     get() { try { return JSON.parse(this.getDataValue('items') || '[]'); } catch(e) { return []; } },
     set(v) { this.setDataValue('items', JSON.stringify(v || [])); },
   },
@@ -81,8 +80,8 @@ const Proforma = sequelize.define('Proforma', {
   },
   convertedToInvoiceId: { type: DataTypes.INTEGER, allowNull: true },
 
-  notes:           { type: DataTypes.TEXT, defaultValue: '' },
-  termsConditions: { type: DataTypes.TEXT, defaultValue: '' },
+  notes:           { type: DataTypes.TEXT },
+  termsConditions: { type: DataTypes.TEXT },
   createdBy:       { type: DataTypes.INTEGER, allowNull: true },
 }, { timestamps: true });
 

@@ -13,7 +13,7 @@ const ProjectAccount = sequelize.define('ProjectAccount', {
   startDate: { type: DataTypes.DATEONLY,      allowNull: true },
   endDate:   { type: DataTypes.DATEONLY,      allowNull: true },
 
-  description: { type: DataTypes.TEXT, defaultValue: '' },
+  description: { type: DataTypes.TEXT },
 
   status: {
     type: DataTypes.ENUM('Planning','Active','Completed','On Hold'),

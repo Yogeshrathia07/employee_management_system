@@ -19,7 +19,7 @@ const Document = sequelize.define('Document', {
   verificationStatus: { type: DataTypes.STRING(20), defaultValue: 'pending' },
   verifiedBy:         { type: DataTypes.INTEGER, allowNull: true },
   verifiedAt:         { type: DataTypes.DATE, allowNull: true },
-  verificationNote:   { type: DataTypes.TEXT, defaultValue: '' },
+  verificationNote:   { type: DataTypes.TEXT },
 
   // For degree label
   degreeLabel: { type: DataTypes.STRING, defaultValue: '' },
@@ -29,7 +29,7 @@ const Document = sequelize.define('Document', {
   fileSize:   { type: DataTypes.INTEGER, defaultValue: 0 },
   mimeType:   { type: DataTypes.STRING, defaultValue: '' },
   uploadedBy: { type: DataTypes.INTEGER, allowNull: true },
-  notes:      { type: DataTypes.TEXT, defaultValue: '' },
+  notes:      { type: DataTypes.TEXT },
 }, {
   timestamps: true,
   paranoid: true,

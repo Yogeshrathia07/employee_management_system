@@ -7,7 +7,6 @@ const SpreadsheetWorkbook = sequelize.define('SpreadsheetWorkbook', {
   name:        { type: DataTypes.STRING(200), defaultValue: 'Workbook 1' },
   sheetsData:  {
     type: DataTypes.TEXT('long'),
-    defaultValue: '[]',
     get() {
       const v = this.getDataValue('sheetsData');
       try { return JSON.parse(v || '[]'); } catch { return []; }

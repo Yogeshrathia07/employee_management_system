@@ -9,7 +9,7 @@ const Client = sequelize.define('Client', {
   email:         { type: DataTypes.STRING(200), defaultValue: '' },
   gstin:         { type: DataTypes.STRING(20),  defaultValue: '' },
   pan:           { type: DataTypes.STRING(20),  defaultValue: '' },
-  billingAddress:{ type: DataTypes.TEXT,        defaultValue: '' },
+  billingAddress:{ type: DataTypes.TEXT },
   state:         { type: DataTypes.STRING(100), defaultValue: '' },
   stateCode:     { type: DataTypes.STRING(5),   defaultValue: '' },
   status:        { type: DataTypes.ENUM('Active', 'Inactive'), defaultValue: 'Active' },

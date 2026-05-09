@@ -7,7 +7,6 @@ const Timesheet = sequelize.define('Timesheet', {
   weekEnd: { type: DataTypes.DATE, allowNull: false },
   entries: {
     type: DataTypes.JSON,
-    defaultValue: [],
     get() {
       let val = this.getDataValue('entries');
       if (typeof val === 'string') {
@@ -20,9 +19,9 @@ const Timesheet = sequelize.define('Timesheet', {
   status: { type: DataTypes.STRING(20), defaultValue: 'pending' },
   approvedBy: { type: DataTypes.INTEGER, allowNull: true },
   approvedAt: { type: DataTypes.DATE, allowNull: true },
-  rejectionReason: { type: DataTypes.TEXT, defaultValue: '' },
+  rejectionReason: { type: DataTypes.TEXT },
   companyId: { type: DataTypes.INTEGER, allowNull: true },
-  notes: { type: DataTypes.TEXT, defaultValue: '' },
+  notes: { type: DataTypes.TEXT },
 }, { timestamps: true });
 
 module.exports = Timesheet;

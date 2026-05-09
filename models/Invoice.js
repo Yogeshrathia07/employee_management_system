@@ -23,12 +23,12 @@ const Invoice = sequelize.define('Invoice', {
   // ── Work Order / Project (optional) ─────────────────────────────────────
   workOrder:    { type: DataTypes.STRING(200), defaultValue: '' },
   projectName:  { type: DataTypes.STRING(300), defaultValue: '' },
-  workDetails:  { type: DataTypes.TEXT,         defaultValue: '' },
+  workDetails:  { type: DataTypes.TEXT },
 
   // ── Seller (Company) ─────────────────────────────────────────────────────
   sellerName:      { type: DataTypes.STRING(200), defaultValue: '' },
   sellerGstin:     { type: DataTypes.STRING(20),  defaultValue: '' },
-  sellerAddress:   { type: DataTypes.TEXT,         defaultValue: '' },
+  sellerAddress:   { type: DataTypes.TEXT },
   sellerState:     { type: DataTypes.STRING(100),  defaultValue: '' },
   sellerStateCode: { type: DataTypes.STRING(5),    defaultValue: '' },
   sellerPhone:     { type: DataTypes.STRING(20),   defaultValue: '' },
@@ -40,14 +40,13 @@ const Invoice = sequelize.define('Invoice', {
   customerGstin:     { type: DataTypes.STRING(20),  defaultValue: '' },
   customerPan:       { type: DataTypes.STRING(20),  defaultValue: '' },
   customerEmail:     { type: DataTypes.STRING(200), defaultValue: '' },
-  customerAddress:   { type: DataTypes.TEXT,         defaultValue: '' },
+  customerAddress:   { type: DataTypes.TEXT },
   customerState:     { type: DataTypes.STRING(100),  defaultValue: '' },
   customerStateCode: { type: DataTypes.STRING(5),    defaultValue: '' },
 
   // ── Line Items (JSON) ────────────────────────────────────────────────────
   items: {
     type: DataTypes.TEXT,
-    defaultValue: '[]',
     get() {
       const v = this.getDataValue('items');
       try { return JSON.parse(v || '[]'); } catch (e) { return []; }
@@ -88,8 +87,8 @@ const Invoice = sequelize.define('Invoice', {
   },
 
   // ── Notes ─────────────────────────────────────────────────────────────────
-  notes:           { type: DataTypes.TEXT, defaultValue: '' },
-  termsConditions: { type: DataTypes.TEXT, defaultValue: '' },
+  notes:           { type: DataTypes.TEXT },
+  termsConditions: { type: DataTypes.TEXT },
 
   // ── Metadata ──────────────────────────────────────────────────────────────
   companyId: { type: DataTypes.INTEGER, allowNull: true },

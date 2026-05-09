@@ -7,11 +7,11 @@ const Leave = sequelize.define('Leave', {
   startDate: { type: DataTypes.DATEONLY, allowNull: false },
   endDate: { type: DataTypes.DATEONLY, allowNull: false },
   days: { type: DataTypes.INTEGER, allowNull: false },
-  reason: { type: DataTypes.TEXT, defaultValue: '' },
+  reason: { type: DataTypes.TEXT },
   status: { type: DataTypes.STRING(20), defaultValue: 'pending' },
   approvedBy: { type: DataTypes.INTEGER, allowNull: true },
   approvedAt: { type: DataTypes.DATE, allowNull: true },
-  rejectionReason: { type: DataTypes.TEXT, defaultValue: '' },
+  rejectionReason: { type: DataTypes.TEXT },
   companyId: { type: DataTypes.INTEGER, allowNull: true },
 }, { timestamps: true });
 

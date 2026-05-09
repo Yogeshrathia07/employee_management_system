@@ -106,12 +106,21 @@ async function doLogin() {
   }
 }
 
-// If already logged in, redirect
-(function() {
+// If already logged in, validate and redirect
+(async function() {
   const user = getUser();
   const token = getToken();
-  if (user && token) {
+  if (!user || !token) return;
+
+  try {
+    const res = await fetch('/api/users/me', {
+      credentials: 'same-origin',
+      headers: { 'Authorization': 'Bearer ' + token }
+    });
+    if (!res.ok) throw new Error('Invalid session');
     window.location.href = getRoleHomePath(user);
+  } catch (e) {
+    clearAuth();
   }
 })();
 

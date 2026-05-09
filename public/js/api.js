@@ -1,15 +1,40 @@
 // ─── Auth Helpers ───
-const getToken = () => localStorage.getItem('ems_token');
+function getCookieValue(name) {
+  var match = document.cookie.match(new RegExp('(?:^|; )' + name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '=([^;]*)'));
+  return match ? decodeURIComponent(match[1]) : '';
+}
+
+const getToken = () => localStorage.getItem('ems_token') || getCookieValue('token');
 const getUser = () => JSON.parse(localStorage.getItem('ems_user') || 'null');
+
+function setAuthCookie(token) {
+  if (!token) return;
+  var parts = ['token=' + encodeURIComponent(token), 'Path=/', 'SameSite=Lax'];
+  if (window.location.protocol === 'https:') parts.push('Secure');
+  document.cookie = parts.join('; ');
+}
+
+function clearAuthCookie() {
+  var parts = ['token=', 'Path=/', 'Max-Age=0', 'SameSite=Lax'];
+  if (window.location.protocol === 'https:') parts.push('Secure');
+  document.cookie = parts.join('; ');
+}
+
+function syncStoredAuthCookie() {
+  var token = getToken();
+  if (token) setAuthCookie(token);
+}
 
 function setAuth(token, user) {
   localStorage.setItem('ems_token', token);
   localStorage.setItem('ems_user', JSON.stringify(user));
+  setAuthCookie(token);
 }
 
 function clearAuth() {
   localStorage.removeItem('ems_token');
   localStorage.removeItem('ems_user');
+  clearAuthCookie();
 }
 
 function logout() {
@@ -107,6 +132,7 @@ async function api(method, path, body = null) {
 
   const opts = {
     method,
+    credentials: 'same-origin',
     headers: {
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${token}`
@@ -347,6 +373,7 @@ function closeSidebar() {
 
 // ─── apiFetch (alias for fetch with auth) ───
 async function apiFetch(url, opts = {}) {
+  if (opts.credentials === undefined) opts.credentials = 'same-origin';
   opts.headers = { 'Content-Type': 'application/json', ...(opts.headers || {}) };
   const res = await fetch(url, opts);
   const data = await res.json();
@@ -361,13 +388,43 @@ async function apiFetch(url, opts = {}) {
 }
 
 // ─── Auth Guard ───
+syncStoredAuthCookie();
+
 (function() {
   const token = getToken();
   const user = getUser();
-  if (!token || !user) {
+  if (!token) {
     if (!window.location.pathname.includes('/login')) {
       window.location.href = '/login';
     }
+    return;
+  }
+
+  if (!user) {
+    fetch('/api/users/me', {
+      credentials: 'same-origin',
+      headers: { 'Authorization': 'Bearer ' + token }
+    })
+      .then(function(res) {
+        if (!res.ok) throw new Error('Session expired');
+        return res.json();
+      })
+      .then(function(freshUser) {
+        setAuth(token, freshUser);
+        if (window.location.pathname.includes('/login')) {
+          window.location.href = getRoleHomePath(freshUser);
+          return;
+        }
+        updateCompanyBrand(freshUser);
+        enforceVerificationRedirect(freshUser);
+        refreshStoredUser();
+      })
+      .catch(function() {
+        clearAuth();
+        if (!window.location.pathname.includes('/login')) {
+          window.location.href = '/login';
+        }
+      });
     return;
   }
 

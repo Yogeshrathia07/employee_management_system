@@ -1820,6 +1820,35 @@
 <script src="/js/api.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script>
+var ACCOUNTS_PAGE_ROLE = <%- JSON.stringify(pageRole || 'superadmin') %>;
+var ACCOUNTS_COMPANY_LOCKED = ACCOUNTS_PAGE_ROLE === 'admin';
+var ACCOUNTS_LOCKED_INPUT_IDS = [
+  'gst-s-name','gst-s-gstin','gst-s-addr','gst-s-state','gst-s-code','gst-s-phone','gst-s-email','gst-s-pan',
+  'gst-bank-name','gst-bank-acname','gst-bank-ac','gst-bank-ifsc','gst-bank-branch',
+  'pro-s-name','pro-s-gstin','pro-s-addr','pro-s-state','pro-s-code','pro-s-phone','pro-s-email','pro-s-pan',
+  'pro-bank-name','pro-bank-acname','pro-bank-ac','pro-bank-ifsc','pro-bank-branch'
+];
+var ACCOUNTS_LOCKED_SELECT_IDS = ['gst-company-sel', 'pro-company-sel', 'wo-company-sel'];
+
+function setAccountsFieldLocked(id, locked) {
+  var el = document.getElementById(id);
+  if (!el) return;
+  if (el.tagName && el.tagName.toLowerCase() === 'select') {
+    el.disabled = !!locked;
+  } else {
+    el.readOnly = !!locked;
+  }
+  el.title = locked ? 'This field is fixed to your assigned company.' : '';
+  el.style.background = locked ? '#f8fafc' : '';
+  el.style.color = locked ? '#6b7280' : '';
+  el.style.cursor = locked && el.tagName && el.tagName.toLowerCase() === 'select' ? 'not-allowed' : '';
+}
+
+function applyAccountsRoleLocks() {
+  if (!ACCOUNTS_COMPANY_LOCKED) return;
+  ACCOUNTS_LOCKED_INPUT_IDS.forEach(function(id) { setAccountsFieldLocked(id, true); });
+  ACCOUNTS_LOCKED_SELECT_IDS.forEach(function(id) { setAccountsFieldLocked(id, true); });
+}
 /* ── storage helpers ──────────────────────────────────── */
 var STORE = {
   inv: 'acc_invoices', pro: 'acc_proforma', quo: 'acc_quotations',
@@ -1911,6 +1940,7 @@ var ACCOUNTS_REGISTRY_KEYS = {
   projects: 'acc_project_registry',
   workOrders: 'acc_workorder_registry'
 };
+var accountQuickFillCustomers = [];
 function cleanAccountText(value) {
   var text = String(value == null ? '' : value).replace(/\+/g, ' ').trim();
   for (var i = 0; i < 3 && /%[0-9A-Fa-f]{2}/.test(text); i++) {
@@ -2010,6 +2040,21 @@ function normalizeAccountCustomer(source) {
     stateCode: source.stateCode || source.customerStateCode || source.clientStateCode || accountStateCodeFromGstin(gst)
   };
 }
+function setAccountQuickFillCustomers(customers) {
+  var byName = {};
+  (customers || []).forEach(function(source) {
+    var customer = normalizeAccountCustomer(source);
+    var key = cleanAccountText(customer.name).toLowerCase();
+    if (!key) return;
+    byName[key] = Object.assign({}, byName[key] || {}, customer, { source: 'client' });
+  });
+  accountQuickFillCustomers = Object.keys(byName).sort().map(function(key) {
+    return byName[key];
+  });
+}
+function getAccountQuickFillCustomers() {
+  return accountQuickFillCustomers.slice();
+}
 function setAccountCustomerFields(prefix, source) {
   var customer = normalizeAccountCustomer(source);
   var nameEl = document.getElementById(prefix + '-c-name');
@@ -2069,6 +2114,7 @@ function refreshAccountsDataLists() {
     var clients = (all[0] || []).map(function(c) {
       return { name:c.name, email:c.email, gst:c.gstin, pan:c.pan, address:c.billingAddress, state:c.state, stateCode:c.stateCode, source:'client' };
     });
+    setAccountQuickFillCustomers(clients);
     var vendors = (all[1] || []).map(function(v) {
       return { name:v.name, email:v.email, gst:v.gstin, pan:v.pan, address:v.address, state:v.state, stateCode:v.stateCode, source:'vendor' };
     });
@@ -4717,6 +4763,9 @@ function renderClients() {
   var st = document.getElementById('clt-status').value;
   api('GET', '/clients').then(function(data) {
     _allClients = data || [];
+    setAccountQuickFillCustomers(_allClients);
+    populateVendorDropdown();
+    populateProVendorDropdown();
     var filtered = _allClients.filter(function(r) {
       return (!q || (r.name||'').toLowerCase().includes(q) || (r.clientCode||'').toLowerCase().includes(q) || (r.email||'').toLowerCase().includes(q))
           && (!st || r.status === st);
@@ -5217,7 +5266,7 @@ var _saveProject = saveProject;
 function populateVendorDropdown(selectedName) {
   var sel = document.getElementById('gst-vendor-sel');
   if (!sel) return;
-  var customers = getKnownCustomers();
+  var customers = getAccountQuickFillCustomers();
   var selectedClean = cleanAccountText(selectedName || '');
   if (!selectedClean && sel.value) {
     try { selectedClean = cleanAccountText(JSON.parse(sel.value).name || ''); } catch(e) {}
@@ -5244,7 +5293,7 @@ function fillFromVendor(jsonStr) {
 function populateProVendorDropdown(selectedName) {
   var sel = document.getElementById('pro-vendor-sel');
   if (!sel) return;
-  var customers = getKnownCustomers();
+  var customers = getAccountQuickFillCustomers();
   var selectedClean = cleanAccountText(selectedName || '');
   if (!selectedClean && sel.value) {
     try { selectedClean = cleanAccountText(JSON.parse(sel.value).name || ''); } catch(e) {}
@@ -5403,6 +5452,7 @@ document.addEventListener('DOMContentLoaded', function(){
   refreshAccountsDataLists();
   populateVendorDropdownAPI('po-vendor', null, 'Select vendor');
   populateStateSelects();
+  applyAccountsRoleLocks();
 });
 updateDashStats();
 

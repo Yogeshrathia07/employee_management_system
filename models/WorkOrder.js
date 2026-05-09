@@ -11,7 +11,7 @@ const WorkOrder = sequelize.define('WorkOrder', {
   partyName: { type: DataTypes.STRING(200), defaultValue: '' },
 
   sellerName:      { type: DataTypes.STRING(200), defaultValue: '' },
-  sellerAddress:   { type: DataTypes.TEXT, defaultValue: '' },
+  sellerAddress:   { type: DataTypes.TEXT },
   sellerPhone:     { type: DataTypes.STRING(50), defaultValue: '' },
   sellerEmail:     { type: DataTypes.STRING(200), defaultValue: '' },
   sellerGstin:     { type: DataTypes.STRING(20), defaultValue: '' },
@@ -31,13 +31,12 @@ const WorkOrder = sequelize.define('WorkOrder', {
 
   startDate: { type: DataTypes.DATEONLY, allowNull: true },
   endDate:   { type: DataTypes.DATEONLY, allowNull: true },
-  scope:     { type: DataTypes.TEXT,     defaultValue: '' },
+  scope:     { type: DataTypes.TEXT },
 
   totalAmount: { type: DataTypes.DECIMAL(14,2), defaultValue: 0 },
 
   milestones: {
     type: DataTypes.TEXT,
-    defaultValue: '[]',
     get() { try { return JSON.parse(this.getDataValue('milestones') || '[]'); } catch(e) { return []; } },
     set(v) { this.setDataValue('milestones', JSON.stringify(v || [])); },
   },
