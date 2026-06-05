@@ -11,6 +11,7 @@ const {
   resolveScopedCompany,
   syncAccountsCompanyIds,
 } = require('./accountsCompanyScope');
+const { buildTaxSummaryLabels } = require('./pdfHelper');
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -50,6 +51,32 @@ function currentFY() {
   const now = new Date(), yr = now.getFullYear(), mo = now.getMonth() + 1;
   const start = mo >= 4 ? yr : yr - 1;
   return String(start).slice(-2) + '-' + String(start + 1).slice(-2);
+}
+
+function deriveFinancialYearFromDate(value) {
+  if (!value) return '';
+  const d = new Date(value);
+  if (isNaN(d)) return '';
+  const year = d.getFullYear();
+  const month = d.getMonth() + 1;
+  const start = month >= 4 ? year : year - 1;
+  return String(start).slice(-2) + '-' + String(start + 1).slice(-2);
+}
+
+function normalizeFinancialYear(value, invoiceDate, invoiceNumber) {
+  const fy = String(value || '').trim();
+  if (/^\d{2}-\d{2}$/.test(fy)) return fy;
+  const numMatch = String(invoiceNumber || '').match(/\/(\d{2}-\d{2})\//);
+  if (numMatch) return numMatch[1];
+  return deriveFinancialYearFromDate(invoiceDate) || currentFY();
+}
+
+function withNormalizedFinancialYear(invoice) {
+  const data = invoice && typeof invoice.toJSON === 'function'
+    ? invoice.toJSON()
+    : Object.assign({}, invoice || {});
+  data.financialYear = normalizeFinancialYear(data.financialYear, data.invoiceDate, data.invoiceNumber);
+  return data;
 }
 
 function pdfSafePart(value) {
@@ -98,10 +125,16 @@ async function nextInvoiceNumber(fy, code) {
   return `${String(maxSeq + 1).padStart(3, '0')}/${safeCode}/${safeFY}/${random}`;
 }
 
+function cleanGeneratedCode(value) {
+  const code = String(value || '').trim();
+  if (!code) return '';
+  return code.toLowerCase() === 'auto-generated' ? '' : code;
+}
+
 // ── GET /invoices ─────────────────────────────────────────────────────────────
 exports.getInvoices = async (req, res) => {
   try {
-    const { q, status, type, from, to } = req.query;
+    const { q, status, type, from, to, financialYear } = req.query;
     if (req.user.role === 'admin') await syncAccountsCompanyIds();
     const where = applyCompanyScope(req, {});
     if (status)        where.status      = status;
@@ -116,7 +149,11 @@ exports.getInvoices = async (req, res) => {
       if (from) where.invoiceDate[Op.gte] = from;
       if (to)   where.invoiceDate[Op.lte] = to;
     }
-    const rows = await Invoice.findAll({ where, order: [['createdAt', 'DESC']] });
+    let rows = await Invoice.findAll({ where, order: [['createdAt', 'DESC']] });
+    rows = rows.map(withNormalizedFinancialYear);
+    if (/^\d{2}-\d{2}$/.test(String(financialYear || '').trim())) {
+      rows = rows.filter(row => row.financialYear === String(financialYear).trim());
+    }
     res.json(rows);
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -129,7 +166,7 @@ exports.getInvoice = async (req, res) => {
     if (req.user.role === 'admin') await syncAccountsCompanyIds();
     const inv = await findScopedByPk(Invoice, 'invoice', req, req.params.id, null, 'Invoice not found');
     if (!inv) return res.status(404).json({ message: 'Invoice not found' });
-    res.json(inv);
+    res.json(withNormalizedFinancialYear(inv));
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -151,7 +188,8 @@ exports.createInvoice = async (req, res) => {
     if (getActorCompanyId(req) && !data.companyId) {
       return res.status(400).json({ message: 'Admin company not found' });
     }
-    data.invoiceNumber = await nextInvoiceNumber(data.financialYear, data.companyCode);
+    data.financialYear = normalizeFinancialYear(data.financialYear, data.invoiceDate, data.invoiceNumber);
+    data.invoiceNumber = cleanGeneratedCode(data.invoiceNumber) || await nextInvoiceNumber(data.financialYear, data.companyCode);
     data.createdBy     = req.user.id;
     const inv = await Invoice.create(data);
     res.status(201).json(inv);
@@ -175,6 +213,11 @@ exports.updateInvoice = async (req, res) => {
     const company = await resolveScopedCompany(req, Object.assign({}, inv.toJSON(), updates));
     if (company) applySellerCompanySnapshot(updates, company);
     if (getActorCompanyId(req)) updates.companyId = getActorCompanyId(req);
+    updates.financialYear = normalizeFinancialYear(
+      updates.financialYear,
+      updates.invoiceDate || inv.invoiceDate,
+      updates.invoiceNumber || inv.invoiceNumber
+    );
     await inv.update(updates);
     res.json(inv);
   } catch (err) {
@@ -793,12 +836,13 @@ exports.downloadPDF = async (req, res) => {
     const sgstV = showTaxSummary ? taxAmount(inv.totalSgst) : 0;
     const hasSplit = cgstV > 0.004 || sgstV > 0.004;
     const splitTotal = cgstV + sgstV;
+    const taxLabels = buildTaxSummaryLabels(inv, useIGST ? 'igst' : 'split');
 
     const sumLines = [
       ['Subtotal:', fmtINR(inv.subtotal)],
-      ...(igstV > 0.004 ? [['IGST:', fmtINR(igstV)]] : []),
-      ...(cgstV > 0.004 ? [['CGST:', fmtINR(cgstV)]] : []),
-      ...(sgstV > 0.004 ? [['SGST:', fmtINR(sgstV)]] : []),
+      ...(igstV > 0.004 ? [[taxLabels.igst + ':', fmtINR(igstV)]] : []),
+      ...(cgstV > 0.004 ? [[taxLabels.cgst + ':', fmtINR(cgstV)]] : []),
+      ...(sgstV > 0.004 ? [[taxLabels.sgst + ':', fmtINR(sgstV)]] : []),
       ...(hasSplit && splitTotal > 0.004 ? [['Total Tax:', fmtINR(splitTotal)]] : []),
       ...(roundOffMode !== 'none' ? [['Round Off:', fmtSignedINR(inv.roundOff, roundOffMode)]] : []),
     ];

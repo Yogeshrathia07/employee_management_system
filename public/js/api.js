@@ -159,6 +159,26 @@ async function api(method, path, body = null) {
   return data;
 }
 
+async function apiForm(method, path, formData) {
+  const token = getToken();
+  if (!token) { window.location.href = '/login'; return; }
+
+  const res = await fetch('/api' + path, {
+    method,
+    credentials: 'same-origin',
+    headers: {
+      'Authorization': `Bearer ${token}`
+    },
+    body: formData
+  });
+
+  if (res.status === 401) { clearAuth(); window.location.href = '/login'; return; }
+
+  const data = await res.json().catch(function() { return {}; });
+  if (!res.ok) throw new Error(data.message || 'Request failed');
+  return data;
+}
+
 // ─── Toast Notifications ───
 function toast(message, type = 'info') {
   let container = document.getElementById('toast-container');

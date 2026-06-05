@@ -100,8 +100,17 @@
                 <select id="inv-status" class="form-control" style="width:120px" onchange="renderInvoices()">
                   <option value="">All Status</option><option>Draft</option><option>Sent</option><option>Paid</option><option>Overdue</option><option>Cancelled</option>
                 </select>
-                <select id="inv-type" class="form-control" style="width:120px" onchange="renderInvoices()">
-                  <option value="">All Types</option><option value="B2B">Tax Invoice</option><option value="B2C">B2C Invoice</option>
+                <select id="inv-type" class="form-control" style="width:170px" onchange="renderInvoices()">
+                  <option value="">All Types</option>
+                  <option value="Tax Invoice:B2B">Tax Invoice (B2B)</option>
+                  <option value="Tax Invoice:B2C">Tax Invoice (B2C)</option>
+                  <option value="Proforma Invoice">Proforma Invoice</option>
+                  <option value="Quotation">Quotation</option>
+                  <option value="Credit Note">Credit Note</option>
+                  <option value="Debit Note">Debit Note</option>
+                </select>
+                <select id="inv-fy-filter" class="form-control" style="width:145px" onchange="renderInvoices()">
+                  <option value="">All FY</option>
                 </select>
                 <select id="inv-year" class="form-control" style="width:120px" onchange="renderInvoices()">
                   <option value="">All Years</option>
@@ -466,7 +475,7 @@
           </div>
           <div>
             <label style="display:block;font-size:13px;font-weight:500;color:#111;margin-bottom:6px;">Reference Number</label>
-            <input type="text" id="gst-number" readonly style="width:100%;border:1px solid #d1d5db;border-radius:8px;padding:9px 12px;font-size:13px;color:#888;background:#f9fafb;font-weight:600;box-sizing:border-box;" placeholder="Auto-generated">
+            <input type="text" id="gst-number" style="width:100%;border:1px solid #d1d5db;border-radius:8px;padding:9px 12px;font-size:13px;color:#111;background:#fff;font-weight:600;box-sizing:border-box;" placeholder="Auto-generated">
           </div>
           <div>
             <label style="display:block;font-size:13px;font-weight:500;color:#111;margin-bottom:6px;">Invoice Date</label>
@@ -667,9 +676,9 @@
         <div style="font-size:13px;font-weight:600;color:#111;margin-bottom:14px;">Tax Summary</div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px 24px;font-size:13px;">
           <div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid #e5e7eb;"><span style="color:#6b7280;">Total Amount</span><span id="gst-sum-sub" style="font-weight:600;color:#111;">₹0.00</span></div>
-          <div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid #e5e7eb;" id="gst-sum-sgst-row"><span style="color:#6b7280;" id="gst-sum-sgst-label">SGST (9%)</span><span id="gst-sum-sgst" style="font-weight:600;color:#111;">₹0.00</span></div>
-          <div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid #e5e7eb;" id="gst-sum-cgst-row"><span style="color:#6b7280;" id="gst-sum-cgst-label">CGST (9%)</span><span id="gst-sum-cgst" style="font-weight:600;color:#111;">₹0.00</span></div>
-          <div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid #e5e7eb;" id="gst-sum-igst-row" style="display:none;"><span style="color:#6b7280;" id="gst-sum-igst-label">IGST (18%)</span><span id="gst-sum-igst" style="font-weight:600;color:#111;">₹0.00</span></div>
+          <div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid #e5e7eb;" id="gst-sum-sgst-row"><span style="color:#6b7280;" id="gst-sum-sgst-label">SGST @ 9%</span><span id="gst-sum-sgst" style="font-weight:600;color:#111;">₹0.00</span></div>
+          <div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid #e5e7eb;" id="gst-sum-cgst-row"><span style="color:#6b7280;" id="gst-sum-cgst-label">CGST @ 9%</span><span id="gst-sum-cgst" style="font-weight:600;color:#111;">₹0.00</span></div>
+          <div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid #e5e7eb;" id="gst-sum-igst-row" style="display:none;"><span style="color:#6b7280;" id="gst-sum-igst-label">IGST @ 18%</span><span id="gst-sum-igst" style="font-weight:600;color:#111;">₹0.00</span></div>
           <div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid #e5e7eb;" id="gst-sum-round-row"><span style="color:#6b7280;">Round Off</span><span id="gst-sum-round" style="font-weight:600;color:#111;">₹0.00</span></div>
           <div style="display:flex;justify-content:space-between;padding:10px 0;grid-column:1/-1;border-top:2px solid #111;margin-top:4px;"><span style="font-size:14px;font-weight:700;color:#111;">Amount After Tax</span><span id="gst-sum-total" style="font-size:16px;font-weight:800;color:#111;">₹0.00</span></div>
         </div>
@@ -780,7 +789,7 @@
       <div class="gst-section">
         <div class="gst-section-title"><i class="bx bxs-file-doc"></i> Proforma Information</div>
         <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:12px;">
-          <div class="form-group"><label class="form-label">Proforma #</label><input type="text" id="pro-number" class="form-control" readonly style="background:var(--bg-input);font-weight:600;" placeholder="Auto-generated"></div>
+          <div class="form-group"><label class="form-label">Proforma #</label><input type="text" id="pro-number" class="form-control" style="background:#fff;font-weight:600;" placeholder="Auto-generated"></div>
           <div class="form-group"><label class="form-label">Date <span style="color:#ef4444">*</span></label><input type="date" id="pro-date" class="form-control"></div>
           <div class="form-group"><label class="form-label">Validity Date <span style="color:#ef4444">*</span></label><input type="date" id="pro-validity" class="form-control"></div>
           <div class="form-group"><label class="form-label">Place of Supply</label><input type="text" id="pro-supply" class="form-control" placeholder="e.g. Maharashtra"></div>
@@ -916,9 +925,9 @@
           </div>
           <div class="gst-summary-table">
             <div class="gst-sum-row"><span>Total Amount</span><span id="pro-sub">₹0.00</span></div>
-            <div class="gst-sum-row" id="pro-row-cgst"><span>CGST</span><span id="pro-cgst-val">₹0.00</span></div>
-            <div class="gst-sum-row" id="pro-row-sgst"><span>SGST</span><span id="pro-sgst-val">₹0.00</span></div>
-            <div class="gst-sum-row" id="pro-row-igst"><span>IGST</span><span id="pro-igst-val">₹0.00</span></div>
+            <div class="gst-sum-row" id="pro-row-cgst"><span id="pro-cgst-label">CGST @ 9%</span><span id="pro-cgst-val">₹0.00</span></div>
+            <div class="gst-sum-row" id="pro-row-sgst"><span id="pro-sgst-label">SGST @ 9%</span><span id="pro-sgst-val">₹0.00</span></div>
+            <div class="gst-sum-row" id="pro-row-igst"><span id="pro-igst-label">IGST @ 18%</span><span id="pro-igst-val">₹0.00</span></div>
             <div class="gst-sum-row"><span>Total Tax</span><span id="pro-tax-total">₹0.00</span></div>
             <div class="gst-sum-row" id="pro-roundoff-row" style="border-top:1px solid var(--border);padding-top:8px;"><span>Round Off</span><span id="pro-roundoff">₹0.00</span></div>
             <div class="gst-sum-row gst-total-row"><span>AMOUNT AFTER TAX</span><span id="pro-total-amt" style="font-size:18px;color:var(--accent);">₹0.00</span></div>
@@ -1008,8 +1017,13 @@
     <div class="modal-header"><span class="modal-title" id="doc-modal-title">New Invoice</span><button class="modal-close" onclick="closeModal('doc-modal')">×</button></div>
     <div class="modal-body acc-form-modal-body">
       <input type="hidden" id="doc-type">
+      <div class="form-group" id="doc-company-group" style="display:none;">
+        <label class="form-label">Company Name</label>
+        <select id="doc-company-sel" class="form-control" onchange="renderDocCompanyMeta()"></select>
+        <div id="doc-company-meta" style="margin-top:8px;padding:10px 12px;border:1px solid var(--border);border-radius:8px;background:#f8fafc;color:#475569;font-size:12px;line-height:1.45;">Select a company to use for this quotation.</div>
+      </div>
       <div class="form-row">
-        <div class="form-group"><label class="form-label">ID / Number</label><input type="text" id="doc-id" class="form-control" readonly style="background:var(--bg-input);"></div>
+        <div class="form-group"><label class="form-label">ID / Number</label><input type="text" id="doc-id" class="form-control" style="background:#fff;font-weight:600;"></div>
         <div class="form-group"><label class="form-label" id="doc-party-label">Client Name</label><input type="text" id="doc-party" class="form-control" placeholder="Client name"></div>
       </div>
       <div class="form-row">
@@ -1047,10 +1061,15 @@
   <div class="modal acc-form-modal-shell acc-form-modal-wide" style="max-width:99vw;width:99vw;margin:0 auto;border-radius:14px;">
     <div class="modal-header"><span class="modal-title" id="po-modal-title">New Purchase Order</span><button class="modal-close" onclick="closeModal('po-modal')">×</button></div>
     <div class="modal-body acc-form-modal-body">
+      <div class="form-group">
+        <label class="form-label">Company Name</label>
+        <select id="po-company-sel" class="form-control" onchange="renderPOCompanyMeta()"></select>
+        <div id="po-company-meta" style="margin-top:8px;padding:10px 12px;border:1px solid var(--border);border-radius:8px;background:#f8fafc;color:#475569;font-size:12px;line-height:1.45;">Select a company to use for this purchase order.</div>
+      </div>
       <div class="form-row">
-        <div class="form-group"><label class="form-label">PO Number</label><input type="text" id="po-id" class="form-control" readonly style="background:var(--bg-input);"></div>
-        <div class="form-group"><label class="form-label">Vendor</label><select id="po-vendor" class="form-control"></select></div>
-        <div class="form-group"><label class="form-label">Linked Project</label><select id="po-project-sel" class="form-control"><option value="">No linked project</option></select></div>
+        <div class="form-group"><label class="form-label">PO Number</label><input type="text" id="po-id" class="form-control" style="background:#fff;font-weight:600;"></div>
+        <div class="form-group"><label class="form-label">Vendor</label><select id="po-vendor" class="form-control" onchange="syncPOCompanyFromRelations()"></select></div>
+        <div class="form-group"><label class="form-label">Linked Project</label><select id="po-project-sel" class="form-control" onchange="syncPOCompanyFromRelations()"><option value="">No linked project</option></select></div>
       </div>
       <div class="form-row">
         <div class="form-group"><label class="form-label">PO Date</label><input type="date" id="po-date" class="form-control"></div>
@@ -1084,8 +1103,12 @@
   <div class="modal acc-form-modal-shell acc-form-modal-wide" style="max-width:99vw;width:99vw;margin:0 auto;border-radius:14px;">
     <div class="modal-header"><span class="modal-title" id="ven-modal-title">Register Vendor</span><button class="modal-close" onclick="closeModal('ven-modal')">×</button></div>
     <div class="modal-body acc-form-modal-body">
+      <div class="form-group">
+        <label class="form-label">Company Name</label>
+        <select id="ven-company-sel" class="form-control"></select>
+      </div>
       <div class="form-row">
-        <div class="form-group"><label class="form-label">Vendor ID</label><input type="text" id="ven-id" class="form-control" readonly style="background:var(--bg-input);"></div>
+        <div class="form-group"><label class="form-label">Vendor ID</label><input type="text" id="ven-id" class="form-control" style="background:#fff;font-weight:600;"></div>
         <div class="form-group"><label class="form-label">Vendor Name</label><input type="text" id="ven-name" class="form-control" placeholder="Business name"></div>
       </div>
       <div class="form-row">
@@ -1135,8 +1158,12 @@
     <div class="modal-header"><span class="modal-title" id="clt-modal-title">Register Client</span><button class="modal-close" onclick="closeModal('clt-modal')">×</button></div>
     <div class="modal-body acc-form-modal-body">
       <input type="hidden" id="clt-db-id">
+      <div class="form-group">
+        <label class="form-label">Company Name</label>
+        <select id="clt-company-sel" class="form-control"></select>
+      </div>
       <div class="form-row">
-        <div class="form-group"><label class="form-label">Client Code</label><input type="text" id="clt-code" class="form-control" readonly style="background:var(--bg-input);" placeholder="Auto-generated"></div>
+        <div class="form-group"><label class="form-label">Client Code</label><input type="text" id="clt-code" class="form-control" style="background:#fff;font-weight:600;" placeholder="Auto-generated"></div>
         <div class="form-group"><label class="form-label">Client Name <span style="color:#ef4444">*</span></label><input type="text" id="clt-name" class="form-control" placeholder="Business name"></div>
       </div>
       <div class="form-row">
@@ -1179,23 +1206,61 @@
         <div id="wo-company-meta" style="margin-top:8px;padding:10px 12px;border:1px solid var(--border);border-radius:8px;background:#f8fafc;color:#475569;font-size:12px;line-height:1.45;">Select a company to use for this work order.</div>
       </div>
       <div class="form-row">
-        <div class="form-group"><label class="form-label">Work Order #</label><input type="text" id="wo-id" class="form-control" readonly style="background:var(--bg-input);"></div>
+        <div class="form-group"><label class="form-label">Work Order #</label><input type="text" id="wo-id" class="form-control" style="background:#fff;font-weight:600;"></div>
         <div class="form-group">
           <label class="form-label" id="wo-party-label">Client</label>
           <select id="wo-client-sel" class="form-control"></select>
           <select id="wo-vendor" class="form-control" style="display:none;"></select>
         </div>
       </div>
-      <div class="form-group">
-        <label class="form-label">Project</label>
-        <select id="wo-project-sel" class="form-control"></select>
-        <input type="hidden" id="wo-project-id">
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Project #</label>
+          <select id="wo-project-sel" class="form-control" onchange="syncWOProjectSelection()"></select>
+          <input type="hidden" id="wo-project-id">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Project Name</label>
+          <input type="text" id="wo-project-name" class="form-control" readonly style="background:var(--bg-input);" placeholder="Auto-filled from project selection">
+        </div>
+      </div>
+      <div id="wo-tender-section" style="display:none;border-top:1px solid var(--border);margin:4px 0 14px;padding-top:14px;">
+        <div class="gst-section-title" style="margin-bottom:12px;color:#0f766e;"><i class="bx bx-receipt"></i> Tender Details</div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Notice Type</label>
+            <select id="wo-notice-type" class="form-control" onchange="updateWOTenderReferenceLabel()">
+              <option value="">Select notice type</option>
+              <option value="NIT">NOTICE FOR INVITING TENDER - NIT</option>
+              <option value="NIQ">NOTICE FOR INVITING QUOTATION - NIQ</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label" id="wo-tender-ref-label">Ref. e-NIQ No</label>
+            <input type="text" id="wo-tender-ref" class="form-control" placeholder="Reference number">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><label class="form-label">Tender Id</label><input type="text" id="wo-tender-id" class="form-control" placeholder="Tender ID"></div>
+          <div class="form-group"><label class="form-label">Tender No</label><input type="text" id="wo-tender-no" class="form-control" placeholder="Tender number"></div>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><label class="form-label">Quoted Rate</label><input type="text" id="wo-quoted-rate" class="form-control" placeholder="Quoted rate"></div>
+          <div class="form-group"><label class="form-label">Time of Completion</label><input type="text" id="wo-time-completion" class="form-control" placeholder="e.g. 60 days"></div>
+        </div>
+        <div class="form-group"><label class="form-label">Source of Fund</label><input type="text" id="wo-source-fund" class="form-control" placeholder="Funding source"></div>
       </div>
       <div class="form-row">
         <div class="form-group"><label class="form-label">Start Date</label><input type="date" id="wo-start" class="form-control"></div>
         <div class="form-group"><label class="form-label">End Date</label><input type="date" id="wo-end" class="form-control"></div>
       </div>
       <div class="form-group"><label class="form-label">Scope of Work</label><textarea id="wo-scope" class="form-control" rows="3" placeholder="Describe the scope of work..."></textarea></div>
+      <div class="form-group">
+        <label class="form-label">Annexure PDF (Optional)</label>
+        <input type="file" id="wo-annexure-file" class="form-control" accept="application/pdf">
+        <div style="margin-top:8px;font-size:12px;color:#64748b;line-height:1.45;">If added, this PDF will be appended at the end of the generated work order PDF.</div>
+        <div id="wo-annexure-current" style="margin-top:6px;font-size:12px;color:#0f172a;display:none;"></div>
+      </div>
       <div class="form-row">
         <div class="form-group"><label class="form-label">Total Amount (₹)</label><input type="number" id="wo-amount" class="form-control" placeholder="0" min="0"></div>
         <div class="form-group"><label class="form-label">Status</label>
@@ -1215,12 +1280,16 @@
   <div class="modal acc-form-modal-shell acc-form-modal-wide" style="max-width:99vw;width:99vw;margin:0 auto;border-radius:14px;">
     <div class="modal-header"><span class="modal-title" id="prj-modal-title">New Project</span><button class="modal-close" onclick="closeModal('prj-modal')">×</button></div>
     <div class="modal-body acc-form-modal-body">
+      <div class="form-group">
+        <label class="form-label">Company Name</label>
+        <select id="prj-company-sel" class="form-control"></select>
+      </div>
       <div class="form-row">
-        <div class="form-group"><label class="form-label">Project #</label><input type="text" id="prj-id" class="form-control" readonly style="background:var(--bg-input);"></div>
+        <div class="form-group"><label class="form-label">Project #</label><input type="text" id="prj-id" class="form-control" style="background:#fff;font-weight:600;"></div>
         <div class="form-group"><label class="form-label">Project Name</label><input type="text" id="prj-name" class="form-control" placeholder="Project name"></div>
       </div>
       <div class="form-row">
-        <div class="form-group"><label class="form-label">Client</label><select id="prj-client-sel" class="form-control"></select><input type="hidden" id="prj-client-id"></div>
+        <div class="form-group"><label class="form-label">Client</label><select id="prj-client-sel" class="form-control" onchange="syncProjectCompanyFromClient()"></select><input type="hidden" id="prj-client-id"></div>
         <div class="form-group"><label class="form-label">Status</label>
           <select id="prj-status-sel" class="form-control"><option>Planning</option><option>Active</option><option>Completed</option><option>On Hold</option></select>
         </div>
@@ -1828,7 +1897,7 @@ var ACCOUNTS_LOCKED_INPUT_IDS = [
   'pro-s-name','pro-s-gstin','pro-s-addr','pro-s-state','pro-s-code','pro-s-phone','pro-s-email','pro-s-pan',
   'pro-bank-name','pro-bank-acname','pro-bank-ac','pro-bank-ifsc','pro-bank-branch'
 ];
-var ACCOUNTS_LOCKED_SELECT_IDS = ['gst-company-sel', 'pro-company-sel', 'wo-company-sel'];
+var ACCOUNTS_LOCKED_SELECT_IDS = ['gst-company-sel', 'pro-company-sel', 'wo-company-sel', 'doc-company-sel', 'po-company-sel', 'ven-company-sel', 'clt-company-sel', 'prj-company-sel'];
 
 function setAccountsFieldLocked(id, locked) {
   var el = document.getElementById(id);
@@ -1912,6 +1981,40 @@ function accountDocumentTaxMode(record) {
     record.sellerGstin,
     record.customerGstin != null ? record.customerGstin : record.clientGstin
   );
+}
+function accountUniquePositiveRates(values) {
+  return Array.from(new Set((values || []).map(function(value) {
+    var rate = accountNumber(value);
+    if (rate <= 0.0001) return 0;
+    return Math.round(rate * 10000) / 10000;
+  }).filter(function(rate) { return rate > 0; }))).sort(function(a, b) { return a - b; });
+}
+function accountItemTaxRates(source) {
+  var items = Array.isArray(source) ? source : (source && Array.isArray(source.items) ? source.items : []);
+  return accountUniquePositiveRates(items.map(function(item) {
+    return item && item.taxRate;
+  }));
+}
+function accountTaxLabel(name, rates) {
+  return rates && rates.length ? name + ' @ ' + rates.map(function(rate) {
+    return accFormatPercent(rate) + '%';
+  }).join(', ') : name;
+}
+function accountSummaryTaxLabels(source, mode) {
+  var itemRates = accountItemTaxRates(source);
+  var splitRates = accountUniquePositiveRates(
+    (source && !Array.isArray(source) ? [source.sgstRate, source.cgstRate] : []).concat(
+      itemRates.length ? itemRates.map(function(rate) { return rate / 2; }) : []
+    )
+  );
+  var igstRates = accountUniquePositiveRates(
+    (source && !Array.isArray(source) ? [accountNumber(source.sgstRate) + accountNumber(source.cgstRate)] : []).concat(itemRates)
+  );
+  return {
+    cgst: accountTaxLabel('CGST', splitRates),
+    sgst: accountTaxLabel('SGST', splitRates),
+    igst: accountTaxLabel('IGST', mode === 'igst' ? igstRates : [])
+  };
 }
 function accountRoundOffMode(mode, amount) {
   if (mode === 'plus' || mode === 'minus' || mode === 'none') return mode;
@@ -2285,6 +2388,127 @@ function populateVendorDropdown(selectedName) {
   });
 }
 
+var accountCompanyCache = [];
+function fetchAccountCompanies(force) {
+  if (!force && accountCompanyCache.length) return Promise.resolve(accountCompanyCache.slice());
+  return api('GET', '/companies').then(function(companies) {
+    accountCompanyCache = (companies || []).filter(function(c) {
+      return String(c.status || '').toLowerCase() !== 'inactive';
+    });
+    return accountCompanyCache.slice();
+  }).catch(function() {
+    return accountCompanyCache.slice();
+  });
+}
+
+function findAccountCompanyById(id) {
+  return (accountCompanyCache || []).find(function(c) {
+    return String(c.id) === String(id || '');
+  }) || null;
+}
+
+function findAccountCompanyByName(name) {
+  return (accountCompanyCache || []).find(function(c) {
+    return String(c.name || '') === String(name || '');
+  }) || null;
+}
+
+function accountCompanyOptionLabel(company) {
+  return (company.name || 'Company') + (company.gstNo ? '  |  GST: ' + company.gstNo : '');
+}
+
+function fillAccountCompanySelect(selectId, selectedId, options) {
+  var sel = document.getElementById(selectId);
+  if (!sel) return null;
+  options = options || {};
+  var companies = accountCompanyCache || [];
+  var placeholder = options.placeholder || '— Select a company —';
+  sel.innerHTML = '<option value="">' + placeholder + '</option>';
+  companies.forEach(function(company) {
+    var opt = document.createElement('option');
+    opt.value = String(company.id);
+    opt.textContent = accountCompanyOptionLabel(company);
+    sel.appendChild(opt);
+  });
+  var chosen = null;
+  if (selectedId !== undefined && selectedId !== null && String(selectedId) !== '') {
+    chosen = findAccountCompanyById(selectedId);
+  }
+  if (!chosen && options.fallbackName) {
+    chosen = findAccountCompanyByName(options.fallbackName);
+  }
+  if (!chosen && options.autoSelectFirst !== false && companies.length) {
+    chosen = companies[0];
+  }
+  sel.value = chosen ? String(chosen.id) : '';
+  return chosen;
+}
+
+function renderAccountCompanyMeta(selectId, metaId, emptyText) {
+  var meta = document.getElementById(metaId);
+  var sel = document.getElementById(selectId);
+  if (!meta || !sel) return;
+  var company = findAccountCompanyById(sel.value);
+  if (!company) {
+    meta.textContent = emptyText || 'Select a company.';
+    return;
+  }
+  var lines = [
+    company.address || '',
+    [company.phone, company.email].filter(Boolean).join(' | '),
+    [company.gstNo ? 'GSTIN: ' + company.gstNo : '', company.panNo ? 'PAN: ' + company.panNo : ''].filter(Boolean).join(' | ')
+  ].filter(Boolean).map(function(line) {
+    return '<div style="margin-top:4px;">' + accEsc(line) + '</div>';
+  }).join('');
+  meta.innerHTML = '<div style="font-size:13px;font-weight:800;color:#111827;">' + accEsc(company.name || 'Company') + '</div>' + lines;
+}
+
+function populateAccountCompanySelect(selectId, selectedId, options) {
+  options = options || {};
+  return fetchAccountCompanies(options.force).then(function() {
+    var chosen = fillAccountCompanySelect(selectId, selectedId, options);
+    if (options.metaId) {
+      renderAccountCompanyMeta(selectId, options.metaId, options.emptyText);
+    }
+    return chosen;
+  });
+}
+
+function renderDocCompanyMeta() {
+  renderAccountCompanyMeta('doc-company-sel', 'doc-company-meta', 'Select a company to use for this quotation.');
+}
+
+function renderPOCompanyMeta() {
+  renderAccountCompanyMeta('po-company-sel', 'po-company-meta', 'Select a company to use for this purchase order.');
+}
+
+function syncPOCompanyFromRelations() {
+  var projectSel = document.getElementById('po-project-sel');
+  var vendorSel = document.getElementById('po-vendor');
+  var projectOpt = projectSel && projectSel.selectedIndex > 0 ? projectSel.options[projectSel.selectedIndex] : null;
+  var vendorOpt = vendorSel && vendorSel.selectedIndex > 0 ? vendorSel.options[vendorSel.selectedIndex] : null;
+  var companyId = (projectOpt && projectOpt.dataset.companyId) || (vendorOpt && vendorOpt.dataset.companyId) || '';
+  var sel = document.getElementById('po-company-sel');
+  if (sel && companyId) sel.value = String(companyId);
+  renderPOCompanyMeta();
+}
+
+function syncProjectCompanyFromClient() {
+  var clientSel = document.getElementById('prj-client-sel');
+  var clientOpt = clientSel && clientSel.selectedIndex > 0 ? clientSel.options[clientSel.selectedIndex] : null;
+  var companyId = clientOpt ? (clientOpt.dataset.companyId || '') : '';
+  var sel = document.getElementById('prj-company-sel');
+  if (sel && companyId) sel.value = String(companyId);
+}
+
+function toggleDocCompanySection(type) {
+  var group = document.getElementById('doc-company-group');
+  if (!group) return;
+  var show = type === 'quo';
+  group.style.display = show ? '' : 'none';
+  if (show) renderDocCompanyMeta();
+}
+
 function populateCompanyDropdown(selectedName, autoFill) {
   var sel = document.getElementById('gst-company-sel');
   if (!sel) return;
@@ -2422,7 +2646,7 @@ function openGSTModal(invId) {
     var _months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
     var _autoMonth = _months[_now.getMonth()] + '-' + String(_now.getFullYear()).slice(-2);
     document.getElementById('gst-doc-type').value    = 'Tax Invoice';
-    document.getElementById('gst-number').value      = 'Auto-generated';
+    document.getElementById('gst-number').value      = '';
     document.getElementById('gst-date').value        = today();
     document.getElementById('gst-bill-month').value  = _autoMonth;
     document.getElementById('gst-bill-from').value   = '';
@@ -2592,7 +2816,7 @@ function recalcGST() {
     if (igstRow) { igstRow.style.display = 'flex'; }
     var igstLbl = document.getElementById('gst-sum-igst-label');
     var igstVal = document.getElementById('gst-sum-igst');
-    if (igstLbl) igstLbl.textContent = 'IGST (' + igstRate + '%)';
+    if (igstLbl) igstLbl.textContent = accountTaxLabel('IGST', accountUniquePositiveRates([igstRate]));
     if (igstVal) igstVal.textContent = fmt(totalIgst);
     if (hintEl)  hintEl.textContent  = 'Inter-state supply (seller state ' + sellerCode + ' \u2260 buyer state ' + customerCode + '): IGST applied.';
   } else {
@@ -2603,8 +2827,8 @@ function recalcGST() {
     var cgstLbl = document.getElementById('gst-sum-cgst-label');
     var sgstVal = document.getElementById('gst-sum-sgst');
     var cgstVal = document.getElementById('gst-sum-cgst');
-    if (sgstLbl) sgstLbl.textContent = 'SGST (' + sgstRate + '%)';
-    if (cgstLbl) cgstLbl.textContent = 'CGST (' + cgstRate + '%)';
+    if (sgstLbl) sgstLbl.textContent = accountTaxLabel('SGST', accountUniquePositiveRates([sgstRate]));
+    if (cgstLbl) cgstLbl.textContent = accountTaxLabel('CGST', accountUniquePositiveRates([cgstRate]));
     if (sgstVal) sgstVal.textContent = fmt(totalSgst);
     if (cgstVal) cgstVal.textContent = fmt(totalCgst);
     if (hintEl)  hintEl.textContent  = sellerCode && customerCode ? 'Intra-state supply (same state): CGST + SGST applied.' : '';
@@ -2677,6 +2901,7 @@ function saveGSTInvoice() {
   var payload = {
     documentType:      document.getElementById('gst-doc-type').value,
     invoiceType:       'B2B',
+    invoiceNumber:     document.getElementById('gst-number').value.trim(),
     invoiceDate:       document.getElementById('gst-date').value,
     dueDate:           document.getElementById('gst-due').value    || null,
     billMonth:         monthFromInput(document.getElementById('gst-bill-month').value),
@@ -2934,6 +3159,44 @@ function accountDateParts(val) {
   return { year:String(d.getFullYear()), month:('0' + (d.getMonth() + 1)).slice(-2) };
 }
 
+function deriveAccountFinancialYear(val) {
+  if (!val) return '';
+  var d = new Date(val);
+  if (isNaN(d)) return '';
+  var year = d.getFullYear();
+  var month = d.getMonth() + 1;
+  var start = month >= 4 ? year : year - 1;
+  return String(start).slice(-2) + '-' + String(start + 1).slice(-2);
+}
+
+function normalizeInvoiceFinancialYear(row) {
+  var explicitFy = String((row && row.financialYear) || '').trim();
+  if (/^\d{2}-\d{2}$/.test(explicitFy)) return explicitFy;
+  var numberMatch = String((row && row.invoiceNumber) || '').match(/\/(\d{2}-\d{2})\//);
+  if (numberMatch) return numberMatch[1];
+  return deriveAccountFinancialYear(row && row.invoiceDate);
+}
+
+function formatFinancialYearLabel(fy) {
+  if (!/^\d{2}-\d{2}$/.test(String(fy || ''))) return String(fy || '');
+  return 'FY 20' + fy.slice(0, 2) + '-' + fy.slice(3);
+}
+
+function populateInvoiceFinancialYearFilter(rows) {
+  var fyEl = document.getElementById('inv-fy-filter');
+  if (!fyEl) return;
+  var selected = fyEl.value;
+  var current = deriveAccountFinancialYear(new Date());
+  var values = Array.from(new Set((rows || []).map(normalizeInvoiceFinancialYear).filter(Boolean)));
+  if (current && values.indexOf(current) === -1) values.push(current);
+  if (selected && values.indexOf(selected) === -1) values.push(selected);
+  values.sort(function(a, b) { return Number(('20' + b.slice(0, 2))) - Number(('20' + a.slice(0, 2))); });
+  fyEl.innerHTML = '<option value="">All FY</option>' + values.map(function(fy) {
+    return '<option value="' + fy + '">' + formatFinancialYearLabel(fy) + '</option>';
+  }).join('');
+  fyEl.value = selected || '';
+}
+
 function populateAccountDateFilters(prefix, rows, dateKey) {
   var yearEl = document.getElementById(prefix + '-year');
   var monthEl = document.getElementById(prefix + '-month');
@@ -3006,27 +3269,31 @@ function renderInvoices() {
   var q  = (document.getElementById('inv-search').value || '').trim();
   var st = document.getElementById('inv-status').value;
   var tp = document.getElementById('inv-type').value;
+  var fy = document.getElementById('inv-fy-filter') ? document.getElementById('inv-fy-filter').value : '';
   var yr = document.getElementById('inv-year') ? document.getElementById('inv-year').value : '';
   var mo = document.getElementById('inv-month') ? document.getElementById('inv-month').value : '';
   var params = new URLSearchParams();
   if (q)  params.set('q', q);
   if (st) params.set('status', st);
-  if (tp) params.set('type', tp);
+  if (fy) params.set('financialYear', fy);
 
   api('GET', '/invoices?' + params.toString())
     .then(function(data) {
       var tbody = document.getElementById('inv-body');
       data = data || [];
+      populateInvoiceFinancialYearFilter(data);
       populateAccountDateFilters('inv', data, 'invoiceDate');
       yr = document.getElementById('inv-year') ? document.getElementById('inv-year').value : yr;
       mo = document.getElementById('inv-month') ? document.getElementById('inv-month').value : mo;
+      data = data.filter(function(r) { return matchesInvoiceTypeFilter(r, tp); });
       data = data.filter(function(r) { return matchesAccountDateFilter(r, 'invoiceDate', yr, mo); });
       if (!data.length) { tbody.innerHTML = emptyRow(7); setTabCount('tab-count-inv', 0); return; }
 
       tbody.innerHTML = data.map(function(r) {
-        var typeLabel = r.invoiceType === 'B2C' ? 'Tax Invoice (B2C)' : 'Tax Invoice';
-        var typeColor = r.invoiceType === 'B2C' ? '#7c3aed' : '#1d4ed8';
-        var typeBg    = r.invoiceType === 'B2C' ? '#ede9fe' : '#dbeafe';
+        var typeMeta  = invoiceTypeMeta(r);
+        var typeLabel = typeMeta.label;
+        var typeColor = typeMeta.color;
+        var typeBg    = typeMeta.bg;
 
         var _isSuperAdmin = (getUser() || {}).role === 'superadmin';
         var invItems = [
@@ -3085,6 +3352,7 @@ function previewInvoice(id) {
   api('GET', '/invoices/' + id).then(function(inv) {
     var useIGST = accountDocumentTaxMode(inv) === 'igst';
     var items   = inv.items || [];
+    var invTaxLabels = accountSummaryTaxLabels(inv, useIGST ? 'igst' : 'split');
     var fmt = function(n) { return '₹' + Number(n||0).toLocaleString('en-IN', {minimumFractionDigits:2, maximumFractionDigits:2}); };
 
     var statusColor = {Draft:'#64748b',Sent:'#3b82f6',Paid:'#22c55e',Overdue:'#ef4444',Cancelled:'#94a3b8'}[inv.status] || '#64748b';
@@ -3201,9 +3469,9 @@ function previewInvoice(id) {
           '<div style="padding:8px 14px;background:var(--bg-card);border-bottom:1px solid #e2e8f0;">' +
             '<div style="display:flex;justify-content:space-between;font-size:12px;padding:4px 0;"><span style="color:#64748b;">Subtotal</span><span style="font-weight:600;">' + fmt(inv.subtotal) + '</span></div>' +
             (useIGST
-              ? '<div style="display:flex;justify-content:space-between;font-size:12px;padding:4px 0;"><span style="color:#7c3aed;">IGST</span><span style="font-weight:600;color:#7c3aed;">' + fmt(inv.totalIgst) + '</span></div>'
-              : '<div style="display:flex;justify-content:space-between;font-size:12px;padding:4px 0;"><span style="color:#0891b2;">CGST</span><span style="font-weight:600;color:#0891b2;">' + fmt(inv.totalCgst) + '</span></div>' +
-                '<div style="display:flex;justify-content:space-between;font-size:12px;padding:4px 0;"><span style="color:#0891b2;">SGST</span><span style="font-weight:600;color:#0891b2;">' + fmt(inv.totalSgst) + '</span></div>') +
+              ? '<div style="display:flex;justify-content:space-between;font-size:12px;padding:4px 0;"><span style="color:#7c3aed;">' + invTaxLabels.igst + '</span><span style="font-weight:600;color:#7c3aed;">' + fmt(inv.totalIgst) + '</span></div>'
+              : '<div style="display:flex;justify-content:space-between;font-size:12px;padding:4px 0;"><span style="color:#0891b2;">' + invTaxLabels.cgst + '</span><span style="font-weight:600;color:#0891b2;">' + fmt(inv.totalCgst) + '</span></div>' +
+                '<div style="display:flex;justify-content:space-between;font-size:12px;padding:4px 0;"><span style="color:#0891b2;">' + invTaxLabels.sgst + '</span><span style="font-weight:600;color:#0891b2;">' + fmt(inv.totalSgst) + '</span></div>') +
             (accountRoundOffMode(inv.roundOffMode, inv.roundOff) !== 'none' ? '<div style="display:flex;justify-content:space-between;font-size:12px;padding:4px 0;"><span style="color:#64748b;">Round Off</span><span>' + accountFmtSignedRupee(inv.roundOff, inv.roundOffMode) + '</span></div>' : '') +
           '</div>' +
           '<div style="display:flex;justify-content:space-between;align-items:center;padding:12px 14px;background:#f3f4f6;border-top:1px solid #b8c0cc;">' +
@@ -3348,6 +3616,41 @@ function loadPDFBlobUrl(apiPath) {
       return URL.createObjectURL(blob);
     });
 }
+
+function matchesInvoiceTypeFilter(row, selectedType) {
+  if (!selectedType) return true;
+  var documentType = String((row && row.documentType) || 'Tax Invoice').trim() || 'Tax Invoice';
+  var invoiceType = String((row && row.invoiceType) || 'B2B').trim() || 'B2B';
+  if (selectedType.indexOf(':') !== -1) {
+    var parts = selectedType.split(':');
+    return documentType === parts[0] && invoiceType === parts[1];
+  }
+  return documentType === selectedType;
+}
+
+function invoiceTypeMeta(row) {
+  var documentType = String((row && row.documentType) || 'Tax Invoice').trim() || 'Tax Invoice';
+  var invoiceType = String((row && row.invoiceType) || 'B2B').trim() || 'B2B';
+  if (documentType === 'Tax Invoice' && invoiceType === 'B2C') {
+    return { label: 'Tax Invoice (B2C)', color: '#7c3aed', bg: '#ede9fe' };
+  }
+  if (documentType === 'Tax Invoice') {
+    return { label: 'Tax Invoice (B2B)', color: '#1d4ed8', bg: '#dbeafe' };
+  }
+  if (documentType === 'Credit Note') {
+    return { label: 'Credit Note', color: '#b91c1c', bg: '#fee2e2' };
+  }
+  if (documentType === 'Debit Note') {
+    return { label: 'Debit Note', color: '#b45309', bg: '#fef3c7' };
+  }
+  if (documentType === 'Proforma Invoice') {
+    return { label: 'Proforma Invoice', color: '#0f766e', bg: '#ccfbf1' };
+  }
+  if (documentType === 'Quotation') {
+    return { label: 'Quotation', color: '#4338ca', bg: '#e0e7ff' };
+  }
+  return { label: documentType, color: '#374151', bg: '#e5e7eb' };
+}
 function viewInvPDF(id)      { openPDF('/invoices/'       + id + '/pdf?view=1', false); }
 function downloadInvPDF(id)  { openPDF('/invoices/'       + id + '/pdf',        true,  'Invoice-'+id+'.pdf'); }
 function viewProPDF(id)      { openPDF('/proformas-db/'   + id + '/pdf?view=1', false); }
@@ -3425,6 +3728,7 @@ function openDocModal(type) {
   var titles = {pro:'New Proforma Invoice', quo:'New Quotation'};
   document.getElementById('doc-type').value = type;
   document.getElementById('doc-modal-title').textContent = titles[type];
+  toggleDocCompanySection(type);
   document.getElementById('doc-party-label').textContent = 'Client Name';
   document.getElementById('doc-date2-label').textContent = 'Valid Till';
   document.getElementById('doc-items').innerHTML = '';
@@ -3435,6 +3739,13 @@ function openDocModal(type) {
   document.getElementById('doc-date2').value = '';
   document.getElementById('doc-status').value = 'Draft';
   document.getElementById('doc-notes').value = '';
+  if (type === 'quo') {
+    populateAccountCompanySelect('doc-company-sel', '', {
+      placeholder: '— Select a company —',
+      metaId: 'doc-company-meta',
+      emptyText: 'Select a company to use for this quotation.'
+    });
+  }
   addLineItemRow(document.getElementById('doc-items'), null);
   updateDocTotal(); openModal('doc-modal');
 }
@@ -3445,6 +3756,7 @@ function openDocEditModal(type, id) {
   var titles = {inv:'Edit Invoice', pro:'Edit Proforma Invoice', quo:'Edit Quotation'};
   document.getElementById('doc-type').value = type;
   document.getElementById('doc-modal-title').textContent = titles[type];
+  toggleDocCompanySection(type);
   document.getElementById('doc-party-label').textContent = 'Client Name';
   document.getElementById('doc-date2-label').textContent = type==='inv' ? 'Due Date' : 'Valid Till';
   document.getElementById('doc-items').innerHTML = '';
@@ -3456,6 +3768,14 @@ function openDocEditModal(type, id) {
   document.getElementById('doc-date2').value = rec.dueDate||rec.validTill||'';
   document.getElementById('doc-status').value = rec.status;
   document.getElementById('doc-notes').value = rec.notes||'';
+  if (type === 'quo') {
+    populateAccountCompanySelect('doc-company-sel', rec.companyId || '', {
+      placeholder: '— Select a company —',
+      metaId: 'doc-company-meta',
+      emptyText: 'Select a company to use for this quotation.',
+      fallbackName: rec.sellerName || ''
+    });
+  }
   (rec.items||[]).forEach(function(it){ addLineItemRow(document.getElementById('doc-items'), it); });
   updateDocTotal(); openModal('doc-modal');
 }
@@ -3648,7 +3968,7 @@ function openProformaModal(proId) {
     document.getElementById('pro-roundoff-mode').value   = accountRoundOffMode(rec.roundOffMode, rec.roundOff);
     (rec.items || []).forEach(function(it) { addProformaItem(it); });
   } else {
-    document.getElementById('pro-number').value       = 'Auto-generated';
+    document.getElementById('pro-number').value       = '';
     document.getElementById('pro-date').value         = today();
     document.getElementById('pro-status-field').value = 'Draft';
     addProformaItem();
@@ -3706,6 +4026,7 @@ function recalcProforma() {
 
   var rows = document.getElementById('pro-items-body').querySelectorAll('tr');
   var subtotal=0, totalCgst=0, totalSgst=0, totalIgst=0;
+  var taxLabelSource = { items: [] };
 
   rows.forEach(function(row, i) {
     var qty   = parseFloat(row.querySelector('.pi-qty').value)   || 0;
@@ -3716,6 +4037,7 @@ function recalcProforma() {
     row.querySelector('.pi-tax').value = tax;
     var taxable = qty * price * (1 - disc / 100);
     var gstAmt  = taxable * tax / 100;
+    if (tax > 0) taxLabelSource.items.push({ taxRate: tax });
     subtotal += taxable;
     if (useIGST) { totalIgst += gstAmt; }
     else         { totalCgst += gstAmt/2; totalSgst += gstAmt/2; }
@@ -3728,8 +4050,12 @@ function recalcProforma() {
   var gross    = subtotal + totalCgst + totalSgst + totalIgst;
   var roundOff = accountCalcRoundOff(gross, roundMode);
   var total    = gross + roundOff;
+  var taxLabels = accountSummaryTaxLabels(taxLabelSource, useIGST ? 'igst' : 'split');
 
   document.getElementById('pro-sub').textContent      = accountFmtRupee(subtotal);
+  document.getElementById('pro-cgst-label').textContent = taxLabels.cgst;
+  document.getElementById('pro-sgst-label').textContent = taxLabels.sgst;
+  document.getElementById('pro-igst-label').textContent = taxLabels.igst;
   document.getElementById('pro-cgst-val').textContent = accountFmtRupee(totalCgst);
   document.getElementById('pro-sgst-val').textContent = accountFmtRupee(totalSgst);
   document.getElementById('pro-igst-val').textContent = accountFmtRupee(totalIgst);
@@ -3800,6 +4126,7 @@ function saveProforma(forceStatus) {
 
   var rec = {
     id:               proEditingId || nextProformaNumber(),
+    proformaNumber:   document.getElementById('pro-number').value.trim(),
     date:             document.getElementById('pro-date').value,
     validityDate:     document.getElementById('pro-validity').value,
     placeOfSupply:    document.getElementById('pro-supply').value,
@@ -3868,6 +4195,7 @@ function previewProforma(proId) {
   var rec = load('pro').find(function(r) { return r.id === proId; });
   if (!rec) return toast('Proforma not found', 'error');
   var useIGST = accountDocumentTaxMode(rec) === 'igst';
+  var recTaxLabels = accountSummaryTaxLabels(rec, useIGST ? 'igst' : 'split');
   var fmt = function(n) { return '₹' + Number(n||0).toLocaleString('en-IN', {minimumFractionDigits:2, maximumFractionDigits:2}); };
   var statusColor = {Draft:'#64748b',Sent:'#3b82f6',Accepted:'#22c55e',Rejected:'#ef4444'}[rec.status] || '#64748b';
 
@@ -3948,9 +4276,9 @@ function previewProforma(proId) {
       '<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;overflow:hidden;">' +
         '<div style="padding:8px 14px;background:var(--bg-card);border-bottom:1px solid #e2e8f0;">' +
           '<div style="display:flex;justify-content:space-between;font-size:12px;padding:3px 0;"><span style="color:#64748b;">Subtotal</span><span style="font-weight:600;">' + fmt(rec.subtotal) + '</span></div>' +
-          (useIGST ? '<div style="display:flex;justify-content:space-between;font-size:12px;padding:3px 0;"><span style="color:#7c3aed;">IGST</span><span style="font-weight:600;color:#7c3aed;">' + fmt(rec.totalIgst) + '</span></div>'
-                   : '<div style="display:flex;justify-content:space-between;font-size:12px;padding:3px 0;"><span style="color:#0891b2;">CGST</span><span style="font-weight:600;color:#0891b2;">' + fmt(rec.totalCgst) + '</span></div>' +
-                     '<div style="display:flex;justify-content:space-between;font-size:12px;padding:3px 0;"><span style="color:#0891b2;">SGST</span><span style="font-weight:600;color:#0891b2;">' + fmt(rec.totalSgst) + '</span></div>') +
+          (useIGST ? '<div style="display:flex;justify-content:space-between;font-size:12px;padding:3px 0;"><span style="color:#7c3aed;">' + recTaxLabels.igst + '</span><span style="font-weight:600;color:#7c3aed;">' + fmt(rec.totalIgst) + '</span></div>'
+                   : '<div style="display:flex;justify-content:space-between;font-size:12px;padding:3px 0;"><span style="color:#0891b2;">' + recTaxLabels.cgst + '</span><span style="font-weight:600;color:#0891b2;">' + fmt(rec.totalCgst) + '</span></div>' +
+                     '<div style="display:flex;justify-content:space-between;font-size:12px;padding:3px 0;"><span style="color:#0891b2;">' + recTaxLabels.sgst + '</span><span style="font-weight:600;color:#0891b2;">' + fmt(rec.totalSgst) + '</span></div>') +
         '</div>' +
         '<div style="display:flex;justify-content:space-between;align-items:center;padding:12px 14px;background:#f3f4f6;border-top:1px solid #b8c0cc;">' +
           '<span style="font-size:13px;font-weight:700;color:#111827;">Total Amount</span>' +
@@ -4094,6 +4422,7 @@ function populateClientDropdown(selId, selectedId, placeholder) {
       opt.dataset.address    = c.billingAddress || '';
       opt.dataset.state      = c.state || '';
       opt.dataset.stateCode  = c.stateCode || '';
+      opt.dataset.companyId  = c.companyId || '';
       opt.textContent = c.name + (c.clientCode ? ' (' + c.clientCode + ')' : '');
       if (selectedId && c.id == selectedId) opt.selected = true;
       sel.appendChild(opt);
@@ -4110,6 +4439,8 @@ function populateProjectDropdown(selId, selectedId, placeholder) {
       var opt = document.createElement('option');
       opt.value = p.id;
       opt.dataset.name = p.name;
+      opt.dataset.code = p.projectCode || '';
+      opt.dataset.companyId = p.companyId || '';
       opt.textContent  = p.name + (p.projectCode ? ' (' + p.projectCode + ')' : '');
       if (selectedId && p.id == selectedId) opt.selected = true;
       sel.appendChild(opt);
@@ -4132,6 +4463,7 @@ function populateVendorDropdownAPI(selId, selectedId, placeholder) {
       opt.dataset.address    = v.address || '';
       opt.dataset.state      = v.state || '';
       opt.dataset.stateCode  = v.stateCode || '';
+      opt.dataset.companyId  = v.companyId || '';
       opt.dataset.bankName   = v.bankName || '';
       opt.dataset.bankAcName = v.bankAcName || '';
       opt.dataset.bankAccount= v.bankAccount || '';
@@ -4243,12 +4575,19 @@ function openQuoModal(id) {
   editingQuoId = id || null;
   document.getElementById('doc-type').value = 'quo';
   document.getElementById('doc-modal-title').textContent = id ? 'Edit Quotation' : 'New Quotation';
+  toggleDocCompanySection('quo');
   document.getElementById('doc-party-label').textContent = 'Client Name';
   document.getElementById('doc-date2-label').textContent = 'Valid Till';
   document.getElementById('doc-status').innerHTML = '<option>Draft</option><option>Sent</option><option>Accepted</option><option>Rejected</option>';
   document.getElementById('doc-items').innerHTML = '';
   if (id) {
     api('GET', '/quotations/'+id).then(function(r) {
+      populateAccountCompanySelect('doc-company-sel', r.companyId || '', {
+        placeholder: '— Select a company —',
+        metaId: 'doc-company-meta',
+        emptyText: 'Select a company to use for this quotation.',
+        fallbackName: r.sellerName || ''
+      });
       document.getElementById('doc-id').value    = r.quotationNumber || '';
       document.getElementById('doc-party').value = r.clientName || '';
       document.getElementById('doc-date').value  = r.date || '';
@@ -4259,7 +4598,12 @@ function openQuoModal(id) {
       updateDocTotal();
     }).catch(function(e){ toast(e.message,'error'); });
   } else {
-    document.getElementById('doc-id').value    = '';
+    populateAccountCompanySelect('doc-company-sel', '', {
+      placeholder: '— Select a company —',
+      metaId: 'doc-company-meta',
+      emptyText: 'Select a company to use for this quotation.'
+    });
+    document.getElementById('doc-id').value    = genId('QUO');
     document.getElementById('doc-party').value = '';
     document.getElementById('doc-date').value  = today();
     document.getElementById('doc-date2').value = '';
@@ -4279,6 +4623,8 @@ async function saveDoc() {
   var clientName = document.getElementById('doc-party').value;
   if (!clientName) return toast('Client name required','error');
   var data = {
+    companyId:   document.getElementById('doc-company-sel').value || null,
+    quotationNumber: document.getElementById('doc-id').value.trim(),
     clientName: clientName,
     date:       document.getElementById('doc-date').value,
     validTill:  document.getElementById('doc-date2').value,
@@ -4406,6 +4752,7 @@ function saveProforma(forceStatus) {
   var payTermsCustom = document.getElementById('pro-pay-terms-custom').value;
 
   var rec = {
+    proformaNumber:   document.getElementById('pro-number').value.trim(),
     date:             document.getElementById('pro-date').value,
     validityDate:     document.getElementById('pro-validity').value || null,
     placeOfSupply:    document.getElementById('pro-supply').value,
@@ -4530,7 +4877,7 @@ function openProformaModal(proId) {
     }).catch(function(e) { toast(e.message || 'Error loading proforma', 'error'); });
   } else {
     populateProCompanyDropdown(); // auto-select first company for new proforma
-    document.getElementById('pro-number').value       = 'Auto-generated';
+    document.getElementById('pro-number').value       = '';
     document.getElementById('pro-date').value         = today();
     document.getElementById('pro-status-field').value = 'Draft';
     addProformaItem();
@@ -4563,17 +4910,31 @@ function openPOModal(id) {
   editingPOId = id || null;
   document.getElementById('po-modal-title').textContent = id ? 'Edit Purchase Order' : 'New Purchase Order';
   document.getElementById('po-items').innerHTML = '';
+  populateAccountCompanySelect('po-company-sel', '', {
+    placeholder: '— Select a company —',
+    metaId: 'po-company-meta',
+    emptyText: 'Select a company to use for this purchase order.'
+  });
   populateVendorDropdownAPI('po-vendor', null, 'Select vendor');
   populateProjectDropdown('po-project-sel', null, 'No linked project');
   if (id) {
     api('GET', '/purchase-orders/'+id).then(function(r) {
+      populateAccountCompanySelect('po-company-sel', r.companyId || '', {
+        placeholder: '— Select a company —',
+        metaId: 'po-company-meta',
+        emptyText: 'Select a company to use for this purchase order.'
+      });
       document.getElementById('po-id').value = r.poNumber || '';
       document.getElementById('po-date').value = r.date || '';
       document.getElementById('po-delivery').value = r.deliveryDate || '';
       document.getElementById('po-status-sel').value = r.status || 'Draft';
       document.getElementById('po-notes').value = r.notes || '';
-      populateVendorDropdownAPI('po-vendor', r.vendorId, 'Select vendor');
-      populateProjectDropdown('po-project-sel', r.projectAccountId, 'No linked project');
+      Promise.all([
+        populateVendorDropdownAPI('po-vendor', r.vendorId, 'Select vendor'),
+        populateProjectDropdown('po-project-sel', r.projectAccountId, 'No linked project')
+      ]).then(function() {
+        syncPOCompanyFromRelations();
+      });
       (r.items||[]).forEach(function(it){ addPOItemRow(document.getElementById('po-items'), it); });
       updatePOTotal();
     }).catch(function(e){ toast(e.message,'error'); });
@@ -4596,6 +4957,7 @@ async function savePO() {
   if (!items.length) return toast('Add at least one item','error');
   var projSel = document.getElementById('po-project-sel');
   var data = {
+    companyId:        document.getElementById('po-company-sel').value || null,
     vendorId:         vendorId,
     projectAccountId: projSel && projSel.value ? projSel.value : null,
     date:             document.getElementById('po-date').value,
@@ -4659,6 +5021,9 @@ function openVenModal(id) {
   document.getElementById('ven-modal-title').textContent = id ? 'Edit Vendor' : 'Register Vendor';
   if (id) {
     api('GET', '/vendors/'+id).then(function(r) {
+      populateAccountCompanySelect('ven-company-sel', r.companyId || '', {
+        placeholder: '— Select a company —'
+      });
       document.getElementById('ven-id').value          = r.vendorCode || '';
       document.getElementById('ven-name').value        = r.name || '';
       document.getElementById('ven-contact').value     = r.contactPerson || '';
@@ -4678,6 +5043,9 @@ function openVenModal(id) {
       openModal('ven-modal');
     }).catch(function(e){ toast(e.message,'error'); });
   } else {
+    populateAccountCompanySelect('ven-company-sel', '', {
+      placeholder: '— Select a company —'
+    });
     ['ven-name','ven-contact','ven-phone','ven-email','ven-category','ven-gst','ven-pan','ven-address',
      'ven-state','ven-statecode','ven-bank-name','ven-bank-acname','ven-bank-ac','ven-bank-ifsc','ven-bank-branch'
     ].forEach(function(fid){ var el=document.getElementById(fid); if(el) el.value=''; });
@@ -4690,6 +5058,7 @@ function openVenModal(id) {
 async function saveVendor() {
   syncAllAccountStateCodes();
   var data = {
+    companyId:     document.getElementById('ven-company-sel').value || null,
     name:          document.getElementById('ven-name').value,
     vendorCode:    document.getElementById('ven-id').value,
     contactPerson: document.getElementById('ven-contact').value,
@@ -4793,6 +5162,9 @@ function openCltModal(id) {
   document.getElementById('clt-modal-title').textContent = id ? 'Edit Client' : 'Register Client';
   if (id) {
     api('GET', '/clients/'+id).then(function(r) {
+      populateAccountCompanySelect('clt-company-sel', r.companyId || '', {
+        placeholder: '— Select a company —'
+      });
       document.getElementById('clt-db-id').value     = r.id;
       document.getElementById('clt-code').value      = r.clientCode || '';
       document.getElementById('clt-name').value      = r.name || '';
@@ -4807,6 +5179,9 @@ function openCltModal(id) {
       openModal('clt-modal');
     }).catch(function(e){ toast(e.message,'error'); });
   } else {
+    populateAccountCompanySelect('clt-company-sel', '', {
+      placeholder: '— Select a company —'
+    });
     ['clt-db-id','clt-code','clt-name','clt-contact','clt-phone','clt-email','clt-gst','clt-pan','clt-address','clt-state','clt-statecode'].forEach(function(fid){ var el=document.getElementById(fid); if(el) el.value=''; });
     document.getElementById('clt-code').value = accountPreviewCode('CLT');
     document.getElementById('clt-status-sel').value = 'Active';
@@ -4817,6 +5192,7 @@ function openCltModal(id) {
 async function saveClient() {
   syncAllAccountStateCodes();
   var data = {
+    companyId:     document.getElementById('clt-company-sel').value || null,
     name:          document.getElementById('clt-name').value,
     clientCode:    document.getElementById('clt-code').value,
     contactPerson: document.getElementById('clt-contact').value,
@@ -4852,14 +5228,92 @@ async function deleteClt(id) {
 ══════════════════════════════════════════════════════════ */
 var editingWOId = null, editingWOType = null;
 
+function woNoticeTypeLabel(value) {
+  value = String(value || '').trim().toUpperCase();
+  if (value === 'NIT') return 'NOTICE FOR INVITING TENDER - NIT';
+  if (value === 'NIQ') return 'NOTICE FOR INVITING QUOTATION - NIQ';
+  return '';
+}
+
+function woTenderReferenceLabel(value) {
+  return String(value || '').trim().toUpperCase() === 'NIT' ? 'Ref. e-NIT No' : 'Ref. e-NIQ No';
+}
+
+function updateWOTenderReferenceLabel() {
+  var label = document.getElementById('wo-tender-ref-label');
+  var noticeType = document.getElementById('wo-notice-type');
+  if (label) label.textContent = woTenderReferenceLabel(noticeType ? noticeType.value : '');
+}
+
+function resetWOTenderFields() {
+  ['wo-notice-type', 'wo-tender-ref', 'wo-tender-id', 'wo-tender-no', 'wo-quoted-rate', 'wo-time-completion', 'wo-source-fund']
+    .forEach(function(id) {
+      var el = document.getElementById(id);
+      if (el) el.value = '';
+    });
+  updateWOTenderReferenceLabel();
+}
+
+function toggleWOTenderSection(isCWO) {
+  var section = document.getElementById('wo-tender-section');
+  if (!section) return;
+  section.style.display = isCWO ? '' : 'none';
+  if (!isCWO) resetWOTenderFields();
+}
+
+function syncWOProjectSelection() {
+  var sel = document.getElementById('wo-project-sel');
+  var hiddenId = document.getElementById('wo-project-id');
+  var nameEl = document.getElementById('wo-project-name');
+  var selectedOpt = sel && sel.selectedIndex > 0 ? sel.options[sel.selectedIndex] : null;
+  if (hiddenId) hiddenId.value = selectedOpt ? selectedOpt.value : '';
+  if (nameEl) nameEl.value = selectedOpt ? (selectedOpt.dataset.name || '') : '';
+}
+
+function formatWOProjectLabel(rec) {
+  rec = rec || {};
+  var projectCode = rec.projectCode || (rec.projectAccount && rec.projectAccount.projectCode) || '';
+  var projectName = rec.projectName || (rec.projectAccount && rec.projectAccount.name) || '';
+  if (projectCode && projectName) return projectCode + ' - ' + projectName;
+  return projectCode || projectName || '—';
+}
+
+function populateWOProjectDropdown(selectedId, placeholder) {
+  var sel = document.getElementById('wo-project-sel');
+  if (!sel) return Promise.resolve();
+  return api('GET', '/project-accounts').then(function(projects) {
+    sel.innerHTML = '<option value="">' + (placeholder || '— Select project # —') + '</option>';
+    (projects || []).forEach(function(p) {
+      var opt = document.createElement('option');
+      opt.value = p.id;
+      opt.dataset.name = p.name || '';
+      opt.dataset.code = p.projectCode || '';
+      opt.textContent = p.projectCode || p.name || ('Project ' + p.id);
+      opt.title = p.name || p.projectCode || '';
+      if (selectedId && p.id == selectedId) opt.selected = true;
+      sel.appendChild(opt);
+    });
+    syncWOProjectSelection();
+  }).catch(function() {
+    syncWOProjectSelection();
+  });
+}
+
 function openWOModal(type, id) {
   editingWOType = type; editingWOId = id || null;
   var isCWO = type === 'cwo';
+  var annexureInput = document.getElementById('wo-annexure-file');
+  var annexureCurrent = document.getElementById('wo-annexure-current');
   document.getElementById('wo-type').value = type;
   document.getElementById('wo-modal-title').textContent = isCWO
     ? (id ? 'Edit Client Work Order' : 'New Client Work Order')
     : (id ? 'Edit Vendor Work Order' : 'New Vendor Work Order');
   document.getElementById('wo-party-label').textContent = isCWO ? 'Client' : 'Vendor';
+  if (annexureInput) annexureInput.value = '';
+  if (annexureCurrent) {
+    annexureCurrent.textContent = '';
+    annexureCurrent.style.display = 'none';
+  }
   var clientSel   = document.getElementById('wo-client-sel');
   var vendorSelect= document.getElementById('wo-vendor');
   if (isCWO) {
@@ -4869,6 +5323,7 @@ function openWOModal(type, id) {
     clientSel.style.display   = 'none';
     vendorSelect.style.display= '';
   }
+  toggleWOTenderSection(isCWO);
   if (id) {
     api('GET', '/work-orders/'+id).then(function(r) {
       document.getElementById('wo-id').value = r.woNumber || '';
@@ -4878,19 +5333,34 @@ function openWOModal(type, id) {
       } else {
         populateVendorDropdownAPI('wo-vendor', r.vendorId, '— Select vendor —');
       }
-      populateProjectDropdown('wo-project-sel', r.projectAccountId, '— Select project —');
+      populateWOProjectDropdown(r.projectAccountId, '— Select project # —');
       document.getElementById('wo-project-id').value = r.projectAccountId || '';
+      document.getElementById('wo-project-name').value = r.projectName || (r.projectAccount ? r.projectAccount.name : '') || '';
+      document.getElementById('wo-notice-type').value = r.noticeType || '';
+      document.getElementById('wo-tender-ref').value = r.tenderReferenceNo || '';
+      document.getElementById('wo-tender-id').value = r.tenderId || '';
+      document.getElementById('wo-tender-no').value = r.tenderNo || '';
+      document.getElementById('wo-quoted-rate').value = r.quotedRate || '';
+      document.getElementById('wo-time-completion').value = r.timeOfCompletion || '';
+      document.getElementById('wo-source-fund').value = r.sourceOfFund || '';
+      updateWOTenderReferenceLabel();
       document.getElementById('wo-start').value      = r.startDate || '';
       document.getElementById('wo-end').value        = r.endDate || '';
       document.getElementById('wo-scope').value      = r.scope || '';
       document.getElementById('wo-amount').value     = r.totalAmount || 0;
       document.getElementById('wo-status-sel').value = r.status || 'Draft';
+      if (annexureCurrent && r.annexurePdfName) {
+        annexureCurrent.textContent = 'Current annexure: ' + r.annexurePdfName;
+        annexureCurrent.style.display = 'block';
+      }
     }).catch(function(e){ toast(e.message,'error'); });
   } else {
     document.getElementById('wo-id').value       = accountPreviewCode(isCWO ? 'CWO' : 'VWO');
     document.getElementById('wo-project-id').value = '';
+    document.getElementById('wo-project-name').value = '';
     populateWOCompanyDropdown('', true, '');
-    populateProjectDropdown('wo-project-sel', null, '— Select project —');
+    populateWOProjectDropdown(null, '— Select project # —');
+    resetWOTenderFields();
     document.getElementById('wo-start').value    = today();
     document.getElementById('wo-end').value     = '';
     document.getElementById('wo-scope').value   = '';
@@ -4919,6 +5389,8 @@ async function saveWO() {
   if (!partyName) return toast(isCWO ? 'Select a client' : 'Select a vendor', 'error');
   var projSel  = document.getElementById('wo-project-sel');
   var projOpt  = projSel && projSel.selectedIndex > 0 ? projSel.options[projSel.selectedIndex] : null;
+  var annexureInput = document.getElementById('wo-annexure-file');
+  var annexureFile = annexureInput && annexureInput.files ? annexureInput.files[0] : null;
   var data = {
     type:             type.toUpperCase(),
     companyId:        companyId,
@@ -4927,7 +5399,15 @@ async function saveWO() {
     clientId:         clientId,
     vendorId:         vendorId,
     projectAccountId: projOpt ? projOpt.value      : null,
-    projectName:      projOpt ? projOpt.dataset.name : '',
+    projectCode:      projOpt ? (projOpt.dataset.code || '') : '',
+    projectName:      projOpt ? (projOpt.dataset.name || '') : '',
+    noticeType:       isCWO ? document.getElementById('wo-notice-type').value : '',
+    tenderReferenceNo:isCWO ? document.getElementById('wo-tender-ref').value.trim() : '',
+    tenderId:         isCWO ? document.getElementById('wo-tender-id').value.trim() : '',
+    tenderNo:         isCWO ? document.getElementById('wo-tender-no').value.trim() : '',
+    quotedRate:       isCWO ? document.getElementById('wo-quoted-rate').value.trim() : '',
+    timeOfCompletion: isCWO ? document.getElementById('wo-time-completion').value.trim() : '',
+    sourceOfFund:     isCWO ? document.getElementById('wo-source-fund').value.trim() : '',
     startDate:        document.getElementById('wo-start').value  || null,
     endDate:     document.getElementById('wo-end').value    || null,
     scope:       document.getElementById('wo-scope').value,
@@ -4935,12 +5415,21 @@ async function saveWO() {
     status:      document.getElementById('wo-status-sel').value,
   };
   try {
-    if (editingWOId) await api('PUT', '/work-orders/'+editingWOId, data);
-    else             await api('POST', '/work-orders', data);
+    var saved = editingWOId
+      ? await api('PUT', '/work-orders/'+editingWOId, data)
+      : await api('POST', '/work-orders', data);
+    var workOrderId = saved && saved.id ? saved.id : editingWOId;
+    if (workOrderId) editingWOId = workOrderId;
+    if (saved && saved.woNumber) document.getElementById('wo-id').value = saved.woNumber;
+    if (annexureFile && workOrderId) {
+      var formData = new FormData();
+      formData.append('file', annexureFile);
+      await apiForm('POST', '/work-orders/' + workOrderId + '/annexure', formData);
+    }
     closeModal('wo-modal');
     if (isCWO) renderCWO(); else renderVWO();
     refreshAccountCounts();
-    toast('Work Order saved!', 'success');
+    toast(annexureFile ? 'Work Order and annexure saved!' : 'Work Order saved!', 'success');
   } catch(e) { toast(e.message || 'Error', 'error'); }
 }
 
@@ -4949,14 +5438,14 @@ function renderCWO() {
   var st = document.getElementById('cwo-status').value;
   api('GET', '/work-orders?type=CWO').then(function(data) {
     var filtered = (data||[]).filter(function(r) {
-      return (!q || (r.partyName||'').toLowerCase().includes(q) || (r.woNumber||'').toLowerCase().includes(q) || (r.projectName||'').toLowerCase().includes(q))
+      return (!q || (r.partyName||'').toLowerCase().includes(q) || (r.woNumber||'').toLowerCase().includes(q) || (r.projectName||'').toLowerCase().includes(q) || (r.projectCode||'').toLowerCase().includes(q))
           && (!st || r.status === st);
     });
     document.getElementById('cwo-body').innerHTML = filtered.length ? filtered.map(function(r) {
       return '<tr>' +
         '<td class="acc-td" style="font-weight:600;">'+(r.woNumber||'—')+'</td>' +
         '<td class="acc-td">'+(r.partyName||'—')+'</td>' +
-        '<td class="acc-td">'+(r.projectName||'—')+'</td>' +
+        '<td class="acc-td">'+formatWOProjectLabel(r)+'</td>' +
         '<td class="acc-td">'+fmtD(r.startDate)+'</td>' +
         '<td class="acc-td">'+fmtD(r.endDate)+'</td>' +
         '<td class="acc-td" style="font-weight:600;">'+fmtAmt(r.totalAmount||0)+'</td>' +
@@ -4977,14 +5466,14 @@ function renderVWO() {
   var st = document.getElementById('vwo-status').value;
   api('GET', '/work-orders?type=VWO').then(function(data) {
     var filtered = (data||[]).filter(function(r) {
-      return (!q || (r.partyName||'').toLowerCase().includes(q) || (r.woNumber||'').toLowerCase().includes(q) || (r.projectName||'').toLowerCase().includes(q))
+      return (!q || (r.partyName||'').toLowerCase().includes(q) || (r.woNumber||'').toLowerCase().includes(q) || (r.projectName||'').toLowerCase().includes(q) || (r.projectCode||'').toLowerCase().includes(q))
           && (!st || r.status === st);
     });
     document.getElementById('vwo-body').innerHTML = filtered.length ? filtered.map(function(r) {
       return '<tr>' +
         '<td class="acc-td" style="font-weight:600;">'+(r.woNumber||'—')+'</td>' +
         '<td class="acc-td">'+(r.partyName||'—')+'</td>' +
-        '<td class="acc-td">'+(r.projectName||'—')+'</td>' +
+        '<td class="acc-td">'+formatWOProjectLabel(r)+'</td>' +
         '<td class="acc-td">'+fmtD(r.startDate)+'</td>' +
         '<td class="acc-td">'+fmtD(r.endDate)+'</td>' +
         '<td class="acc-td" style="font-weight:600;">'+fmtAmt(r.totalAmount||0)+'</td>' +
@@ -5048,6 +5537,9 @@ function openPrjModal(id) {
   document.getElementById('prj-modal-title').textContent = id ? 'Edit Project' : 'New Project';
   if (id) {
     api('GET', '/project-accounts/'+id).then(function(r) {
+      populateAccountCompanySelect('prj-company-sel', r.companyId || '', {
+        placeholder: '— Select a company —'
+      });
       document.getElementById('prj-id').value      = r.projectCode || '';
       document.getElementById('prj-name').value    = r.name || '';
       document.getElementById('prj-client-id').value = r.clientId || '';
@@ -5061,6 +5553,9 @@ function openPrjModal(id) {
       openModal('prj-modal');
     }).catch(function(e){ toast(e.message,'error'); });
   } else {
+    populateAccountCompanySelect('prj-company-sel', '', {
+      placeholder: '— Select a company —'
+    });
     ['prj-name','prj-desc'].forEach(function(fid){ var el=document.getElementById(fid); if(el) el.value=''; });
     document.getElementById('prj-client-id').value = '';
     populateClientDropdown('prj-client-sel', null, '— Select client —');
@@ -5078,6 +5573,7 @@ async function saveProject() {
   var clientSel  = document.getElementById('prj-client-sel');
   var clientOpt  = clientSel && clientSel.selectedIndex > 0 ? clientSel.options[clientSel.selectedIndex] : null;
   var data = {
+    companyId:    document.getElementById('prj-company-sel').value || null,
     name:        document.getElementById('prj-name').value,
     projectCode: document.getElementById('prj-id').value,
     clientId:    clientOpt ? clientOpt.value          : null,
@@ -5365,26 +5861,21 @@ saveProforma = function(forceStatus) {
 
 openPOModal = function(id) {
   _openPOModal(id);
-  var projectEl = document.getElementById('po-project');
-  if (!projectEl) return;
-  if (id) {
-    var rec = load('po').find(function(x){ return x.id === id; });
-    projectEl.value = rec && rec.project ? rec.project : '';
-  } else {
-    projectEl.value = '';
-  }
 };
 
 savePO = function() {
-  var projectEl = document.getElementById('po-project');
-  var vendorName = document.getElementById('po-vendor').value || '';
+  var vendorEl = document.getElementById('po-vendor');
+  var projectEl = document.getElementById('po-project-sel');
+  var vendorOpt = vendorEl && vendorEl.selectedIndex > 0 ? vendorEl.options[vendorEl.selectedIndex] : null;
+  var projectOpt = projectEl && projectEl.selectedIndex > 0 ? projectEl.options[projectEl.selectedIndex] : null;
+  var vendorName = vendorOpt ? (vendorOpt.dataset.name || vendorOpt.textContent || '') : '';
   var poId = document.getElementById('po-id').value;
-  rememberCustomer(vendorName);
-  rememberProject(projectEl ? projectEl.value : '');
+  if (vendorName) rememberCustomer(vendorName);
+  if (projectOpt) rememberProject(projectOpt.dataset.name || projectOpt.textContent || '');
   return Promise.resolve(_savePO()).then(function() {
     var arr = load('po');
     var idx = arr.findIndex(function(item){ return item.id === poId; });
-    if (idx >= 0 && projectEl) arr[idx].project = projectEl.value || '';
+    if (idx >= 0 && projectOpt) arr[idx].project = projectOpt.dataset.name || '';
     save('po', arr);
     refreshAccountsDataLists();
     refreshAccountCounts();
@@ -5787,12 +6278,21 @@ function printWO(id) {
     {label:'WO Number',      key:'woNumber'},
     {label:'Type',           key:'type'},
     {label:'Party',          key:'partyName'},
+    {label:'Project Code',   key:'projectCode'},
     {label:'Project',        key:'projectName'},
+    {label:'Notice Type',    key:'noticeType'},
+    {label:'Tender Ref',     key:'tenderReferenceNo'},
+    {label:'Tender Id',      key:'tenderId'},
+    {label:'Tender No',      key:'tenderNo'},
+    {label:'Quoted Rate',    key:'quotedRate'},
+    {label:'Time of Completion', key:'timeOfCompletion'},
+    {label:'Source of Fund', key:'sourceOfFund'},
+    {label:'Annexure PDF',   key:'annexurePdfName'},
     {label:'Start Date',     key:'startDate'},
     {label:'End Date',       key:'endDate'},
     {label:'Total Amount',   key:'totalAmount', money:true},
     {label:'Status',         key:'status'},
-    {label:'Description',    key:'description'},
+    {label:'Scope',          key:'scope'},
   ]);
 }
 function printPrj(id) {
@@ -5990,6 +6490,8 @@ function accBuildDocument(kind, rec) {
   var total = accRoundMoney(rec.totalAmount || rec.budget || rec.spent || (subtotal + totalTax + roundOffSigned) || 0);
   var showTaxPercent = !rec.taxExempt && accountShowTaxPercentColumn(rec);
   var showTaxSummary = !rec.taxExempt && totalTax > 0.004;
+  var taxMode = accountDocumentTaxMode(rec);
+  var taxLabels = accountSummaryTaxLabels({ items: items, sgstRate: rec.sgstRate, cgstRate: rec.cgstRate }, taxMode);
   var details = [];
   var detailBorder = 'border:1px solid #b8c0cc;';
   var cellPad = 'padding:6px 7px;';
@@ -6074,7 +6576,7 @@ function accBuildDocument(kind, rec) {
   } else if (kind === 'prj') {
     details = [['Project Code', rec.projectCode], ['Project Name', rec.name], ['Client', rec.clientName], ['Budget', accMoney(rec.budget)], ['Spent', accMoney(rec.spent)], ['Start Date', accDate(rec.startDate)], ['End Date', accDate(rec.endDate)], ['Status', rec.status], ['Description', rec.description]];
   } else if (kind === 'cwo' || kind === 'vwo') {
-    details = [['Work Order No.', rec.woNumber], ['Type', rec.type], ['Company', rec.sellerName], ['Party', rec.partyName], ['Project', rec.projectName], ['Start Date', accDate(rec.startDate)], ['End Date', accDate(rec.endDate)], ['Amount', accMoney(rec.totalAmount)], ['Status', rec.status], ['Scope', rec.scope || rec.description]];
+    details = [['Work Order No.', rec.woNumber], ['Type', rec.type], ['Company', rec.sellerName], ['Party', rec.partyName], ['Project Code', rec.projectCode], ['Project Name', rec.projectName], ['Notice Type', woNoticeTypeLabel(rec.noticeType) || rec.noticeType], [woTenderReferenceLabel(rec.noticeType), rec.tenderReferenceNo], ['Tender Id', rec.tenderId], ['Tender No', rec.tenderNo], ['Quoted Rate', rec.quotedRate], ['Time of Completion', rec.timeOfCompletion], ['Source of Fund', rec.sourceOfFund], ['Annexure PDF', rec.annexurePdfName], ['Start Date', accDate(rec.startDate)], ['End Date', accDate(rec.endDate)], ['Amount', accMoney(rec.totalAmount)], ['Status', rec.status], ['Scope', rec.scope || rec.description]];
   }
 
   var itemRows = items.map(function(it, idx) {
@@ -6102,6 +6604,22 @@ function accBuildDocument(kind, rec) {
       (rec.bankIfsc ? '<div><span style="color:#64748b;">IFSC:</span> ' + accEsc(rec.bankIfsc) + '</div>' : '') +
       (rec.bankBranch ? '<div><span style="color:#64748b;">Branch:</span> ' + accEsc(rec.bankBranch) + '</div>' : '') + '</div>'
     : '';
+  var taxSummaryHtml = '';
+  if (showTaxSummary) {
+    if (taxMode === 'igst' && accNumber(rec.totalIgst) > 0.004) {
+      taxSummaryHtml += '<div style="display:grid;grid-template-columns:1fr max-content;gap:12px;padding-bottom:5px;"><span style="color:#4b5563;">' + accEsc(taxLabels.igst) + '</span><b style="white-space:nowrap;text-align:right;">' + accMoney(rec.totalIgst) + '</b></div>';
+    } else {
+      if (accNumber(rec.totalCgst) > 0.004) {
+        taxSummaryHtml += '<div style="display:grid;grid-template-columns:1fr max-content;gap:12px;padding-bottom:5px;"><span style="color:#4b5563;">' + accEsc(taxLabels.cgst) + '</span><b style="white-space:nowrap;text-align:right;">' + accMoney(rec.totalCgst) + '</b></div>';
+      }
+      if (accNumber(rec.totalSgst) > 0.004) {
+        taxSummaryHtml += '<div style="display:grid;grid-template-columns:1fr max-content;gap:12px;padding-bottom:5px;"><span style="color:#4b5563;">' + accEsc(taxLabels.sgst) + '</span><b style="white-space:nowrap;text-align:right;">' + accMoney(rec.totalSgst) + '</b></div>';
+      }
+      if (accNumber(rec.totalCgst) + accNumber(rec.totalSgst) > 0.004) {
+        taxSummaryHtml += '<div style="display:grid;grid-template-columns:1fr max-content;gap:12px;padding-bottom:5px;"><span style="color:#4b5563;">Total Tax</span><b style="white-space:nowrap;text-align:right;">' + accMoney(accNumber(rec.totalCgst) + accNumber(rec.totalSgst)) + '</b></div>';
+      }
+    }
+  }
 
   var headerHtml = isProfileDoc
     ? '<div style="border-bottom:1px solid #b8c0cc;padding:10px 12px;display:flex;align-items:flex-start;justify-content:space-between;gap:10px;background:#f3f4f6;">' +
@@ -6159,7 +6677,7 @@ function accBuildDocument(kind, rec) {
         ((showBothPartyCards || showCustomerOnlyCard) ? '' : (customerAddress ? '<div style="border:1px solid #b8c0cc;background:#fff;padding:7px 10px;margin-bottom:8px;"><b style="color:#111827;">Address:</b> ' + accEsc(customerAddress) + '</div>' : '')) +
         (rec.workOrder || rec.projectName || rec.billMonth ? '<div style="border:1px solid #b8c0cc;background:#fff;padding:7px 10px;margin-bottom:8px;display:flex;gap:14px;flex-wrap:wrap;">' + (rec.workOrder ? '<span><b>Work Order:</b> ' + accEsc(rec.workOrder) + '</span>' : '') + (rec.projectName ? '<span><b>Project:</b> ' + accEsc(rec.projectName) + '</span>' : '') + (rec.billMonth ? '<span><b>Bill Month:</b> ' + accEsc(rec.billMonth) + '</span>' : '') + '</div>' : '') +
         itemsBlock +
-        (items.length ? '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px;"><div style="border:1px solid #b8c0cc;background:#fff;padding:8px 10px;"><div style="font-weight:900;color:#111827;margin-bottom:3px;">Amount in Words</div><div style="line-height:1.35;">' + accEsc(accWords(total)) + '</div></div><div style="border:1px solid #b8c0cc;background:#fff;padding:8px 10px;"><div style="display:grid;grid-template-columns:1fr max-content;gap:12px;padding-bottom:5px;"><span style="color:#4b5563;">Subtotal</span><b style="white-space:nowrap;text-align:right;">' + accMoney(subtotal) + '</b></div>' + (showTaxSummary ? '<div style="display:grid;grid-template-columns:1fr max-content;gap:12px;padding-bottom:5px;"><span style="color:#4b5563;">Total Tax</span><b style="white-space:nowrap;text-align:right;">' + accMoney(totalTax) + '</b></div>' : '') + (roundOffMode !== 'none' ? '<div style="display:grid;grid-template-columns:1fr max-content;gap:12px;padding-bottom:5px;"><span style="color:#4b5563;">Round Off</span><b style="white-space:nowrap;text-align:right;">' + accountFmtSignedRupee(roundOffSigned, roundOffMode) + '</b></div>' : '') + '<div style="display:grid;grid-template-columns:1fr max-content;gap:12px;border-top:1px solid #b8c0cc;margin-top:3px;padding-top:6px;font-size:13px;"><span style="font-weight:900;color:#111827;">Amount After Tax</span><b style="font-size:14px;white-space:nowrap;text-align:right;">' + accMoney(total) + '</b></div></div></div>' : '') +
+        (items.length ? '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px;"><div style="border:1px solid #b8c0cc;background:#fff;padding:8px 10px;"><div style="font-weight:900;color:#111827;margin-bottom:3px;">Amount in Words</div><div style="line-height:1.35;">' + accEsc(accWords(total)) + '</div></div><div style="border:1px solid #b8c0cc;background:#fff;padding:8px 10px;"><div style="display:grid;grid-template-columns:1fr max-content;gap:12px;padding-bottom:5px;"><span style="color:#4b5563;">Subtotal</span><b style="white-space:nowrap;text-align:right;">' + accMoney(subtotal) + '</b></div>' + taxSummaryHtml + (roundOffMode !== 'none' ? '<div style="display:grid;grid-template-columns:1fr max-content;gap:12px;padding-bottom:5px;"><span style="color:#4b5563;">Round Off</span><b style="white-space:nowrap;text-align:right;">' + accountFmtSignedRupee(roundOffSigned, roundOffMode) + '</b></div>' : '') + '<div style="display:grid;grid-template-columns:1fr max-content;gap:12px;border-top:1px solid #b8c0cc;margin-top:3px;padding-top:6px;font-size:13px;"><span style="font-weight:900;color:#111827;">Amount After Tax</span><b style="font-size:14px;white-space:nowrap;text-align:right;">' + accMoney(total) + '</b></div></div></div>' : '') +
         bankBlock +
         (rec.notes || rec.termsConditions || rec.scope || rec.description ? '<div style="border:1px solid #b8c0cc;background:#fff;padding:8px 10px;margin-top:8px;"><div style="font-weight:900;color:#111827;margin-bottom:4px;">Notes / Terms</div>' + accEsc(rec.notes || rec.termsConditions || rec.scope || rec.description) + '</div>' : '') +
         '<div style="display:flex;justify-content:flex-end;margin-top:18px;padding-bottom:10px;"><div style="text-align:center;width:190px;border-top:1px solid #111827;padding-top:6px;color:#111827;font-size:11px;">Authorized Signatory</div></div>' +

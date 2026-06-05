@@ -9,8 +9,8 @@ const {
 } = require('./accountsCompanyScope');
 
 function cleanGeneratedCode(value, prefix) {
-  const code = String(value || '').trim().toUpperCase();
-  return code && code !== 'AUTO-GENERATED' ? code : prefix + '-' + Math.random().toString(36).substr(2,6).toUpperCase();
+  const code = String(value || '').trim();
+  return code && code.toLowerCase() !== 'auto-generated' ? code : prefix + '-' + Math.random().toString(36).substr(2,6).toUpperCase();
 }
 
 // ── GET /clients ──────────────────────────────────────────────────────────────

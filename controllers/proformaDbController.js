@@ -12,11 +12,16 @@ const {
 } = require('./accountsCompanyScope');
 const {
   M, PH, W, X, BLK, DRK, GRY, LGY, HBG, LBD, FOOTER_H,
-  fmtDate, fmtINR, numWords, buildPdfFilename, createDoc, addFooters,
+  fmtDate, fmtINR, numWords, buildPdfFilename, buildTaxSummaryLabels, createDoc, addFooters,
+  roundMoney, normalizeAccountItems, deriveItemTotals,
   drawSectionLabel, drawSignature,
 } = require('./pdfHelper');
 
 function genCode() { return Math.random().toString(36).substr(2,6).toUpperCase(); }
+function cleanGeneratedCode(value, prefix) {
+  const code = String(value || '').trim();
+  return code && code.toLowerCase() !== 'auto-generated' ? code : prefix + '-' + genCode();
+}
 function normalizeRoundOffMode(mode, amount) {
   if (mode === 'plus' || mode === 'minus' || mode === 'none') return mode;
   const value = Number(amount || 0);
@@ -54,6 +59,36 @@ function taxModeFromRecord(record, buyerStateCodeField, buyerGstinField) {
   const buyerStateCode = normalizedStateCode(record && record[buyerStateCodeField], record && record[buyerGstinField]);
   if (sellerStateCode && buyerStateCode && sellerStateCode !== buyerStateCode) return 'igst';
   return 'split';
+}
+function providedNumber(value) {
+  if (value === null || value === undefined || (typeof value === 'string' && value.trim() === '')) return null;
+  const num = Number(value);
+  return Number.isFinite(num) ? num : null;
+}
+function preferStoredMoney(value, derivedValue) {
+  const stored = providedNumber(value);
+  if (stored === null) return roundMoney(derivedValue);
+  if (Math.abs(stored) <= 0.004 && Math.abs(derivedValue) > 0.004) return roundMoney(derivedValue);
+  return roundMoney(stored);
+}
+function normalizeProformaRecord(record) {
+  const plain = Object.assign({}, record || {});
+  const rawMode = taxModeFromRecord(plain, 'customerStateCode', 'customerGstin');
+  const items = normalizeAccountItems(plain.items, rawMode);
+  const derived = deriveItemTotals(items);
+  const roundOffMode = normalizeRoundOffMode(plain.roundOffMode, plain.roundOff);
+  const roundOff = roundMoney(providedNumber(plain.roundOff) || 0);
+  const derivedTotalTax = roundMoney(derived.totalCgst + derived.totalSgst + derived.totalIgst);
+  plain.items = items;
+  plain.subtotal = preferStoredMoney(plain.subtotal, derived.subtotal);
+  plain.totalCgst = preferStoredMoney(plain.totalCgst, derived.totalCgst);
+  plain.totalSgst = preferStoredMoney(plain.totalSgst, derived.totalSgst);
+  plain.totalIgst = preferStoredMoney(plain.totalIgst, derived.totalIgst);
+  plain.totalTax = preferStoredMoney(plain.totalTax, derivedTotalTax);
+  plain.roundOffMode = roundOffMode;
+  plain.roundOff = roundOff;
+  plain.totalAmount = preferStoredMoney(plain.totalAmount, plain.subtotal + plain.totalTax + roundOff);
+  return plain;
 }
 
 function currentFY() {
@@ -94,7 +129,7 @@ exports.getProformas = async (req, res) => {
     ];
     const rows = await Proforma.findAll({ where, order: [['createdAt','DESC']],
       include: [{ model: Client, as: 'client', attributes: ['id','name','clientCode'] }] });
-    res.json(rows);
+    res.json(rows.map(row => normalizeProformaRecord(row.toJSON())));
   } catch (err) { res.status(500).json({ message: err.message }); }
 };
 
@@ -109,14 +144,14 @@ exports.getProforma = async (req, res) => {
       ],
     }, 'Proforma not found');
     if (!p) return res.status(404).json({ message: 'Proforma not found' });
-    res.json(p);
+    res.json(normalizeProformaRecord(p.toJSON()));
   } catch (err) { res.status(500).json({ message: err.message }); }
 };
 
 // ── POST /proformas-db ────────────────────────────────────────────────────────
 exports.createProforma = async (req, res) => {
   try {
-    const data = Object.assign({}, req.body);
+    const data = normalizeProformaRecord(Object.assign({}, req.body));
     if (!data.date) return res.status(400).json({ message: 'Date required' });
     if (!data.customerName) return res.status(400).json({ message: 'Customer name required' });
     if (data.clientId) {
@@ -130,7 +165,7 @@ exports.createProforma = async (req, res) => {
     if (getActorCompanyId(req) && !data.companyId) {
       return res.status(400).json({ message: 'Admin company not found' });
     }
-    data.proformaNumber = 'PRO-' + genCode();
+    data.proformaNumber = cleanGeneratedCode(data.proformaNumber, 'PRO');
     data.createdBy = req.user.id;
     const p = await Proforma.create(data);
     res.status(201).json(p);
@@ -143,7 +178,7 @@ exports.updateProforma = async (req, res) => {
     if (req.user.role === 'admin') await syncAccountsCompanyIds();
     const p = await findScopedByPk(Proforma, 'proforma', req, req.params.id, null, 'Proforma not found');
     if (!p) return res.status(404).json({ message: 'Proforma not found' });
-    const updates = Object.assign({}, req.body);
+    const updates = normalizeProformaRecord(Object.assign({}, p.toJSON(), req.body));
     if (updates.clientId) {
       await assertScopedRelation(Client, 'client', req, updates.clientId, 'Client not found');
     }
@@ -177,60 +212,61 @@ exports.convertToInvoice = async (req, res) => {
     if (req.user.role === 'admin') await syncAccountsCompanyIds();
     const p = await findScopedByPk(Proforma, 'proforma', req, req.params.id, null, 'Proforma not found');
     if (!p) return res.status(404).json({ message: 'Proforma not found' });
+    const source = normalizeProformaRecord(p.toJSON());
 
     // Derive company code from seller name initials (e.g. "DHPE Pvt Ltd" → "DHPE")
-    const codeMatch = (p.sellerName || '').match(/^([A-Z0-9]+)/i);
+    const codeMatch = (source.sellerName || '').match(/^([A-Z0-9]+)/i);
     const compCode  = codeMatch ? codeMatch[1].toUpperCase().slice(0, 6) : 'INV';
     const invNumber = await nextInvoiceNumber(compCode);
 
     const inv = await Invoice.create({
       invoiceNumber:  invNumber,
-      companyId:      p.companyId || null,
-      invoiceDate:    p.date,
-      clientId:       p.clientId,
-      customerName:   p.customerName,
-      customerGstin:  p.customerGstin,
-      customerPan:    p.customerPan,
-      customerEmail:  p.customerEmail,
-      customerAddress:p.customerAddress,
-      customerState:  p.customerState,
-      customerStateCode: p.customerStateCode,
-      sellerName:     p.sellerName,
-      sellerGstin:    p.sellerGstin,
-      sellerAddress:  p.sellerAddress,
-      sellerState:    p.sellerState,
-      sellerStateCode:p.sellerStateCode,
-      sellerPhone:    p.sellerPhone,
-      sellerEmail:    p.sellerEmail,
-      sellerPan:      p.sellerPan,
-      placeOfSupply:  p.placeOfSupply,
-      billMonth:      p.billMonth,
-      billPeriodFrom: p.billPeriodFrom,
-      billPeriodTo:   p.billPeriodTo,
-      workOrder:      p.workOrder,
-      projectName:    p.projectName,
-      workDetails:    p.workDetails,
-      items:          p.items,
-      sgstRate:       p.sgstRate,
-      cgstRate:       p.cgstRate,
-      subtotal:       p.subtotal,
-      totalCgst:      p.totalCgst,
-      totalSgst:      p.totalSgst,
-      totalIgst:      p.totalIgst,
-      totalTax:       p.totalTax,
-      roundOffMode:   normalizeRoundOffMode(p.roundOffMode, p.roundOff),
-      roundOff:       p.roundOff,
-      totalAmount:    p.totalAmount,
-      showTaxInPdf:   p.showTaxInPdf,
-      showTaxPercentInPdf: shouldShowTaxPercentColumn(p),
-      bankName:       p.bankName,
-      bankAcName:     p.bankAcName,
-      bankAccount:    p.bankAccount,
-      bankIfsc:       p.bankIfsc,
-      bankBranch:     p.bankBranch,
-      notes:          p.notes,
-      termsConditions:p.termsConditions,
-      sourceDocId:    p.id,
+      companyId:      source.companyId || null,
+      invoiceDate:    source.date,
+      clientId:       source.clientId,
+      customerName:   source.customerName,
+      customerGstin:  source.customerGstin,
+      customerPan:    source.customerPan,
+      customerEmail:  source.customerEmail,
+      customerAddress:source.customerAddress,
+      customerState:  source.customerState,
+      customerStateCode: source.customerStateCode,
+      sellerName:     source.sellerName,
+      sellerGstin:    source.sellerGstin,
+      sellerAddress:  source.sellerAddress,
+      sellerState:    source.sellerState,
+      sellerStateCode:source.sellerStateCode,
+      sellerPhone:    source.sellerPhone,
+      sellerEmail:    source.sellerEmail,
+      sellerPan:      source.sellerPan,
+      placeOfSupply:  source.placeOfSupply,
+      billMonth:      source.billMonth,
+      billPeriodFrom: source.billPeriodFrom,
+      billPeriodTo:   source.billPeriodTo,
+      workOrder:      source.workOrder,
+      projectName:    source.projectName,
+      workDetails:    source.workDetails,
+      items:          source.items,
+      sgstRate:       source.sgstRate,
+      cgstRate:       source.cgstRate,
+      subtotal:       source.subtotal,
+      totalCgst:      source.totalCgst,
+      totalSgst:      source.totalSgst,
+      totalIgst:      source.totalIgst,
+      totalTax:       source.totalTax,
+      roundOffMode:   normalizeRoundOffMode(source.roundOffMode, source.roundOff),
+      roundOff:       source.roundOff,
+      totalAmount:    source.totalAmount,
+      showTaxInPdf:   source.showTaxInPdf,
+      showTaxPercentInPdf: shouldShowTaxPercentColumn(source),
+      bankName:       source.bankName,
+      bankAcName:     source.bankAcName,
+      bankAccount:    source.bankAccount,
+      bankIfsc:       source.bankIfsc,
+      bankBranch:     source.bankBranch,
+      notes:          source.notes,
+      termsConditions:source.termsConditions,
+      sourceDocId:    source.id,
       sourceDocType:  'proforma',
       convertedBadge: 'From Proforma',
       status:         'Draft',
@@ -246,8 +282,9 @@ exports.convertToInvoice = async (req, res) => {
 exports.generatePDF = async (req, res) => {
   try {
     if (req.user.role === 'admin') await syncAccountsCompanyIds();
-    const p = await findScopedByPk(Proforma, 'proforma', req, req.params.id, null, 'Proforma not found');
-    if (!p) return res.status(404).json({ message: 'Proforma not found' });
+    const record = await findScopedByPk(Proforma, 'proforma', req, req.params.id, null, 'Proforma not found');
+    if (!record) return res.status(404).json({ message: 'Proforma not found' });
+    const p = normalizeProformaRecord(record.toJSON());
 
     const inline = req.query.view === '1';
     res.setHeader('Content-Type', 'application/pdf');
@@ -284,11 +321,11 @@ exports.generatePDF = async (req, res) => {
 
     const metaRight = [
       'PROFORMA INVOICE',
+      'Ref No.: '+(p.proformaNumber||''),
       'Date: '+fmtDate(p.date)+'   Status: '+(p.status||'Draft'),
       p.billMonth ? 'Bill for Month: '+p.billMonth : '',
       (p.billPeriodFrom && p.billPeriodTo)
         ? 'Bill Period: '+fmtDate(p.billPeriodFrom)+' to '+fmtDate(p.billPeriodTo) : '',
-      'Ref No.: '+(p.proformaNumber||''),
       p.validityDate ? 'Valid Till: '+fmtDate(p.validityDate) : '',
       p.placeOfSupply ? 'Place of Supply: '+p.placeOfSupply : '',
     ].filter(Boolean);
@@ -603,12 +640,13 @@ exports.generatePDF = async (req, res) => {
     const sgstV = parseFloat(p.totalSgst || 0);
     const hasSplit = cgstV > 0.004 || sgstV > 0.004;
     const splitTotal = cgstV + sgstV;
+    const taxLabels = buildTaxSummaryLabels(p, useIGST ? 'igst' : 'split');
 
     const sumLines = [
       ['Subtotal:', fmtINR(p.subtotal)],
-      ...(igstV > 0.004 ? [['IGST:', fmtINR(igstV)]] : []),
-      ...(cgstV > 0.004 ? [['CGST:', fmtINR(cgstV)]] : []),
-      ...(sgstV > 0.004 ? [['SGST:', fmtINR(sgstV)]] : []),
+      ...(igstV > 0.004 ? [[taxLabels.igst + ':', fmtINR(igstV)]] : []),
+      ...(cgstV > 0.004 ? [[taxLabels.cgst + ':', fmtINR(cgstV)]] : []),
+      ...(sgstV > 0.004 ? [[taxLabels.sgst + ':', fmtINR(sgstV)]] : []),
       ...(hasSplit && splitTotal > 0.004 ? [['Total Tax:', fmtINR(splitTotal)]] : []),
       ...(roundOffMode !== 'none' ? [['Round Off:', fmtSignedINR(p.roundOff, roundOffMode)]] : []),
     ];

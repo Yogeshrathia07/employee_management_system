@@ -68,6 +68,177 @@ function buildPdfFilename(parts) {
   return (base || 'document') + '.pdf';
 }
 
+function normalizeTaxRate(value) {
+  const num = Number(value || 0);
+  if (!Number.isFinite(num) || num <= 0.0001) return 0;
+  return Math.round(num * 10000) / 10000;
+}
+
+function uniquePositiveRates(values) {
+  return Array.from(
+    new Set((values || []).map(normalizeTaxRate).filter(rate => rate > 0))
+  ).sort((a, b) => a - b);
+}
+
+function formatTaxRate(rate) {
+  const normalized = normalizeTaxRate(rate);
+  if (!normalized) return '0%';
+  if (Math.abs(normalized - Math.round(normalized)) < 0.0001) {
+    return Math.round(normalized) + '%';
+  }
+  return parseFloat(normalized.toFixed(2)) + '%';
+}
+
+function collectItemTaxRates(record) {
+  const items = Array.isArray(record && record.items) ? record.items : [];
+  return uniquePositiveRates(items.map(item => Number(item && item.taxRate || 0)));
+}
+
+function hasValue(value) {
+  return !(value === null || value === undefined || (typeof value === 'string' && value.trim() === ''));
+}
+
+function providedNumber(value) {
+  if (!hasValue(value)) return null;
+  const num = Number(value);
+  return Number.isFinite(num) ? num : null;
+}
+
+function firstProvidedNumber() {
+  for (let i = 0; i < arguments.length; i += 1) {
+    const num = providedNumber(arguments[i]);
+    if (num !== null) return num;
+  }
+  return null;
+}
+
+function firstTextValue() {
+  for (let i = 0; i < arguments.length; i += 1) {
+    const value = arguments[i];
+    if (typeof value === 'string' && value.trim()) return value.trim();
+  }
+  return '';
+}
+
+function roundMoney(value) {
+  return Math.round((Number(value || 0) + Number.EPSILON) * 100) / 100;
+}
+
+function normalizeAccountItem(item, taxModeHint) {
+  const source = item || {};
+  const quantity = firstProvidedNumber(source.quantity, source.qty, 0) || 0;
+  const unitPrice = firstProvidedNumber(source.unitPrice, source.rate, 0) || 0;
+  const discount = firstProvidedNumber(source.discount, 0) || 0;
+  const taxRate = firstProvidedNumber(source.taxRate, source.taxPercent, 0) || 0;
+  const computedTaxable = roundMoney(quantity * unitPrice * (1 - (discount / 100)));
+  const taxableAmount = roundMoney(firstProvidedNumber(source.taxableAmount, computedTaxable) || 0);
+  let cgst = firstProvidedNumber(source.cgst);
+  let sgst = firstProvidedNumber(source.sgst);
+  let igst = firstProvidedNumber(source.igst);
+  let taxAmount = firstProvidedNumber(source.taxAmount);
+  const inferredMode = taxModeHint === 'igst' || taxModeHint === 'split'
+    ? taxModeHint
+    : ((igst || 0) > 0.004 && (cgst || 0) <= 0.004 && (sgst || 0) <= 0.004 ? 'igst' : 'split');
+
+  if (taxAmount === null) {
+    const summedTax = roundMoney((cgst || 0) + (sgst || 0) + (igst || 0));
+    taxAmount = summedTax > 0.004 ? summedTax : null;
+  }
+
+  if (taxAmount !== null && cgst === null && sgst === null && igst === null) {
+    if (inferredMode === 'igst') {
+      igst = taxAmount;
+      cgst = 0;
+      sgst = 0;
+    } else {
+      cgst = roundMoney(taxAmount / 2);
+      sgst = roundMoney(taxAmount / 2);
+      igst = 0;
+    }
+  }
+
+  if (taxAmount === null && taxRate > 0.0001 && taxableAmount > 0.0001) {
+    taxAmount = roundMoney(taxableAmount * taxRate / 100);
+    if (inferredMode === 'igst') {
+      igst = taxAmount;
+      cgst = 0;
+      sgst = 0;
+    } else {
+      cgst = roundMoney(taxAmount / 2);
+      sgst = roundMoney(taxAmount / 2);
+      igst = 0;
+    }
+  }
+
+  cgst = roundMoney(cgst || 0);
+  sgst = roundMoney(sgst || 0);
+  igst = roundMoney(igst || 0);
+  taxAmount = roundMoney(taxAmount === null ? (cgst + sgst + igst) : taxAmount);
+
+  const itemTotal = roundMoney(firstProvidedNumber(source.itemTotal, source.total, taxableAmount + taxAmount) || 0);
+  const code = firstTextValue(source.itemCode, source.code);
+  const description = firstTextValue(source.name, source.description, source.itemName);
+  const hsnCode = firstTextValue(source.hsnCode, source.hsnSac, source.hsn);
+  const unit = firstTextValue(source.unit);
+
+  return {
+    itemCode: code,
+    code: code,
+    name: description,
+    description: description,
+    itemName: description,
+    hsnCode: hsnCode,
+    hsnSac: hsnCode,
+    hsn: hsnCode,
+    unit: unit,
+    quantity: quantity,
+    qty: quantity,
+    unitPrice: unitPrice,
+    rate: unitPrice,
+    discount: discount,
+    taxRate: roundMoney(taxRate),
+    taxPercent: roundMoney(taxRate),
+    taxableAmount: taxableAmount,
+    cgst: cgst,
+    sgst: sgst,
+    igst: igst,
+    taxAmount: taxAmount,
+    itemTotal: itemTotal,
+  };
+}
+
+function normalizeAccountItems(items, taxModeHint) {
+  return (Array.isArray(items) ? items : []).map(item => normalizeAccountItem(item, taxModeHint));
+}
+
+function deriveItemTotals(items) {
+  return (Array.isArray(items) ? items : []).reduce((acc, item) => {
+    acc.subtotal += roundMoney(item && item.taxableAmount || 0);
+    acc.totalCgst += roundMoney(item && item.cgst || 0);
+    acc.totalSgst += roundMoney(item && item.sgst || 0);
+    acc.totalIgst += roundMoney(item && item.igst || 0);
+    return acc;
+  }, { subtotal: 0, totalCgst: 0, totalSgst: 0, totalIgst: 0 });
+}
+
+function buildTaxSummaryLabels(record, mode) {
+  const itemRates = collectItemTaxRates(record);
+  const splitRates = uniquePositiveRates(
+    (record ? [record.sgstRate, record.cgstRate] : []).concat(
+      itemRates.length ? itemRates.map(rate => rate / 2) : []
+    )
+  );
+  const igstRates = uniquePositiveRates(
+    (record ? [Number(record.sgstRate || 0) + Number(record.cgstRate || 0)] : []).concat(itemRates)
+  );
+  const formatList = rates => rates.map(formatTaxRate).join(', ');
+  return {
+    cgst: splitRates.length ? 'CGST @ ' + formatList(splitRates) : 'CGST',
+    sgst: splitRates.length ? 'SGST @ ' + formatList(splitRates) : 'SGST',
+    igst: mode === 'igst' && igstRates.length ? 'IGST @ ' + formatList(igstRates) : 'IGST',
+  };
+}
+
 function createDoc() {
   const doc = new PDFDocument({ margin:0, size:'A4', bufferPages:true });
 
@@ -231,6 +402,7 @@ function drawSignature(h, y, companyName, bankLines) {
 
 module.exports = {
   M, PW, PH, W, X, BLK, DRK, GRY, LGY, HBG, LBD, FOOTER_H,
-  fmtDate, fmtINR, numWords, pdfSafePart, buildPdfFilename, createDoc, addFooters,
+  fmtDate, fmtINR, numWords, pdfSafePart, buildPdfFilename, buildTaxSummaryLabels, createDoc, addFooters,
+  roundMoney, normalizeAccountItems, deriveItemTotals,
   drawHeader, drawSectionLabel, drawSignature,
 };

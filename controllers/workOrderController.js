@@ -1,5 +1,9 @@
 'use strict';
+const fs = require('fs');
+const path = require('path');
+const { PassThrough } = require('stream');
 const { Op } = require('sequelize');
+const { PDFDocument } = require('pdf-lib');
 const { WorkOrder, Client, Vendor, ProjectAccount, Company } = require('../models');
 const {
   applyCompanyScope,
@@ -13,10 +17,71 @@ const {
   drawSectionLabel, drawSignature,
 } = require('./pdfHelper');
 
+const DOCUMENT_UPLOAD_DIR = path.join(__dirname, '..', 'uploads', 'documents');
+
 function genCode() { return Math.random().toString(36).substr(2,6).toUpperCase(); }
 function cleanGeneratedCode(value, prefix) {
-  const code = String(value || '').trim().toUpperCase();
-  return code && code !== 'AUTO-GENERATED' ? code : prefix + '-' + genCode();
+  const code = String(value || '').trim();
+  return code && code.toLowerCase() !== 'auto-generated' ? code : prefix + '-' + genCode();
+}
+function normalizeOptionalText(value) {
+  return String(value == null ? '' : value).trim();
+}
+function normalizeNoticeType(value) {
+  const type = normalizeOptionalText(value).toUpperCase();
+  return type === 'NIT' || type === 'NIQ' ? type : '';
+}
+function workOrderTenderReferenceLabel(noticeType) {
+  return normalizeNoticeType(noticeType) === 'NIT' ? 'Ref. e-NIT No' : 'Ref. e-NIQ No';
+}
+function workOrderNoticeTypeLabel(noticeType) {
+  const normalized = normalizeNoticeType(noticeType);
+  if (normalized === 'NIT') return 'NOTICE FOR INVITING TENDER - NIT';
+  if (normalized === 'NIQ') return 'NOTICE FOR INVITING QUOTATION - NIQ';
+  return '';
+}
+function clearTenderFields(target) {
+  if (!target) return target;
+  target.noticeType = '';
+  target.tenderReferenceNo = '';
+  target.tenderId = '';
+  target.tenderNo = '';
+  target.quotedRate = '';
+  target.timeOfCompletion = '';
+  target.sourceOfFund = '';
+  return target;
+}
+function normalizeTenderFields(target) {
+  if (!target) return target;
+  target.noticeType = normalizeNoticeType(target.noticeType);
+  target.tenderReferenceNo = normalizeOptionalText(target.tenderReferenceNo);
+  target.tenderId = normalizeOptionalText(target.tenderId);
+  target.tenderNo = normalizeOptionalText(target.tenderNo);
+  target.quotedRate = normalizeOptionalText(target.quotedRate);
+  target.timeOfCompletion = normalizeOptionalText(target.timeOfCompletion);
+  target.sourceOfFund = normalizeOptionalText(target.sourceOfFund);
+  return target;
+}
+async function applyProjectSnapshot(target) {
+  if (!target) return target;
+  const hasProjectAccountField = Object.prototype.hasOwnProperty.call(target, 'projectAccountId');
+  const projectAccountId = Number(target.projectAccountId || 0) || null;
+  if (!projectAccountId) {
+    if (hasProjectAccountField) {
+      target.projectAccountId = null;
+      target.projectCode = '';
+      target.projectName = normalizeOptionalText(target.projectName);
+    }
+    return target;
+  }
+  const project = await ProjectAccount.findByPk(projectAccountId, {
+    attributes: ['id', 'name', 'projectCode'],
+  });
+  if (!project) return target;
+  target.projectAccountId = project.id;
+  target.projectCode = project.projectCode || '';
+  target.projectName = project.name || '';
+  return target;
 }
 
 async function resolveWorkOrderCompany(req, requestedCompanyId) {
@@ -57,6 +122,69 @@ function applyCompanySnapshot(target, company) {
   return target;
 }
 
+function normalizeWorkOrderType(type) {
+  return String(type || '').trim().toUpperCase();
+}
+
+function resolveAnnexurePdfPath(fileName) {
+  const baseName = path.basename(String(fileName || '').trim());
+  if (!baseName) return '';
+  return path.join(DOCUMENT_UPLOAD_DIR, baseName);
+}
+
+async function deleteAnnexureFile(fileName) {
+  const filePath = resolveAnnexurePdfPath(fileName);
+  if (!filePath) return;
+  try {
+    await fs.promises.unlink(filePath);
+  } catch (err) {
+    if (err && err.code !== 'ENOENT') throw err;
+  }
+}
+
+function collectStreamBuffer(stream) {
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    stream.on('data', chunk => chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)));
+    stream.on('end', () => resolve(Buffer.concat(chunks)));
+    stream.on('error', reject);
+  });
+}
+
+async function mergePdfBuffers(primaryBuffer, annexureBuffer) {
+  const merged = await PDFDocument.create();
+  const documents = [primaryBuffer, annexureBuffer];
+  for (const bytes of documents) {
+    const source = await PDFDocument.load(bytes);
+    const pages = await merged.copyPages(source, source.getPageIndices());
+    pages.forEach(page => merged.addPage(page));
+  }
+  return Buffer.from(await merged.save());
+}
+
+function validateWorkOrderPartyShape(data, existingType) {
+  const type = normalizeWorkOrderType(data.type || existingType);
+  if (type !== 'CWO' && type !== 'VWO') {
+    return { ok: false, message: 'Type (CWO/VWO) required' };
+  }
+  const hasClient = !!data.clientId;
+  const hasVendor = !!data.vendorId;
+  const hasPartyName = !!String(data.partyName || '').trim();
+
+  if (type === 'CWO') {
+    if (hasVendor) return { ok: false, message: 'Client work orders must use a client, not a vendor' };
+    if (!hasClient && !hasPartyName) return { ok: false, message: 'Client work orders require a client or party name' };
+    data.vendorId = null;
+  } else {
+    if (hasClient) return { ok: false, message: 'Vendor work orders must use a vendor, not a client' };
+    if (!hasVendor && !hasPartyName) return { ok: false, message: 'Vendor work orders require a vendor or party name' };
+    data.clientId = null;
+  }
+
+  data.type = type;
+  return { ok: true };
+}
+
 // ── GET /work-orders ──────────────────────────────────────────────────────────
 exports.getWorkOrders = async (req, res) => {
   try {
@@ -68,7 +196,11 @@ exports.getWorkOrders = async (req, res) => {
     if (q) where[Op.or] = [
       { woNumber:  { [Op.like]: `%${q}%` } },
       { partyName: { [Op.like]: `%${q}%` } },
+      { projectCode: { [Op.like]: `%${q}%` } },
       { projectName: { [Op.like]: `%${q}%` } },
+      { tenderReferenceNo: { [Op.like]: `%${q}%` } },
+      { tenderId: { [Op.like]: `%${q}%` } },
+      { tenderNo: { [Op.like]: `%${q}%` } },
     ];
     const rows = await WorkOrder.findAll({ where, order: [['createdAt','DESC']],
       include: [
@@ -103,10 +235,10 @@ exports.getWorkOrder = async (req, res) => {
 exports.createWorkOrder = async (req, res) => {
   try {
     const data = Object.assign({}, req.body);
-    if (!data.type) return res.status(400).json({ message: 'Type (CWO/VWO) required' });
-    if (!data.partyName && !data.clientId && !data.vendorId) {
-      return res.status(400).json({ message: 'Party (client or vendor) required' });
-    }
+    delete data.annexurePdfPath;
+    delete data.annexurePdfName;
+    const shape = validateWorkOrderPartyShape(data);
+    if (!shape.ok) return res.status(400).json({ message: shape.message });
     if (data.clientId) {
       await assertScopedRelation(Client, 'client', req, data.clientId, 'Client not found');
     }
@@ -116,6 +248,7 @@ exports.createWorkOrder = async (req, res) => {
     if (data.projectAccountId) {
       await assertScopedRelation(ProjectAccount, 'projectAccount', req, data.projectAccountId, 'Project account not found');
     }
+    await applyProjectSnapshot(data);
     data.woNumber = cleanGeneratedCode(data.woNumber, data.type === 'CWO' ? 'CWO' : 'VWO');
     data.createdBy = req.user.id;
     // auto-fill partyName
@@ -127,6 +260,8 @@ exports.createWorkOrder = async (req, res) => {
       const v = await Vendor.findByPk(data.vendorId);
       if (v) data.partyName = v.name;
     }
+    if (data.type === 'CWO') normalizeTenderFields(data);
+    else clearTenderFields(data);
     const company = await resolveWorkOrderCompany(req, data.companyId);
     if (!company) return res.status(400).json({ message: missingWorkOrderCompanyMessage(req) });
     applyCompanySnapshot(data, company);
@@ -142,6 +277,10 @@ exports.updateWorkOrder = async (req, res) => {
     const wo = await findScopedByPk(WorkOrder, 'workOrder', req, req.params.id, null, 'Work Order not found');
     if (!wo) return res.status(404).json({ message: 'Work Order not found' });
     const updates = Object.assign({}, req.body);
+    delete updates.annexurePdfPath;
+    delete updates.annexurePdfName;
+    const shape = validateWorkOrderPartyShape(updates, wo.type);
+    if (!shape.ok) return res.status(400).json({ message: shape.message });
     if (updates.clientId) {
       await assertScopedRelation(Client, 'client', req, updates.clientId, 'Client not found');
     }
@@ -151,6 +290,7 @@ exports.updateWorkOrder = async (req, res) => {
     if (updates.projectAccountId) {
       await assertScopedRelation(ProjectAccount, 'projectAccount', req, updates.projectAccountId, 'Project account not found');
     }
+    await applyProjectSnapshot(updates);
     const nextType = updates.type || wo.type;
     if (updates.woNumber !== undefined) {
       updates.woNumber = cleanGeneratedCode(updates.woNumber, nextType === 'CWO' ? 'CWO' : 'VWO');
@@ -163,12 +303,63 @@ exports.updateWorkOrder = async (req, res) => {
       const vendor = await Vendor.findByPk(updates.vendorId);
       if (vendor) updates.partyName = vendor.name;
     }
+    if (nextType === 'CWO') normalizeTenderFields(updates);
+    else clearTenderFields(updates);
     const company = await resolveWorkOrderCompany(req, updates.companyId || wo.companyId);
     if (!company) return res.status(400).json({ message: missingWorkOrderCompanyMessage(req) });
     applyCompanySnapshot(updates, company);
     await wo.update(updates);
     res.json(wo);
   } catch (err) { res.status(500).json({ message: err.message }); }
+};
+
+exports.uploadAnnexure = async (req, res) => {
+  let annexureSaved = false;
+  try {
+    if (req.user.role === 'admin') await syncAccountsCompanyIds();
+    const wo = await findScopedByPk(WorkOrder, 'workOrder', req, req.params.id, null, 'Work Order not found');
+    if (!wo) return res.status(404).json({ message: 'Work Order not found' });
+    if (!req.file) return res.status(400).json({ message: 'Upload a PDF annexure' });
+
+    const uploadedFileName = req.file.filename || '';
+    const uploadedOriginalName = req.file.originalname || uploadedFileName;
+    const uploadedPath = resolveAnnexurePdfPath(uploadedFileName);
+    const uploadedBytes = await fs.promises.readFile(uploadedPath);
+    try {
+      await PDFDocument.load(uploadedBytes);
+    } catch (err) {
+      throw new Error('Uploaded annexure must be a valid PDF');
+    }
+
+    const previousFileName = wo.annexurePdfPath || '';
+    await wo.update({
+      annexurePdfPath: uploadedFileName,
+      annexurePdfName: uploadedOriginalName,
+    });
+    annexureSaved = true;
+
+    if (previousFileName && previousFileName !== uploadedFileName) {
+      try {
+        await deleteAnnexureFile(previousFileName);
+      } catch (_) {}
+    }
+
+    res.json({
+      message: 'Annexure uploaded',
+      annexurePdfName: wo.annexurePdfName,
+      annexurePdfPath: wo.annexurePdfPath,
+      workOrder: wo,
+    });
+  } catch (err) {
+    if (!annexureSaved && req.file && req.file.filename) {
+      try {
+        await deleteAnnexureFile(req.file.filename);
+      } catch (_) {}
+    }
+    const message = err.message || 'Failed to upload annexure';
+    const status = /valid PDF/i.test(message) ? 400 : 500;
+    res.status(status).json({ message });
+  }
 };
 
 // ── GET /work-orders/:id/pdf ──────────────────────────────────────────────────
@@ -179,6 +370,7 @@ exports.generatePDF = async (req, res) => {
       include: [
         { model: Client, as: 'client', required: false },
         { model: Vendor, as: 'vendor', required: false },
+        { model: ProjectAccount, as: 'projectAccount', required: false },
         { model: Company, as: 'company', required: false },
       ],
     }, 'Work Order not found');
@@ -202,17 +394,10 @@ exports.generatePDF = async (req, res) => {
       bankBranch: wo.bankBranch || (company && company.bankBranch) || '',
     });
 
-    const inline = req.query.view === '1';
-    res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition',
-      (inline?'inline':'attachment') + `; filename="${buildPdfFilename([
-        co.name || 'DHPE',
-        wo.type === 'CWO' ? 'Client-Work-Order' : 'Vendor-Work-Order',
-        wo.woNumber || wo.id,
-      ])}"`);
-
     const { doc, hLine, vLine, box, fillBox, txt, txtH, checkPage } = createDoc();
-    doc.pipe(res);
+    const pdfOutput = new PassThrough();
+    const pdfBufferPromise = collectStreamBuffer(pdfOutput);
+    doc.pipe(pdfOutput);
 
     const HW = W / 2;
     const RX = X + HW;
@@ -300,9 +485,19 @@ exports.generatePDF = async (req, res) => {
     y += partyBoxH;
 
     // ── 3. PROJECT / SCOPE ─────────────────────────────────────────────────────
+    const projectCode = wo.projectCode || (wo.projectAccount && wo.projectAccount.projectCode) || '';
+    const projectName = wo.projectName || (wo.projectAccount && wo.projectAccount.name) || '';
     const scopeLines = [
-      wo.projectName ? 'Project: '+wo.projectName : '',
-      wo.scope       ? 'Scope of Work: '+wo.scope  : '',
+      projectCode ? 'Project #: ' + projectCode : '',
+      projectName ? 'Project Name: ' + projectName : '',
+      workOrderNoticeTypeLabel(wo.noticeType) ? 'Notice Type: ' + workOrderNoticeTypeLabel(wo.noticeType) : '',
+      wo.tenderReferenceNo ? workOrderTenderReferenceLabel(wo.noticeType) + ': ' + wo.tenderReferenceNo : '',
+      wo.tenderId ? 'Tender Id: ' + wo.tenderId : '',
+      wo.tenderNo ? 'Tender No: ' + wo.tenderNo : '',
+      wo.quotedRate ? 'Quoted Rate: ' + wo.quotedRate : '',
+      wo.timeOfCompletion ? 'Time of Completion: ' + wo.timeOfCompletion : '',
+      wo.sourceOfFund ? 'Source of Fund: ' + wo.sourceOfFund : '',
+      wo.scope ? 'Scope of Work: ' + wo.scope : '',
     ].filter(Boolean);
 
     if (scopeLines.length) {
@@ -378,6 +573,29 @@ exports.generatePDF = async (req, res) => {
 
     addFooters(doc);
     doc.end();
+
+    let finalBuffer = await pdfBufferPromise;
+    const annexurePath = resolveAnnexurePdfPath(wo.annexurePdfPath);
+    if (annexurePath) {
+      try {
+        const annexureBytes = await fs.promises.readFile(annexurePath);
+        finalBuffer = await mergePdfBuffers(finalBuffer, annexureBytes);
+      } catch (err) {
+        if (err && err.code !== 'ENOENT') {
+          throw new Error('Failed to append the annexure PDF');
+        }
+      }
+    }
+
+    const inline = req.query.view === '1';
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition',
+      (inline?'inline':'attachment') + `; filename="${buildPdfFilename([
+        co.name || 'DHPE',
+        wo.type === 'CWO' ? 'Client-Work-Order' : 'Vendor-Work-Order',
+        wo.woNumber || wo.id,
+      ])}"`);
+    res.end(finalBuffer);
   } catch (err) {
     if (!res.headersSent) res.status(500).json({ message: err.message });
   }
@@ -392,6 +610,7 @@ exports.deleteWorkOrder = async (req, res) => {
     const { moveToRecycleBin } = require('./recycleBinController');
     await moveToRecycleBin(wo.type === 'CWO' ? 'client_work_order' : 'vendor_work_order',
       wo.id, req.user, wo.toJSON(), wo.woNumber);
+    await deleteAnnexureFile(wo.annexurePdfPath);
     await wo.destroy();
     res.json({ message: 'Work Order deleted' });
   } catch (err) { res.status(500).json({ message: err.message }); }

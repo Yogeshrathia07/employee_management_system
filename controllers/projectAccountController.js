@@ -16,8 +16,8 @@ const {
 
 function genCode() { return Math.random().toString(36).substr(2,6).toUpperCase(); }
 function cleanGeneratedCode(value, prefix) {
-  const code = String(value || '').trim().toUpperCase();
-  return code && code !== 'AUTO-GENERATED' ? code : prefix + '-' + genCode();
+  const code = String(value || '').trim();
+  return code && code.toLowerCase() !== 'auto-generated' ? code : prefix + '-' + genCode();
 }
 
 // ── GET /project-accounts ─────────────────────────────────────────────────────

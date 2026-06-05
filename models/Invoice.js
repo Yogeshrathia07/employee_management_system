@@ -10,6 +10,7 @@ const Invoice = sequelize.define('Invoice', {
   showTaxPercentInPdf: { type: DataTypes.BOOLEAN, defaultValue: true },
   documentType:  { type: DataTypes.STRING(50),  defaultValue: 'Tax Invoice' },
   invoiceType:   { type: DataTypes.ENUM('B2B', 'B2C'), defaultValue: 'B2B' },
+  financialYear: { type: DataTypes.STRING(10),  defaultValue: '' },
   invoiceDate:   { type: DataTypes.DATEONLY,    allowNull: false },
   dueDate:       { type: DataTypes.DATEONLY,    allowNull: true },
   isRABill:      { type: DataTypes.BOOLEAN,     defaultValue: false },

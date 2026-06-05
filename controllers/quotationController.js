@@ -12,11 +12,16 @@ const {
 } = require('./accountsCompanyScope');
 const {
   M, W, X, BLK, GRY, HBG, LBD,
-  fmtDate, fmtINR, numWords, buildPdfFilename, createDoc, addFooters,
+  fmtDate, fmtINR, numWords, buildPdfFilename, buildTaxSummaryLabels, createDoc, addFooters,
+  roundMoney, normalizeAccountItems, deriveItemTotals,
   drawSectionLabel, drawSignature,
 } = require('./pdfHelper');
 
 function genCode() { return Math.random().toString(36).substr(2,6).toUpperCase(); }
+function cleanGeneratedCode(value, prefix) {
+  const code = String(value || '').trim();
+  return code && code.toLowerCase() !== 'auto-generated' ? code : prefix + '-' + genCode();
+}
 function inferRoundOffMode(value) {
   const amount = Number(value || 0);
   if (amount > 0.004) return 'plus';
@@ -43,6 +48,34 @@ function taxModeFromQuotation(record) {
   if (sellerStateCode && clientStateCode && sellerStateCode !== clientStateCode) return 'igst';
   return 'split';
 }
+function providedNumber(value) {
+  if (value === null || value === undefined || (typeof value === 'string' && value.trim() === '')) return null;
+  const num = Number(value);
+  return Number.isFinite(num) ? num : null;
+}
+function preferStoredMoney(value, derivedValue) {
+  const stored = providedNumber(value);
+  if (stored === null) return roundMoney(derivedValue);
+  if (Math.abs(stored) <= 0.004 && Math.abs(derivedValue) > 0.004) return roundMoney(derivedValue);
+  return roundMoney(stored);
+}
+function normalizeQuotationRecord(record) {
+  const plain = Object.assign({}, record || {});
+  const taxMode = taxModeFromQuotation(plain);
+  const items = normalizeAccountItems(plain.items, taxMode);
+  const derived = deriveItemTotals(items);
+  const roundOff = roundMoney(providedNumber(plain.roundOff) || 0);
+  const derivedTotalTax = roundMoney(derived.totalCgst + derived.totalSgst + derived.totalIgst);
+  plain.items = items;
+  plain.subtotal = preferStoredMoney(plain.subtotal, derived.subtotal);
+  plain.totalCgst = preferStoredMoney(plain.totalCgst, derived.totalCgst);
+  plain.totalSgst = preferStoredMoney(plain.totalSgst, derived.totalSgst);
+  plain.totalIgst = preferStoredMoney(plain.totalIgst, derived.totalIgst);
+  plain.totalTax = preferStoredMoney(plain.totalTax, derivedTotalTax);
+  plain.roundOff = roundOff;
+  plain.totalAmount = preferStoredMoney(plain.totalAmount, plain.subtotal + plain.totalTax + roundOff);
+  return plain;
+}
 
 // ── GET /quotations ───────────────────────────────────────────────────────────
 exports.getQuotations = async (req, res) => {
@@ -57,7 +90,7 @@ exports.getQuotations = async (req, res) => {
     ];
     const rows = await Quotation.findAll({ where, order: [['createdAt','DESC']],
       include: [{ model: Client, as: 'client', attributes: ['id','name','clientCode'] }] });
-    res.json(rows);
+    res.json(rows.map(row => normalizeQuotationRecord(row.toJSON())));
   } catch (err) { res.status(500).json({ message: err.message }); }
 };
 
@@ -69,14 +102,14 @@ exports.getQuotation = async (req, res) => {
       include: [{ model: Client, as: 'client' }]
     }, 'Quotation not found');
     if (!q) return res.status(404).json({ message: 'Quotation not found' });
-    res.json(q);
+    res.json(normalizeQuotationRecord(q.toJSON()));
   } catch (err) { res.status(500).json({ message: err.message }); }
 };
 
 // ── POST /quotations ─────────────────────────────────────────────────────────
 exports.createQuotation = async (req, res) => {
   try {
-    const data = Object.assign({}, req.body);
+    const data = normalizeQuotationRecord(Object.assign({}, req.body));
     if (!data.date) return res.status(400).json({ message: 'Date required' });
     if (!data.clientName) return res.status(400).json({ message: 'Client name required' });
     if (data.clientId) {
@@ -87,7 +120,7 @@ exports.createQuotation = async (req, res) => {
     if (getActorCompanyId(req) && !data.companyId) {
       return res.status(400).json({ message: 'Admin company not found' });
     }
-    data.quotationNumber = 'QUO-' + genCode();
+    data.quotationNumber = cleanGeneratedCode(data.quotationNumber, 'QUO');
     data.createdBy = req.user.id;
     const q = await Quotation.create(data);
     res.status(201).json(q);
@@ -100,7 +133,7 @@ exports.updateQuotation = async (req, res) => {
     if (req.user.role === 'admin') await syncAccountsCompanyIds();
     const q = await findScopedByPk(Quotation, 'quotation', req, req.params.id, null, 'Quotation not found');
     if (!q) return res.status(404).json({ message: 'Quotation not found' });
-    const updates = Object.assign({}, req.body);
+    const updates = normalizeQuotationRecord(Object.assign({}, q.toJSON(), req.body));
     if (updates.clientId) {
       await assertScopedRelation(Client, 'client', req, updates.clientId, 'Client not found');
     }
@@ -131,48 +164,49 @@ exports.convertToProforma = async (req, res) => {
     if (req.user.role === 'admin') await syncAccountsCompanyIds();
     const q = await findScopedByPk(Quotation, 'quotation', req, req.params.id, null, 'Quotation not found');
     if (!q) return res.status(404).json({ message: 'Quotation not found' });
+    const source = normalizeQuotationRecord(q.toJSON());
 
     const pro = await Proforma.create({
       proformaNumber: 'PRO-' + genCode(),
-      companyId:      q.companyId || null,
-      clientId:       q.clientId,
-      sourceQuotationId: q.id,
-      customerName:      q.clientName,
-      customerGstin:     q.clientGstin,
-      customerPan:       q.clientPan,
-      customerEmail:     q.clientEmail,
-      customerAddress:   q.clientAddress,
-      customerState:     q.clientState,
-      customerStateCode: q.clientStateCode,
-      sellerName:        q.sellerName,
-      sellerGstin:       q.sellerGstin,
-      sellerAddress:     q.sellerAddress,
-      sellerState:       q.sellerState,
-      sellerStateCode:   q.sellerStateCode,
-      sellerPhone:       q.sellerPhone,
-      sellerEmail:       q.sellerEmail,
-      sellerPan:         q.sellerPan,
-      date:          q.date,
-      validityDate:  q.validTill,
-      items:         q.items,
-      sgstRate:      q.sgstRate,
-      cgstRate:      q.cgstRate,
-      subtotal:      q.subtotal,
-      totalCgst:     q.totalCgst,
-      totalSgst:     q.totalSgst,
-      totalIgst:     q.totalIgst,
-      totalTax:      q.totalTax,
-      roundOffMode:  inferRoundOffMode(q.roundOff),
-      roundOff:      q.roundOff,
-      totalAmount:   q.totalAmount,
+      companyId:      source.companyId || null,
+      clientId:       source.clientId,
+      sourceQuotationId: source.id,
+      customerName:      source.clientName,
+      customerGstin:     source.clientGstin,
+      customerPan:       source.clientPan,
+      customerEmail:     source.clientEmail,
+      customerAddress:   source.clientAddress,
+      customerState:     source.clientState,
+      customerStateCode: source.clientStateCode,
+      sellerName:        source.sellerName,
+      sellerGstin:       source.sellerGstin,
+      sellerAddress:     source.sellerAddress,
+      sellerState:       source.sellerState,
+      sellerStateCode:   source.sellerStateCode,
+      sellerPhone:       source.sellerPhone,
+      sellerEmail:       source.sellerEmail,
+      sellerPan:         source.sellerPan,
+      date:          source.date,
+      validityDate:  source.validTill,
+      items:         source.items,
+      sgstRate:      source.sgstRate,
+      cgstRate:      source.cgstRate,
+      subtotal:      source.subtotal,
+      totalCgst:     source.totalCgst,
+      totalSgst:     source.totalSgst,
+      totalIgst:     source.totalIgst,
+      totalTax:      source.totalTax,
+      roundOffMode:  inferRoundOffMode(source.roundOff),
+      roundOff:      source.roundOff,
+      totalAmount:   source.totalAmount,
       showTaxPercentInPdf: true,
-      bankName:      q.bankName,
-      bankAcName:    q.bankAcName,
-      bankAccount:   q.bankAccount,
-      bankIfsc:      q.bankIfsc,
-      bankBranch:    q.bankBranch,
-      notes:         q.notes,
-      termsConditions: q.termsConditions,
+      bankName:      source.bankName,
+      bankAcName:    source.bankAcName,
+      bankAccount:   source.bankAccount,
+      bankIfsc:      source.bankIfsc,
+      bankBranch:    source.bankBranch,
+      notes:         source.notes,
+      termsConditions: source.termsConditions,
       status:        'Draft',
       createdBy:     req.user.id,
     });
@@ -188,47 +222,48 @@ exports.convertToInvoice = async (req, res) => {
     if (req.user.role === 'admin') await syncAccountsCompanyIds();
     const q = await findScopedByPk(Quotation, 'quotation', req, req.params.id, null, 'Quotation not found');
     if (!q) return res.status(404).json({ message: 'Quotation not found' });
+    const source = normalizeQuotationRecord(q.toJSON());
 
     const inv = await Invoice.create({
       invoiceNumber:  'INV-' + genCode(),
-      companyId:      q.companyId || null,
-      invoiceDate:    q.date,
-      clientId:       q.clientId,
-      customerName:   q.clientName,
-      customerGstin:  q.clientGstin,
-      customerPan:    q.clientPan,
-      customerEmail:  q.clientEmail,
-      customerAddress:q.clientAddress,
-      customerState:  q.clientState,
-      customerStateCode: q.clientStateCode,
-      sellerName:     q.sellerName,
-      sellerGstin:    q.sellerGstin,
-      sellerAddress:  q.sellerAddress,
-      sellerState:    q.sellerState,
-      sellerStateCode:q.sellerStateCode,
-      sellerPhone:    q.sellerPhone,
-      sellerEmail:    q.sellerEmail,
-      sellerPan:      q.sellerPan,
-      items:          q.items,
-      sgstRate:       q.sgstRate,
-      cgstRate:       q.cgstRate,
-      subtotal:       q.subtotal,
-      totalCgst:      q.totalCgst,
-      totalSgst:      q.totalSgst,
-      totalIgst:      q.totalIgst,
-      totalTax:       q.totalTax,
-      roundOffMode:   inferRoundOffMode(q.roundOff),
-      roundOff:       q.roundOff,
-      totalAmount:    q.totalAmount,
+      companyId:      source.companyId || null,
+      invoiceDate:    source.date,
+      clientId:       source.clientId,
+      customerName:   source.clientName,
+      customerGstin:  source.clientGstin,
+      customerPan:    source.clientPan,
+      customerEmail:  source.clientEmail,
+      customerAddress:source.clientAddress,
+      customerState:  source.clientState,
+      customerStateCode: source.clientStateCode,
+      sellerName:     source.sellerName,
+      sellerGstin:    source.sellerGstin,
+      sellerAddress:  source.sellerAddress,
+      sellerState:    source.sellerState,
+      sellerStateCode:source.sellerStateCode,
+      sellerPhone:    source.sellerPhone,
+      sellerEmail:    source.sellerEmail,
+      sellerPan:      source.sellerPan,
+      items:          source.items,
+      sgstRate:       source.sgstRate,
+      cgstRate:       source.cgstRate,
+      subtotal:       source.subtotal,
+      totalCgst:      source.totalCgst,
+      totalSgst:      source.totalSgst,
+      totalIgst:      source.totalIgst,
+      totalTax:       source.totalTax,
+      roundOffMode:   inferRoundOffMode(source.roundOff),
+      roundOff:       source.roundOff,
+      totalAmount:    source.totalAmount,
       showTaxPercentInPdf: true,
-      bankName:       q.bankName,
-      bankAcName:     q.bankAcName,
-      bankAccount:    q.bankAccount,
-      bankIfsc:       q.bankIfsc,
-      bankBranch:     q.bankBranch,
-      notes:          q.notes,
-      termsConditions:q.termsConditions,
-      sourceDocId:    q.id,
+      bankName:       source.bankName,
+      bankAcName:     source.bankAcName,
+      bankAccount:    source.bankAccount,
+      bankIfsc:       source.bankIfsc,
+      bankBranch:     source.bankBranch,
+      notes:          source.notes,
+      termsConditions:source.termsConditions,
+      sourceDocId:    source.id,
       sourceDocType:  'quotation',
       convertedBadge: 'From Quotation',
       status:         'Draft',
@@ -244,10 +279,11 @@ exports.convertToInvoice = async (req, res) => {
 exports.generatePDF = async (req, res) => {
   try {
     if (req.user.role === 'admin') await syncAccountsCompanyIds();
-    const q = await findScopedByPk(Quotation, 'quotation', req, req.params.id, {
+    const record = await findScopedByPk(Quotation, 'quotation', req, req.params.id, {
       include: [{ model: Client, as: 'client', required: false }],
     }, 'Quotation not found');
-    if (!q) return res.status(404).json({ message: 'Quotation not found' });
+    if (!record) return res.status(404).json({ message: 'Quotation not found' });
+    const q = normalizeQuotationRecord(record.toJSON());
 
     const inline = req.query.view === '1';
     res.setHeader('Content-Type', 'application/pdf');
@@ -364,13 +400,12 @@ exports.generatePDF = async (req, res) => {
     items.forEach((it, idx) => {
       const qty = parseFloat(it.quantity || 0);
       const price = parseFloat(it.unitPrice || 0);
-      const discount = parseFloat(it.discount || 0);
       const taxRate = parseFloat(it.taxRate || 0);
-      const taxable = parseFloat(it.taxableAmount || (qty * price * (1 - discount / 100)));
+      const taxable = parseFloat(it.taxableAmount || 0);
       const igstAmt = parseFloat(it.igst || 0);
       const cgstAmt = parseFloat(it.cgst || 0);
       const sgstAmt = parseFloat(it.sgst || 0);
-      const descText = (it.name || '').trim();
+      const descText = (it.name || it.description || '').trim();
       const descH = descText ? txtH(descText, W - 16, 7.5) + 7 : 0;
       y = checkPage(y, ROW_H + descH + 1);
       if (idx % 2 === 0) fillBox(X, y, W, ROW_H, '#fafafa');
@@ -404,9 +439,18 @@ exports.generatePDF = async (req, res) => {
     });
 
     y = checkPage(y, 60);
+    const taxLabels = buildTaxSummaryLabels(q, useIGST ? 'igst' : 'split');
+    const totalIgst = parseFloat(q.totalIgst || 0);
+    const totalCgst = parseFloat(q.totalCgst || 0);
+    const totalSgst = parseFloat(q.totalSgst || 0);
     const sumLines = [
       ['Subtotal:', fmtINR(q.subtotal)],
-      ...(useIGST ? [['IGST:', fmtINR(q.totalIgst)]] : [['SGST:', fmtINR(q.totalSgst)], ['CGST:', fmtINR(q.totalCgst)]]),
+      ...(useIGST
+        ? (totalIgst > 0.004 ? [[taxLabels.igst + ':', fmtINR(totalIgst)]] : [])
+        : [
+            ...(totalSgst > 0.004 ? [[taxLabels.sgst + ':', fmtINR(totalSgst)]] : []),
+            ...(totalCgst > 0.004 ? [[taxLabels.cgst + ':', fmtINR(totalCgst)]] : []),
+          ]),
       ...(parseFloat(q.roundOff) ? [['Round Off:', fmtINR(q.roundOff)]] : []),
     ];
     const sumRowH = 12;

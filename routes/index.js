@@ -259,6 +259,7 @@ router.get('/work-orders',        auth, requireRole('admin', 'superadmin'), woCt
 router.get('/work-orders/:id',    auth, requireRole('admin', 'superadmin'), woCtrl.getWorkOrder);
 router.get('/work-orders/:id/pdf',auth, requireRole('admin', 'superadmin'), woCtrl.generatePDF);
 router.post('/work-orders',       auth, requireRole('admin', 'superadmin'), woCtrl.createWorkOrder);
+router.post('/work-orders/:id/annexure', auth, requireRole('admin', 'superadmin'), upload.single('file'), woCtrl.uploadAnnexure);
 router.put('/work-orders/:id',    auth, requireRole('admin', 'superadmin'), woCtrl.updateWorkOrder);
 router.delete('/work-orders/:id', auth, requireRole('admin', 'superadmin'), woCtrl.deleteWorkOrder);
 

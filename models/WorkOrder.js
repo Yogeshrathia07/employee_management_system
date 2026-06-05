@@ -27,7 +27,17 @@ const WorkOrder = sequelize.define('WorkOrder', {
   bankBranch:  { type: DataTypes.STRING(200), defaultValue: '' },
 
   projectAccountId: { type: DataTypes.INTEGER,   allowNull: true },
+  projectCode:      { type: DataTypes.STRING(60), defaultValue: '' },
   projectName:      { type: DataTypes.STRING(300), defaultValue: '' },
+  noticeType:       { type: DataTypes.STRING(10), defaultValue: '' },
+  tenderReferenceNo:{ type: DataTypes.STRING(200), defaultValue: '' },
+  tenderId:         { type: DataTypes.STRING(200), defaultValue: '' },
+  tenderNo:         { type: DataTypes.STRING(200), defaultValue: '' },
+  quotedRate:       { type: DataTypes.STRING(200), defaultValue: '' },
+  timeOfCompletion: { type: DataTypes.STRING(200), defaultValue: '' },
+  sourceOfFund:     { type: DataTypes.STRING(300), defaultValue: '' },
+  annexurePdfPath:  { type: DataTypes.STRING(255), defaultValue: '' },
+  annexurePdfName:  { type: DataTypes.STRING(255), defaultValue: '' },
 
   startDate: { type: DataTypes.DATEONLY, allowNull: true },
   endDate:   { type: DataTypes.DATEONLY, allowNull: true },

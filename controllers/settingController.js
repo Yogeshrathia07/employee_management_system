@@ -5,6 +5,9 @@ const { AppSetting } = require('../models');
 const LOGIN_HERO_KEY = 'loginHeroImage';
 const LOGIN_HERO_FIT_KEY = 'loginHeroFit';
 const LOGIN_HERO_POSITION_KEY = 'loginHeroPosition';
+const DEFAULT_LOGIN_HERO_URL = '/images/LOGIN PAGE_WEBDHPE.png';
+const DEFAULT_LOGIN_HERO_FIT = 'cover';
+const DEFAULT_LOGIN_HERO_POSITION = 'center center';
 
 async function getSetting(key) {
   return AppSetting.findOne({ where: { key } });
@@ -18,9 +21,9 @@ exports.getPublicLoginHero = async (req, res) => {
       getSetting(LOGIN_HERO_POSITION_KEY),
     ]);
     res.json({
-      imageUrl: setting && setting.value ? '/api/settings/login-hero/image' : '',
-      fit: fitSetting && fitSetting.value ? fitSetting.value : 'contain',
-      position: positionSetting && positionSetting.value ? positionSetting.value : 'center center'
+      imageUrl: setting && setting.value ? '/api/settings/login-hero/image' : DEFAULT_LOGIN_HERO_URL,
+      fit: fitSetting && fitSetting.value ? fitSetting.value : DEFAULT_LOGIN_HERO_FIT,
+      position: positionSetting && positionSetting.value ? positionSetting.value : DEFAULT_LOGIN_HERO_POSITION
     });
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -33,6 +36,7 @@ exports.getLoginHeroImage = async (req, res) => {
     if (!setting || !setting.value) return res.status(404).json({ message: 'No login image configured' });
 
     if (setting.value.startsWith('http')) return res.redirect(setting.value);
+    if (setting.value.startsWith('/')) return res.redirect(setting.value);
 
     const filePath = path.join(__dirname, '..', 'uploads', 'photos', setting.value);
     if (!fs.existsSync(filePath)) return res.status(404).json({ message: 'File not found' });

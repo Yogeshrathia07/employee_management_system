@@ -1,6 +1,7 @@
 'use strict';
 const PDFDocument = require('pdfkit');
 const { applySellerCompanySnapshot, getRequestCompany } = require('./accountsCompanyScope');
+const { buildTaxSummaryLabels } = require('./pdfHelper');
 
 function fmtINR(n) {
   return '₹ ' + Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -110,10 +111,10 @@ exports.generatePDF = async (req, res) => {
 
     const metaRight=[
       'PROFORMA INVOICE',
+      'Ref No.: '+(inv.id||''),
       'Date: '+fmtDate(inv.date)+'   Status: '+(inv.status||'Draft'),
       inv.billMonth?'Bill for Month: '+inv.billMonth:'',
       (inv.billPeriodFrom&&inv.billPeriodTo)?'Bill Period: '+fmtDate(inv.billPeriodFrom)+' to '+fmtDate(inv.billPeriodTo):'',
-      'Ref No.: '+(inv.id||''),
       inv.validityDate?'Valid Till: '+fmtDate(inv.validityDate):'',
     ].filter(Boolean);
 
@@ -234,9 +235,10 @@ exports.generatePDF = async (req, res) => {
 
     // ── 5. AMOUNT IN WORDS + SUMMARY ─────────────────────────────────────────
     y=checkPage(y,60);
+    const taxLabels = buildTaxSummaryLabels(inv, useIGST ? 'igst' : 'split');
     const sumLines=[
       ['Subtotal:',fmtINR(inv.subtotal)],
-      ...(useIGST?[['IGST:',fmtINR(inv.totalIgst)]]:[['SGST:',fmtINR(inv.totalSgst)],['CGST:',fmtINR(inv.totalCgst)]]),
+      ...(useIGST?[[taxLabels.igst + ':',fmtINR(inv.totalIgst)]]:[[taxLabels.sgst + ':',fmtINR(inv.totalSgst)],[taxLabels.cgst + ':',fmtINR(inv.totalCgst)]]),
       ...(parseFloat(inv.roundOff)?[['Round Off:',fmtINR(inv.roundOff)]]:[]),
     ];
     const sumRowH=14,sumTotalH=18,sumH=sumLines.length*sumRowH+sumTotalH;

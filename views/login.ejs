@@ -29,52 +29,14 @@
         <button class="btn btn-primary" id="login-btn" onclick="doLogin()">
           Sign In <i class="bx bx-right-arrow-alt"></i>
         </button>
-
-        <div class="login-demo">
-          <h4>Demo Accounts</h4>
-          <div class="demo-account" onclick="fillDemo('superadmin@ems.com')">
-            <span class="demo-role">Super Admin</span>
-            <span class="demo-email">superadmin@ems.com</span>
-          </div>
-          <div class="demo-account" onclick="fillDemo('admin@demo.com')">
-            <span class="demo-role">Admin</span>
-            <span class="demo-email">admin@demo.com</span>
-          </div>
-          <div class="demo-account" onclick="fillDemo('manager@demo.com')">
-            <span class="demo-role">Manager</span>
-            <span class="demo-email">manager@demo.com</span>
-          </div>
-          <div class="demo-account" onclick="fillDemo('employee@demo.com')">
-            <span class="demo-role">Employee</span>
-            <span class="demo-email">employee@demo.com</span>
-          </div>
-        </div>
       </div>
     </div>
-    <div class="login-left">
-      <div class="login-right-content">
-        <div class="login-hero-copy">
-          <div class="login-welcome">WELCOME TO</div>
-          <h1>DHPE Workspace</h1>
-          <div class="login-hero-heading">Fast, Efficient and Productive</div>
-          <p>Manage everything from one workspace.</p>
-        </div>
-        <div class="login-visual-card">
-          <div class="login-visual-frame" id="login-hero-visual"></div>
-        </div>
-      </div>
-    </div>
+    <div class="login-left" id="login-hero-panel"></div>
   </div>
 </div>
 
 <script src="/js/api.js"></script>
 <script>
-function fillDemo(email) {
-  document.getElementById('email').value = email;
-  document.getElementById('password').value = 'EmsDemo@2026';
-  doLogin();
-}
-
 document.getElementById('password').addEventListener('keydown', (e) => {
   if (e.key === 'Enter') doLogin();
 });
@@ -128,12 +90,12 @@ async function doLogin() {
   try {
     const data = await fetch('/api/settings/login-hero').then(function(r){ return r.ok ? r.json() : { imageUrl: '' }; });
     if (data && data.imageUrl) {
-      var hero = document.getElementById('login-hero-visual');
-      hero.style.backgroundImage = 'linear-gradient(180deg,rgba(255,255,255,0.10),rgba(255,255,255,0.02)), url("' + data.imageUrl + '")';
+      var hero = document.getElementById('login-hero-panel');
+      if (!hero) return;
+      hero.style.backgroundImage = 'url("' + data.imageUrl + '")';
       hero.style.backgroundPosition = data.position || 'center center';
       hero.style.backgroundRepeat = 'no-repeat';
-      hero.style.backgroundSize = data.fit || 'contain';
-      hero.classList.add('has-login-image');
+      hero.style.backgroundSize = data.fit || 'cover';
     }
   } catch (e) {}
 })();
