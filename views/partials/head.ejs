@@ -48,7 +48,7 @@
         var myTasks = await getJson('/api/tasks');
         return myTasks.map(function(t){ return 'task:' + t.id; });
       }
-      if (path === '/employee/documents') {
+      if (path === '/employee/documents' || path === '/manager/my-documents') {
         var myDocs = await getJson('/api/documents');
         return myDocs.filter(function(d){ return d.verificationStatus === 'pending' || d.verificationStatus === 'rejected'; }).map(function(d){ return 'document:' + d.id; });
       }
@@ -72,7 +72,7 @@
       if (role === 'admin' || role === 'superadmin') {
         alertPaths = ['/admin/leaves', '/admin/timesheets', '/admin/documents', role === 'superadmin' ? '/superadmin/recycle-bin' : '/admin/recycle-bin'];
       } else if (role === 'manager') {
-        alertPaths = ['/manager/tasks', '/manager/leaves', '/manager/timesheets', '/manager/documents'];
+        alertPaths = ['/manager/tasks', '/manager/leaves', '/manager/timesheets', '/manager/documents', '/manager/my-documents'];
       } else if (role === 'employee') {
         alertPaths = ['/employee/tasks', '/employee/documents'];
       }

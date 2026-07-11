@@ -20,12 +20,26 @@
           </select>
           <select id="f-type" class="form-control" style="width:170px" onchange="renderDocs()">
             <option value="">All Types</option>
+            <option value="aadhaar">Aadhaar Card</option>
+            <option value="pan_card">PAN Card</option>
+            <option value="passport">Passport</option>
+            <option value="voter_id">Voter ID</option>
+            <option value="driving_license">Driving License</option>
+            <option value="bank_passbook">Bank Passbook</option>
+            <option value="character_certificate">Character Certificate</option>
+            <option value="medical_document">Medical Document</option>
+            <option value="degree_certificate">Degree Certificate</option>
+            <option value="marksheet">Marksheet</option>
+            <option value="experience_certificate">Experience Certificate</option>
+            <option value="salary_slip_past">Previous Salary Slip</option>
+            <option value="technical_certification">Technical Certification</option>
             <option value="offer_letter">Offer Letter</option>
             <option value="joining_letter">Joining Letter</option>
             <option value="payslip">Payslip</option>
-            <option value="id_proof">ID Proof</option>
             <option value="address_proof">Address Proof</option>
-            <option value="certificate">Certificate</option>
+            <option value="resume">Resume / CV</option>
+            <option value="photo">Passport Photo</option>
+            <option value="temporary_document">Temporary Document</option>
             <option value="other">Other</option>
           </select>
           <select id="f-status" class="form-control" style="width:160px" onchange="renderDocs()">
@@ -86,7 +100,8 @@ const TYPE_LABELS = {
   salary_slip_past:'Salary Slip', technical_certification:'Technical Certification',
   degree_certificate:'Degree Certificate', marksheet:'Marksheet', driving_license:'Driving License',
   offer_letter:'Offer Letter', joining_letter:'Joining Letter', payslip:'Payslip',
-  id_proof:'ID Proof', address_proof:'Address Proof', resume:'Resume', photo:'Photo', other:'Other'
+  address_proof:'Address Proof', resume:'Resume', photo:'Photo',
+  temporary_document:'Temporary Document', other:'Other'
 };
 const VCOLOR = { verified:'#22c55e', rejected:'#ef4444', pending:'#f59e0b' };
 const VBG = { verified:'#dcfce7', rejected:'#fee2e2', pending:'#fef3c7' };

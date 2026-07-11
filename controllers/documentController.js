@@ -17,6 +17,7 @@ const TYPE_CATEGORY = {
   technical_certification: 'certification',
   character_certificate: 'character',
   medical_document: 'medical',
+  temporary_document: 'temporary',
   photo: 'other', other: 'other',
 };
 

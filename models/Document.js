@@ -52,6 +52,7 @@ Document.getMaxForType = function (type) {
   const uniqueTypes = ['aadhaar', 'pan_card', 'passport', 'voter_id', 'bank_passbook', 'photo', 'resume', 'character_certificate'];
   if (uniqueTypes.includes(type)) return 1;
   if (type === 'degree_certificate') return 4;
+  if (type === 'temporary_document') return 20;
   if (type === 'technical_certification') return 20;
   return 5;
 };

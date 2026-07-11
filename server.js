@@ -46,7 +46,7 @@ app.get('/employee/leaves', (req, res) => res.render('employee/leaves', { title:
 app.get('/employee/leave-calendar', (req, res) => res.render('employee/leave-calendar', { title: 'Leave Calendar' }));
 app.get('/employee/timesheets', (req, res) => res.render('employee/timesheets', { title: 'Timesheets' }));
 app.get('/employee/salary', (req, res) => res.redirect('/employee/profile#salary'));
-app.get('/employee/documents', (req, res) => res.render('employee/documents', { title: 'Documents' }));
+app.get('/employee/documents', (req, res) => res.render('employee/documents', { title: 'Documents', pageRole: 'employee' }));
 app.get('/employee/tasks', (req, res) => res.render('employee/tasks', { title: 'My Tasks' }));
 app.get('/employee/policies', (req, res) => res.render('employee/policies', { title: 'Company Policy' }));
 app.get('/employee/notifications-view', (req, res) => res.render('employee/notifications', { title: 'Notifications' }));
@@ -60,6 +60,7 @@ app.get('/manager/tasks', (req, res) => res.render('manager/tasks', { title: 'As
 app.get('/manager/policies', (req, res) => res.render('manager/policies', { title: 'Company Policy' }));
 app.get('/manager/notifications-view', (req, res) => res.render('employee/notifications', { title: 'Notifications' }));
 app.get('/manager/documents', (req, res) => res.render('manager/documents', { title: 'Team Documents' }));
+app.get('/manager/my-documents', (req, res) => res.render('employee/documents', { title: 'My Documents', pageRole: 'manager' }));
 
 app.get('/admin/dashboard', (req, res) => res.render('admin/dashboard', { title: 'Dashboard' }));
 app.get('/admin/users', (req, res) => res.render('admin/users', { title: 'Employees' }));

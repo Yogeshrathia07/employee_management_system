@@ -90,6 +90,16 @@
 <script src="/js/api.js"></script>
 <script>
 let editId = null, allUsers = [], companies = [];
+const DOC_TYPE_LABELS = {
+  aadhaar:'Aadhaar Card', pan_card:'PAN Card', passport:'Passport', voter_id:'Voter ID',
+  driving_license:'Driving License', bank_passbook:'Bank Passbook',
+  character_certificate:'Character Certificate', medical_document:'Medical Document',
+  experience_certificate:'Experience Certificate', salary_slip_past:'Previous Salary Slip',
+  technical_certification:'Technical Certification', degree_certificate:'Degree Certificate',
+  marksheet:'Marksheet', offer_letter:'Offer Letter', joining_letter:'Joining Letter',
+  payslip:'Payslip', address_proof:'Address Proof', resume:'Resume', photo:'Passport Photo',
+  temporary_document:'Temporary Document', other:'Other'
+};
 
 document.addEventListener('DOMContentLoaded', function() {
   var userClose = document.querySelector('#user-modal .modal-close');
@@ -276,7 +286,7 @@ async function viewUser(id) {
       html += '<div style="margin-bottom:16px;"><div style="font-weight:700;margin-bottom:8px;">Documents</div>';
       html += '<div class="table-wrapper"><table><thead><tr><th>Title</th><th>Type</th><th>Actions</th></tr></thead><tbody>';
       docs.forEach(function(d){
-        html += '<tr><td>' + esc(d.title) + '</td><td><span class="badge badge-draft">' + esc(d.type || 'other') + '</span></td>' +
+        html += '<tr><td>' + esc(d.title) + '</td><td><span class="badge badge-draft">' + esc(DOC_TYPE_LABELS[d.type] || d.type || 'Other') + '</span></td>' +
           '<td><button class="btn btn-ghost btn-sm" onclick="window.open(\'/api/documents/' + d.id + '/view?token=\'+getToken(),\'_blank\')"><i class="bx bx-show"></i></button> ' +
           '<button class="btn btn-ghost btn-sm" onclick="window.open(\'/api/documents/' + d.id + '/download?token=\'+getToken(),\'_blank\')"><i class="bx bx-download"></i></button></td></tr>';
       });

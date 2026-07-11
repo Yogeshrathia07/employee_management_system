@@ -1,6 +1,6 @@
 <%- include('../partials/head', {title: 'My Documents'}) %>
 <div class="app-layout">
-  <%- include('../partials/sidebar-employee') %>
+  <%- include(pageRole === 'manager' ? '../partials/sidebar-manager' : '../partials/sidebar-employee') %>
   <div class="main-content">
     <header class="page-header">
       <div class="flex items-center gap-3">
@@ -63,6 +63,7 @@
             <option value="driving_license">Driving License</option>
             <option value="resume">Resume / CV</option>
             <option value="photo">Passport Photo</option>
+            <option value="temporary_document">Temporary Document</option>
             <option value="other">Other</option>
           </optgroup>
         </select>
@@ -117,7 +118,8 @@ var TYPE_LABELS = {
   joining_letter:'Joining Letter', payslip:'Payslip', address_proof:'Address Proof',
   experience_certificate:'Experience Certificate', salary_slip_past:'Previous Salary Slip',
   technical_certification:'Technical Certification', character_certificate:'Character Certificate',
-  medical_document:'Medical Document', photo:'Photo', resume:'Resume', other:'Other'
+  medical_document:'Medical Document', photo:'Photo', resume:'Resume',
+  temporary_document:'Temporary Document', other:'Other'
 };
 
 var MANDATORY_TYPES = [
@@ -134,7 +136,7 @@ var TYPE_ICONS = {
   aadhaar:'bxs-id-card', pan_card:'bxs-id-card', passport:'bxs-plane-alt', driving_license:'bxs-car',
   voter_id:'bxs-id-card', bank_passbook:'bxs-bank', degree_certificate:'bxs-graduation',
   marksheet:'bxs-book-content', experience_letter:'bxs-briefcase', resume:'bxs-file',
-  photo:'bxs-camera', other:'bxs-file', technical_certification:'bxs-badge-check',
+  photo:'bxs-camera', temporary_document:'bxs-file-plus', other:'bxs-file', technical_certification:'bxs-badge-check',
   character_certificate:'bxs-badge-check', medical_document:'bxs-heart'
 };
 
@@ -145,7 +147,8 @@ var DOC_SLOTS = [
   { type:'passport', label:'Passport', icon:'bxs-plane-alt', color:'orange', max:1 },
   { type:'bank_passbook', label:'Bank Passbook', icon:'bxs-bank', color:'teal', max:1 },
   { type:'character_certificate', label:'Character Certificate', icon:'bxs-badge-check', color:'green', max:1 },
-  { type:'medical_document', label:'Past Medical Documents', icon:'bxs-heart', color:'pink', max:1 }
+  { type:'medical_document', label:'Past Medical Documents', icon:'bxs-heart', color:'pink', max:1 },
+  { type:'temporary_document', label:'Temporary Documents', icon:'bxs-file-plus', color:'blue', max:20 }
 ];
 
 function renderVerificationNotice() {
