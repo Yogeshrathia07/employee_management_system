@@ -21,23 +21,57 @@ const TYPE_CATEGORY = {
   photo: 'other', other: 'other',
 };
 
+function sameId(a, b) {
+  return Number(a) === Number(b);
+}
+
+async function getAccessibleUser(actor, targetUserId) {
+  const user = await User.findByPk(targetUserId, {
+    attributes: ['id', 'companyId', 'managerId', 'role'],
+  });
+  if (!user) return null;
+
+  if (actor.role === 'superadmin') return user;
+  if (actor.role === 'employee') {
+    return sameId(actor.id, user.id) ? user : null;
+  }
+  if (actor.role === 'manager') {
+    return sameId(actor.id, user.id) || sameId(user.managerId, actor.id) ? user : null;
+  }
+  if (actor.role === 'admin') {
+    return actor.companyId && sameId(actor.companyId, user.companyId) ? user : null;
+  }
+  return null;
+}
+
+async function ensureUserAccess(actor, targetUserId, res, message) {
+  const user = await getAccessibleUser(actor, targetUserId);
+  if (!user) {
+    res.status(403).json({ message: message || 'Access denied' });
+    return null;
+  }
+  return user;
+}
+
 exports.getDocuments = async (req, res) => {
   try {
     const { role, id, companyId } = req.user;
     const where = {};
 
     if (role === 'employee') {
-      where.userId = req.query.userId || id;
+      where.userId = id;
     } else if (role === 'manager') {
       if (req.query.scope === 'team') {
         const teamUsers = await User.findAll({ where: { managerId: id }, attributes: ['id'] });
         where.userId = { [Op.in]: teamUsers.map((u) => u.id) };
       } else {
-        where.userId = req.query.userId || id;
+        where.userId = id;
       }
     } else if (role === 'admin') {
       if (req.query.userId) {
-        where.userId = req.query.userId;
+        const targetUser = await ensureUserAccess(req.user, req.query.userId, res, 'Access denied: employee is outside your company');
+        if (!targetUser) return;
+        where.userId = targetUser.id;
       } else {
         const companyUsers = await User.findAll({ where: { companyId }, attributes: ['id'] });
         where.userId = { [Op.in]: companyUsers.map((u) => u.id) };
@@ -69,7 +103,7 @@ exports.uploadDocument = async (req, res) => {
 
     const { title, type, userId, notes, degreeLabel, genuineConsent } = req.body;
 
-    if (req.user.role === 'employee' && genuineConsent !== 'true' && genuineConsent !== true) {
+    if ((req.user.role === 'employee' || req.user.role === 'manager') && genuineConsent !== 'true' && genuineConsent !== true) {
       return res.status(400).json({ message: 'You must certify that the document is genuine before uploading.' });
     }
 
@@ -77,8 +111,8 @@ exports.uploadDocument = async (req, res) => {
       ? userId
       : req.user.id;
 
-    const targetUser = await User.findByPk(targetUserId, { attributes: ['id', 'companyId'] });
-    if (!targetUser) return res.status(404).json({ message: 'Target user not found' });
+    const targetUser = await ensureUserAccess(req.user, targetUserId, res, 'Access denied: you cannot upload a document for this user');
+    if (!targetUser) return;
 
     const docType = type || 'other';
     const category = TYPE_CATEGORY[docType] || 'other';
@@ -127,6 +161,12 @@ exports.verifyDocument = async (req, res) => {
     const doc = await Document.findByPk(req.params.id);
     if (!doc) return res.status(404).json({ message: 'Document not found' });
 
+    const targetUser = await ensureUserAccess(req.user, doc.userId, res, 'Access denied: you cannot verify this document');
+    if (!targetUser) return;
+    if (req.user.role === 'manager' && sameId(req.user.id, targetUser.id)) {
+      return res.status(403).json({ message: 'Managers cannot verify their own documents' });
+    }
+
     const { status, note } = req.body;
     if (!['verified', 'rejected'].includes(status)) {
       return res.status(400).json({ message: 'Status must be verified or rejected' });
@@ -155,8 +195,10 @@ exports.verifyDocument = async (req, res) => {
 exports.getMandatoryDocStatus = async (req, res) => {
   try {
     const userId = req.params.userId;
+    const targetUser = await ensureUserAccess(req.user, userId, res, 'Access denied: you cannot view mandatory document status for this user');
+    if (!targetUser) return;
     const mandatory = Document.MANDATORY_TYPES;
-    const uploaded = await Document.findAll({ where: { userId, type: mandatory } });
+    const uploaded = await Document.findAll({ where: { userId: targetUser.id, type: mandatory } });
     const uploadedTypes = uploaded.map((d) => d.type);
 
     const status = mandatory.map((type) => ({
@@ -176,10 +218,8 @@ exports.downloadDocument = async (req, res) => {
     const doc = await Document.findByPk(req.params.id);
     if (!doc) return res.status(404).json({ message: 'Document not found' });
 
-    const actor = req.user;
-    if (actor.role === 'employee' && Number(doc.userId) !== Number(actor.id)) {
-      return res.status(403).json({ message: 'Access denied' });
-    }
+    const targetUser = await ensureUserAccess(req.user, doc.userId, res, 'Access denied');
+    if (!targetUser) return;
 
     const filePath = path.join(UPLOAD_DIR, doc.filePath);
     if (!fs.existsSync(filePath)) return res.status(404).json({ message: 'File not found on server' });
@@ -194,10 +234,8 @@ exports.viewDocument = async (req, res) => {
     const doc = await Document.findByPk(req.params.id);
     if (!doc) return res.status(404).json({ message: 'Document not found' });
 
-    const actor = req.user;
-    if (actor.role === 'employee' && Number(doc.userId) !== Number(actor.id)) {
-      return res.status(403).json({ message: 'Access denied' });
-    }
+    const targetUser = await ensureUserAccess(req.user, doc.userId, res, 'Access denied');
+    if (!targetUser) return;
 
     const filePath = path.join(UPLOAD_DIR, doc.filePath);
     if (!fs.existsSync(filePath)) return res.status(404).json({ message: 'File not found on server' });
@@ -215,9 +253,10 @@ exports.deleteDocument = async (req, res) => {
     const doc = await Document.findByPk(req.params.id);
     if (!doc) return res.status(404).json({ message: 'Document not found' });
 
-    const actor = req.user;
-    if (actor.role === 'employee' && Number(doc.userId) !== Number(actor.id)) {
-      return res.status(403).json({ message: 'Access denied: this document does not belong to you' });
+    const targetUser = await ensureUserAccess(req.user, doc.userId, res, 'Access denied: this document does not belong to an accessible user');
+    if (!targetUser) return;
+    if (req.user.role === 'manager' && !sameId(req.user.id, targetUser.id)) {
+      return res.status(403).json({ message: 'Managers can delete only their own documents' });
     }
 
     const filePath = path.join(UPLOAD_DIR, doc.filePath);
