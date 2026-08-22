@@ -371,71 +371,82 @@ exports.generatePDF = async (req, res) => {
     });
     y += clientBoxH;
 
-    const COL = useIGST
-      ? { sl: 20, code: 50, hsn: 55, unit: 35, rate: 65, qty: 35, igstP: 35, igst: 65, amt: 195 }
-      : { sl: 18, code: 48, hsn: 50, unit: 32, rate: 55, qty: 32, cgstP: 30, cgst: 48, sgstP: 30, sgst: 48, amt: 164 };
+    // Keep the quotation table consistent with the proforma table: one tax
+    // percentage and one tax amount column, with widths fitted to real values.
+    function textWidth(value, size, bold) {
+      doc.fontSize(size || 7.1).font(bold ? 'Helvetica-Bold' : 'Helvetica');
+      return doc.widthOfString(String(value || ''));
+    }
+    function money(value) {
+      return Number(value || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+    function contentWidth(values, min, max, bold) {
+      const widest = values.reduce((width, value) => Math.max(width, textWidth(value, 7.1, bold)), 0);
+      return Math.max(min, Math.min(max, Math.ceil(widest + 10)));
+    }
 
-    y = checkPage(y, 26);
-    y = drawSectionLabel({ fillBox, box, txt }, 'Item Details', y);
+    const COL = {
+      sl: 18,
+      code: contentWidth(items.map(it => it.itemCode || '').concat(['Code']), 28, 48),
+      hsn: contentWidth(items.map(it => it.hsnCode || '').concat(['HSN/SAC']), 34, 58),
+      unit: contentWidth(items.map(it => it.unit || '').concat(['Unit']), 26, 42),
+      rate: contentWidth(items.map(it => money(it.unitPrice)).concat(['Rate']), 42, 70),
+      qty: contentWidth(items.map(it => String(it.quantity || 0)).concat(['Qty']), 22, 36),
+      taxP: contentWidth(items.map(it => Number(it.taxRate || 0).toFixed(0) + '%').concat(['Tax %']), 28, 38),
+      taxAmt: contentWidth(items.map(it => money(useIGST ? it.igst : Number(it.cgst || 0) + Number(it.sgst || 0))).concat(['Tax Amt']), 52, 78),
+      amt: contentWidth(items.map(it => money(it.taxableAmount)).concat(['Amount']), 80, 112),
+    };
+    COL.desc = W - Object.values(COL).reduce((sum, width) => sum + width, 0);
+    // Reserve enough space for descriptions by shrinking low-priority columns.
+    [['amt', 80], ['taxAmt', 52], ['rate', 42], ['hsn', 34], ['unit', 26], ['code', 28], ['qty', 22], ['taxP', 28]].forEach(([key, min]) => {
+      if (COL.desc >= 145) return;
+      const reduction = Math.min(COL[key] - min, 145 - COL.desc);
+      if (reduction > 0) { COL[key] -= reduction; COL.desc += reduction; }
+    });
 
     const ROW_H = 14;
-    fillBox(X, y, W, ROW_H, HBG);
-    box(X, y, W, ROW_H, LBD);
-    let hx = X;
-    function th(label, width) {
-      vLine(hx, y, y + ROW_H, LBD);
-      txt(label, hx + 2, y + 3, width - 4, { size: 6.5, bold: true, color: BLK, align: 'center' });
-      hx += width;
-    }
-    if (useIGST) {
-      th('Sl.', COL.sl); th('Item Code', COL.code); th('HSN/SAC', COL.hsn); th('Unit', COL.unit);
-      th('Rate (Rs.)', COL.rate); th('Qty', COL.qty); th('IGST%', COL.igstP); th('IGST', COL.igst); th('Amount (Rs.)', COL.amt);
-    } else {
-      th('Sl.', COL.sl); th('Item Code', COL.code); th('HSN/SAC', COL.hsn); th('Unit', COL.unit);
-      th('Rate (Rs.)', COL.rate); th('Qty', COL.qty); th('CGST%', COL.cgstP); th('CGST', COL.cgst);
-      th('SGST%', COL.sgstP); th('SGST', COL.sgst); th('Amount (Rs.)', COL.amt);
-    }
-    y += ROW_H;
+    const drawItemsHeader = (startY, withLabel) => {
+      let headerY = startY;
+      if (withLabel) headerY = drawSectionLabel({ fillBox, box, txt }, 'Item Details', headerY);
+      fillBox(X, headerY, W, ROW_H, HBG);
+      box(X, headerY, W, ROW_H, LBD);
+      let hx = X;
+      const th = (label, width) => {
+        vLine(hx, headerY, headerY + ROW_H, LBD);
+        txt(label, hx + 2, headerY + 3, width - 4, { size: 6.3, bold: true, color: BLK, align: 'center' });
+        hx += width;
+      };
+      th('Sl.', COL.sl); th('Code', COL.code); th('Description', COL.desc); th('HSN/SAC', COL.hsn);
+      th('Unit', COL.unit); th('Rate', COL.rate); th('Qty', COL.qty); th('Tax %', COL.taxP);
+      th(useIGST ? 'IGST Amt' : 'Tax Amt', COL.taxAmt); th('Amount', COL.amt);
+      return headerY + ROW_H;
+    };
 
+    y = checkPage(y, 26);
+    y = drawItemsHeader(y, true);
     items.forEach((it, idx) => {
-      const qty = parseFloat(it.quantity || 0);
-      const price = parseFloat(it.unitPrice || 0);
-      const taxRate = parseFloat(it.taxRate || 0);
-      const taxable = parseFloat(it.taxableAmount || 0);
-      const igstAmt = parseFloat(it.igst || 0);
-      const cgstAmt = parseFloat(it.cgst || 0);
-      const sgstAmt = parseFloat(it.sgst || 0);
-      const descText = (it.name || it.description || '').trim();
-      const descH = descText ? txtH(descText, W - 16, 7.5) + 7 : 0;
-      y = checkPage(y, ROW_H + descH + 1);
-      if (idx % 2 === 0) fillBox(X, y, W, ROW_H, '#fafafa');
-      box(X, y, W, ROW_H, LBD);
-
+      const qty = Number(it.quantity || 0);
+      const price = Number(it.unitPrice || 0);
+      const taxRate = Number(it.taxRate || 0);
+      const taxable = Number(it.taxableAmount || 0);
+      const taxAmount = useIGST ? Number(it.igst || 0) : Number(it.cgst || 0) + Number(it.sgst || 0);
+      const descText = String(it.name || it.description || it.itemName || '-').trim() || '-';
+      const rowH = Math.max(16, txtH(descText, COL.desc - 8, 7.1) + 6);
+      y = checkPage(y, rowH);
+      if (y === M) y = drawItemsHeader(y, false);
+      if (idx % 2 === 0) fillBox(X, y, W, rowH, '#fafafa');
+      box(X, y, W, rowH, LBD);
       let dx = X;
-      function td(text, width, opts) {
-        vLine(dx, y, y + ROW_H, LBD);
-        const to = Object.assign({ size: 7.5, align: 'center', lineGap: 0.5 }, opts || {});
-        txt(String(text), dx + 3, y + 3, width - 6, to);
+      const td = (value, width, options) => {
+        vLine(dx, y, y + rowH, LBD);
+        txt(String(value), dx + 3, y + 3, width - 6, Object.assign({ size: 7.1, color: BLK, align: 'center', lineGap: 0.4 }, options || {}));
         dx += width;
-      }
-      if (useIGST) {
-        td(idx + 1, COL.sl); td(it.itemCode || '', COL.code); td(it.hsnCode || '', COL.hsn); td(it.unit || '', COL.unit);
-        td(price.toFixed(2), COL.rate, { align: 'right' }); td(qty % 1 === 0 ? qty : qty.toFixed(3), COL.qty);
-        td(taxRate.toFixed(0) + '%', COL.igstP); td(igstAmt.toFixed(2), COL.igst, { align: 'right' }); td(taxable.toFixed(2), COL.amt, { align: 'right', bold: true });
-      } else {
-        td(idx + 1, COL.sl); td(it.itemCode || '', COL.code); td(it.hsnCode || '', COL.hsn); td(it.unit || '', COL.unit);
-        td(price.toFixed(2), COL.rate, { align: 'right' }); td(qty % 1 === 0 ? qty : qty.toFixed(3), COL.qty);
-        td((taxRate / 2).toFixed(0) + '%', COL.cgstP); td(cgstAmt.toFixed(2), COL.cgst, { align: 'right' });
-        td((taxRate / 2).toFixed(0) + '%', COL.sgstP); td(sgstAmt.toFixed(2), COL.sgst, { align: 'right' }); td(taxable.toFixed(2), COL.amt, { align: 'right', bold: true });
-      }
-      y += ROW_H;
-
-      if (descText) {
-        fillBox(X, y, W, descH, '#f9fafb');
-        box(X, y, W, descH, LBD);
-        txt(descText, X + 8, y + 3, W - 16, { size: 7.5, align: 'left', lineGap: 0.5, color: GRY });
-        y += descH;
-      }
+      };
+      td(idx + 1, COL.sl); td(it.itemCode || '', COL.code); td(descText, COL.desc, { align: 'left' });
+      td(it.hsnCode || '', COL.hsn); td(it.unit || '', COL.unit); td(money(price), COL.rate, { align: 'right' });
+      td(qty % 1 === 0 ? qty : qty.toFixed(3), COL.qty); td(taxRate.toFixed(0) + '%', COL.taxP);
+      td(money(taxAmount), COL.taxAmt, { align: 'right' }); td(money(taxable), COL.amt, { align: 'right', bold: true });
+      y += rowH;
     });
 
     y = checkPage(y, 60);
@@ -448,8 +459,9 @@ exports.generatePDF = async (req, res) => {
       ...(useIGST
         ? (totalIgst > 0.004 ? [[taxLabels.igst + ':', fmtINR(totalIgst)]] : [])
         : [
-            ...(totalSgst > 0.004 ? [[taxLabels.sgst + ':', fmtINR(totalSgst)]] : []),
             ...(totalCgst > 0.004 ? [[taxLabels.cgst + ':', fmtINR(totalCgst)]] : []),
+            ...(totalSgst > 0.004 ? [[taxLabels.sgst + ':', fmtINR(totalSgst)]] : []),
+            ...((totalCgst + totalSgst) > 0.004 ? [['Total Tax:', fmtINR(totalCgst + totalSgst)]] : []),
           ]),
       ...(parseFloat(q.roundOff) ? [['Round Off:', fmtINR(q.roundOff)]] : []),
     ];
@@ -470,7 +482,7 @@ exports.generatePDF = async (req, res) => {
       txt(val, X + HW + HW / 2, sy + 2, HW / 2 - 6, { size: 7.5, align: 'right', color: BLK });
       sy += sumRowH;
     });
-    txt('Total Amount:', X + HW + 4, sy + 3, HW / 2 - 6, { size: 8, bold: true, color: BLK });
+    txt('Amount After Tax:', X + HW + 4, sy + 3, HW / 2 - 6, { size: 8, bold: true, color: BLK });
     txt(fmtINR(q.totalAmount), X + HW + HW / 2, sy + 3, HW / 2 - 6, { size: 8, bold: true, color: BLK, align: 'right' });
     y += botH;
 
