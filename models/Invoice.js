@@ -16,6 +16,16 @@ const Invoice = sequelize.define('Invoice', {
   isRABill:      { type: DataTypes.BOOLEAN,     defaultValue: false },
   placeOfSupply: { type: DataTypes.STRING(150), defaultValue: '' },
 
+  // ── R.A. (Running Account) bill series ──────────────────────────────────
+  // Every RA bill of one contract shares raSeriesId (= id of RA bill no. 1).
+  // Item lines carry raKey, originalQty, previousQty, quantity (this bill),
+  // cumulativeQty and balanceQty — previous/cumulative/balance are always
+  // recalculated from the earlier bills of the series.
+  raBillNo:     { type: DataTypes.INTEGER, allowNull: true },
+  raSeriesId:   { type: DataTypes.INTEGER, allowNull: true },
+  raPrevBillId: { type: DataTypes.INTEGER, allowNull: true },
+  pdfOrientation: { type: DataTypes.STRING(12), defaultValue: 'portrait' }, // portrait | landscape
+
   // ── Bill Period (optional) ───────────────────────────────────────────────
   billMonth:       { type: DataTypes.STRING(20),  defaultValue: '' },  // e.g. "Feb-26"
   billPeriodFrom:  { type: DataTypes.DATEONLY,    allowNull: true },

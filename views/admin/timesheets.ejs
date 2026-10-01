@@ -107,8 +107,9 @@ function getDayEntries(t, di) {
     var d = new Date(e.date+'T00:00:00'), x = d.getDay()-1; if (x<0) x=6; return x===di;
   });
 }
+function entryWorkLabel(e) { return (e.project||'') + (e.workItem ? ' · ' + e.workItem : ''); }
 function getDayProjects(t, di) {
-  return [...new Set(getDayEntries(t,di).map(function(e){ return e.project||''; }).filter(Boolean))].join(', ');
+  return [...new Set(getDayEntries(t,di).map(function(e){ return entryWorkLabel(e); }).filter(Boolean))].join(', ');
 }
 function statusChip(s) {
   var c = s==='approved'?'#22c55e':s==='rejected'?'#ef4444':'#f59e0b';
@@ -270,7 +271,7 @@ function openViewTs(id) {
         '<span style="font-weight:600;font-size:13px;color:var(--text-primary);">'+DN[di]+'</span>' +
         '<span style="font-size:11px;color:var(--text-muted);margin-left:6px;">'+d.toLocaleDateString('en-US',{day:'2-digit',month:'short'})+'</span>' +
       '</td>' +
-      '<td style="padding:9px 12px;font-size:12px;color:var(--accent);font-weight:700;">'+(e.project||'—')+'</td>' +
+      '<td style="padding:9px 12px;font-size:12px;color:var(--accent);font-weight:700;">'+String(entryWorkLabel(e)||'—').replace(/</g,'&lt;')+'</td>' +
       '<td style="padding:9px 12px;font-size:11px;"><span style="background:var(--bg-input);border-radius:6px;padding:2px 8px;text-transform:capitalize;color:var(--text-secondary);">'+(e.billingType||'—')+'</span></td>' +
       '<td style="padding:9px 12px;font-size:12px;color:var(--text-secondary);max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+(e.description||'—')+'</td>' +
       '<td style="padding:9px 12px;text-align:center;font-weight:800;font-size:14px;color:var(--text-primary);">'+Number(e.hours||0).toFixed(1)+'<span style="font-size:11px;font-weight:400;">h</span></td>' +
@@ -338,7 +339,7 @@ function exportFiltered() {
   var rows = [['Employee','Email','Role','Department','Week Start','Week End','Mon','Tue','Wed','Thu','Fri','Sat','Sun','Total Hours','Status','Approver','Projects','Notes','Submitted On']];
   data.forEach(function(t) {
     var dh = getDayHours(t);
-    var projects = [...new Set((t.entries||[]).map(function(e){ return e.project||''; }).filter(Boolean))].join(', ');
+    var projects = [...new Set((t.entries||[]).map(function(e){ return entryWorkLabel(e); }).filter(Boolean))].join(', ');
     rows.push([
       (t.user&&t.user.name)||'',
       (t.user&&t.user.email)||'',

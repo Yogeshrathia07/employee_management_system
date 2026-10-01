@@ -5,6 +5,7 @@ const TABLE_NAMES = [
   'Notifications', 'NotificationReads', 'RecycleBins', 'Tasks', 'Projects', 'CompanyPolicies', 'Companies',
   'Invoices', 'SpreadsheetWorkbooks',
   'Vendors', 'Clients', 'Quotations', 'Proformas', 'PurchaseOrders', 'WorkOrders', 'ProjectAccounts',
+  'WorkItems', 'TdsRules', 'Payments',
 ];
 
 function uniqueList(values) {

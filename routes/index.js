@@ -36,7 +36,8 @@ const photoStorage = multer.diskStorage({
     cb(null, dir);
   },
   filename: (req, file, cb) => {
-    cb(null, 'photo-' + req.user.id + '-' + Date.now() + path.extname(file.originalname));
+    const owner = /^\d+$/.test(String(req.params.id || '')) ? req.params.id : req.user.id;
+    cb(null, 'photo-' + owner + '-' + Date.now() + path.extname(file.originalname));
   },
 });
 const photoUpload = multer({
@@ -69,6 +70,7 @@ const userCtrl = require('../controllers/userController');
 router.get('/users/me',                  auth, userCtrl.getMe);
 router.put('/users/me/profile',          auth, userCtrl.updateMyProfile);
 router.post('/users/me/photo',           auth, photoUpload.single('photo'), userCtrl.uploadPhoto);
+router.post('/users/:id/photo',          auth, requireRole('admin', 'superadmin'), photoUpload.single('photo'), userCtrl.uploadUserPhoto);
 router.get('/users/:id/photo',           userCtrl.getPhoto);
 router.post('/users/change-password',    auth, userCtrl.changeOwnPassword);
 router.post('/users/:id/reset-password', auth, requireRole('admin', 'superadmin'), userCtrl.resetPassword);
@@ -101,6 +103,7 @@ router.get('/salary',                    auth, salaryCtrl.getSalaries);
 router.get('/salary/export/csv',         auth, requireRole('admin', 'superadmin'), salaryCtrl.exportCSV);
 router.get('/salary/preview',            auth, requireRole('admin', 'superadmin'), salaryCtrl.getSalaryPreview);
 router.get('/salary/:id/payslip',        auth, salaryCtrl.generatePayslip);
+router.get('/salary/:id/work-summary',   auth, salaryCtrl.getSalaryWorkSummary);
 router.post('/salary',                   auth, requireRole('admin', 'superadmin'), salaryCtrl.createSalary);
 router.post('/salary/generate-bulk',     auth, requireRole('admin', 'superadmin'), salaryCtrl.generateBulk);
 router.put('/salary/:id',                auth, requireRole('admin', 'superadmin'), salaryCtrl.updateSalary);
@@ -113,6 +116,8 @@ router.get('/documents/mandatory-status/:userId', auth, requireRole('admin', 'su
 router.get('/documents',                auth, docCtrl.getDocuments);
 router.post('/documents',               auth, upload.single('file'), docCtrl.uploadDocument);
 router.patch('/documents/:id/verify',   auth, requireRole('admin', 'superadmin', 'manager'), docCtrl.verifyDocument);
+router.patch('/documents/:id',          auth, requireRole('admin', 'superadmin'), docCtrl.updateDocumentDetails);
+router.put('/documents/:id/file',       auth, requireRole('admin', 'superadmin'), upload.single('file'), docCtrl.replaceDocumentFile);
 router.get('/documents/:id/download',   auth, docCtrl.downloadDocument);
 router.get('/documents/:id/view',       auth, docCtrl.viewDocument);
 router.delete('/documents/:id',         auth, docCtrl.deleteDocument);
@@ -165,12 +170,21 @@ router.patch('/tasks/:id/approve-completion',     auth, requireRole('manager', '
 router.patch('/tasks/:id/refuse',                 auth, taskCtrl.refuseTask);
 router.delete('/tasks/:id',                       auth, requireRole('manager', 'admin', 'superadmin'), taskCtrl.deleteTask);
 
-// ─── Projects ─────────────────────────────────────────────────────────────────
+// ─── Projects (project master data) ───────────────────────────────────────────
 const projectCtrl = require('../controllers/projectController');
 router.get('/projects',       auth, projectCtrl.getProjects);
-router.post('/projects',      auth, requireRole('superadmin'), projectCtrl.createProject);
-router.put('/projects/:id',   auth, requireRole('superadmin'), projectCtrl.updateProject);
-router.delete('/projects/:id',auth, requireRole('superadmin'), projectCtrl.deleteProject);
+router.post('/projects',      auth, requireRole('admin', 'superadmin'), projectCtrl.createProject);
+router.put('/projects/:id',   auth, requireRole('admin', 'superadmin'), projectCtrl.updateProject);
+router.delete('/projects/:id',auth, requireRole('admin', 'superadmin'), projectCtrl.deleteProject);
+
+// ─── Work items (general work master data) + timesheet options ───────────────
+const workItemCtrl = require('../controllers/workItemController');
+router.get('/master-data/options',  auth, workItemCtrl.getTimesheetOptions);
+router.get('/work-items',           auth, requireRole('admin', 'superadmin'), workItemCtrl.getWorkItems);
+router.post('/work-items/defaults', auth, requireRole('admin', 'superadmin'), workItemCtrl.addDefaultWorkItems);
+router.post('/work-items',          auth, requireRole('admin', 'superadmin'), workItemCtrl.createWorkItem);
+router.put('/work-items/:id',       auth, requireRole('admin', 'superadmin'), workItemCtrl.updateWorkItem);
+router.delete('/work-items/:id',    auth, requireRole('admin', 'superadmin'), workItemCtrl.deleteWorkItem);
 
 // ─── Proformas (PDF only — data stored client-side) ───────────────────────────
 const proformaCtrl = require('../controllers/proformaController');
@@ -180,11 +194,31 @@ router.post('/proformas/pdf', auth, requireRole('admin', 'superadmin'), proforma
 const invoiceCtrl = require('../controllers/invoiceController');
 router.get('/invoices',              auth, requireRole('admin', 'superadmin'), invoiceCtrl.getInvoices);
 router.get('/invoices/:id',          auth, requireRole('admin', 'superadmin'), invoiceCtrl.getInvoice);
+router.get('/invoices/:id/ra-next',  auth, requireRole('admin', 'superadmin'), invoiceCtrl.getNextRaBillDraft);
 router.post('/invoices',             auth, requireRole('admin', 'superadmin'), invoiceCtrl.createInvoice);
 router.put('/invoices/:id',          auth, requireRole('admin', 'superadmin'), invoiceCtrl.updateInvoice);
 router.patch('/invoices/:id/pay',    auth, requireRole('admin', 'superadmin'), invoiceCtrl.markPaid);
 router.get('/invoices/:id/pdf',      auth, requireRole('admin', 'superadmin'), invoiceCtrl.downloadPDF);
 router.delete('/invoices/:id',       auth, requireRole('admin', 'superadmin'), invoiceCtrl.deleteInvoice);
+
+// ─── TDS Master ───────────────────────────────────────────────────────────────
+const tdsCtrl = require('../controllers/tdsController');
+router.get('/tds-rules',            auth, requireRole('admin', 'superadmin'), tdsCtrl.getTdsRules);
+router.post('/tds-rules/defaults',  auth, requireRole('admin', 'superadmin'), tdsCtrl.restoreDefaultTdsRules);
+router.post('/tds-rules',           auth, requireRole('admin', 'superadmin'), tdsCtrl.createTdsRule);
+router.put('/tds-rules/:id',        auth, requireRole('admin', 'superadmin'), tdsCtrl.updateTdsRule);
+router.delete('/tds-rules/:id',     auth, requireRole('admin', 'superadmin'), tdsCtrl.deleteTdsRule);
+
+// ─── Payments (payment breakup per payment) ──────────────────────────────────
+const paymentCtrl = require('../controllers/paymentController');
+router.get('/payments',             auth, requireRole('admin', 'superadmin'), paymentCtrl.getPayments);
+router.get('/payments/context',     auth, requireRole('admin', 'superadmin'), paymentCtrl.getPaymentContext);
+router.post('/payments/preview',    auth, requireRole('admin', 'superadmin'), paymentCtrl.previewPayment);
+router.get('/payments/:id',         auth, requireRole('admin', 'superadmin'), paymentCtrl.getPayment);
+router.get('/payments/:id/pdf',     auth, requireRole('admin', 'superadmin'), paymentCtrl.generatePDF);
+router.post('/payments',            auth, requireRole('admin', 'superadmin'), paymentCtrl.createPayment);
+router.put('/payments/:id',         auth, requireRole('admin', 'superadmin'), paymentCtrl.updatePayment);
+router.delete('/payments/:id',      auth, requireRole('admin', 'superadmin'), paymentCtrl.deletePayment);
 
 // ─── Spreadsheet Workbooks ────────────────────────────────────────────────────
 const ssCtrl = require('../controllers/spreadsheetController');

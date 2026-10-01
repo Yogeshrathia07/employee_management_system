@@ -14,6 +14,9 @@ const CompanyPolicy   = require('./CompanyPolicy');
 const AppSetting            = require('./AppSetting');
 const Invoice               = require('./Invoice');
 const SpreadsheetWorkbook   = require('./SpreadsheetWorkbook');
+const WorkItem              = require('./WorkItem');
+const TdsRule               = require('./TdsRule');
+const Payment               = require('./Payment');
 
 // ─── Accounts Module Models ───
 const Vendor          = require('./Vendor');
@@ -51,6 +54,7 @@ Document.belongsTo(User,    { foreignKey: 'userId',      as: 'user' });
 Document.belongsTo(User,    { foreignKey: 'uploadedBy',  as: 'uploader' });
 Document.belongsTo(User,    { foreignKey: 'verifiedBy',  as: 'verifier' });
 Document.belongsTo(Company, { foreignKey: 'companyId',   as: 'company' });
+Document.belongsTo(Client,  { foreignKey: 'clientId',    as: 'issuingClient', constraints: false });
 
 // ─── Notification ───
 Notification.belongsTo(User,    { foreignKey: 'createdBy',  as: 'creator' });
@@ -73,6 +77,9 @@ Project.belongsTo(User,    { foreignKey: 'managerId', as: 'manager' });
 Project.belongsTo(User,    { foreignKey: 'createdBy', as: 'creator' });
 Project.belongsTo(Company, { foreignKey: 'companyId', as: 'company' });
 User.hasMany(Project,      { foreignKey: 'managerId', as: 'projects' });
+
+// ─── WorkItem (general work master data) ───
+WorkItem.belongsTo(Company, { foreignKey: 'companyId', as: 'company', constraints: false });
 
 // ─── CompanyPolicy ───
 CompanyPolicy.belongsTo(Company, { foreignKey: 'companyId', as: 'company' });
@@ -119,6 +126,10 @@ WorkOrder.belongsTo(Company, { foreignKey: 'companyId', as: 'company' });
 Client.hasMany(ProjectAccount, { foreignKey: 'clientId', as: 'projectAccounts' });
 ProjectAccount.belongsTo(Client, { foreignKey: 'clientId', as: 'client' });
 
+// A client may issue offer letters for employees, without adding another
+// database-level foreign-key index on installations that already have many keys.
+Client.hasMany(Document, { foreignKey: 'clientId', as: 'issuedEmployeeDocuments', constraints: false });
+
 Company.hasMany(Quotation, { foreignKey: 'companyId', as: 'quotations' });
 Quotation.belongsTo(Company, { foreignKey: 'companyId', as: 'company' });
 
@@ -151,10 +162,20 @@ Proforma.belongsTo(Quotation, { foreignKey: 'sourceQuotationId', as: 'sourceQuot
 Proforma.hasOne(Invoice, { foreignKey: 'sourceDocId', as: 'resultingInvoice',
   constraints: false, scope: { sourceDocType: 'proforma' } });
 
+// ─── Payments (one breakup per payment) + TDS master ───
+Invoice.hasMany(Payment,   { foreignKey: 'invoiceId', as: 'payments', constraints: false });
+Payment.belongsTo(Invoice, { foreignKey: 'invoiceId', as: 'invoice', constraints: false });
+Payment.belongsTo(Client,  { foreignKey: 'clientId',  as: 'client',  constraints: false });
+Payment.belongsTo(Company, { foreignKey: 'companyId', as: 'company', constraints: false });
+Payment.belongsTo(TdsRule, { foreignKey: 'tdsRuleId', as: 'tdsRule', constraints: false });
+Payment.belongsTo(User,    { foreignKey: 'createdBy', as: 'creator', constraints: false });
+TdsRule.belongsTo(Company, { foreignKey: 'companyId', as: 'company', constraints: false });
+
 module.exports = {
   sequelize, Company, User, Leave, Timesheet, Salary,
   Document, Notification, NotificationRead, RecycleBin,
-  Task, Project, CompanyPolicy, AppSetting, Invoice, SpreadsheetWorkbook,
+  Task, Project, CompanyPolicy, AppSetting, Invoice, SpreadsheetWorkbook, WorkItem,
   // Accounts
   Vendor, Client, Quotation, Proforma, PurchaseOrder, WorkOrder, ProjectAccount,
+  TdsRule, Payment,
 };

@@ -31,7 +31,17 @@ const User = sequelize.define('User', {
   profilePhoto:  { type: DataTypes.STRING, defaultValue: '' },
   employeeCode:  { type: DataTypes.STRING, allowNull: true, unique: true }, // e.g. EMP-0001
   currency:      { type: DataTypes.STRING(10), defaultValue: 'INR' },
+  // Basic / employment information shown on the employee profile
+  workLocation:     { type: DataTypes.STRING(150), defaultValue: '' },
+  employmentStatus: { type: DataTypes.STRING(30),  defaultValue: 'Active' },   // Current status (Active, Probation, Notice Period…)
+  joiningDate:      { type: DataTypes.DATEONLY,    allowNull: true },
+  jobTitle:         { type: DataTypes.STRING(150), defaultValue: '' },
+  employmentType:   { type: DataTypes.STRING(30),  defaultValue: '' },          // Full-time, Part-time, Contract…
+  workSchedule:     { type: DataTypes.STRING(150), defaultValue: '' },          // e.g. Mon–Sat, 9:30 AM – 6:30 PM
 }, { timestamps: true });
+
+User.EMPLOYMENT_STATUSES = ['Active', 'Probation', 'Notice Period', 'On Leave', 'Resigned', 'Terminated', 'Retired'];
+User.EMPLOYMENT_TYPES = ['Full-time', 'Part-time', 'Contract', 'Intern', 'Trainee', 'Consultant'];
 
 // Hash password before create
 async function generateUniqueEmployeeCode(companyId) {

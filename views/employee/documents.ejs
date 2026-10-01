@@ -59,6 +59,9 @@
             <option value="degree_certificate">Degree Certificate</option>
             <option value="marksheet">Marksheet</option>
           </optgroup>
+          <optgroup label="Address">
+            <option value="address_proof">Address Proof</option>
+          </optgroup>
           <optgroup label="General">
             <option value="driving_license">Driving License</option>
             <option value="resume">Resume / CV</option>
@@ -119,7 +122,8 @@ var TYPE_LABELS = {
   experience_certificate:'Experience Certificate', salary_slip_past:'Previous Salary Slip',
   technical_certification:'Technical Certification', character_certificate:'Character Certificate',
   medical_document:'Medical Document', photo:'Photo', resume:'Resume',
-  temporary_document:'Temporary Document', other:'Other'
+  temporary_document:'Temporary Document', other:'Other',
+  appointment_letter:'Appointment Letter', employment_contract:'Employment Contract', hr_document:'HR Document'
 };
 
 var MANDATORY_TYPES = [
@@ -266,9 +270,11 @@ function openDocTypeModal(type) {
 
   document.getElementById('doc-type-body').innerHTML = '<div class="personal-doc-list modal-doc-list">' + docs.map(function(d) {
     var lbl = d.degreeLabel ? ' (' + d.degreeLabel + ')' : '';
-    var vs = d.verificationStatus || 'pending';
-    var vc = vs === 'verified' ? '#22c55e' : vs === 'rejected' ? '#ef4444' : '#f59e0b';
-    var vb = vs === 'verified' ? '#dcfce7' : vs === 'rejected' ? '#fee2e2' : '#fef3c7';
+    var issued = !!d.issuedByCompany;
+    var canDownload = !issued || d.employeeCanDownload !== false;
+    var vs = issued ? 'issued by company' : (d.verificationStatus || 'pending');
+    var vc = issued ? '#0f766e' : vs === 'verified' ? '#22c55e' : vs === 'rejected' ? '#ef4444' : '#f59e0b';
+    var vb = issued ? '#ccfbf1' : vs === 'verified' ? '#dcfce7' : vs === 'rejected' ? '#fee2e2' : '#fef3c7';
     return '<div class="personal-doc-item">' +
       '<div class="personal-doc-item-top">' +
         '<div class="personal-doc-item-title">' + d.title + lbl + '</div>' +
@@ -283,8 +289,8 @@ function openDocTypeModal(type) {
       (d.verificationNote && vs === 'rejected' ? '<div class="personal-doc-reject"><strong>Rejection Note:</strong> ' + d.verificationNote + '</div>' : '') +
       '<div class="personal-doc-actions">' +
         '<button class="btn btn-ghost btn-sm" onclick="viewDoc(' + d.id + ',\'' + d.title.replace(/'/g, "\\'") + '\')"><i class="bx bx-show"></i> View</button>' +
-        '<button class="btn btn-ghost btn-sm" onclick="downloadDoc(' + d.id + ')"><i class="bx bx-download"></i> Download</button>' +
-        '<button class="btn btn-danger btn-sm" onclick="deleteDoc(' + d.id + ')"><i class="bx bx-trash"></i> Delete</button>' +
+        (canDownload ? '<button class="btn btn-ghost btn-sm" onclick="downloadDoc(' + d.id + ')"><i class="bx bx-download"></i> Download</button>' : '<span style="font-size:11px;color:var(--text-muted);">Download not permitted</span>') +
+        (issued ? '' : '<button class="btn btn-danger btn-sm" onclick="deleteDoc(' + d.id + ')"><i class="bx bx-trash"></i> Delete</button>') +
       '</div>' +
     '</div>';
   }).join('') + '</div>';

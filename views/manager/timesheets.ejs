@@ -143,6 +143,7 @@
 .ts-sheet-table select:focus,.ts-sheet-table input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 2px rgba(99,102,241,.1)}
 .ts-sheet-table input[type=number]{text-align:center;padding:0 4px}
 .ts-task-meta{display:block;margin-top:3px;font-size:10px;color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:195px}
+.ts-sheet-table select.ts-workitem-select{margin-top:4px;min-height:30px;font-size:11px;color:var(--text-secondary)}
 .ts-total-row td{background:#f5f7ff;font-weight:700;border-bottom:none;font-size:12px}
 .ts-del-btn{width:30px;height:30px;border:none;border-radius:8px;background:#fee2e2;color:#ef4444;cursor:pointer;font-size:13px;display:flex;align-items:center;justify-content:center;margin:auto}
 .ts-del-btn:hover{background:#fecaca}
@@ -173,6 +174,7 @@ function getMondayOf(date) {
 function addDays(d,n){ var r=new Date(d); r.setDate(r.getDate()+n); return r; }
 function fmtISO(d){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
 function fmtShortD(d){ var x=new Date(d); return x.toLocaleDateString('en-US',{day:'2-digit',month:'short',year:'numeric'}); }
+function entryWorkLabel(e){ return (e.project||'') + (e.workItem ? ' · ' + e.workItem : ''); }
 function dayIdx(d){ var x=new Date(d).getDay(); return x===0?6:x-1; }
 
 /* ── Sheet week helpers ── */
@@ -187,15 +189,83 @@ function setSheetWeek(which) {
   renderSheet();
 }
 
-/* ── Row management ── */
+/* ── Row management ──
+   Row "work" value: '' = General Work, 'proj:<id>' = master-data project,
+   'task:<id>' = assigned task. workItemId = optional general work item. */
+var masterWorkItems = [];
+
 function createDefaultRow() {
-  return { rowId: tsRowSeed++, projectId:'__manual__', billingType:'Billable', description:'', hours:[0,0,0,0,0,0,0] };
+  return { rowId: tsRowSeed++, work:'', workItemId:'', billingType:'Billable', description:'', hours:[0,0,0,0,0,0,0] };
 }
 function getRowById(id){ return timesheetRows.find(function(r){ return r.rowId===id; })||null; }
 function getRowTotal(row){ return (row.hours||[]).reduce(function(s,v){ return s+Number(v||0); },0); }
 
 function escH(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function escA(s){ return escH(s).replace(/"/g,'&quot;'); }
+
+function findProject(id){ return assignedProjects.find(function(p){ return String(p.id)===String(id); })||null; }
+function findTask(id){ return assignedTasks.find(function(t){ return String(t.id)===String(id); })||null; }
+function findWorkItem(id){ return masterWorkItems.find(function(w){ return String(w.id)===String(id); })||null; }
+
+function workValueFromEntry(e) {
+  if (e.projectId) return 'proj:' + e.projectId;
+  if (e.taskId) return 'task:' + e.taskId;
+  var byName = assignedProjects.find(function(p){ return p.name === e.project; });
+  return byName ? 'proj:' + byName.id : '';
+}
+
+function describeRow(row) {
+  var parts = String(row.work||'').split(':');
+  var kind = parts[0], id = parts[1];
+  var item = findWorkItem(row.workItemId);
+  var info = { projectId:null, project:'General Work', taskId:null, task:'', workItemId: item ? item.id : null, workItem: item ? item.name : '' };
+  if (kind === 'proj') {
+    var p = findProject(id);
+    info.projectId = Number(id);
+    info.project = p ? p.name : (row.savedProject || 'Project #' + id);
+  } else if (kind === 'task') {
+    var t = findTask(id);
+    info.taskId = Number(id);
+    info.task = t ? t.title : (row.savedTask || '');
+    info.project = t ? (t.projectName || t.title) : (row.savedProject || 'Assigned Task');
+  }
+  if (!item && row.workItemId && row.savedWorkItem) {
+    info.workItemId = Number(row.workItemId);
+    info.workItem = row.savedWorkItem;
+  }
+  return info;
+}
+
+function workSelectHtml(row) {
+  var html = '<option value="" '+(!row.work?'selected':'')+'>General Work (no project)</option>';
+  var projects = assignedProjects.slice();
+  if (String(row.work).indexOf('proj:')===0 && !findProject(row.work.slice(5))) {
+    projects.push({ id: row.work.slice(5), name: (row.savedProject||'Project') + ' (inactive)' });
+  }
+  if (projects.length) html += '<optgroup label="Projects">' + projects.map(function(p){
+    var val = 'proj:' + p.id;
+    var lbl = (p.code ? p.code + ' — ' : '') + p.name + (p.clientName ? ' (' + p.clientName + ')' : '');
+    return '<option value="'+val+'" '+(row.work===val?'selected':'')+'>'+escH(lbl)+'</option>';
+  }).join('') + '</optgroup>';
+  if (assignedTasks.length) html += '<optgroup label="Assigned Tasks">' + assignedTasks.map(function(t){
+    var val = 'task:' + t.id;
+    var lbl = t.projectName ? t.projectName+' — '+t.title : t.title;
+    return '<option value="'+val+'" '+(row.work===val?'selected':'')+'>'+escH(lbl)+'</option>';
+  }).join('') + '</optgroup>';
+  return html;
+}
+
+function workItemSelectHtml(row) {
+  var items = masterWorkItems.slice();
+  if (row.workItemId && !findWorkItem(row.workItemId)) items.push({ id: row.workItemId, name: (row.savedWorkItem||'Work item') + ' (inactive)', category:'' });
+  var groups = {};
+  items.forEach(function(w){ var c = w.category || 'General Work'; (groups[c] = groups[c] || []).push(w); });
+  return '<option value="">— Work item (optional) —</option>' + Object.keys(groups).sort().map(function(c){
+    return '<optgroup label="'+escA(c)+'">' + groups[c].map(function(w){
+      return '<option value="'+w.id+'" '+(String(row.workItemId)===String(w.id)?'selected':'')+'>'+escH(w.name)+'</option>';
+    }).join('') + '</optgroup>';
+  }).join('');
+}
 
 /* ── Render spreadsheet ── */
 function renderSheet() {
@@ -213,25 +283,10 @@ function renderSheet() {
     '<th class="col-actions"></th></tr>';
 
   document.getElementById('ts-sheet-body').innerHTML = timesheetRows.map(function(row) {
-    var taskNote = 'General work';
     return '<tr>' +
       '<td class="col-project">' +
-        '<select onchange="rowChangeProject(' + row.rowId + ',this.value)">' +
-          '<option value="__manual__" ' + (row.projectId==='__manual__'?'selected':'') + '>— General Work —</option>' +
-          (assignedProjects.length ? '<optgroup label="Assigned Projects">' +
-            assignedProjects.map(function(p){
-              var val = 'proj_' + p.id;
-              return '<option value="'+val+'" '+(row.projectId===val?'selected':'')+'>'+escH(p.name)+'</option>';
-            }).join('') +
-          '</optgroup>' : '') +
-          (assignedTasks.length ? '<optgroup label="Assigned Tasks">' +
-            assignedTasks.map(function(t){
-              var lbl = t.projectName ? escH(t.projectName)+' — '+escH(t.title) : escH(t.title);
-              return '<option value="'+t.id+'" '+(String(row.projectId)===String(t.id)?'selected':'')+'>'+lbl+'</option>';
-            }).join('') +
-          '</optgroup>' : '') +
-        '</select>' +
-        '<span class="ts-task-meta">' + escH(taskNote) + '</span>' +
+        '<select onchange="rowChangeProject(' + row.rowId + ',this.value)">' + workSelectHtml(row) + '</select>' +
+        '<select class="ts-workitem-select" onchange="rowChangeWorkItem(' + row.rowId + ',this.value)">' + workItemSelectHtml(row) + '</select>' +
       '</td>' +
       '<td class="col-billing"><select onchange="rowChangeBilling(' + row.rowId + ',this.value)">' +
         '<option '+(row.billingType==='Billable'?'selected':'')+'>Billable</option>' +
@@ -276,7 +331,22 @@ function removeRow(id) {
   if (!timesheetRows.length) timesheetRows=[createDefaultRow()];
   renderSheet();
 }
-function rowChangeProject(id,v){ var r=getRowById(id); if(r){ r.projectId=v; renderSheet(); } }
+function rowChangeProject(id,v){
+  var r=getRowById(id); if(!r) return;
+  r.work = v || '';
+  if (r.work.indexOf('task:')===0 && !r.description) {
+    var t = findTask(r.work.slice(5));
+    if (t) r.description = t.description || t.title;
+  }
+  renderSheet();
+}
+function rowChangeWorkItem(id,v){
+  var r=getRowById(id); if(!r) return;
+  r.workItemId = v || '';
+  var w = findWorkItem(v);
+  if (w && w.billable === false && r.billingType === 'Billable') r.billingType = 'Non-Billable';
+  renderSheet();
+}
 function rowChangeBilling(id,v){ var r=getRowById(id); if(r) r.billingType=v; }
 function rowChangeDesc(id,v){ var r=getRowById(id); if(r) r.description=v; }
 function rowChangeHours(id,di,v) {
@@ -329,8 +399,13 @@ function openEditTs(id) {
   } else { sheetActiveWeek='current'; }
   var grouped={};
   entries.forEach(function(e){
-    var key=[e.project||'',e.description||'',e.billingType||'Billable'].join('||');
-    if (!grouped[key]) grouped[key]={ rowId:tsRowSeed++, projectId:'__manual__', billingType:e.billingType||'Billable', description:e.description||'', hours:[0,0,0,0,0,0,0] };
+    var work = workValueFromEntry(e);
+    var key=[work, e.workItemId||'', e.description||'', e.billingType||'Billable'].join('||');
+    if (!grouped[key]) grouped[key]={
+      rowId:tsRowSeed++, work:work, workItemId: e.workItemId ? String(e.workItemId) : '',
+      savedProject: e.project||'', savedTask: e.task||'', savedWorkItem: e.workItem||'',
+      billingType:e.billingType||'Billable', description:e.description||'', hours:[0,0,0,0,0,0,0]
+    };
     grouped[key].hours[dayIdx(e.date)] = Number(e.hours||0);
   });
   timesheetRows = Object.values(grouped);
@@ -344,19 +419,15 @@ async function submitSheet() {
   var dates = getSheetWeekDates();
   var entries = [];
   timesheetRows.forEach(function(row){
-    var proj, taskId = null;
-    if (row.projectId && String(row.projectId).startsWith('proj_')) {
-      var pid = Number(String(row.projectId).replace('proj_',''));
-      var pr  = assignedProjects.find(function(p){ return p.id===pid; });
-      proj    = pr ? pr.name : 'General Work';
-    } else {
-      var task = assignedTasks.find(function(t){ return String(t.id)===String(row.projectId); })||null;
-      proj     = task ? (task.projectName||task.title) : 'General Work';
-      taskId   = task ? task.id : null;
-    }
+    var info = describeRow(row);
     for (var i=0;i<7;i++){
       var h=Number(row.hours[i]||0); if(h<=0) continue;
-      entries.push({ date:fmtISO(dates[i]), hours:h, workType:'work', billingType:row.billingType, project:proj, description:row.description||proj, taskId:taskId });
+      entries.push({
+        date:fmtISO(dates[i]), hours:h, workType:'work', billingType:row.billingType,
+        projectId:info.projectId, project:info.project, taskId:info.taskId, task:info.task,
+        workItemId:info.workItemId, workItem:info.workItem,
+        description:row.description||info.workItem||info.task||info.project
+      });
     }
   });
   if (!entries.length) return toast('Enter hours for at least one day','error');
@@ -444,7 +515,7 @@ function renderOwnView() {
           (hit ? '<span style="font-size:15px;font-weight:800;color:var(--accent);">'+hit.hours.toFixed(1)+'<span style="font-size:11px;font-weight:400;">h</span></span>' : '<span style="color:var(--border);font-size:18px;">—</span>') +
         '</td>' +
         '<td style="padding:8px 8px;font-size:12px;color:var(--text-secondary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' +
-          (hit ? [...new Set((hit.entries||[]).map(function(e){return e.project||'';}).filter(Boolean))].join(', ') : '') +
+          (hit ? [...new Set((hit.entries||[]).map(function(e){return entryWorkLabel(e);}).filter(Boolean))].join(', ') : '') +
         '</td>' +
         '<td style="padding:8px 6px;">' +
           (hit ? '<span style="font-size:11px;font-weight:600;background:'+sb2+';color:'+sc2+';border-radius:12px;padding:2px 9px;text-transform:capitalize;">'+hit.ts.status+'</span>' : '') +
@@ -590,7 +661,7 @@ function getDayEntries(t,di){
   return (t.entries||[]).filter(function(e){ var d=new Date(e.date+'T00:00:00'),x=d.getDay()-1; if(x<0)x=6; return x===di; });
 }
 function getDayProjects(t,di){
-  return [...new Set(getDayEntries(t,di).map(function(e){ return e.project||''; }).filter(Boolean))].join(', ');
+  return [...new Set(getDayEntries(t,di).map(function(e){ return entryWorkLabel(e); }).filter(Boolean))].join(', ');
 }
 function statusChip(s){
   var c=s==='approved'?'#22c55e':s==='rejected'?'#ef4444':'#f59e0b';
@@ -725,7 +796,7 @@ function _renderViewModal(t, isTeam) {
           '<span style="font-weight:600;font-size:13px;color:var(--text-primary);">'+dayName+'</span>' +
           '<span style="font-size:11px;color:var(--text-muted);margin-left:6px;">'+dateStr+'</span>' +
         '</td>' +
-        '<td style="padding:9px 12px;font-size:12px;color:var(--accent);font-weight:700;">'+(e.project||'—')+'</td>' +
+        '<td style="padding:9px 12px;font-size:12px;color:var(--accent);font-weight:700;">'+escH(entryWorkLabel(e)||'—')+'</td>' +
         '<td style="padding:9px 12px;font-size:11px;"><span style="background:var(--bg-input);border-radius:6px;padding:2px 8px;text-transform:capitalize;color:var(--text-secondary);">'+(e.billingType||'Billable')+'</span></td>' +
         '<td style="padding:9px 12px;font-size:12px;color:var(--text-secondary);max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+(e.description||'—')+'</td>' +
         '<td style="padding:9px 12px;text-align:center;font-weight:800;font-size:14px;color:var(--text-primary);">'+Number(e.hours||0).toFixed(1)+'<span style="font-size:11px;font-weight:400;">h</span></td>' +
@@ -795,8 +866,11 @@ async function loadAssignedTasks() {
   try { assignedTasks = (await api('GET','/tasks'))||[]; }
   catch(e){ assignedTasks=[]; }
   assignedTasks = assignedTasks.filter(function(t){ return t.approvalStatus !== 'approved' && t.approvalStatus !== 'refused'; });
-  try { assignedProjects = (await api('GET','/projects?status=active'))||[]; }
-  catch(e){ assignedProjects=[]; }
+  try {
+    var opts = await api('GET','/master-data/options');
+    assignedProjects = (opts && opts.projects) || [];
+    masterWorkItems = (opts && opts.workItems) || [];
+  } catch(e){ assignedProjects=[]; masterWorkItems=[]; }
 }
 
 loadAssignedTasks();

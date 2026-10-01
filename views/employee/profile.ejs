@@ -33,7 +33,7 @@
           <div class="prof-hero-name" id="profile-name">Loading…</div>
           <div class="prof-hero-sub" id="profile-job">—</div>
           <div class="prof-hero-badges">
-            <span class="prof-badge-status"><span class="prof-badge-dot"></span>Active</span>
+            <span class="prof-badge-status"><span class="prof-badge-dot"></span><span id="profile-emp-status">Active</span></span>
             <span class="prof-badge-code" id="emp-code-badge" style="display:none;"></span>
           </div>
         </div>
@@ -67,6 +67,9 @@
         <button class="tab-btn active" id="tab-profile" onclick="switchTab('profile')">
           <i class="bx bxs-user-circle" style="margin-right:5px;"></i>Profile
         </button>
+        <button class="tab-btn" id="tab-documents" onclick="switchTab('documents')">
+          <i class="bx bxs-file-doc" style="margin-right:5px;"></i>Documents
+        </button>
         <button class="tab-btn" id="tab-salary" onclick="switchTab('salary')">
           <i class="bx bxs-wallet" style="margin-right:5px;"></i>My Salary
         </button>
@@ -98,7 +101,42 @@
           </div>
         </div>
 
+        <div class="prof-info-grid">
+          <div class="card prof-info-card">
+            <div class="card-header"><div class="card-title"><i class="bx bxs-user-detail" style="margin-right:6px;"></i>Basic Information</div></div>
+            <div class="prof-info-rows">
+              <div><span>Full Name</span><strong id="bi-name">—</strong></div>
+              <div><span>Employee ID</span><strong id="bi-code">—</strong></div>
+              <div><span>Designation</span><strong id="bi-designation">—</strong></div>
+              <div><span>Department</span><strong id="bi-department">—</strong></div>
+              <div><span>Work Location</span><strong id="bi-location">—</strong></div>
+              <div><span>Current Status</span><strong id="bi-status">—</strong></div>
+            </div>
+          </div>
+          <div class="card prof-info-card">
+            <div class="card-header"><div class="card-title"><i class="bx bxs-briefcase" style="margin-right:6px;"></i>Employment Information</div></div>
+            <div class="prof-info-rows">
+              <div><span>Joining Date</span><strong id="ei-joining">—</strong></div>
+              <div><span>Job Title</span><strong id="ei-jobtitle">—</strong></div>
+              <div><span>Department</span><strong id="ei-department">—</strong></div>
+              <div><span>Reporting Manager</span><strong id="ei-manager">—</strong></div>
+              <div><span>Employment Type</span><strong id="ei-type">—</strong></div>
+              <div><span>Work Schedule</span><strong id="ei-schedule">—</strong></div>
+            </div>
+          </div>
+        </div>
+
       </div><!-- end panel-profile -->
+
+      <!-- ══════════ DOCUMENTS TAB ══════════ -->
+      <div id="panel-documents" style="display:none;">
+        <div class="prof-docs-note">
+          <i class="bx bx-info-circle"></i>
+          <span>Offer Letter, Appointment Letter and other HR documents are issued by your company and appear here automatically.
+          To upload your own ID / address proofs and certificates, use <a href="/employee/documents" id="profile-docs-link">Documents</a>.</span>
+        </div>
+        <div id="profile-docs"><div style="text-align:center;padding:40px;"><span class="spinner"></span></div></div>
+      </div>
 
       <!-- ══════════ SALARY TAB ══════════ -->
       <div id="panel-salary" style="display:none;">
@@ -294,6 +332,42 @@
   max-width: 100%;
 }
 
+/* ── Basic / employment information ── */
+.prof-info-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 14px;
+  margin-top: 16px;
+}
+.prof-info-card { margin: 0; }
+.prof-info-rows { padding: 4px 18px 14px; }
+.prof-info-rows > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--border-subtle, #eef0f4);
+  font-size: 13px;
+}
+.prof-info-rows > div:last-child { border-bottom: none; }
+.prof-info-rows span { color: var(--text-muted); }
+.prof-info-rows strong { color: var(--text-primary); text-align: right; word-break: break-word; }
+.prof-docs-note {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  padding: 10px 14px;
+  margin-bottom: 14px;
+  border-radius: 10px;
+  background: #eef4ff;
+  border: 1px solid #c7d7f8;
+  color: #3b4f7a;
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+.prof-docs-note i { font-size: 16px; margin-top: 1px; }
+.prof-docs-note a { color: var(--accent); font-weight: 700; }
+
 @media(max-width:1100px) {
   .prof-stat-grid { grid-template-columns: repeat(4, 1fr); }
 }
@@ -307,19 +381,44 @@
 </style>
 
 <script src="/js/api.js"></script>
+<script src="/js/hr-documents.js"></script>
 <script>
 // ─── TAB SWITCHER ────────────────────────────────────────────
 function switchTab(tab) {
-  document.getElementById('panel-profile').style.display = tab === 'profile' ? '' : 'none';
-  document.getElementById('panel-salary').style.display  = tab === 'salary'  ? '' : 'none';
-  document.getElementById('tab-profile').classList.toggle('active', tab === 'profile');
-  document.getElementById('tab-salary').classList.toggle('active',  tab === 'salary');
+  ['profile', 'documents', 'salary'].forEach(function(name) {
+    document.getElementById('panel-' + name).style.display = tab === name ? '' : 'none';
+    document.getElementById('tab-' + name).classList.toggle('active', tab === name);
+  });
   if (tab === 'salary' && !salaryLoaded) loadSalary();
+  if (tab === 'documents') loadProfileDocs();
 }
 
 window.addEventListener('DOMContentLoaded', function() {
   if (window.location.hash === '#salary') switchTab('salary');
+  if (window.location.hash === '#documents') switchTab('documents');
 });
+
+// ─── DOCUMENTS (offer letter & other HR documents) ───────────
+HRDocs.injectStyles();
+var profileDocs = [];
+async function loadProfileDocs() {
+  var box = document.getElementById('profile-docs');
+  try {
+    profileDocs = await api('GET', '/documents') || [];
+    box.innerHTML = HRDocs.renderSections(profileDocs, {
+      mode: 'employee',
+      actions: { view: 'viewProfileDoc', download: 'downloadProfileDoc' }
+    });
+  } catch(e) {
+    box.innerHTML = '<div class="empty-state"><h3>Could not load documents</h3><p>' + (e.message || '') + '</p></div>';
+  }
+}
+function viewProfileDoc(id) {
+  window.open('/api/documents/' + id + '/view?token=' + encodeURIComponent(getToken()), '_blank');
+}
+function downloadProfileDoc(id) {
+  window.open('/api/documents/' + id + '/download?token=' + encodeURIComponent(getToken()), '_blank');
+}
 
 // ─── PROFILE ─────────────────────────────────────────────────
 async function loadProfile() {
@@ -351,6 +450,24 @@ async function loadProfile() {
       badge.textContent = user.employeeCode;
       badge.style.display = 'inline-flex';
     }
+
+    // Basic & employment information
+    var joining = user.joiningDate ? new Date(user.joiningDate + 'T00:00:00').toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '';
+    document.getElementById('profile-emp-status').textContent = user.employmentStatus || 'Active';
+    sv('bi-name',        user.name);
+    sv('bi-code',        user.employeeCode || '—');
+    sv('bi-designation', user.position || '—');
+    sv('bi-department',  user.department || '—');
+    sv('bi-location',    user.workLocation || '—');
+    sv('bi-status',      user.employmentStatus || 'Active');
+    sv('ei-joining',     joining || '—');
+    sv('ei-jobtitle',    user.jobTitle || '—');
+    sv('ei-department',  user.department || '—');
+    sv('ei-manager',     (user.manager && user.manager.name) || '—');
+    sv('ei-type',        user.employmentType || '—');
+    sv('ei-schedule',    user.workSchedule || '—');
+    var docsLink = document.getElementById('profile-docs-link');
+    if (docsLink) docsLink.href = user.role === 'manager' ? '/manager/my-documents' : '/employee/documents';
 
     // Verification badge
     var vb = document.getElementById('verification-badge');

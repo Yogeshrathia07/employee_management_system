@@ -17,6 +17,36 @@ function roleRequiresCompany(role) {
   return role !== 'superadmin';
 }
 
+// Admins may only act on users of their own company.
+function outsideAdminCompany(req, user) {
+  return req.user.role === 'admin'
+    && (!normalizeCompanyId(req.user.companyId) || normalizeCompanyId(user.companyId) !== normalizeCompanyId(req.user.companyId));
+}
+
+// Basic + employment information fields (Employees → Add/Edit).
+function applyProfileFields(target, body) {
+  const text = (value, max) => String(value == null ? '' : value).trim().slice(0, max);
+  if (body.position !== undefined)     target.position     = text(body.position, 150);
+  if (body.workLocation !== undefined) target.workLocation = text(body.workLocation, 150);
+  if (body.jobTitle !== undefined)     target.jobTitle     = text(body.jobTitle, 150);
+  if (body.workSchedule !== undefined) target.workSchedule = text(body.workSchedule, 150);
+  if (body.employmentType !== undefined) target.employmentType = text(body.employmentType, 30);
+  if (body.employmentStatus !== undefined) target.employmentStatus = text(body.employmentStatus, 30) || 'Active';
+  if (body.joiningDate !== undefined) {
+    target.joiningDate = /^\d{4}-\d{2}-\d{2}$/.test(String(body.joiningDate || '')) ? body.joiningDate : null;
+  }
+}
+
+async function validateEmployeeCode(code, excludeUserId) {
+  const clean = String(code || '').trim().slice(0, 40);
+  if (!clean) return { code: '' };
+  const where = { employeeCode: clean };
+  if (excludeUserId) where.id = { [Op.ne]: excludeUserId };
+  const taken = await User.findOne({ where, attributes: ['id'] });
+  if (taken) return { error: `Employee ID ${clean} is already used by another employee` };
+  return { code: clean };
+}
+
 exports.getUsers = async (req, res) => {
   try {
     const where = {};
@@ -68,6 +98,12 @@ exports.createUser = async (req, res) => {
       verificationStatus: finalRole === 'employee' ? 'pending_docs' : null,
       status: 'active',
     };
+    applyProfileFields(userData, req.body);
+    if (req.body.employeeCode) {
+      const checked = await validateEmployeeCode(req.body.employeeCode);
+      if (checked.error) return res.status(400).json({ message: checked.error });
+      if (checked.code) userData.employeeCode = checked.code;
+    }
     // Salary structure components
     const comp = {
       basicSalary:      parseFloat(basicSalary)      || 0,
@@ -116,6 +152,7 @@ exports.updateUser = async (req, res) => {
             status, department, phone, password, position, gender } = req.body;
     const user = await User.findByPk(req.params.id);
     if (!user) return res.status(404).json({ message: 'User not found' });
+    if (outsideAdminCompany(req, user)) return res.status(403).json({ message: 'Access denied: employee is outside your company' });
     const nextRole = role || user.role;
 
     if (user.role === 'superadmin' && status && status !== 'active') {
@@ -129,6 +166,13 @@ exports.updateUser = async (req, res) => {
     if (position !== undefined)   user.position   = position;
     if (gender !== undefined)     user.gender     = gender || 'unspecified';
     if (status)                   user.status     = user.role === 'superadmin' ? 'active' : status;
+    applyProfileFields(user, req.body);
+    if (req.body.employeeCode !== undefined && String(req.body.employeeCode || '').trim() &&
+        String(req.body.employeeCode).trim() !== String(user.employeeCode || '')) {
+      const checked = await validateEmployeeCode(req.body.employeeCode, user.id);
+      if (checked.error) return res.status(400).json({ message: checked.error });
+      user.employeeCode = checked.code;
+    }
     // Update salary structure components and recalculate CTC
     const compFields = { basicSalary, da, hra, conveyance, medicalExpenses, specialAllowance, bonus, ta };
     let anyComp = false;
@@ -189,6 +233,7 @@ exports.verifyEmployee = async (req, res) => {
   try {
     const user = await User.findByPk(req.params.id);
     if (!user) return res.status(404).json({ message: 'User not found' });
+    if (outsideAdminCompany(req, user)) return res.status(403).json({ message: 'Access denied: employee is outside your company' });
 
     const { action, note } = req.body; // action: 'approve' | 'reject'
     if (action === 'approve') {
@@ -212,6 +257,7 @@ exports.deleteUser = async (req, res) => {
     const user = await User.findByPk(req.params.id);
     if (!user) return res.status(404).json({ message: 'User not found' });
     if (user.role === 'superadmin') return res.status(400).json({ message: 'Superadmin cannot be deleted' });
+    if (outsideAdminCompany(req, user)) return res.status(403).json({ message: 'Access denied: employee is outside your company' });
     
     // Move to recycle bin
     const { moveToRecycleBin } = require('./recycleBinController');
@@ -288,6 +334,7 @@ exports.resetPassword = async (req, res) => {
 
     const user = await User.findByPk(req.params.id);
     if (!user) return res.status(404).json({ message: 'User not found' });
+    if (outsideAdminCompany(req, user)) return res.status(403).json({ message: 'Access denied: employee is outside your company' });
 
     user.password = newPassword;
     await user.save();
@@ -304,10 +351,11 @@ exports.getUserDetails = async (req, res) => {
       attributes: { exclude: ['password'] },
       include: [
         { model: Company, as: 'company', attributes: ['id', 'name'] },
-        { model: User, as: 'manager', attributes: ['id', 'name'] },
+        { model: User, as: 'manager', attributes: ['id', 'name', 'email', 'position'] },
       ],
     });
     if (!user) return res.status(404).json({ message: 'User not found' });
+    if (outsideAdminCompany(req, user)) return res.status(403).json({ message: 'Access denied: employee is outside your company' });
     res.json(user);
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -327,6 +375,27 @@ exports.uploadPhoto = async (req, res) => {
       if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
     }
 
+    user.profilePhoto = req.file.filename;
+    await user.save();
+    res.json({ message: 'Photo uploaded', profilePhoto: req.file.filename });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+// POST /users/:id/photo — admin/superadmin uploads an employee's profile photo
+exports.uploadUserPhoto = async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ message: 'No file uploaded' });
+    const user = await User.findByPk(req.params.id);
+    if (!user || outsideAdminCompany(req, user)) {
+      fs.unlink(req.file.path, () => {});
+      return res.status(user ? 403 : 404).json({ message: user ? 'Access denied: employee is outside your company' : 'User not found' });
+    }
+    if (user.profilePhoto) {
+      const oldPath = path.join(__dirname, '..', 'uploads', 'photos', user.profilePhoto);
+      if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
+    }
     user.profilePhoto = req.file.filename;
     await user.save();
     res.json({ message: 'Photo uploaded', profilePhoto: req.file.filename });

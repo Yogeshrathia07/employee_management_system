@@ -119,6 +119,7 @@
 .timesheet-sheet-table select:focus,.timesheet-sheet-table input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 2px rgba(99,102,241,.1)}
 .timesheet-sheet-table input[type=number]{text-align:center;padding:0 4px}
 .timesheet-sheet-task-meta{display:block;margin-top:3px;font-size:10px;color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:195px}
+.timesheet-sheet-table select.timesheet-sheet-workitem{margin-top:4px;min-height:30px;font-size:11px;color:var(--text-secondary)}
 .timesheet-sheet-total-row td{background:#f5f7ff;font-weight:700;border-bottom:none;font-size:12px}
 .timesheet-delete-btn{width:30px;height:30px;border:none;border-radius:8px;background:#fee2e2;color:#ef4444;cursor:pointer;font-size:13px;display:flex;align-items:center;justify-content:center;margin:auto}
 .timesheet-delete-btn:hover{background:#fecaca}
@@ -171,6 +172,7 @@ function fmtFull(d) {
   var x = new Date(d);
   return x.toLocaleDateString('en-US', {day:'2-digit', month:'short', year:'numeric'});
 }
+function entryWorkLabel(e) { return (e.project || '') + (e.workItem ? ' · ' + e.workItem : ''); }
 function dayIndex(d) { var x = new Date(d).getDay(); return x === 0 ? 6 : x - 1; }
 function statusStyle(s) {
   return s==='approved' ? {c:'#22c55e',b:'#dcfce7'} : s==='rejected' ? {c:'#ef4444',b:'#fee2e2'} : {c:'#f59e0b',b:'#fef3c7'};
@@ -255,7 +257,7 @@ function renderWeekView() {
         (hit ? hit.entries.map(function(e){ return e.workType; }).filter(function(v,i,a){return v&&a.indexOf(v)===i;}).map(function(wt){ return '<span style="font-size:11px;background:var(--bg-input);border-radius:6px;padding:2px 7px;text-transform:capitalize;color:var(--text-secondary);margin-right:3px;">' + wt + '</span>'; }).join('') : '') +
       '</td>' +
       '<td style="padding:8px 8px;font-size:12px;color:var(--text-secondary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' +
-        (hit ? hit.entries.map(function(e){ return e.project || ''; }).filter(function(v,i,a){return v&&a.indexOf(v)===i;}).join(', ') : '') +
+        (hit ? hit.entries.map(function(e){ return entryWorkLabel(e); }).filter(function(v,i,a){return v&&a.indexOf(v)===i;}).join(', ') : '') +
       '</td>' +
       '<td style="padding:8px 8px;font-size:12px;color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' +
         (hit ? hit.entries.map(function(e){ return e.description || ''; }).filter(Boolean).join(' / ') : '') +
@@ -370,7 +372,7 @@ function renderMonthView() {
             '<strong>' + DAYNAMES[dayIndex(ed)] + ' ' + ed.getDate() + '</strong>' +
             ' · ' + e.hours + 'h' +
             (e.workType ? ' · <span style="text-transform:capitalize;">' + e.workType + '</span>' : '') +
-            (e.project ? ' · ' + e.project : '') +
+            (entryWorkLabel(e) ? ' · ' + escHtml(entryWorkLabel(e)) : '') +
           '</div>';
         }).join('') +
       '</div>' : '') +
@@ -570,11 +572,11 @@ function getSheetWeekDates() {
   return getWeekDates(activeWeek);
 }
 
-function getAssignedTaskLabel(task) {
-  if (!task) return 'General Work';
-  var due = task.dueDate ? (' � Due ' + fmtFull(task.dueDate)) : '';
-  return task.title + due;
-}
+/* ── Project / work options (Master Data + assigned tasks) ─────────────────
+   Row "work" value: '' = General Work, 'proj:<id>' = master-data project,
+   'task:<id>' = assigned task. workItemId = optional general work item.     */
+var masterProjects = [];
+var masterWorkItems = [];
 
 function getAssignedTaskNote(task) {
   if (!task) return 'No assigned work selected. You can still log general work.';
@@ -588,33 +590,83 @@ async function loadAssignedTasks() {
     assignedTasks = [];
   }
   assignedTasks = (assignedTasks || []).filter(function(t) { return t.approvalStatus !== 'refused' && t.approvalStatus !== 'approved'; });
+  try {
+    var opts = await api('GET', '/master-data/options');
+    masterProjects = (opts && opts.projects) || [];
+    masterWorkItems = (opts && opts.workItems) || [];
+  } catch(e) {
+    masterProjects = [];
+    masterWorkItems = [];
+  }
   updateAssignedWorkNote();
+  if (document.getElementById('ts-modal') && document.getElementById('ts-modal').classList.contains('show')) renderTimesheetSheet();
 }
 
 function updateAssignedWorkNote() {
   var note = document.getElementById('assigned-work-note');
   if (!note) return;
-  if (!assignedTasks.length) {
-    note.innerHTML = '<strong>No assigned work found.</strong> You can still add a timesheet using the general work option.';
+  var parts = [];
+  if (masterProjects.length) parts.push('<strong>' + masterProjects.length + ' project(s)</strong>');
+  if (masterWorkItems.length) parts.push('<strong>' + masterWorkItems.length + ' general work item(s)</strong>');
+  if (assignedTasks.length) parts.push('<strong>' + assignedTasks.length + ' assigned task(s)</strong>');
+  if (!parts.length) {
+    note.innerHTML = '<strong>No projects or work items yet.</strong> You can still log hours as General Work. Your admin can add projects and work items in <strong>Master Data</strong>.';
     return;
   }
-  note.innerHTML = '<strong>' + assignedTasks.length + ' assigned work item(s)</strong> are available in the project list. Choose one to auto-link your timesheet entry, or use <strong>No assigned work</strong> when needed.';
-}
-
-function createDefaultRow() {
-  var firstTask = assignedTasks[0] || null;
-  return {
-    rowId: tsRowSeed++,
-    projectId: firstTask ? String(firstTask.id) : '__manual__',
-    taskId: firstTask ? String(firstTask.id) : '__manual__',
-    billingType: 'Billable',
-    description: firstTask ? (firstTask.description || firstTask.title) : '',
-    hours: [0,0,0,0,0,0,0]
-  };
+  note.innerHTML = parts.join(', ') + ' available. Pick the project (or General Work) and, optionally, the work item for each row.';
 }
 
 function findAssignedTask(id) {
   return assignedTasks.find(function(t) { return String(t.id) === String(id); }) || null;
+}
+function findMasterProject(id) {
+  return masterProjects.find(function(p) { return String(p.id) === String(id); }) || null;
+}
+function findWorkItem(id) {
+  return masterWorkItems.find(function(w) { return String(w.id) === String(id); }) || null;
+}
+
+function createDefaultRow() {
+  return {
+    rowId: tsRowSeed++,
+    work: '',
+    workItemId: '',
+    billingType: 'Billable',
+    description: '',
+    hours: [0,0,0,0,0,0,0]
+  };
+}
+
+// Restore a row selection from a saved entry (supports entries saved before Master Data existed).
+function workValueFromEntry(e) {
+  if (e.projectId && findMasterProject(e.projectId)) return 'proj:' + e.projectId;
+  if (e.taskId && findAssignedTask(e.taskId)) return 'task:' + e.taskId;
+  if (e.projectId) return 'proj:' + e.projectId;
+  if (e.taskId) return 'task:' + e.taskId;
+  var byName = masterProjects.find(function(p) { return p.name === e.project; });
+  return byName ? 'proj:' + byName.id : '';
+}
+
+function describeRow(row) {
+  var parts = String(row.work || '').split(':');
+  var kind = parts[0], id = parts[1];
+  var item = findWorkItem(row.workItemId);
+  var info = { projectId: null, project: 'General Work', taskId: null, task: '', workItemId: item ? item.id : null, workItem: item ? item.name : '' };
+  if (kind === 'proj') {
+    var p = findMasterProject(id);
+    info.projectId = Number(id);
+    info.project = p ? p.name : (row.savedProject || 'Project #' + id);
+  } else if (kind === 'task') {
+    var t = findAssignedTask(id);
+    info.taskId = Number(id);
+    info.task = t ? t.title : (row.savedTask || '');
+    info.project = t ? (t.projectName || t.title) : (row.savedProject || 'Assigned Task');
+  }
+  if (!item && row.workItemId && row.savedWorkItem) {
+    info.workItemId = Number(row.workItemId);
+    info.workItem = row.savedWorkItem;
+  }
+  return info;
 }
 
 function getRowById(rowId) {
@@ -628,6 +680,46 @@ function ensureSheetRows() {
 function setWeek(which) {
   activeWeek = which;
   renderTimesheetSheet();
+}
+
+function workSelectHtml(row) {
+  var html = '<option value="" ' + (!row.work ? 'selected' : '') + '>General Work (no project)</option>';
+  var projects = masterProjects.slice();
+  if (String(row.work).indexOf('proj:') === 0 && !findMasterProject(row.work.slice(5))) {
+    projects.push({ id: row.work.slice(5), name: (row.savedProject || 'Project') + ' (inactive)' });
+  }
+  if (projects.length) {
+    html += '<optgroup label="Projects">' + projects.map(function(p) {
+      var val = 'proj:' + p.id;
+      var lbl = (p.code ? p.code + ' — ' : '') + p.name + (p.clientName ? ' (' + p.clientName + ')' : '');
+      return '<option value="' + val + '" ' + (row.work === val ? 'selected' : '') + '>' + escHtml(lbl) + '</option>';
+    }).join('') + '</optgroup>';
+  }
+  if (assignedTasks.length) {
+    html += '<optgroup label="Assigned Tasks">' + assignedTasks.map(function(t) {
+      var val = 'task:' + t.id;
+      var lbl = t.projectName ? t.projectName + ' — ' + t.title : t.title;
+      return '<option value="' + val + '" ' + (row.work === val ? 'selected' : '') + '>' + escHtml(lbl) + '</option>';
+    }).join('') + '</optgroup>';
+  }
+  return html;
+}
+
+function workItemSelectHtml(row) {
+  var items = masterWorkItems.slice();
+  if (row.workItemId && !findWorkItem(row.workItemId)) {
+    items.push({ id: row.workItemId, name: (row.savedWorkItem || 'Work item') + ' (inactive)', category: '' });
+  }
+  var groups = {};
+  items.forEach(function(w) {
+    var cat = w.category || 'General Work';
+    (groups[cat] = groups[cat] || []).push(w);
+  });
+  return '<option value="">— Work item (optional) —</option>' + Object.keys(groups).sort().map(function(cat) {
+    return '<optgroup label="' + escAttr(cat) + '">' + groups[cat].map(function(w) {
+      return '<option value="' + w.id + '" ' + (String(row.workItemId) === String(w.id) ? 'selected' : '') + '>' + escHtml(w.name) + '</option>';
+    }).join('') + '</optgroup>';
+  }).join('');
 }
 
 function renderTimesheetSheet() {
@@ -648,23 +740,14 @@ function renderTimesheetSheet() {
 
   var body = document.getElementById('ts-sheet-body');
   body.innerHTML = timesheetRows.map(function(row) {
-    var task = findAssignedTask(row.taskId);
-    var taskOptions = assignedTasks.length
-      ? assignedTasks.map(function(t) {
-          return '<option value="' + t.id + '" ' + (String(row.taskId) === String(t.id) ? 'selected' : '') + '>' + escHtml(t.title) + '</option>';
-        }).join('')
-      : '';
-    var taskNote = task ? (task.projectName ? task.projectName + ' · ' : '') + (task.description || task.title) : 'General work';
+    var info = describeRow(row);
+    var task = info.taskId ? findAssignedTask(info.taskId) : null;
+    var note = task ? getAssignedTaskNote(task) : (info.projectId ? (findMasterProject(info.projectId) || {}).location || '' : '');
     return '<tr>' +
       '<td class="sheet-col-project">' +
-        '<select onchange="changeProject(' + row.rowId + ', this.value)">' +
-          '<option value="__manual__" ' + (row.projectId === '__manual__' ? 'selected' : '') + '>No assigned work</option>' +
-          assignedTasks.map(function(t) {
-            var lbl = t.projectName ? escHtml(t.projectName) + ' — ' + escHtml(t.title) : escHtml(t.title);
-            return '<option value="' + t.id + '" ' + (String(row.projectId) === String(t.id) ? 'selected' : '') + '>' + lbl + '</option>';
-          }).join('') +
-        '</select>' +
-        '<span class="timesheet-sheet-task-meta">' + escHtml(taskNote) + '</span>' +
+        '<select onchange="changeProject(' + row.rowId + ', this.value)">' + workSelectHtml(row) + '</select>' +
+        '<select class="timesheet-sheet-workitem" onchange="changeWorkItem(' + row.rowId + ', this.value)">' + workItemSelectHtml(row) + '</select>' +
+        (note ? '<span class="timesheet-sheet-task-meta">' + escHtml(note) + '</span>' : '') +
       '</td>' +
       '<td class="sheet-col-billing">' +
         '<select onchange="changeBilling(' + row.rowId + ', this.value)">' +
@@ -716,24 +799,20 @@ function removeTimesheetRow(rowId) {
 function changeProject(rowId, value) {
   var row = getRowById(rowId);
   if (!row) return;
-  row.projectId = value;
-  if (value !== '__manual__') {
-    row.taskId = value;
-    var task = findAssignedTask(value);
-    if (task && !row.description) row.description = task.description || task.title;
+  row.work = value || '';
+  if (value.indexOf('task:') === 0 && !row.description) {
+    var task = findAssignedTask(value.slice(5));
+    if (task) row.description = task.description || task.title;
   }
   renderTimesheetSheet();
 }
 
-function changeTask(rowId, value) {
+function changeWorkItem(rowId, value) {
   var row = getRowById(rowId);
   if (!row) return;
-  row.taskId = value;
-  if (value !== '__manual__') {
-    row.projectId = value;
-    var task = findAssignedTask(value);
-    if (task && !row.description) row.description = task.description || task.title;
-  }
+  row.workItemId = value || '';
+  var item = findWorkItem(value);
+  if (item && item.billable === false && row.billingType === 'Billable') row.billingType = 'Non-Billable';
   renderTimesheetSheet();
 }
 
@@ -760,7 +839,6 @@ function changeDayHours(rowId, dayIndex, value) {
 }
 
 function updateSummary() {
-  var dates = getSheetWeekDates();
   var activeDays = 0;
   for (var i = 0; i < 7; i++) {
     var total = timesheetRows.reduce(function(sum, row) { return sum + (Number(row.hours[i]) || 0); }, 0);
@@ -826,12 +904,16 @@ function openEditTs(id) {
   }
   var grouped = {};
   entries.forEach(function(e) {
-    var key = [e.taskId || '', e.project || '', e.description || '', e.billingType || 'Billable'].join('||');
+    var work = workValueFromEntry(e);
+    var key = [work, e.workItemId || '', e.description || '', e.billingType || 'Billable'].join('||');
     if (!grouped[key]) {
       grouped[key] = {
         rowId: tsRowSeed++,
-        projectId: e.taskId ? String(e.taskId) : '__manual__',
-        taskId: e.taskId ? String(e.taskId) : '__manual__',
+        work: work,
+        workItemId: e.workItemId ? String(e.workItemId) : '',
+        savedProject: e.project || '',
+        savedTask: e.task || '',
+        savedWorkItem: e.workItem || '',
         billingType: e.billingType || 'Billable',
         description: e.description || '',
         hours: [0,0,0,0,0,0,0]
@@ -850,8 +932,7 @@ async function submitTimesheet() {
   var dates = getSheetWeekDates();
   var entries = [];
   timesheetRows.forEach(function(row) {
-    var linkedTask = findAssignedTask(row.taskId);
-    var projectName = linkedTask ? linkedTask.title : 'General Work';
+    var info = describeRow(row);
     for (var i = 0; i < 7; i++) {
       var hrs = Number(row.hours[i] || 0);
       if (hrs <= 0) continue;
@@ -860,9 +941,13 @@ async function submitTimesheet() {
         hours: hrs,
         workType: 'work',
         billingType: row.billingType,
-        taskId: linkedTask ? linkedTask.id : null,
-        project: projectName,
-        description: row.description || (linkedTask ? (linkedTask.description || linkedTask.title) : 'General work')
+        projectId: info.projectId,
+        project: info.project,
+        taskId: info.taskId,
+        task: info.task,
+        workItemId: info.workItemId,
+        workItem: info.workItem,
+        description: row.description || info.workItem || info.task || 'General work'
       });
     }
   });

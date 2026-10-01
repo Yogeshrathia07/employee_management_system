@@ -72,6 +72,10 @@ class PayrollApp {
     const companySelect = document.getElementById('payroll-company-filter');
     if (!companySelect) {
       this.currentCompanyId = this.currentUser?.companyId || this.currentUser?.company?.id || null;
+      try {
+        const list = await api('GET', '/companies');
+        this._companies = Array.isArray(list) ? list : [];
+      } catch (e) { this._companies = []; }
       return;
     }
     try {
@@ -133,20 +137,22 @@ class PayrollApp {
   }
 
   _salaryToRow(salary) {
-    const user = salary.user || this._employees.find(e => e.id === salary.userId) || {};
+    const emp = this._employees.find(e => e.id === salary.userId) || {};
+    const user = Object.assign({}, emp, salary.user || {});
+    const calc = salary.payroll || {};
     return {
       id: salary.id,
       salaryId: salary.id,
       userId: salary.userId,
       name: user.name || '',
-      designation: user.position || user.role || '',
+      designation: user.position || user.jobTitle || '',
       month: this._monthNumberToName(salary.month),
       year: salary.year,
-      totalDays: new Date(salary.year, salary.month, 0).getDate(),
+      totalDays: calc.totalDays || salary.totalDays || PayrollCalc.daysInMonth(salary.month, salary.year),
       allowedLeave: salary.allowedLeave || 0,
       leaveTaken: salary.leaveTaken || 0,
-      workedDays: salary.totalWorkDays || 0,
-      ctc: salary.baseSalary || 0,
+      workedDays: calc.workedDays != null ? calc.workedDays : salary.workedDays,
+      ctc: calc.ctc != null ? calc.ctc : (salary.baseSalary || 0),
       basic: salary.basicSalary || 0,
       da: salary.da || 0,
       hra: salary.hra || 0,
@@ -207,44 +213,32 @@ class PayrollApp {
   }
 
   // ── Computed fields ──────────────────────────────────────────────────────
-  // Maximum allowed working days based on leaves
-  _calcMaxWd(r) {
-    const lt = +r.leaveTaken||0, al = +r.allowedLeave||0, td = +r.totalDays||0;
-    return Math.max(0, lt >= al ? td - lt + al : td);
+  // Every figure comes from PayrollCalc (/js/payroll-calc.js) — the same
+  // formula the server uses for stored totals and the PDF payslip.
+  _calc(r) {
+    const monthNo = this._monthNameToNumber(r.month);
+    return PayrollCalc.compute({
+      month: monthNo, year: r.year,
+      totalDays: r.totalDays,
+      workedDays: r.workedDays,
+      allowedLeave: r.allowedLeave,
+      leaveTaken: r.leaveTaken,
+      basicSalary: r.basic, da: r.da, hra: r.hra, conveyance: r.conveyance,
+      medicalExpenses: r.medicalExpenses, specialAllowance: r.special, bonus: r.bonus, ta: r.ta,
+      pfContribution: r.pfContribution, professionTax: r.professionTax, tds: r.tds,
+      salaryAdvance: r.salaryAdvance, manualDeductionAmount: r.manualDeductionAmount,
+      applyAbsentDeduction: r.applyAbsentDeduction,
+    });
   }
-  // Actual worked days — uses manual override (capped at max), else auto-calc
-  _wd(r) {
-    const max = this._calcMaxWd(r);
-    const stored = parseFloat(r.workedDays);
-    return (r.workedDays !== null && r.workedDays !== undefined && r.workedDays !== '' && !isNaN(stored))
-      ? Math.min(Math.max(0, stored), max)
-      : max;
-  }
-  _cw(r)  {
-    const td = +r.totalDays||0;
-    return td ? Math.round((+r.conveyance||0) / td * this._wd(r)) : (+r.conveyance||0);
-  }
-  _tg(r)  {
-    return (+r.basic||0)+(+r.da||0)+(+r.hra||0)+this._cw(r)
-          +(+r.medicalExpenses||0)+(+r.special||0)+(+r.bonus||0)+(+r.ta||0);
-  }
-  _td(r)  {
-    return (+r.pfContribution||0)+(+r.professionTax||0)+(+r.tds||0)+(+r.salaryAdvance||0)+this._ad(r);
-  }
-  _r10(n) { return Math.round((n || 0) / 10) * 10; }
-  _ad(r)  {
-    // If admin entered a manual amount, use it directly; otherwise auto-calc from absent days
-    const manualAmt = Math.max(0, parseFloat(r.manualDeductionAmount) || 0);
-    if (manualAmt > 0) return this._r10(manualAmt);
-
-    const totalDays  = +r.totalDays || 0;
-    const workedDays = +this._wd(r) || 0;
-    const paidLeave  = Math.min(+r.leaveTaken || 0, +r.allowedLeave || 0);
-    const absentDays = Math.max(0, totalDays - workedDays - paidLeave);
-    const perDayRate = totalDays > 0 ? (+r.ctc || 0) / totalDays : 0;
-    return totalDays > 0 ? this._r10(perDayRate * absentDays) : 0;
-  }
-  _net(r) { return this._tg(r) - this._td(r); }
+  // Maximum payable days: total days minus leave beyond the allowance
+  _calcMaxWd(r) { return this._calc(r).maxWorkedDays; }
+  // Worked (payable) days — manual value capped at the maximum, else the maximum
+  _wd(r)  { return this._calc(r).workedDays; }
+  _cw(r)  { return this._calc(r).conveyanceWorking; }
+  _tg(r)  { return this._calc(r).grossSalary; }
+  _td(r)  { return this._calc(r).totalDeductions; }
+  _ad(r)  { return this._calc(r).absentDeduction; }
+  _net(r) { return this._calc(r).netSalary; }
 
   // ── Update a cell ────────────────────────────────────────────────────────
   _update(rowId, field, value) {
@@ -292,7 +286,7 @@ class PayrollApp {
     r.gender = g && g !== 'unspecified' ? g.charAt(0).toUpperCase() + g.slice(1).toLowerCase() : '';
     r.companyName     = emp.company?.name || r.companyName || 'DHPE';
     if (emp.pfApplicable) {
-      r.pfContribution = Math.min(1800, Math.round(((r.basic || 0) + (r.da || 0)) * 0.12));
+      r.pfContribution = PayrollCalc.defaultPf(r.basic, r.da);
     }
     this._refreshRow(r);
   }
@@ -339,16 +333,15 @@ class PayrollApp {
         r.workedDays = maxWd;
       }
     }
-    // CTC = sum of all gross components (always kept in sync)
-    const tg = this._tg(r);
-    r.ctc = tg;
-    set('ctc',         tg);
-    set('convWorking', this._cw(r));
-    set('totalGross',  tg);
-    // absentDeduction uses r.ctc — must be called AFTER r.ctc is updated above
-    set('absentDeduction', this._ad(r));
-    set('totalDed',    this._td(r));
-    set('netPay',      this._net(r));
+    // CTC = full monthly structure; gross/deductions/net from the shared formula
+    const calc = this._calc(r);
+    r.ctc = calc.ctc;
+    set('ctc',         calc.ctc);
+    set('convWorking', calc.conveyanceWorking);
+    set('totalGross',  calc.grossSalary);
+    set('absentDeduction', calc.absentDeduction);
+    set('totalDed',    calc.totalDeductions);
+    set('netPay',      calc.netSalary);
   }
 
   // ── Row HTML ─────────────────────────────────────────────────────────────
@@ -393,7 +386,7 @@ class PayrollApp {
       <td>${n('allowedLeave','number',r.allowedLeave)}</td>
       <td>${n('leaveTaken','number',r.leaveTaken)}</td>
       <td><input type="number" class="ci auto-cell auto-wd" data-row="${r.id}" data-field="workedDays" value="${this._wd(r)}" min="0" max="${this._calcMaxWd(r)}" step="1" title="Max ${this._calcMaxWd(r)} days"></td>
-      <td>${au('ctc', this._tg(r), 'auto-green')}</td>
+      <td>${au('ctc', this._calc(r).ctc, 'auto-green')}</td>
       <td class="gross-zone">${n('basic','number',r.basic)}</td>
       <td class="gross-zone">${n('da','number',r.da)}</td>
       <td class="gross-zone">${n('hra','number',r.hra)}</td>
@@ -585,8 +578,9 @@ class PayrollApp {
     document.getElementById('add-emp-modal').style.display = 'flex';
     const satCb = document.getElementById('ae-include-sat');
     const sunCb = document.getElementById('ae-include-sun');
-    if (satCb) satCb.checked = false;
-    if (sunCb) sunCb.checked = false;
+    // Salary is monthly: the default pay period is the full calendar month.
+    if (satCb) satCb.checked = true;
+    if (sunCb) sunCb.checked = true;
     this._aeUpdateStats();
     // Pre-load timesheets + leaves in background for attendance summary
     Promise.all([
@@ -1065,7 +1059,7 @@ class PayrollApp {
         const g = emp.gender||'';
         r.gender          = g && g !== 'unspecified' ? g.charAt(0).toUpperCase()+g.slice(1) : '';
         r.companyName     = emp.company?.name || 'DHPE';
-        if (emp.pfApplicable) r.pfContribution = Math.min(1800, Math.round((r.basic+r.da)*0.12));
+        if (emp.pfApplicable && !e.pfContribution) r.pfContribution = PayrollCalc.defaultPf(r.basic, r.da);
       }
       this.rows.push(r);
     });
@@ -1447,80 +1441,90 @@ class PayrollApp {
       if (idx >= 0 && items[idx]) items[idx].classList.add('active');
     }
 
-    const wd      = this._wd(r);
-    const cw      = this._cw(r);
-    const tg      = this._tg(r);
-    const td      = this._td(r);
-    const np      = this._net(r);
-    const present = r.presentDays || wd;
-    const fmt    = (v) => `₹ ${(+v||0).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2})}`;
-    const fmtAmt = fmt;
-    const fmtDed = fmt;
+    const c       = this._calc(r);
+    const esc     = (v) => this._esc(v);
+    const fmt     = (v) => `₹ ${(+v||0).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2})}`;
+    const dayFmt  = (v) => { const n = +v || 0; return Number.isInteger(n) ? n : n.toFixed(1); };
     const today = new Date();
     const genDate = today.toLocaleDateString('en-IN', { day: '2-digit', month: 'long', year: 'numeric' });
 
-    // Find the employee to get additional details
-    const emp = this._employees.find(e => e.name === r.name);
+    // Employee + company details for the header
+    const emp = this._employees.find(e => e.id === r.userId) || this._employees.find(e => e.name === r.name) || {};
+    const companyId = emp.companyId || emp.company?.id || this.currentCompanyId;
+    const company = this._companies.find(co => String(co.id) === String(companyId)) || emp.company || {};
+    const joining = emp.joiningDate ? new Date(emp.joiningDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
+    const convLabel = c.conveyanceWorking !== c.conveyance ? `Conveyance (${dayFmt(c.workedDays)}/${dayFmt(c.totalDays)} days)` : 'Conveyance';
+    const absentLabel = c.absentDeductionIsManual ? 'Deduction (Admin set)' : `Absent / LOP (${dayFmt(c.unpaidDays)} day${c.unpaidDays === 1 ? '' : 's'})`;
 
     el.innerHTML = `
     <div class="salary-slip" id="printable-slip">
       <!-- Company Header -->
       <div class="ss-company-header">
-        <div class="ss-co-name">${r.companyName || 'DHPE'}</div>
-        <div class="ss-co-addr">${emp?.company?.address || '182/1 Purbachal, Rahara, Khardaha, North 24 PGS, Kolkata, West Bengal, Pin-700118'}</div>
-        <div class="ss-co-contact">${emp?.company?.phone || '+91-9876543210'} | ${emp?.company?.email || 'contact@dhpe.in'}</div>
+        <div class="ss-co-name">${esc(company.name || r.companyName || 'Company')}</div>
+        ${company.address ? `<div class="ss-co-addr">${esc(company.address)}</div>` : ''}
+        ${(company.phone || company.email) ? `<div class="ss-co-contact">${esc([company.phone, company.email].filter(Boolean).join(' | '))}</div>` : ''}
       </div>
 
       <!-- Salary Slip Title -->
       <div class="ss-title-bar">
         <div class="ss-title">SALARY SLIP</div>
-        <div class="ss-subtitle">For the month of ${r.month || '—'} ${r.year || ''}</div>
+        <div class="ss-subtitle">For the month of ${esc(r.month || '—')} ${esc(r.year || '')}</div>
       </div>
 
       <!-- Employee Details Grid -->
       <div class="ss-emp-grid">
         <div class="ss-emp-row">
           <span class="ss-label">Employee Name:</span>
-          <span class="ss-value">${r.prefix || ''} ${r.name}</span>
-          <span class="ss-label">Employee Code:</span>
-          <span class="ss-value">${emp?.employeeCode || 'EMP-' + String(r.id).padStart(4, '0')}</span>
+          <span class="ss-value">${esc((r.prefix || '') + ' ' + r.name)}</span>
+          <span class="ss-label">Employee ID:</span>
+          <span class="ss-value">${esc(emp.employeeCode || 'EMP-' + String(r.userId || r.id).padStart(4, '0'))}</span>
         </div>
         <div class="ss-emp-row">
           <span class="ss-label">Department:</span>
-          <span class="ss-value">${emp?.department || '—'}</span>
+          <span class="ss-value">${esc(emp.department || '—')}</span>
           <span class="ss-label">Designation:</span>
-          <span class="ss-value">${r.designation || '—'}</span>
+          <span class="ss-value">${esc(r.designation || emp.position || '—')}</span>
+        </div>
+        <div class="ss-emp-row">
+          <span class="ss-label">Work Location:</span>
+          <span class="ss-value">${esc(emp.workLocation || '—')}</span>
+          <span class="ss-label">Joining Date:</span>
+          <span class="ss-value">${esc(joining)}</span>
         </div>
         <div class="ss-emp-row">
           <span class="ss-label">Email:</span>
-          <span class="ss-value">${emp?.email || '—'}</span>
+          <span class="ss-value">${esc(emp.email || '—')}</span>
           <span class="ss-label">Phone:</span>
-          <span class="ss-value">${emp?.phone || '—'}</span>
+          <span class="ss-value">${esc(emp.phone || '—')}</span>
         </div>
         <div class="ss-emp-row">
-          <span class="ss-label">Month:</span>
-          <span class="ss-value">${r.month || '—'} ${r.year || ''}</span>
-          <span class="ss-label">CTC:</span>
-          <span class="ss-value">${fmtAmt(r.ctc)}</span>
+          <span class="ss-label">Pay Period:</span>
+          <span class="ss-value">${esc(r.month || '—')} ${esc(r.year || '')}</span>
+          <span class="ss-label">Monthly CTC:</span>
+          <span class="ss-value">${fmt(c.ctc)}</span>
         </div>
       </div>
 
-      <div class="ss-att-flat">
+      <div class="ss-att-flat" style="grid-template-columns:repeat(5,1fr);">
         <div class="ss-att-flat-item">
-          <div class="ss-att-flat-label">TOTAL DAY</div>
-          <div class="ss-att-flat-val">${r.totalDays || 0}</div>
+          <div class="ss-att-flat-label">TOTAL DAYS</div>
+          <div class="ss-att-flat-val">${dayFmt(c.totalDays)}</div>
         </div>
         <div class="ss-att-flat-item">
           <div class="ss-att-flat-label">LEAVE TAKEN</div>
-          <div class="ss-att-flat-val">${r.leaveTaken || 0}</div>
+          <div class="ss-att-flat-val">${dayFmt(c.leaveTaken)}</div>
         </div>
         <div class="ss-att-flat-item">
-          <div class="ss-att-flat-label">WORKED DAY</div>
-          <div class="ss-att-flat-val">${wd}</div>
+          <div class="ss-att-flat-label">LOP DAYS</div>
+          <div class="ss-att-flat-val">${dayFmt(c.lopDays)}</div>
         </div>
         <div class="ss-att-flat-item">
-          <div class="ss-att-flat-label">PRESENT DAY</div>
-          <div class="ss-att-flat-val">${present}</div>
+          <div class="ss-att-flat-label">WORKED DAYS</div>
+          <div class="ss-att-flat-val">${dayFmt(c.workedDays)}</div>
+        </div>
+        <div class="ss-att-flat-item">
+          <div class="ss-att-flat-label">PRESENT DAYS</div>
+          <div class="ss-att-flat-val">${dayFmt(c.presentDays)}</div>
         </div>
       </div>
 
@@ -1540,21 +1544,21 @@ class PayrollApp {
             </tr>
           </thead>
           <tbody>
-            <tr><td>Basic Salary</td>           <td class="ss-ea">${fmtAmt(r.basic)}</td>           <td class="ss-dl">PF Contribution</td> <td class="ss-da">${fmtDed(r.pfContribution)}</td></tr>
-            <tr><td>Dearness Allow. (DA)</td>   <td class="ss-ea">${fmtAmt(r.da)}</td>              <td class="ss-dl">Profession Tax</td>   <td class="ss-da">${fmtDed(r.professionTax)}</td></tr>
-            <tr><td>House Rent Allow. (HRA)</td><td class="ss-ea">${fmtAmt(r.hra)}</td>             <td class="ss-dl">TDS</td>              <td class="ss-da">${fmtDed(r.tds)}</td></tr>
-            <tr><td>Conveyance</td>             <td class="ss-ea">${fmtAmt(cw)}</td>                <td class="ss-dl">Salary Advance</td>   <td class="ss-da">${fmtDed(r.salaryAdvance)}</td></tr>
-            <tr><td>Medical Expenses</td>       <td class="ss-ea">${fmtAmt(r.medicalExpenses)}</td> <td class="ss-dl">${(+r.manualDeductionAmount>0)?'Deduction (Admin set)':'Absent Deduction'}</td> <td class="ss-da">${fmtDed(this._ad(r))}</td></tr>
-            <tr><td>Special Allowance</td>      <td class="ss-ea">${fmtAmt(r.special)}</td>         <td class="ss-dl"></td>                 <td class="ss-da"></td></tr>
-            <tr><td>Bonus</td>                  <td class="ss-ea">${fmtAmt(r.bonus)}</td>           <td class="ss-dl"></td>                 <td class="ss-da"></td></tr>
-            <tr><td>Travel Allow. (TA)</td>     <td class="ss-ea">${fmtAmt(r.ta)}</td>              <td class="ss-dl"></td>                 <td class="ss-da"></td></tr>
+            <tr><td>Basic Salary</td>           <td class="ss-ea">${fmt(c.basicSalary)}</td>       <td class="ss-dl">PF Contribution</td> <td class="ss-da">${fmt(c.pfContribution)}</td></tr>
+            <tr><td>Dearness Allow. (DA)</td>   <td class="ss-ea">${fmt(c.da)}</td>                <td class="ss-dl">Profession Tax</td>   <td class="ss-da">${fmt(c.professionTax)}</td></tr>
+            <tr><td>House Rent Allow. (HRA)</td><td class="ss-ea">${fmt(c.hra)}</td>               <td class="ss-dl">TDS</td>              <td class="ss-da">${fmt(c.tds)}</td></tr>
+            <tr><td>${esc(convLabel)}</td>      <td class="ss-ea">${fmt(c.conveyanceWorking)}</td> <td class="ss-dl">Salary Advance</td>   <td class="ss-da">${fmt(c.salaryAdvance)}</td></tr>
+            <tr><td>Medical Allowance</td>      <td class="ss-ea">${fmt(c.medicalWorking)}</td>    <td class="ss-dl">${esc(absentLabel)}</td> <td class="ss-da">${fmt(c.absentDeduction)}</td></tr>
+            <tr><td>Special Allowance</td>      <td class="ss-ea">${fmt(c.specialAllowance)}</td>  <td class="ss-dl"></td>                 <td class="ss-da"></td></tr>
+            <tr><td>Bonus</td>                  <td class="ss-ea">${fmt(c.bonus)}</td>             <td class="ss-dl"></td>                 <td class="ss-da"></td></tr>
+            <tr><td>Travel Allow. (TA)</td>     <td class="ss-ea">${fmt(c.ta)}</td>                <td class="ss-dl"></td>                 <td class="ss-da"></td></tr>
           </tbody>
           <tfoot>
             <tr>
               <td class="ss-ed-ft-el"><strong>Gross Salary</strong></td>
-              <td class="ss-ed-ft-ea"><strong>${fmtAmt(tg)}</strong></td>
+              <td class="ss-ed-ft-ea"><strong>${fmt(c.grossSalary)}</strong></td>
               <td class="ss-ed-ft-dl"><strong>Total Deductions</strong></td>
-              <td class="ss-ed-ft-da"><strong>${fmtDed(td)}</strong></td>
+              <td class="ss-ed-ft-da"><strong>${fmt(c.totalDeductions)}</strong></td>
             </tr>
           </tfoot>
         </table>
@@ -1563,11 +1567,20 @@ class PayrollApp {
       <!-- NET PAY Bar -->
       <div class="ss-netpay-bar">
         <span class="ss-netpay-label" style="color:#fff!important;">NET PAY</span>
-        <span class="ss-netpay-val" style="color:#fff!important;font-size:22px;font-weight:900;">₹ ${np.toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2})}</span>
+        <span class="ss-netpay-val" style="color:#fff!important;font-size:22px;font-weight:900;">${fmt(c.netSalary)}</span>
       </div>
 
       <!-- Amount in Words -->
-      <div class="ss-words-row">${numberToWords(np)}</div>
+      <div class="ss-words-row">${numberToWords(c.netSalary)}</div>
+      <div class="ss-words-row" style="font-style:normal;">
+        Paid leave ${dayFmt(c.paidLeave)} of ${dayFmt(c.allowedLeave)} allowed · LOP ${dayFmt(c.lopDays)} day(s) ·
+        Per-day rate for LOP ${fmt(c.perDayRate)} (CTC excl. conveyance ÷ ${dayFmt(c.totalDays)} days)
+      </div>
+
+      <!-- Project / work summary (approved timesheets) -->
+      <div class="ss-work-summary" id="ss-work-summary" style="padding:8px 20px;font-size:11px;">
+        ${r.salaryId ? '<span style="color:#9ca3af;">Loading project / work summary…</span>' : ''}
+      </div>
 
       <!-- Footer -->
       <div class="ss-footer">
@@ -1577,10 +1590,47 @@ class PayrollApp {
         </div>
         <div class="ss-footer-right">
           <div style="font-size:12px;color:#6b7280;">Authorized by</div>
-          <div style="font-size:14px;font-weight:700;color:#111827;margin-top:2px;">${r.authorizedSignatory || 'Admin'}</div>
+          <div style="font-size:14px;font-weight:700;color:#111827;margin-top:2px;">${esc(company.authorizedSignatory || r.authorizedSignatory || 'Admin')}</div>
         </div>
       </div>
     </div>`;
+
+    if (r.salaryId) this._loadSlipWorkSummary(r.salaryId);
+  }
+
+  async _loadSlipWorkSummary(salaryId) {
+    const box = document.getElementById('ss-work-summary');
+    if (!box) return;
+    try {
+      const data = await api('GET', `/salary/${salaryId}/work-summary`);
+      if (this._activeSlipId && String(this._activeSlipId) !== String(salaryId)) return;
+      const rows = (data && data.rows) || [];
+      if (!rows.length) {
+        box.innerHTML = '<span style="color:#9ca3af;">No approved timesheet hours for this month.</span>';
+        return;
+      }
+      box.innerHTML = `
+        <div style="display:flex;justify-content:space-between;font-weight:800;color:#111827;margin-bottom:4px;">
+          <span>Project / Work Summary (approved timesheets)</span>
+          <span style="font-weight:600;color:#6b7280;">${(+data.totalHours || 0).toFixed(1)} hrs on ${data.totalDays} day(s)</span>
+        </div>
+        <table style="width:100%;border-collapse:collapse;font-size:11px;">
+          <thead><tr style="background:#f3f4f6;">
+            <th style="text-align:left;padding:4px 6px;">Project / Work</th>
+            <th style="text-align:right;padding:4px 6px;">Days</th>
+            <th style="text-align:right;padding:4px 6px;">Billable Hrs</th>
+            <th style="text-align:right;padding:4px 6px;">Hours</th>
+          </tr></thead>
+          <tbody>${rows.map(row => `<tr>
+            <td style="padding:3px 6px;border-bottom:1px solid #eee;">${this._esc(row.label)}</td>
+            <td style="padding:3px 6px;border-bottom:1px solid #eee;text-align:right;">${row.days}</td>
+            <td style="padding:3px 6px;border-bottom:1px solid #eee;text-align:right;">${(+row.billableHours || 0).toFixed(1)}</td>
+            <td style="padding:3px 6px;border-bottom:1px solid #eee;text-align:right;font-weight:700;">${(+row.hours || 0).toFixed(1)}</td>
+          </tr>`).join('')}</tbody>
+        </table>`;
+    } catch (e) {
+      box.innerHTML = '';
+    }
   }
 
   printSlip() {
@@ -1720,7 +1770,8 @@ class PayrollApp {
           month: this._monthNameToNumber(row.month),
           year: Number(row.year),
           companyId: companyId || emp.companyId || emp.company?.id || null,
-          totalWorkDays: Number(row.workedDays || row.totalDays || 0),
+          totalDays: Number(row.totalDays || 0) || null,
+          workedDays: this._wd(row),
           leaveTaken: Number(row.leaveTaken || 0),
           allowedLeave: Number(row.allowedLeave || 0),
           baseSalary: Number(row.ctc || 0),

@@ -28,6 +28,27 @@ function inferRoundOffMode(value) {
   if (amount < -0.004) return 'minus';
   return 'none';
 }
+function currentFY() {
+  const now = new Date();
+  const year = now.getFullYear();
+  const start = now.getMonth() + 1 >= 4 ? year : year - 1;
+  return String(start).slice(-2) + '-' + String(start + 1).slice(-2);
+}
+async function nextInvoiceNumber(code) {
+  const safeFY = currentFY();
+  const safeCode = String(code || 'INV').toUpperCase().replace(/[^A-Z0-9]/g, '') || 'INV';
+  const rows = await Invoice.findAll({
+    attributes: ['invoiceNumber'],
+    where: { invoiceNumber: { [Op.like]: `%/${safeFY}/%` } },
+    raw: true,
+  });
+  const maxSequence = rows.reduce((max, row) => {
+    const match = String(row.invoiceNumber || '').match(/^(\d+)\//);
+    return match ? Math.max(max, Number(match[1])) : max;
+  }, 0);
+  const random = Math.random().toString(36).slice(2, 8).toUpperCase();
+  return `${String(maxSequence + 1).padStart(3, '0')}/${safeCode}/${safeFY}/${random}`;
+}
 function normalizedStateCode(code, gstin) {
   const raw = String(code || '').trim();
   if (raw) return raw.length === 1 ? '0' + raw : raw;
@@ -48,6 +69,20 @@ function taxModeFromQuotation(record) {
   if (sellerStateCode && clientStateCode && sellerStateCode !== clientStateCode) return 'igst';
   return 'split';
 }
+// Copy the linked client's master data onto the quotation so the PDF and the
+// conversions (proforma / invoice) always carry the client's current details.
+function applyClientSnapshot(target, client) {
+  if (!target || !client) return target;
+  target.clientId = client.id;
+  target.clientName = client.name || '';
+  target.clientGstin = client.gstin || '';
+  target.clientPan = client.pan || '';
+  target.clientEmail = client.email || '';
+  target.clientAddress = client.billingAddress || '';
+  target.clientState = client.state || '';
+  target.clientStateCode = normalizedStateCode(client.stateCode, client.gstin);
+  return target;
+}
 function providedNumber(value) {
   if (value === null || value === undefined || (typeof value === 'string' && value.trim() === '')) return null;
   const num = Number(value);
@@ -59,21 +94,32 @@ function preferStoredMoney(value, derivedValue) {
   if (Math.abs(stored) <= 0.004 && Math.abs(derivedValue) > 0.004) return roundMoney(derivedValue);
   return roundMoney(stored);
 }
+// An empty "Valid Till" used to be stored as 0000-00-00; treat that as no date.
+function cleanOptionalDate(value) {
+  const v = String(value || '').trim().slice(0, 10);
+  return /^\d{4}-\d{2}-\d{2}$/.test(v) && v !== '0000-00-00' ? v : null;
+}
 function normalizeQuotationRecord(record) {
   const plain = Object.assign({}, record || {});
+  plain.validTill = cleanOptionalDate(plain.validTill);
   const taxMode = taxModeFromQuotation(plain);
   const items = normalizeAccountItems(plain.items, taxMode);
   const derived = deriveItemTotals(items);
   const roundOff = roundMoney(providedNumber(plain.roundOff) || 0);
   const derivedTotalTax = roundMoney(derived.totalCgst + derived.totalSgst + derived.totalIgst);
   plain.items = items;
-  plain.subtotal = preferStoredMoney(plain.subtotal, derived.subtotal);
-  plain.totalCgst = preferStoredMoney(plain.totalCgst, derived.totalCgst);
-  plain.totalSgst = preferStoredMoney(plain.totalSgst, derived.totalSgst);
-  plain.totalIgst = preferStoredMoney(plain.totalIgst, derived.totalIgst);
-  plain.totalTax = preferStoredMoney(plain.totalTax, derivedTotalTax);
+  // Items are the source of truth. Never accept a browser-supplied summary that
+  // disagrees with them, otherwise a quotation can show an incorrect total.
+  const hasItems = Array.isArray(plain.items) && plain.items.length > 0;
+  plain.subtotal = hasItems ? roundMoney(derived.subtotal) : preferStoredMoney(plain.subtotal, derived.subtotal);
+  plain.totalCgst = hasItems ? roundMoney(derived.totalCgst) : preferStoredMoney(plain.totalCgst, derived.totalCgst);
+  plain.totalSgst = hasItems ? roundMoney(derived.totalSgst) : preferStoredMoney(plain.totalSgst, derived.totalSgst);
+  plain.totalIgst = hasItems ? roundMoney(derived.totalIgst) : preferStoredMoney(plain.totalIgst, derived.totalIgst);
+  plain.totalTax = hasItems ? derivedTotalTax : preferStoredMoney(plain.totalTax, derivedTotalTax);
   plain.roundOff = roundOff;
-  plain.totalAmount = preferStoredMoney(plain.totalAmount, plain.subtotal + plain.totalTax + roundOff);
+  plain.totalAmount = hasItems
+    ? roundMoney(plain.subtotal + plain.totalTax + roundOff)
+    : preferStoredMoney(plain.totalAmount, plain.subtotal + plain.totalTax + roundOff);
   return plain;
 }
 
@@ -111,9 +157,11 @@ exports.createQuotation = async (req, res) => {
   try {
     const data = normalizeQuotationRecord(Object.assign({}, req.body));
     if (!data.date) return res.status(400).json({ message: 'Date required' });
-    if (!data.clientName) return res.status(400).json({ message: 'Client name required' });
-    if (data.clientId) {
-      await assertScopedRelation(Client, 'client', req, data.clientId, 'Client not found');
+    if (!data.clientId) return res.status(400).json({ message: 'Please select a client from the Client list' });
+    const client = await assertScopedRelation(Client, 'client', req, data.clientId, 'Client not found');
+    applyClientSnapshot(data, client);
+    if (data.validTill && data.validTill < data.date) {
+      return res.status(400).json({ message: 'Valid Till date cannot be before the quotation date' });
     }
     const company = await resolveScopedCompany(req, data);
     if (company) applySellerCompanySnapshot(data, company);
@@ -124,7 +172,7 @@ exports.createQuotation = async (req, res) => {
     data.createdBy = req.user.id;
     const q = await Quotation.create(data);
     res.status(201).json(q);
-  } catch (err) { res.status(500).json({ message: err.message }); }
+  } catch (err) { res.status(err.status || 500).json({ message: err.message }); }
 };
 
 // ── PUT /quotations/:id ──────────────────────────────────────────────────────
@@ -134,15 +182,21 @@ exports.updateQuotation = async (req, res) => {
     const q = await findScopedByPk(Quotation, 'quotation', req, req.params.id, null, 'Quotation not found');
     if (!q) return res.status(404).json({ message: 'Quotation not found' });
     const updates = normalizeQuotationRecord(Object.assign({}, q.toJSON(), req.body));
-    if (updates.clientId) {
-      await assertScopedRelation(Client, 'client', req, updates.clientId, 'Client not found');
+    if (!updates.clientId) return res.status(400).json({ message: 'Please select a client from the Client list' });
+    const client = await assertScopedRelation(Client, 'client', req, updates.clientId, 'Client not found');
+    applyClientSnapshot(updates, client);
+    if (updates.validTill && updates.validTill < updates.date) {
+      return res.status(400).json({ message: 'Valid Till date cannot be before the quotation date' });
+    }
+    if (!String(updates.quotationNumber || '').trim()) {
+      return res.status(400).json({ message: 'Quotation number is required' });
     }
     const company = await resolveScopedCompany(req, Object.assign({}, q.toJSON(), updates));
     if (company) applySellerCompanySnapshot(updates, company);
     if (getActorCompanyId(req)) updates.companyId = getActorCompanyId(req);
     await q.update(updates);
     res.json(q);
-  } catch (err) { res.status(500).json({ message: err.message }); }
+  } catch (err) { res.status(err.status || 500).json({ message: err.message }); }
 };
 
 // ── DELETE /quotations/:id ───────────────────────────────────────────────────
@@ -164,6 +218,9 @@ exports.convertToProforma = async (req, res) => {
     if (req.user.role === 'admin') await syncAccountsCompanyIds();
     const q = await findScopedByPk(Quotation, 'quotation', req, req.params.id, null, 'Quotation not found');
     if (!q) return res.status(404).json({ message: 'Quotation not found' });
+    if (q.status === 'Converted' || q.convertedToId) {
+      return res.status(409).json({ message: 'This quotation has already been converted' });
+    }
     const source = normalizeQuotationRecord(q.toJSON());
 
     const pro = await Proforma.create({
@@ -222,10 +279,14 @@ exports.convertToInvoice = async (req, res) => {
     if (req.user.role === 'admin') await syncAccountsCompanyIds();
     const q = await findScopedByPk(Quotation, 'quotation', req, req.params.id, null, 'Quotation not found');
     if (!q) return res.status(404).json({ message: 'Quotation not found' });
+    if (q.status === 'Converted' || q.convertedToId) {
+      return res.status(409).json({ message: 'This quotation has already been converted' });
+    }
     const source = normalizeQuotationRecord(q.toJSON());
+    const companyCode = String(source.sellerName || 'INV').match(/[A-Z0-9]+/i);
 
     const inv = await Invoice.create({
-      invoiceNumber:  'INV-' + genCode(),
+      invoiceNumber:  await nextInvoiceNumber(companyCode ? companyCode[0] : 'INV'),
       companyId:      source.companyId || null,
       invoiceDate:    source.date,
       clientId:       source.clientId,
@@ -465,23 +526,27 @@ exports.generatePDF = async (req, res) => {
           ]),
       ...(parseFloat(q.roundOff) ? [['Round Off:', fmtINR(q.roundOff)]] : []),
     ];
-    const sumRowH = 12;
+    // Same layout as the invoice/proforma summary: each row's separator is drawn
+    // below it, so the box's top border is the only line above "Subtotal".
+    const sumRowH = 11;
     const sumTotalH = 14;
+    const sumH = sumLines.length * sumRowH + sumTotalH;
     const wordText = numWords(parseFloat(q.totalAmount || 0));
-    const botH = Math.max(sumLines.length * sumRowH + sumTotalH + 3, txtH(wordText, HW - 14, 7.5) + 18);
-    fillBox(X + HW, y + 3 + sumLines.length * sumRowH, HW, sumTotalH, HBG);
+    const botH = Math.max(sumH, txtH(wordText, HW - 14, 7.5) + 16);
     box(X, y, W, botH, LBD);
     vLine(X + HW, y, y + botH, LBD);
     txt('Amount in Words:', X + 5, y + 4, HW - 10, { size: 7.5, bold: true, color: BLK });
     txt(wordText, X + 5, y + 14, HW - 10, { size: 7.5, color: BLK });
 
-    let sy = y + 3;
+    let sy = y;
     sumLines.forEach(([label, val]) => {
-      hLine(sy, X + HW, X + W, LBD);
-      txt(label, X + HW + 4, sy + 2, HW / 2 - 6, { size: 7.5, color: BLK });
-      txt(val, X + HW + HW / 2, sy + 2, HW / 2 - 6, { size: 7.5, align: 'right', color: BLK });
       sy += sumRowH;
+      txt(label, X + HW + 4, sy - 8, HW / 2 - 6, { size: 7.5, color: BLK });
+      txt(val, X + HW + HW / 2, sy - 8, HW / 2 - 6, { size: 7.5, align: 'right', color: BLK });
+      hLine(sy, X + HW, X + W, LBD);
     });
+    fillBox(X + HW, sy, HW, sumTotalH, HBG);
+    box(X + HW, sy, HW, sumTotalH, LBD);
     txt('Amount After Tax:', X + HW + 4, sy + 3, HW / 2 - 6, { size: 8, bold: true, color: BLK });
     txt(fmtINR(q.totalAmount), X + HW + HW / 2, sy + 3, HW / 2 - 6, { size: 8, bold: true, color: BLK, align: 'right' });
     y += botH;

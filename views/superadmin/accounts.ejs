@@ -24,6 +24,8 @@
         <div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:24px;background:var(--bg-input);border-radius:12px;padding:4px;">
           <button class="acc-tab active" id="tab-home"    onclick="showModule('home')"><i class="bx bxs-home"></i> Dashboard</button>
           <button class="acc-tab" id="tab-inv"     onclick="showModule('inv')"><i class="bx bxs-receipt"></i> Invoices <span id="tab-count-inv" class="acc-tab-badge"></span></button>
+          <button class="acc-tab" id="tab-pay"     onclick="showModule('pay')"><i class="bx bxs-wallet"></i> Payments <span id="tab-count-pay" class="acc-tab-badge"></span></button>
+          <button class="acc-tab" id="tab-tds"     onclick="showModule('tds')"><i class="bx bxs-calculator"></i> TDS Master</button>
           <button class="acc-tab" id="tab-pro"     onclick="showModule('pro')"><i class="bx bxs-file-doc"></i> Proforma <span id="tab-count-pro" class="acc-tab-badge"></span></button>
           <button class="acc-tab" id="tab-quo"     onclick="showModule('quo')"><i class="bx bxs-notepad"></i> Quotations <span id="tab-count-quo" class="acc-tab-badge"></span></button>
           <button class="acc-tab" id="tab-po"      onclick="showModule('po')"><i class="bx bxs-truck"></i> Purchase Orders <span id="tab-count-po" class="acc-tab-badge"></span></button>
@@ -40,6 +42,8 @@
           <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:16px;">
             <% var modules = [
               {key:'inv', icon:'bxs-receipt',         title:'Invoices',            desc:'Manage client invoices and billing'},
+              {key:'pay', icon:'bxs-wallet',          title:'Payments',            desc:'Record payments with a TDS / deduction breakup'},
+              {key:'tds', icon:'bxs-calculator',      title:'TDS Master',          desc:'TDS rates, thresholds and conditions'},
               {key:'pro', icon:'bxs-file-doc',         title:'Proforma Invoices',   desc:'Generate preliminary invoices for clients'},
               {key:'quo', icon:'bxs-notepad',          title:'Quotations',          desc:'Create and send quotes to potential clients'},
               {key:'po',  icon:'bxs-truck',            title:'Purchase Orders',     desc:'Manage vendor purchase orders'},
@@ -205,6 +209,65 @@
           </div>
         </div>
 
+        <!-- ═══════════════════════════════════════════════ PAYMENTS -->
+        <div id="mod-pay" class="acc-module" style="display:none;">
+          <div style="margin-bottom:16px;">
+            <div style="font-size:17px;font-weight:800;color:var(--text-primary);margin-bottom:4px;"><i class="bx bxs-wallet" style="color:var(--accent);margin-right:6px;"></i>Payments &amp; Payment Breakup</div>
+            <div style="font-size:12px;color:var(--text-muted);">Every payment gets its own breakup: Gross + GST − TDS − GST TDS − Retention − Advance Recovery − Other Recovery = Net. TDS follows the TDS Master (rate + thresholds).</div>
+          </div>
+          <div id="pay-summary" class="pay-summary"></div>
+          <div class="admin-toolbar" style="margin-bottom:16px;">
+            <div class="search-bar" style="width:240px;"><span class="search-icon"><i class="bx bx-search"></i></span><input type="text" id="pay-search" placeholder="Search payment, party, invoice, UTR..." oninput="renderPayments()"></div>
+            <select id="pay-fy" class="form-control" style="width:140px" onchange="renderPayments()"><option value="">All FY</option></select>
+            <select id="pay-type" class="form-control" style="width:160px" onchange="renderPayments()">
+              <option value="">All Types</option><option value="bill">Against Invoice / R.A. Bill</option><option value="advance">Advance</option>
+            </select>
+            <span id="pay-invoice-filter" class="pay-filter-chip" style="display:none;"></span>
+            <button class="btn btn-primary" style="margin-left:auto;" onclick="openPaymentModal()"><i class="bx bx-plus-circle"></i> Record Payment</button>
+          </div>
+          <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;">
+            <div class="table-wrapper" style="overflow-x:auto;">
+              <table style="width:100%;border-collapse:collapse;">
+                <thead><tr style="background:var(--bg-input);border-bottom:1px solid var(--border);">
+                  <th class="acc-th">Payment #</th><th class="acc-th">Date</th><th class="acc-th">Party</th><th class="acc-th">Invoice / R.A. Bill</th>
+                  <th class="acc-th" style="text-align:right;">Gross + GST</th><th class="acc-th" style="text-align:right;">TDS</th>
+                  <th class="acc-th" style="text-align:right;">Other Ded.</th><th class="acc-th" style="text-align:right;">Net</th>
+                  <th class="acc-th">Mode / Ref</th><th class="acc-th"></th>
+                </tr></thead>
+                <tbody id="pay-body"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- ═══════════════════════════════════════════════ TDS MASTER -->
+        <div id="mod-tds" class="acc-module" style="display:none;">
+          <div style="margin-bottom:16px;">
+            <div style="font-size:17px;font-weight:800;color:var(--text-primary);margin-bottom:4px;"><i class="bx bxs-calculator" style="color:var(--accent);margin-right:6px;"></i>TDS Master</div>
+            <div style="font-size:12px;color:var(--text-muted);">TDS is calculated from the rate <b>and</b> the slab: no TDS while a payment is within the single-payment limit and the party's financial-year total is within the aggregate limit. When the FY total crosses the aggregate limit, TDS is also taken on the earlier untaxed payments of that year ("Whole amount"). "Excess only" (e.g. 194Q) taxes only the amount above the limit.</div>
+          </div>
+          <div class="admin-toolbar" style="margin-bottom:16px;">
+            <select id="tds-company-sel" class="form-control" style="width:220px;display:none;" onchange="renderTdsRules()"></select>
+            <label style="display:flex;align-items:center;gap:6px;font-size:13px;"><input type="checkbox" id="tds-show-inactive" onchange="renderTdsRules()"> Show inactive</label>
+            <div style="margin-left:auto;display:flex;gap:8px;flex-wrap:wrap;">
+              <button class="btn btn-ghost" onclick="restoreTdsDefaults()"><i class="bx bx-reset"></i> Restore Default Rules</button>
+              <button class="btn btn-primary" onclick="openTdsModal()"><i class="bx bx-plus"></i> New TDS Rule</button>
+            </div>
+          </div>
+          <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;">
+            <div class="table-wrapper" style="overflow-x:auto;">
+              <table style="width:100%;border-collapse:collapse;">
+                <thead><tr style="background:var(--bg-input);border-bottom:1px solid var(--border);">
+                  <th class="acc-th">TDS Code</th><th class="acc-th">Nature</th><th class="acc-th">Section</th><th class="acc-th">Payee Type</th>
+                  <th class="acc-th" style="text-align:right;">Rate</th><th class="acc-th" style="text-align:right;">Single Payment Limit</th>
+                  <th class="acc-th" style="text-align:right;">FY Aggregate Limit</th><th class="acc-th">Basis</th><th class="acc-th">Applicable From</th><th class="acc-th">Active</th><th class="acc-th"></th>
+                </tr></thead>
+                <tbody id="tds-body"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
         <!-- ═══════════════════════════════════════════════ PROFORMA -->
         <div id="mod-pro" class="acc-module" style="display:none;">
           <div class="admin-toolbar" style="margin-bottom:16px;">
@@ -237,7 +300,7 @@
             <select id="quo-status" class="form-control" style="width:140px" onchange="renderQuotations()">
               <option value="">All Status</option><option>Draft</option><option>Sent</option><option>Accepted</option><option>Rejected</option>
             </select>
-            <button class="btn btn-primary" style="margin-left:auto;" onclick="openDocModal('quo')"><i class="bx bx-plus"></i> New Quotation</button>
+            <button class="btn btn-primary" style="margin-left:auto;" onclick="openQuoModal()"><i class="bx bx-plus"></i> New Quotation</button>
           </div>
           <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;">
             <table style="width:100%;border-collapse:collapse;">
@@ -496,11 +559,34 @@
             <input type="date" id="gst-bill-to" style="width:100%;border:1px solid #d1d5db;border-radius:8px;padding:9px 12px;font-size:13px;color:#111;background:#fff;box-sizing:border-box;">
           </div>
         </div>
-        <div style="margin-top:16px;">
+        <div style="margin-top:16px;display:flex;align-items:center;gap:18px;flex-wrap:wrap;">
           <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:#111;cursor:pointer;font-weight:500;">
-            <input type="checkbox" id="gst-ra-bill" style="width:16px;height:16px;cursor:pointer;">
+            <input type="checkbox" id="gst-ra-bill" style="width:16px;height:16px;cursor:pointer;" onchange="toggleRaBillMode()">
             This is an R.A. Bill
           </label>
+          <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:#111;font-weight:500;">
+            PDF Layout
+            <select id="gst-pdf-orientation" style="border:1px solid #d1d5db;border-radius:8px;padding:6px 10px;font-size:13px;color:#111;background:#fff;">
+              <option value="portrait">Portrait</option>
+              <option value="landscape">Landscape</option>
+            </select>
+          </label>
+        </div>
+        <!-- R.A. bill series: based on the previous / original bill -->
+        <div id="gst-ra-panel" class="ra-panel" style="display:none;">
+          <div class="ra-panel-grid">
+            <div>
+              <label class="ra-label">R.A. Bill No.</label>
+              <input type="number" id="gst-ra-no" min="1" step="1" class="ra-input" placeholder="1">
+            </div>
+            <div>
+              <label class="ra-label">Based on Previous / Original Bill</label>
+              <select id="gst-ra-prev" class="ra-input" onchange="onRaPrevBillChange(this.value)">
+                <option value="">— First R.A. bill (no previous bill) —</option>
+              </select>
+            </div>
+          </div>
+          <div id="gst-ra-info" class="ra-info">Enter the <b>Original Qty</b> for each item. For later bills, choose the previous R.A. bill: previously billed quantities are filled in automatically and the cumulative / balance quantities are calculated for you.</div>
         </div>
       </div>
 
@@ -1019,13 +1105,23 @@
       <input type="hidden" id="doc-type">
       <div class="form-group" id="doc-company-group" style="display:none;">
         <label class="form-label">Company Name</label>
-        <select id="doc-company-sel" class="form-control" onchange="renderDocCompanyMeta()"></select>
+        <select id="doc-company-sel" class="form-control" onchange="renderDocCompanyMeta();refreshQuoClientOptions();updateDocTotal();"></select>
         <div id="doc-company-meta" style="margin-top:8px;padding:10px 12px;border:1px solid var(--border);border-radius:8px;background:#f8fafc;color:#475569;font-size:12px;line-height:1.45;">Select a company to use for this quotation.</div>
       </div>
       <div class="form-row">
         <div class="form-group"><label class="form-label">ID / Number</label><input type="text" id="doc-id" class="form-control" style="background:#fff;font-weight:600;"></div>
-        <div class="form-group"><label class="form-label" id="doc-party-label">Client Name</label><input type="text" id="doc-party" class="form-control" placeholder="Client name"></div>
+        <div class="form-group">
+          <label class="form-label" id="doc-party-label">Client <span style="color:#ef4444">*</span></label>
+          <div style="display:flex;gap:8px;align-items:center;">
+            <select id="doc-client-sel" class="form-control" style="flex:1;min-width:0;" onchange="onQuoClientChange()">
+              <option value="">Loading clients…</option>
+            </select>
+            <button type="button" class="btn btn-ghost btn-sm" style="white-space:nowrap;" onclick="openCltModalFromQuotation()" title="Register a new client"><i class="bx bx-plus"></i> New Client</button>
+          </div>
+          <input type="hidden" id="doc-party">
+        </div>
       </div>
+      <div id="doc-client-meta" style="display:none;margin:-4px 0 14px;padding:10px 12px;border:1px solid var(--border);border-radius:8px;background:#f8fafc;color:#475569;font-size:12px;line-height:1.5;"></div>
       <div class="form-row">
         <div class="form-group"><label class="form-label">Date</label><input type="date" id="doc-date" class="form-control"></div>
         <div class="form-group"><label class="form-label" id="doc-date2-label">Due Date</label><input type="date" id="doc-date2" class="form-control"></div>
@@ -1311,6 +1407,139 @@
   </div>
 </div>
 
+<!-- ══════════════════════════════ PAYMENT MODAL ══════════════════════════════ -->
+<div class="modal-overlay" id="pay-modal">
+  <div class="modal acc-form-modal-shell" style="max-width:1080px;width:96vw;">
+    <div class="modal-header">
+      <span class="modal-title" id="pay-modal-title"><i class="bx bxs-wallet" style="color:var(--accent)"></i> Record Payment</span>
+      <button class="modal-close" onclick="closeModal('pay-modal')">×</button>
+    </div>
+    <div class="modal-body" style="max-height:78vh;overflow-y:auto;">
+      <div class="pay-grid">
+        <div>
+          <div class="form-row">
+            <div class="form-group"><label class="form-label">Payment Type</label>
+              <select id="pay-kind" class="form-control" onchange="onPayKindChange()">
+                <option value="bill">Against Invoice / R.A. Bill</option>
+                <option value="advance">Advance Received</option>
+              </select>
+            </div>
+            <div class="form-group" id="pay-invoice-group"><label class="form-label">Invoice / R.A. Bill <span style="color:#ef4444">*</span></label>
+              <select id="pay-invoice" class="form-control" onchange="onPayPartyChange()"><option value="">Loading…</option></select>
+            </div>
+            <div class="form-group" id="pay-client-group" style="display:none;"><label class="form-label">Client <span style="color:#ef4444">*</span></label>
+              <select id="pay-client" class="form-control" onchange="onPayPartyChange()"><option value="">Loading…</option></select>
+            </div>
+          </div>
+          <div id="pay-invoice-info" class="pay-info" style="display:none;"></div>
+          <div class="form-row">
+            <div class="form-group"><label class="form-label">Payment Date <span style="color:#ef4444">*</span></label><input type="date" id="pay-date" class="form-control" onchange="schedulePayPreview()"></div>
+            <div class="form-group"><label class="form-label">Payment Mode</label>
+              <select id="pay-mode" class="form-control">
+                <option>NEFT</option><option>RTGS</option><option>IMPS</option><option>UPI</option><option>Bank Transfer</option><option>Cheque</option><option>Cash</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group"><label class="form-label">Reference / UTR / Cheque No.</label><input type="text" id="pay-ref" class="form-control" placeholder="Transaction reference"></div>
+            <div class="form-group"><label class="form-label">Bank</label><input type="text" id="pay-bank" class="form-control" placeholder="Bank / account received in"></div>
+          </div>
+          <div class="pay-section-title">Bill amount</div>
+          <div class="form-row">
+            <div class="form-group"><label class="form-label">Gross Bill / Payment Amount (excl. GST) <span style="color:#ef4444">*</span></label><input type="number" id="pay-gross" class="form-control" min="0" step="0.01" oninput="schedulePayPreview()" onwheel="this.blur()"></div>
+            <div class="form-group"><label class="form-label">GST %</label><input type="number" id="pay-gst-rate" class="form-control" min="0" step="0.01" oninput="schedulePayPreview()" onwheel="this.blur()"></div>
+          </div>
+          <div class="pay-section-title">Deductions</div>
+          <div class="form-row">
+            <div class="form-group"><label class="form-label">TDS Rule (from TDS Master)</label><select id="pay-tds-rule" class="form-control" onchange="schedulePayPreview()"><option value="">— No TDS —</option></select></div>
+            <div class="form-group"><label class="form-label">TDS Amount</label>
+              <div style="display:flex;gap:8px;align-items:center;">
+                <input type="number" id="pay-tds-amount" class="form-control" readonly min="0" step="0.01" oninput="schedulePayPreview()" onwheel="this.blur()">
+                <label style="white-space:nowrap;font-size:12px;display:flex;align-items:center;gap:4px;"><input type="checkbox" id="pay-tds-override" onchange="onTdsOverrideToggle()"> Override</label>
+              </div>
+            </div>
+          </div>
+          <div id="pay-tds-note" class="pay-note" style="display:none;"></div>
+          <div class="form-row">
+            <div class="form-group"><label class="form-label">GST TDS %</label><input type="number" id="pay-gsttds-rate" class="form-control" min="0" step="0.01" value="0" oninput="schedulePayPreview()" onwheel="this.blur()">
+              <div class="pay-hint">Usually 2% when the client is a Govt. department / notified body and the contract is above ₹2.5 lakh.</div></div>
+            <div class="form-group"><label class="form-label">Retention / Security Deposit %</label><input type="number" id="pay-retention-rate" class="form-control" min="0" step="0.01" value="0" oninput="schedulePayPreview()" onwheel="this.blur()"></div>
+          </div>
+          <div class="form-row">
+            <div class="form-group"><label class="form-label">Advance Recovery (₹)</label><input type="number" id="pay-adv" class="form-control" min="0" step="0.01" value="0" oninput="schedulePayPreview()" onwheel="this.blur()">
+              <div class="pay-hint" id="pay-adv-hint"></div></div>
+            <div class="form-group"><label class="form-label">Other Recovery (₹)</label><input type="number" id="pay-other" class="form-control" min="0" step="0.01" value="0" oninput="schedulePayPreview()" onwheel="this.blur()"></div>
+          </div>
+          <div class="form-group"><label class="form-label">Other Recovery Description</label><input type="text" id="pay-other-note" class="form-control" placeholder="e.g. Water / electricity charges, penalty"></div>
+          <div class="form-group"><label class="form-label">Notes</label><textarea id="pay-notes" class="form-control" rows="2"></textarea></div>
+        </div>
+        <div class="pay-breakup-panel">
+          <div class="pay-breakup-title"><i class="bx bx-receipt"></i> Payment Breakup</div>
+          <div id="pay-breakup"><div class="pay-breakup-empty">Select an invoice and enter the amount to see the breakup.</div></div>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer acc-form-modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('pay-modal')">Cancel</button>
+      <button class="btn btn-primary" id="pay-save-btn" onclick="savePayment()"><i class="bx bx-check"></i> Save Payment</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="pay-done-modal">
+  <div class="modal" style="max-width:440px;">
+    <div class="modal-header"><span class="modal-title"><i class="bx bx-check-circle" style="color:#22c55e"></i> Payment Recorded</span><button class="modal-close" onclick="closeModal('pay-done-modal')">×</button></div>
+    <div class="modal-body" id="pay-done-body"></div>
+    <div class="modal-footer" style="gap:8px;">
+      <button class="btn btn-ghost" onclick="closeModal('pay-done-modal')">Close</button>
+      <button class="btn btn-secondary" id="pay-done-view"><i class="bx bx-show"></i> View Breakup</button>
+      <button class="btn btn-primary" id="pay-done-download"><i class="bx bx-download"></i> Download PDF</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════ TDS RULE MODAL ═════════════════════════════ -->
+<div class="modal-overlay" id="tds-modal">
+  <div class="modal" style="max-width:680px;">
+    <div class="modal-header"><span class="modal-title" id="tds-modal-title">New TDS Rule</span><button class="modal-close" onclick="closeModal('tds-modal')">×</button></div>
+    <div class="modal-body">
+      <input type="hidden" id="tds-id">
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">TDS Code <span style="color:#ef4444">*</span></label><input type="text" id="tds-code" class="form-control" maxlength="30" placeholder="e.g. TDS-CON-OTH" style="text-transform:uppercase"></div>
+        <div class="form-group"><label class="form-label">Section</label><input type="text" id="tds-section" class="form-control" maxlength="20" placeholder="e.g. 194C"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Nature of Payment <span style="color:#ef4444">*</span></label><input type="text" id="tds-nature" class="form-control" placeholder="e.g. Contractor / Sub-contractor"></div>
+        <div class="form-group"><label class="form-label">Payee Type</label><input type="text" id="tds-payee" class="form-control" placeholder="e.g. Company / Firm / Others"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">TDS Rate (%) <span style="color:#ef4444">*</span></label><input type="number" id="tds-rate" class="form-control" min="0" max="100" step="0.001"></div>
+        <div class="form-group"><label class="form-label">Threshold Basis</label>
+          <select id="tds-basis" class="form-control">
+            <option value="whole">Whole amount — once a limit is crossed (incl. earlier untaxed payments of the FY)</option>
+            <option value="excess">Excess only — TDS on the amount above the FY limit</option>
+            <option value="current">Current payment only — once a limit is crossed</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Single Payment Limit (₹)</label><input type="number" id="tds-single" class="form-control" min="0" step="1" placeholder="0 = not applicable"></div>
+        <div class="form-group"><label class="form-label">FY Aggregate Limit (₹)</label><input type="number" id="tds-aggregate" class="form-control" min="0" step="1" placeholder="0 = not applicable"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Applicable From</label><input type="date" id="tds-from" class="form-control"></div>
+        <div class="form-group"><label class="form-label">Applicable To <span class="text-muted">(optional)</span></label><input type="date" id="tds-to" class="form-control"></div>
+      </div>
+      <div class="form-group"><label class="form-label">Applicability Conditions</label><textarea id="tds-note" class="form-control" rows="2" placeholder="e.g. No TDS while a single payment is up to ₹30,000 and the FY aggregate is up to ₹1,00,000"></textarea></div>
+      <label style="display:flex;align-items:center;gap:8px;font-size:13px;"><input type="checkbox" id="tds-active" checked> Active</label>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('tds-modal')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveTdsRule()"><i class="bx bx-check"></i> Save Rule</button>
+    </div>
+  </div>
+</div>
+
 <datalist id="acc-customer-list"></datalist>
 <datalist id="acc-project-list"></datalist>
 <datalist id="acc-work-order-list"></datalist>
@@ -1324,6 +1553,42 @@
 .acc-tab:hover:not(.active) { color:var(--text-primary); }
 .acc-tab-badge { display:inline-flex;align-items:center;justify-content:center;min-width:16px;height:16px;padding:0 4px;border-radius:99px;background:var(--accent);color:#fff;font-size:10px;font-weight:700;line-height:1;margin-left:3px;vertical-align:middle; }
 .acc-tab-badge:empty { display:none; }
+.ra-panel { margin-top:12px; padding:12px 14px; border:1px solid #bae6fd; background:#f0f9ff; border-radius:10px; }
+.ra-panel-grid { display:grid; grid-template-columns:160px 1fr; gap:14px; }
+.ra-label { display:block; font-size:12px; font-weight:600; color:#0c4a6e; margin-bottom:5px; }
+.ra-input { width:100%; border:1px solid #93c5fd; border-radius:8px; padding:8px 10px; font-size:13px; color:#111; background:#fff; box-sizing:border-box; }
+.ra-info { margin-top:10px; font-size:12px; color:#075985; line-height:1.5; }
+.ra-qty-row { display:grid; grid-template-columns:repeat(5, 1fr); gap:10px; margin-top:12px; padding:10px; border:1px dashed #93c5fd; border-radius:8px; background:#f8fbff; }
+.ra-qty-row label { display:block; font-size:11px; font-weight:600; color:#0c4a6e; margin-bottom:4px; }
+.ra-qty-row input { width:100%; border:1px solid #d1d5db; border-radius:8px; padding:7px 9px; font-size:13px; box-sizing:border-box; background:#fff; }
+.ra-qty-row input[readonly] { background:#eef2f7; color:#334155; font-weight:600; }
+.ra-qty-row .ra-neg { color:#dc2626 !important; border-color:#fca5a5 !important; background:#fef2f2 !important; }
+.ra-badge { display:inline-block; margin-left:6px; font-size:10px; font-weight:800; color:#0369a1; background:#e0f2fe; border-radius:6px; padding:2px 6px; vertical-align:middle; }
+.pay-grid { display:grid; grid-template-columns:minmax(0, 1.35fr) minmax(300px, 1fr); gap:20px; align-items:start; }
+.pay-section-title { margin:6px 0 10px; padding-bottom:6px; border-bottom:1px solid var(--border); font-size:11px; font-weight:700; letter-spacing:.5px; text-transform:uppercase; color:var(--text-muted); }
+.pay-info { margin:-4px 0 14px; padding:10px 12px; border-radius:10px; background:#f0f9ff; border:1px solid #bae6fd; color:#075985; font-size:12px; line-height:1.55; }
+.pay-note { margin:-6px 0 12px; padding:8px 10px; border-radius:8px; background:#f8fafc; border:1px solid var(--border); color:#334155; font-size:12px; line-height:1.45; }
+.pay-hint { font-size:11px; color:var(--text-muted); margin-top:4px; line-height:1.4; }
+.pay-breakup-panel { position:sticky; top:0; border:1px solid var(--border); border-radius:12px; background:#fafafa; padding:14px; }
+.pay-breakup-title { font-weight:800; font-size:14px; color:var(--text-primary); margin-bottom:10px; display:flex; align-items:center; gap:6px; }
+.pay-breakup-empty { font-size:12px; color:var(--text-muted); padding:20px 4px; text-align:center; }
+.pay-bk-row { display:flex; justify-content:space-between; gap:10px; padding:6px 0; border-bottom:1px dashed #e5e7eb; font-size:12.5px; }
+.pay-bk-row span:last-child { font-weight:600; white-space:nowrap; }
+.pay-bk-row.sub { font-weight:700; border-bottom:1px solid #d1d5db; }
+.pay-bk-row.ded span:last-child { color:#b91c1c; }
+.pay-bk-net { display:flex; justify-content:space-between; align-items:center; margin-top:10px; padding:10px 12px; border-radius:10px; background:#111827; color:#fff; font-weight:800; }
+.pay-bk-net span:last-child { font-size:18px; }
+.pay-bk-settle { margin-top:10px; display:grid; grid-template-columns:1fr 1fr; gap:6px 12px; font-size:11.5px; color:#475569; }
+.pay-bk-settle b { color:#111827; }
+.pay-bk-error { padding:12px; border-radius:8px; background:#fef2f2; border:1px solid #fecaca; color:#b91c1c; font-size:12px; }
+.pay-summary { display:grid; grid-template-columns:repeat(auto-fill, minmax(170px, 1fr)); gap:12px; margin-bottom:16px; }
+.pay-summary-card { background:var(--bg-card); border:1px solid var(--border); border-radius:12px; padding:12px 14px; }
+.pay-summary-card .v { font-size:17px; font-weight:800; color:var(--text-primary); }
+.pay-summary-card .l { font-size:11px; color:var(--text-muted); margin-top:2px; }
+.pay-filter-chip { display:inline-flex; align-items:center; gap:6px; font-size:12px; font-weight:600; background:#e0f2fe; color:#075985; border-radius:16px; padding:4px 10px; }
+.pay-filter-chip button { border:none; background:none; cursor:pointer; color:#075985; font-size:14px; line-height:1; }
+@media (max-width: 900px) { .pay-grid { grid-template-columns:1fr; } .pay-breakup-panel { position:static; } }
+@media (max-width: 900px) { .ra-qty-row { grid-template-columns:repeat(2, 1fr); } .ra-panel-grid { grid-template-columns:1fr; } }
 .acc-subtab {
   padding:6px 16px;border:none;background:transparent;border-radius:7px;
   font-size:12px;font-weight:600;color:var(--text-muted);cursor:pointer;transition:all .15s;
@@ -1434,6 +1699,9 @@
   font-weight:700;
   color:var(--text-primary);
   text-align:right;
+}
+.line-item-row.quotation-item-row {
+  grid-template-columns:minmax(180px, 2fr) repeat(4, minmax(78px, .7fr)) minmax(120px, .9fr) auto;
 }
 .line-item-actions {
   display:flex;
@@ -2321,6 +2589,8 @@ function showModule(key) {
   activeModule = key;
   if(key==='home') updateDashStats();
   else if(key==='inv') { initInvSettings(); renderInvoices(); }
+  else if(key==='pay') renderPayments();
+  else if(key==='tds') renderTdsRules();
   else if(key==='pro') renderProforma();
   else if(key==='quo') renderQuotations();
   else if(key==='po') renderPO();
@@ -2346,6 +2616,7 @@ function setTabCount(id, n) {
 }
 function updateDashStats() {
   api('GET', '/invoices').then(function(d)        { setTabCount('tab-count-inv', (d||[]).length); }).catch(function(){});
+  api('GET', '/payments').then(function(d)        { setTabCount('tab-count-pay', (d||[]).length); }).catch(function(){});
   api('GET', '/proformas-db').then(function(d)    { setTabCount('tab-count-pro', (d||[]).length); }).catch(function(){});
   api('GET', '/quotations').then(function(d)      { setTabCount('tab-count-quo', (d||[]).length); }).catch(function(){});
   api('GET', '/purchase-orders').then(function(d) { setTabCount('tab-count-po',  (d||[]).length); }).catch(function(){});
@@ -2590,56 +2861,28 @@ function fillFromVendor(jsonStr) {
 }
 
 /* ── Open GST Invoice Modal ─────────────────────────────── */
-function openGSTModal(invId) {
+// invId: edit an existing invoice. draft: prefilled new invoice (e.g. next R.A. bill).
+function openGSTModal(invId, draft) {
   gstEditingId = invId || null;
   gstItemCount = 0;
   document.getElementById('gst-items-body').innerHTML = '';
   document.getElementById('gst-inv-title').innerHTML = invId
     ? '<i class="bx bxs-edit" style="color:var(--accent)"></i> Edit Invoice'
-    : '<i class="bx bxs-receipt" style="color:var(--accent)"></i> Create New Invoice';
+    : (draft && draft.isRABill
+      ? '<i class="bx bxs-receipt" style="color:var(--accent)"></i> Create R.A. Bill No. ' + (draft.raBillNo || 1)
+      : '<i class="bx bxs-receipt" style="color:var(--accent)"></i> Create New Invoice');
 
   populateVendorDropdown();
   if (invId) {
     api('GET', '/invoices/' + invId).then(function(inv) {
-      populateCompanyDropdown(inv.sellerName || '', false);
-      document.getElementById('gst-doc-type').value    = inv.documentType  || 'Tax Invoice';
-      document.getElementById('gst-number').value      = inv.invoiceNumber || '';
-      document.getElementById('gst-date').value        = inv.invoiceDate   || '';
-      document.getElementById('gst-bill-month').value  = monthToInput(inv.billMonth || '');
-      document.getElementById('gst-bill-from').value   = inv.billPeriodFrom || '';
-      document.getElementById('gst-bill-to').value     = inv.billPeriodTo   || '';
-      document.getElementById('gst-ra-bill').checked   = !!inv.isRABill;
-      document.getElementById('gst-s-name').value      = inv.sellerName    || '';
-      document.getElementById('gst-s-gstin').value     = inv.sellerGstin   || '';
-      document.getElementById('gst-s-addr').value      = inv.sellerAddress || '';
-      setAccountStateValue('gst-s-state', 'gst-s-code', inv.sellerState, inv.sellerStateCode || accountStateCodeFromGstin(inv.sellerGstin));
-      document.getElementById('gst-s-pan').value       = inv.sellerPan     || '';
-      document.getElementById('gst-s-phone').value     = inv.sellerPhone   || '';
-      document.getElementById('gst-s-email').value     = inv.sellerEmail   || '';
-      var invCustomer = setAccountCustomerFields('gst', inv);
-      if (invCustomer.name) rememberCustomer(invCustomer);
-      populateVendorDropdown(invCustomer.name);
-      document.getElementById('gst-due').value         = inv.dueDate       || '';
-      document.getElementById('gst-work-order').value  = inv.workOrder     || '';
-      document.getElementById('gst-project').value     = inv.projectName   || '';
-      document.getElementById('gst-work-details').value= inv.workDetails   || '';
-      document.getElementById('gst-tax-exempt').checked = !!inv.taxExempt;
-      document.getElementById('gst-show-tax-pdf').checked = accountShowTaxPercentColumn(inv);
-      document.getElementById('gst-roundoff-mode').value = accountRoundOffMode(inv.roundOffMode, inv.roundOff);
-      toggleTaxExempt();
-      document.getElementById('gst-sgst-rate').value   = inv.sgstRate != null ? inv.sgstRate : 9;
-      document.getElementById('gst-cgst-rate').value   = inv.cgstRate != null ? inv.cgstRate : 9;
-      document.getElementById('gst-status').value      = inv.status        || 'Draft';
-      document.getElementById('gst-bank-name').value   = inv.bankName      || '';
-      document.getElementById('gst-bank-acname').value = inv.bankAcName    || '';
-      document.getElementById('gst-bank-ac').value     = inv.bankAccount   || '';
-      document.getElementById('gst-bank-ifsc').value   = inv.bankIfsc      || '';
-      document.getElementById('gst-bank-branch').value = inv.bankBranch    || '';
-      document.getElementById('gst-notes').value       = inv.notes         || '';
-      (inv.items || []).forEach(function(it) { addGSTItem(it); });
-      recalcGST();
+      fillGSTForm(inv);
       openModal('gst-inv-modal');
     }).catch(function(e) { toast('Failed to load invoice', 'error'); });
+  } else if (draft) {
+    var _d = new Date();
+    var _mo = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][_d.getMonth()] + '-' + String(_d.getFullYear()).slice(-2);
+    fillGSTForm(Object.assign({ invoiceNumber: '', invoiceDate: today(), status: 'Draft', billMonth: _mo, notes: '' }, draft));
+    openModal('gst-inv-modal');
   } else {
     populateCompanyDropdown();
     var _now = new Date();
@@ -2652,6 +2895,8 @@ function openGSTModal(invId) {
     document.getElementById('gst-bill-from').value   = '';
     document.getElementById('gst-bill-to').value     = '';
     document.getElementById('gst-ra-bill').checked   = false;
+    document.getElementById('gst-ra-no').value       = '';
+    document.getElementById('gst-pdf-orientation').value = 'portrait';
     document.getElementById('gst-vendor-sel').value  = '';
     document.getElementById('gst-c-name').value      = '';
     document.getElementById('gst-c-email').value     = '';
@@ -2676,10 +2921,167 @@ function openGSTModal(invId) {
     document.getElementById('gst-show-tax-pdf').checked = true;
     document.getElementById('gst-roundoff-mode').value = 'none';
     toggleTaxExempt();
+    toggleRaBillMode('');
     addGSTItem();
     recalcGST();
     openModal('gst-inv-modal');
   }
+}
+
+// Fill the invoice form from a stored invoice or a draft.
+function fillGSTForm(inv) {
+  populateCompanyDropdown(inv.sellerName || '', false);
+  document.getElementById('gst-doc-type').value    = inv.documentType  || 'Tax Invoice';
+  document.getElementById('gst-number').value      = inv.invoiceNumber || '';
+  document.getElementById('gst-date').value        = inv.invoiceDate   || '';
+  document.getElementById('gst-bill-month').value  = monthToInput(inv.billMonth || '');
+  document.getElementById('gst-bill-from').value   = inv.billPeriodFrom || '';
+  document.getElementById('gst-bill-to').value     = inv.billPeriodTo   || '';
+  document.getElementById('gst-ra-bill').checked   = !!inv.isRABill;
+  document.getElementById('gst-ra-no').value       = inv.raBillNo || '';
+  document.getElementById('gst-pdf-orientation').value = inv.pdfOrientation === 'landscape' ? 'landscape' : 'portrait';
+  document.getElementById('gst-s-name').value      = inv.sellerName    || '';
+  document.getElementById('gst-s-gstin').value     = inv.sellerGstin   || '';
+  document.getElementById('gst-s-addr').value      = inv.sellerAddress || '';
+  setAccountStateValue('gst-s-state', 'gst-s-code', inv.sellerState, inv.sellerStateCode || accountStateCodeFromGstin(inv.sellerGstin));
+  document.getElementById('gst-s-pan').value       = inv.sellerPan     || '';
+  document.getElementById('gst-s-phone').value     = inv.sellerPhone   || '';
+  document.getElementById('gst-s-email').value     = inv.sellerEmail   || '';
+  var invCustomer = setAccountCustomerFields('gst', inv);
+  if (invCustomer.name) rememberCustomer(invCustomer);
+  populateVendorDropdown(invCustomer.name);
+  document.getElementById('gst-due').value         = inv.dueDate       || '';
+  document.getElementById('gst-work-order').value  = inv.workOrder     || '';
+  document.getElementById('gst-project').value     = inv.projectName   || '';
+  document.getElementById('gst-work-details').value= inv.workDetails   || '';
+  document.getElementById('gst-tax-exempt').checked = !!inv.taxExempt;
+  document.getElementById('gst-show-tax-pdf').checked = accountShowTaxPercentColumn(inv);
+  document.getElementById('gst-roundoff-mode').value = accountRoundOffMode(inv.roundOffMode, inv.roundOff);
+  toggleTaxExempt();
+  document.getElementById('gst-sgst-rate').value   = inv.sgstRate != null ? inv.sgstRate : 9;
+  document.getElementById('gst-cgst-rate').value   = inv.cgstRate != null ? inv.cgstRate : 9;
+  document.getElementById('gst-status').value      = inv.status        || 'Draft';
+  document.getElementById('gst-bank-name').value   = inv.bankName      || '';
+  document.getElementById('gst-bank-acname').value = inv.bankAcName    || '';
+  document.getElementById('gst-bank-ac').value     = inv.bankAccount   || '';
+  document.getElementById('gst-bank-ifsc').value   = inv.bankIfsc      || '';
+  document.getElementById('gst-bank-branch').value = inv.bankBranch    || '';
+  document.getElementById('gst-notes').value       = inv.notes         || '';
+  (inv.items || []).forEach(function(it) { addGSTItem(it); });
+  if (!(inv.items || []).length) addGSTItem();
+  toggleRaBillMode(inv.raPrevBillId || '');
+  if (inv.isRABill) showRaInfo(inv);
+  recalcGST();
+}
+
+/* ── R.A. bill helpers ──────────────────────────────────── */
+function isRaMode() {
+  var cb = document.getElementById('gst-ra-bill');
+  return !!(cb && cb.checked);
+}
+
+function raRound(n) { return Math.round((parseFloat(n) || 0) * 1000) / 1000; }
+
+// Show/hide the R.A. panel and the per-item quantity rows.
+function toggleRaBillMode(selectedPrevId) {
+  var on = isRaMode();
+  var billNo = document.getElementById('gst-ra-no');
+  document.getElementById('gst-ra-panel').style.display = on ? '' : 'none';
+  document.querySelectorAll('#gst-items-body .ra-qty-row').forEach(function(row) { row.style.display = on ? 'grid' : 'none'; });
+  document.querySelectorAll('#gst-items-body .gi-qty-label').forEach(function(label) { label.textContent = on ? 'This Bill Qty' : 'Quantity'; });
+  if (billNo) {
+    billNo.readOnly = on;
+    billNo.style.background = on ? '#f3f4f6' : '#fff';
+  }
+  if (on) {
+    if (!document.getElementById('gst-ra-no').value) document.getElementById('gst-ra-no').value = 1;
+    populateRaPrevOptions(selectedPrevId);
+  }
+  updateRaOriginalQtyEditability();
+  recalcGST();
+}
+
+// Contract quantity is entered only on the first bill. Later bills display
+// the original quantity inherited from the series but cannot alter it.
+function updateRaOriginalQtyEditability() {
+  var followOn = isRaMode() && !!document.getElementById('gst-ra-prev').value;
+  document.querySelectorAll('#gst-items-body .gi-orig').forEach(function(input) {
+    input.readOnly = followOn;
+    input.style.background = followOn ? '#f3f4f6' : '#fff';
+    input.title = followOn ? 'Original quantity is inherited from the first R.A. bill' : '';
+  });
+}
+
+var raBillOptions = [];
+function populateRaPrevOptions(selectedId) {
+  var sel = document.getElementById('gst-ra-prev');
+  var current = selectedId !== undefined ? String(selectedId || '') : sel.value;
+  return api('GET', '/invoices').then(function(rows) {
+    var customer = (document.getElementById('gst-c-name').value || '').trim().toLowerCase();
+    raBillOptions = (rows || []).filter(function(r) {
+      return r.isRABill && String(r.id) !== String(gstEditingId || '') &&
+        (!customer || String(r.customerName || '').trim().toLowerCase() === customer);
+    });
+    raBillOptions.sort(function(a, b) {
+      var sa = String(a.customerName || '').trim().toLowerCase() === customer ? 0 : 1;
+      var sb = String(b.customerName || '').trim().toLowerCase() === customer ? 0 : 1;
+      if (sa !== sb) return sa - sb;
+      return String(b.invoiceDate || '').localeCompare(String(a.invoiceDate || ''));
+    });
+    sel.innerHTML = '<option value="">— First R.A. bill (no previous bill) —</option>' + raBillOptions.map(function(r) {
+      return '<option value="' + r.id + '">' + accEsc('R.A. ' + (r.raBillNo || 1) + ' · ' + (r.invoiceNumber || '') + ' · ' + (r.customerName || '') + ' · ' + fmtD(r.invoiceDate)) + '</option>';
+    }).join('');
+    sel.value = raBillOptions.some(function(r) { return String(r.id) === current; }) ? current : '';
+    updateRaOriginalQtyEditability();
+  }).catch(function() {});
+}
+
+function showRaInfo(rec) {
+  var info = document.getElementById('gst-ra-info');
+  if (!info) return;
+  if (rec && rec.raBasedOn) {
+    var b = rec.raBasedOn;
+    info.innerHTML = b.isRABill
+      ? 'Next bill after <b>' + accEsc(b.invoiceNumber || '') + '</b> (R.A. ' + accEsc(b.raBillNo || '') + '). Previously billed quantities are filled in — enter <b>This Bill Qty</b> for each item; cumulative and balance quantities are calculated automatically.'
+      : 'R.A. bill no. 1 based on <b>' + accEsc(b.invoiceNumber || '') + '</b>: its quantities are taken as the <b>Original Qty</b>. Enter <b>This Bill Qty</b> for each item.';
+    return;
+  }
+  info.innerHTML = rec && rec.raPrevBillId
+    ? 'R.A. bill no. ' + accEsc(rec.raBillNo || '') + ' of a series. Previously billed quantities come from the earlier bills and are recalculated on save.'
+    : 'First R.A. bill of the series: enter the <b>Original Qty</b> (agreed / contract quantity) for each item.';
+}
+
+// Choosing the previous / original bill loads its items with the quantities billed so far.
+function onRaPrevBillChange(prevId) {
+  if (!prevId) { showRaInfo({}); return; }
+  api('GET', '/invoices/' + prevId + '/ra-next').then(function(draft) {
+    var hasItems = collectGSTItems().some(function(it) { return String(it.name || '').trim() || it.unitPrice; });
+    document.getElementById('gst-ra-no').value = draft.raBillNo || '';
+    if (hasItems && !confirm('Load the items and previously billed quantities from the selected bill? The current item rows will be replaced.')) {
+      showRaInfo(draft);
+      return;
+    }
+    document.getElementById('gst-items-body').innerHTML = '';
+    gstItemCount = 0;
+    (draft.items || []).forEach(function(it) { addGSTItem(it); });
+    if (draft.raPrevBillId && String(draft.raPrevBillId) !== String(prevId)) {
+      document.getElementById('gst-ra-prev').value = String(draft.raPrevBillId);
+    }
+    showRaInfo(draft);
+    toggleRaBillMode(document.getElementById('gst-ra-prev').value);
+    updateRaOriginalQtyEditability();
+  }).catch(function(e) { toast(e.message || 'Could not load the previous bill', 'error'); });
+}
+
+// "Create next R.A. bill" / "Create R.A. bill from this" in the invoice list.
+function openNextRaBill(id) {
+  api('GET', '/invoices/' + id + '/ra-next').then(function(draft) {
+    openGSTModal(null, draft);
+  }).catch(function(e) { toast(e.message || 'Could not prepare the R.A. bill', 'error'); });
+}
+
+function downloadInvoicePdfAs(id, orientation) {
+  openPDF('/invoices/' + id + '/pdf?orientation=' + orientation, true, 'Invoice-' + id + '-' + orientation + '.pdf');
 }
 
 /* ── Add GST Line Item Card ──────────────────────────────── */
@@ -2691,8 +3093,13 @@ function addGSTItem(it) {
   var name = htmlEscape(it.name || '');
   var hsn = htmlEscape(it.hsnCode || '');
   var unit = htmlEscape(it.unit || '');
+  var qtyVal = (it.quantity === 0 || it.quantity) ? it.quantity : 1;
+  var raOn = isRaMode();
+  var origVal = (it.originalQty === 0 || it.originalQty) ? it.originalQty : '';
   var card = document.createElement('div');
   card.id = 'gst-row-' + idx;
+  card.dataset.raKey = it.raKey || ('ra-' + Date.now().toString(36) + '-' + idx);
+  card.dataset.prevQty = raRound(it.previousQty || 0);
   card.style.cssText = 'border:1px solid #e5e7eb;border-radius:10px;padding:16px;margin-bottom:12px;background:#f9fafb;';
   var iStyle = 'width:100%;border:1px solid #d1d5db;border-radius:8px;padding:8px 10px;font-size:13px;color:#111;background:#fff;box-sizing:border-box;';
   var lStyle = 'display:block;font-size:12px;font-weight:500;color:#374151;margin-bottom:5px;';
@@ -2721,9 +3128,16 @@ function addGSTItem(it) {
         '<input type="number" class="gi-price" value="' + (it.unitPrice||0) + '" min="0" step="0.01" oninput="recalcGST()" onwheel="this.blur()" style="'+iStyle+'">' +
       '</div>' +
       '<div>' +
-        '<label style="'+lStyle+'">Quantity</label>' +
-        '<input type="number" class="gi-qty" value="' + (it.quantity||1) + '" min="0" step="0.01" oninput="recalcGST()" onwheel="this.blur()" style="'+iStyle+'">' +
+        '<label class="gi-qty-label" style="'+lStyle+'">' + (raOn ? 'This Bill Qty' : 'Quantity') + '</label>' +
+        '<input type="number" class="gi-qty" value="' + qtyVal + '" min="0" step="0.01" oninput="recalcGST()" onwheel="this.blur()" style="'+iStyle+'">' +
       '</div>' +
+    '</div>' +
+    '<div class="ra-qty-row" style="display:' + (raOn ? 'grid' : 'none') + ';">' +
+      '<div><label>Original Qty</label><input type="number" class="gi-orig" value="' + origVal + '" min="0" step="0.01" placeholder="Agreed qty" oninput="recalcGST()" onwheel="this.blur()"></div>' +
+      '<div><label>Previously Billed Qty</label><input type="number" class="gi-prev" value="' + raRound(it.previousQty || 0) + '" readonly tabindex="-1"></div>' +
+      '<div><label>Current (This Bill) Qty</label><input type="number" class="gi-this" readonly tabindex="-1"></div>' +
+      '<div><label>Total (Cumulative) Qty</label><input type="number" class="gi-cum" readonly tabindex="-1"></div>' +
+      '<div><label>Remaining / Balance Qty</label><input type="number" class="gi-bal" readonly tabindex="-1"></div>' +
     '</div>' +
     '<div style="display:flex;justify-content:space-between;align-items:center;margin-top:12px;">' +
       '<button type="button" onclick="removeGSTItem(\'gst-row-'+idx+'\')" style="background:none;border:none;color:#ef4444;font-size:13px;cursor:pointer;padding:0;display:flex;align-items:center;gap:4px;font-weight:500;">' +
@@ -2784,6 +3198,17 @@ function recalcGST() {
     if (taxableEl) taxableEl.textContent = taxable.toFixed(2);
     var amtEl = card.querySelector('[id^="gi-amt-"]');
     if (amtEl) amtEl.textContent = (taxable + gstAmt).toFixed(2);
+    var origEl = card.querySelector('.gi-orig');
+    if (origEl) {
+      var cumQty = raRound((parseFloat(card.dataset.prevQty) || 0) + qty);
+      var hasOrig = origEl.value !== '';
+      var balQty = hasOrig ? raRound((parseFloat(origEl.value) || 0) - cumQty) : '';
+      card.querySelector('.gi-this').value = raRound(qty);
+      card.querySelector('.gi-cum').value = cumQty;
+      var balEl = card.querySelector('.gi-bal');
+      balEl.value = balQty;
+      balEl.classList.toggle('ra-neg', hasOrig && balQty < 0);
+    }
   });
 
   var totalSgst = useIGST ? 0 : subtotal * sgstRate / 100;
@@ -2872,6 +3297,14 @@ function collectGSTItems() {
       igst:     parseFloat(igstAmt.toFixed(2)),
       itemTotal: parseFloat((taxable + gstAmt).toFixed(2)),
     });
+    if (isRaMode()) {
+      var origInput = card.querySelector('.gi-orig');
+      Object.assign(items[items.length - 1], {
+        raKey: card.dataset.raKey || '',
+        originalQty: origInput && origInput.value !== '' ? (parseFloat(origInput.value) || 0) : null,
+        previousQty: parseFloat(card.dataset.prevQty) || 0,
+      });
+    }
   });
   return items;
 }
@@ -2908,6 +3341,9 @@ function saveGSTInvoice() {
     billPeriodFrom:    document.getElementById('gst-bill-from').value || null,
     billPeriodTo:      document.getElementById('gst-bill-to').value   || null,
     isRABill:          document.getElementById('gst-ra-bill').checked,
+    raBillNo:          document.getElementById('gst-ra-bill').checked ? (parseInt(document.getElementById('gst-ra-no').value, 10) || null) : null,
+    raPrevBillId:      document.getElementById('gst-ra-bill').checked ? (document.getElementById('gst-ra-prev').value || null) : null,
+    pdfOrientation:    document.getElementById('gst-pdf-orientation').value || 'portrait',
     sellerName:        document.getElementById('gst-s-name').value,
     sellerGstin:       document.getElementById('gst-s-gstin').value.toUpperCase(),
     sellerAddress:     document.getElementById('gst-s-addr').value,
@@ -2950,6 +3386,13 @@ function saveGSTInvoice() {
     financialYear:     (document.getElementById('inv-fy-sel') && document.getElementById('inv-fy-sel').value) || localStorage.getItem('inv_fy') || '',
     companyCode:       (document.getElementById('inv-company-code') && document.getElementById('inv-company-code').value.trim().toUpperCase()) || localStorage.getItem('inv_company_code') || '',
   };
+
+  if (payload.isRABill) {
+    var overBilled = items.filter(function(it) { return it.originalQty !== null && raRound(it.previousQty + it.quantity) - it.originalQty > 0.0005; });
+    if (overBilled.length && !confirm(overBilled.length + ' item(s) exceed the original quantity (total billed > original). Save anyway?')) return;
+    var noOriginal = items.filter(function(it) { return it.originalQty === null; });
+    if (noOriginal.length && !payload.raPrevBillId && !confirm('Original quantity is blank for ' + noOriginal.length + ' item(s). It will be taken as this bill\'s quantity (balance 0). Continue?')) return;
+  }
 
   var method = gstEditingId ? 'PUT' : 'POST';
   var path   = gstEditingId ? '/invoices/' + gstEditingId : '/invoices';
@@ -3302,19 +3745,28 @@ function renderInvoices() {
           {icon:'bx-download',   label:'Download PDF',      fn:'downloadAccountDoc(\'inv\','+r.id+')'},
           {icon:'bx-printer',    label:'Print',             fn:'printAccountDoc(\'inv\','+r.id+')'},
         ];
-        if (r.paymentStatus !== 'Paid') invItems.push({icon:'bx-check-circle', label:'Mark as Paid', fn:'openMarkPaid('+r.id+',\''+r.invoiceNumber+'\')'});
+        var paySum = r.paymentSummary || { count: 0, balance: Number(r.totalAmount || 0) };
+        if (paySum.balance > 0.5) invItems.push({icon:'bx-wallet', label:'Record Payment', fn:'openPaymentModal({invoiceId:'+r.id+'})'});
+        if (paySum.count) invItems.push({icon:'bx-list-check', label:'Payments & Breakups (' + paySum.count + ')', fn:'showInvoicePayments('+r.id+',\''+String(r.invoiceNumber || '').replace(/'/g, '')+'\')'});
         invItems.push({icon:'bx-edit-alt', label:'Edit', fn:'openGSTModal('+r.id+')'});
+        invItems.push({icon:'bx-layer-plus', label: r.isRABill ? 'Create Next R.A. Bill' : 'Create R.A. Bill from this', fn:'openNextRaBill('+r.id+')'});
+        var otherLayout = r.pdfOrientation === 'landscape' ? 'portrait' : 'landscape';
+        invItems.push({icon:'bx-rotate-right', label:'Download PDF (' + (otherLayout === 'landscape' ? 'Landscape' : 'Portrait') + ')', fn:'downloadInvoicePdfAs('+r.id+',\''+otherLayout+'\')'});
         if (_isSuperAdmin) invItems.push({icon:'bx-trash', label:'Delete', fn:'deleteInvoice('+r.id+',\''+r.invoiceNumber+'\')', danger:true});
         var actionBtns = accMenuBtn(invItems);
 
         return '<tr class="inv-row">' +
 '<td class="acc-td" style="font-weight:700;color:var(--accent);font-size:12px;white-space:nowrap;">' + (r.invoiceNumber||'') + '</td>' +
-          '<td class="acc-td"><span style="font-size:11px;font-weight:700;background:'+typeBg+';color:'+typeColor+';border-radius:6px;padding:3px 9px;">'+typeLabel+'</span></td>' +
+          '<td class="acc-td"><span style="font-size:11px;font-weight:700;background:'+typeBg+';color:'+typeColor+';border-radius:6px;padding:3px 9px;">'+typeLabel+'</span>' +
+            (r.isRABill ? '<span class="ra-badge">R.A. ' + (r.raBillNo || 1) + '</span>' : '') + '</td>' +
           '<td class="acc-td"><div style="font-weight:600;font-size:13px;">' + (r.customerName||'') + '</div>' +
             (r.customerGstin ? '<div style="font-size:10px;color:var(--text-muted);margin-top:1px;">'+r.customerGstin+'</div>' : '') + '</td>' +
           '<td class="acc-td" style="white-space:nowrap;font-size:12px;">' + fmtD(r.invoiceDate) + '</td>' +
           '<td class="acc-td" style="font-weight:700;white-space:nowrap;">₹' + Number(r.totalAmount||0).toLocaleString('en-IN', {minimumFractionDigits:2}) + '</td>' +
-          '<td class="acc-td">' + badge(r.status) + '</td>' +
+          '<td class="acc-td">' + badge(r.status) +
+            (paySum.count ? '<div style="font-size:10px;color:var(--text-muted);margin-top:3px;white-space:nowrap;">' +
+              (paySum.balance > 0.5 ? 'Part paid · Bal ₹' + Number(paySum.balance).toLocaleString('en-IN', {minimumFractionDigits:2}) : 'Fully settled') + '</div>' : '') +
+          '</td>' +
           '<td class="acc-td" style="white-space:nowrap;">' + actionBtns + '</td>' +
         '</tr>';
       }).join('');
@@ -4556,7 +5008,10 @@ function renderQuotations() {
       var btns = accMenuBtn(quoItems);
       return '<tr>' +
         '<td class="acc-td" style="font-weight:600;">'+(r.quotationNumber||'—')+convBadge+'</td>' +
-        '<td class="acc-td">'+(r.clientName||'—')+'</td>' +
+        '<td class="acc-td">'+accEsc(r.clientName||'—')+
+          (r.client && r.client.clientCode ? '<div style="font-size:10px;color:var(--text-muted);margin-top:1px;">'+accEsc(r.client.clientCode)+'</div>'
+            : (!r.clientId && r.clientName ? '<div style="font-size:10px;color:#b45309;margin-top:1px;">Not linked to client list</div>' : '')) +
+        '</td>' +
         '<td class="acc-td">'+fmtD(r.date)+'</td>' +
         '<td class="acc-td">'+fmtD(r.validTill)+'</td>' +
         '<td class="acc-td" style="font-weight:600;">'+fmtAmt(r.totalAmount||0)+'</td>' +
@@ -4571,46 +5026,134 @@ function renderQuotations() {
 ══════════════════════════════════════════════════════════ */
 var editingQuoId = null;
 
+/* ── Quotation client picker (fed from the Client database) ── */
+var quoClientCache = [];
+var cltReturnToQuotation = false;
+
+function loadQuoClients() {
+  return api('GET', '/clients').then(function(rows) {
+    quoClientCache = Array.isArray(rows) ? rows : [];
+    return quoClientCache;
+  }).catch(function(e) {
+    quoClientCache = [];
+    toast('Could not load clients: ' + (e.message || 'Request failed'), 'error');
+    return quoClientCache;
+  });
+}
+
+function findQuoClient(id) {
+  if (!id) return null;
+  return quoClientCache.find(function(c) { return String(c.id) === String(id); }) || null;
+}
+
+function findQuoClientByName(name) {
+  var key = String(name || '').trim().toLowerCase();
+  if (!key) return null;
+  return quoClientCache.find(function(c) { return String(c.name || '').trim().toLowerCase() === key; }) || null;
+}
+
+function refreshQuoClientOptions(selectedId) {
+  var sel = document.getElementById('doc-client-sel');
+  if (!sel) return;
+  var current = selectedId !== undefined ? String(selectedId || '') : sel.value;
+  var companySel = document.getElementById('doc-company-sel');
+  var companyId = companySel ? companySel.value : '';
+  // Show active clients of the selected company (plus clients without a company);
+  // always keep the currently linked client visible.
+  var clients = quoClientCache.filter(function(c) {
+    if (String(c.id) === current) return true;
+    if (c.status === 'Inactive') return false;
+    return !companyId || !c.companyId || String(c.companyId) === String(companyId);
+  });
+  var html = '<option value="">' + (clients.length ? '— Select client —' : '— No clients yet. Use "New Client" to register one —') + '</option>';
+  html += clients.map(function(c) {
+    var label = c.name + (c.clientCode ? ' (' + c.clientCode + ')' : '') + (c.gstin ? ' | GST: ' + c.gstin : '') + (c.status === 'Inactive' ? ' — Inactive' : '');
+    return '<option value="' + c.id + '">' + accEsc(label) + '</option>';
+  }).join('');
+  sel.innerHTML = html;
+  var keep = !!findQuoClient(current);
+  sel.value = keep ? current : '';
+  onQuoClientChange();
+}
+
+function onQuoClientChange() {
+  var sel = document.getElementById('doc-client-sel');
+  var meta = document.getElementById('doc-client-meta');
+  var party = document.getElementById('doc-party');
+  if (!sel || !meta || !party) return;
+  var client = findQuoClient(sel.value);
+  party.value = client ? client.name : '';
+  if (!client) { meta.style.display = 'none'; meta.innerHTML = ''; updateDocTotal(); return; }
+  var lines = [
+    client.contactPerson ? 'Contact: ' + client.contactPerson + (client.phone ? ' (' + client.phone + ')' : '') : (client.phone ? 'Phone: ' + client.phone : ''),
+    client.email ? 'Email: ' + client.email : '',
+    [client.gstin ? 'GSTIN: ' + client.gstin : '', client.pan ? 'PAN: ' + client.pan : ''].filter(Boolean).join(' | '),
+    client.billingAddress ? 'Address: ' + client.billingAddress : '',
+    client.state ? 'State: ' + client.state + (client.stateCode ? ' (' + client.stateCode + ')' : '') : ''
+  ].filter(Boolean);
+  meta.style.display = '';
+  meta.innerHTML = '<div style="font-size:13px;font-weight:800;color:#111827;">' + accEsc(client.name) +
+      (client.clientCode ? ' <span style="font-weight:600;color:#64748b;">· ' + accEsc(client.clientCode) + '</span>' : '') + '</div>' +
+    lines.map(function(line) { return '<div style="margin-top:3px;">' + accEsc(line) + '</div>'; }).join('') +
+    (lines.length ? '' : '<div style="margin-top:3px;color:#94a3b8;">No GSTIN / address saved for this client yet. Edit it in the Clients tab to add them.</div>');
+  updateDocTotal();
+}
+
+function openCltModalFromQuotation() {
+  var companySel = document.getElementById('doc-company-sel');
+  openCltModal(null, { companyId: companySel ? companySel.value : '' });
+  cltReturnToQuotation = true;
+}
+
 function openQuoModal(id) {
   editingQuoId = id || null;
   document.getElementById('doc-type').value = 'quo';
   document.getElementById('doc-modal-title').textContent = id ? 'Edit Quotation' : 'New Quotation';
   toggleDocCompanySection('quo');
-  document.getElementById('doc-party-label').textContent = 'Client Name';
   document.getElementById('doc-date2-label').textContent = 'Valid Till';
   document.getElementById('doc-status').innerHTML = '<option>Draft</option><option>Sent</option><option>Accepted</option><option>Rejected</option>';
   document.getElementById('doc-items').innerHTML = '';
+  document.getElementById('doc-client-sel').innerHTML = '<option value="">Loading clients…</option>';
+  document.getElementById('doc-client-meta').style.display = 'none';
   if (id) {
-    api('GET', '/quotations/'+id).then(function(r) {
-      populateAccountCompanySelect('doc-company-sel', r.companyId || '', {
-        placeholder: '— Select a company —',
-        metaId: 'doc-company-meta',
-        emptyText: 'Select a company to use for this quotation.',
-        fallbackName: r.sellerName || ''
-      });
+    Promise.all([api('GET', '/quotations/'+id), loadQuoClients()]).then(function(all) {
+      var r = all[0];
+      var selectedClientId = r.clientId ? String(r.clientId) : '';
+      if (!selectedClientId) {
+        var byName = findQuoClientByName(r.clientName);
+        if (byName) selectedClientId = String(byName.id);
+      }
       document.getElementById('doc-id').value    = r.quotationNumber || '';
-      document.getElementById('doc-party').value = r.clientName || '';
       document.getElementById('doc-date').value  = r.date || '';
       document.getElementById('doc-date2').value = r.validTill || '';
       document.getElementById('doc-status').value= r.status || 'Draft';
       document.getElementById('doc-notes').value = r.notes || '';
-      (r.items||[]).forEach(function(it){ addLineItemRow(document.getElementById('doc-items'), it); });
+      (r.items||[]).forEach(function(it){ addQuotationLineItemRow(document.getElementById('doc-items'), it); });
       updateDocTotal();
+      return populateAccountCompanySelect('doc-company-sel', r.companyId || '', {
+        placeholder: '— Select a company —',
+        metaId: 'doc-company-meta',
+        emptyText: 'Select a company to use for this quotation.',
+        fallbackName: r.sellerName || ''
+      }).then(function() { refreshQuoClientOptions(selectedClientId); });
     }).catch(function(e){ toast(e.message,'error'); });
   } else {
-    populateAccountCompanySelect('doc-company-sel', '', {
-      placeholder: '— Select a company —',
-      metaId: 'doc-company-meta',
-      emptyText: 'Select a company to use for this quotation.'
-    });
     document.getElementById('doc-id').value    = genId('QUO');
     document.getElementById('doc-party').value = '';
     document.getElementById('doc-date').value  = today();
     document.getElementById('doc-date2').value = '';
     document.getElementById('doc-status').value= 'Draft';
     document.getElementById('doc-notes').value = '';
-    addLineItemRow(document.getElementById('doc-items'), null);
+    addQuotationLineItemRow(document.getElementById('doc-items'), null);
     updateDocTotal();
+    Promise.all([
+      loadQuoClients(),
+      populateAccountCompanySelect('doc-company-sel', '', {
+        placeholder: '— Select a company —',
+        metaId: 'doc-company-meta',
+        emptyText: 'Select a company to use for this quotation.'
+      })
+    ]).then(function() { refreshQuoClientOptions(''); });
   }
   openModal('doc-modal');
 }
@@ -4619,20 +5162,33 @@ async function saveDoc() {
   var type = document.getElementById('doc-type').value;
   if (type !== 'quo') return;
   var items = getDocItems(document.getElementById('doc-items'));
-  var total = items.reduce(function(s,it){return s+(it.qty||0)*(it.rate||0);},0);
-  var clientName = document.getElementById('doc-party').value;
-  if (!clientName) return toast('Client name required','error');
+  var subtotal = items.reduce(function(sum, item) { return sum + (item.taxableAmount || 0); }, 0);
+  var totalCgst = items.reduce(function(sum, item) { return sum + (item.cgst || 0); }, 0);
+  var totalSgst = items.reduce(function(sum, item) { return sum + (item.sgst || 0); }, 0);
+  var totalIgst = items.reduce(function(sum, item) { return sum + (item.igst || 0); }, 0);
+  var total = items.reduce(function(sum, item) { return sum + (item.itemTotal || 0); }, 0);
+  var clientSel = document.getElementById('doc-client-sel');
+  var clientValue = clientSel ? clientSel.value : '';
+  var client = findQuoClient(clientValue);
+  if (!client) {
+    return toast('Please select a client from the client list', 'error');
+  }
   var data = {
     companyId:   document.getElementById('doc-company-sel').value || null,
     quotationNumber: document.getElementById('doc-id').value.trim(),
-    clientName: clientName,
+    clientId:   client.id,
+    clientName: client.name,
     date:       document.getElementById('doc-date').value,
     validTill:  document.getElementById('doc-date2').value,
     status:     document.getElementById('doc-status').value,
     notes:      document.getElementById('doc-notes').value,
     items:      items,
+    subtotal: subtotal,
+    totalCgst: totalCgst,
+    totalSgst: totalSgst,
+    totalIgst: totalIgst,
+    totalTax: totalCgst + totalSgst + totalIgst,
     totalAmount:total,
-    subtotal:   total,
   };
   try {
     if (editingQuoId) await api('PUT', '/quotations/'+editingQuoId, data);
@@ -4898,6 +5454,70 @@ function addPOItemRow(container, item) {
   container.appendChild(div);
   wireLineItemTotal(div);
 }
+function quotationTaxMode() {
+  var company = findAccountCompanyById(document.getElementById('doc-company-sel').value);
+  var client = findQuoClient(document.getElementById('doc-client-sel').value);
+  return accountStateTaxMode(company && company.stateCode, client && client.stateCode, company && company.gstNo, client && client.gstin);
+}
+function buildQuotationItem(item) {
+  item = item || {};
+  var qty = parseFloat(item.quantity != null ? item.quantity : item.qty) || 0;
+  var rate = parseFloat(item.unitPrice != null ? item.unitPrice : item.rate) || 0;
+  var discount = parseFloat(item.discount) || 0;
+  var taxRate = parseFloat(item.taxRate != null ? item.taxRate : item.taxPercent) || 0;
+  var taxable = Math.round((qty * rate * (1 - discount / 100)) * 100) / 100;
+  var taxAmount = Math.round((taxable * taxRate / 100) * 100) / 100;
+  var useIGST = quotationTaxMode() === 'igst';
+  return {
+    name: item.name || item.description || item.itemName || '', quantity: qty, qty: qty,
+    unitPrice: rate, rate: rate, discount: discount, taxRate: taxRate, taxableAmount: taxable,
+    cgst: useIGST ? 0 : Math.round((taxAmount / 2) * 100) / 100,
+    sgst: useIGST ? 0 : Math.round((taxAmount / 2) * 100) / 100,
+    igst: useIGST ? taxAmount : 0, itemTotal: Math.round((taxable + taxAmount) * 100) / 100
+  };
+}
+function addQuotationLineItemRow(container, item) {
+  item = item || { name: '', qty: 1, rate: 0, taxRate: 0 };
+  var div = document.createElement('div');
+  div.className = 'line-item-row quotation-item-row';
+  div.innerHTML = '<div class="line-item-field"><label class="line-item-label">Description</label><input type="text" class="form-control item-name" placeholder="Item description" value="' + htmlEscape(item.name || item.description || '') + '"></div>' +
+    '<div class="line-item-field"><label class="line-item-label">Qty</label><input type="number" class="form-control item-qty" min="0" step="0.001" value="' + (item.quantity != null ? item.quantity : (item.qty || 1)) + '"></div>' +
+    '<div class="line-item-field"><label class="line-item-label">Rate</label><input type="number" class="form-control item-rate" min="0" step="0.01" value="' + (item.unitPrice != null ? item.unitPrice : (item.rate || 0)) + '"></div>' +
+    '<div class="line-item-field"><label class="line-item-label">Discount %</label><input type="number" class="form-control item-discount" min="0" max="100" step="0.01" value="' + (item.discount || 0) + '"></div>' +
+    '<div class="line-item-field"><label class="line-item-label">Tax %</label><input type="number" class="form-control item-tax-rate" min="0" max="100" step="0.01" value="' + (item.taxRate || item.taxPercent || 0) + '"></div>' +
+    '<div class="line-item-field"><label class="line-item-label">Total</label><div class="item-total">₹ 0</div></div>' +
+    '<div class="line-item-actions"><button type="button" class="btn btn-danger btn-sm line-item-remove"><i class="bx bx-x"></i></button></div>';
+  div.querySelectorAll('input').forEach(function(input) { input.addEventListener('input', updateDocTotal); });
+  div.querySelector('.line-item-remove').addEventListener('click', function() { div.remove(); updateDocTotal(); });
+  container.appendChild(div);
+}
+getDocItems = function(container) {
+  return Array.from(container.querySelectorAll('.line-item-row')).map(function(row) {
+    return buildQuotationItem({
+      name: row.querySelector('.item-name').value,
+      qty: row.querySelector('.item-qty').value,
+      rate: row.querySelector('.item-rate').value,
+      discount: row.querySelector('.item-discount') ? row.querySelector('.item-discount').value : 0,
+      taxRate: row.querySelector('.item-tax-rate') ? row.querySelector('.item-tax-rate').value : 0
+    });
+  });
+};
+updateDocTotal = function() {
+  var container = document.getElementById('doc-items');
+  if (!container) return;
+  var items = getDocItems(container);
+  container.querySelectorAll('.line-item-row').forEach(function(row, index) {
+    var display = row.querySelector('.item-total');
+    if (display) display.textContent = fmtAmt(items[index].itemTotal);
+  });
+  document.getElementById('doc-total-display').textContent = fmtAmt(items.reduce(function(sum, item) {
+    return sum + item.itemTotal;
+  }, 0));
+};
+addLineItem = function() {
+  addQuotationLineItemRow(document.getElementById('doc-items'), null);
+  updateDocTotal();
+};
 function addPOItem() { addPOItemRow(document.getElementById('po-items'),null); updatePOTotal(); }
 function updatePOTotal() {
   var rows = document.getElementById('po-items').querySelectorAll('.line-item-row');
@@ -5151,14 +5771,17 @@ function renderClients() {
         '<td class="acc-td">'+accMenuBtn([
           {icon:'bx-show',     label:'View',         fn:'viewAccountDoc(\'clt\','+r.id+')'},
           {icon:'bx-edit-alt', label:'Edit',         fn:'openCltModal('+r.id+')'},
+          {icon:'bxs-envelope',label:'Issue Offer Letter', fn:'openClientOfferLetter('+r.id+')'},
           {icon:'bx-trash',    label:'Delete',       fn:'deleteClt('+r.id+')', danger:true}
         ])+'</td></tr>';
     }).join('') : emptyRow(8);
   }).catch(function(e){ toast(e.message||'Error loading clients','error'); });
 }
 
-function openCltModal(id) {
+function openCltModal(id, preset) {
   editingCltId = id || null;
+  cltReturnToQuotation = false;
+  preset = preset || {};
   document.getElementById('clt-modal-title').textContent = id ? 'Edit Client' : 'Register Client';
   if (id) {
     api('GET', '/clients/'+id).then(function(r) {
@@ -5179,7 +5802,7 @@ function openCltModal(id) {
       openModal('clt-modal');
     }).catch(function(e){ toast(e.message,'error'); });
   } else {
-    populateAccountCompanySelect('clt-company-sel', '', {
+    populateAccountCompanySelect('clt-company-sel', preset.companyId || '', {
       placeholder: '— Select a company —'
     });
     ['clt-db-id','clt-code','clt-name','clt-contact','clt-phone','clt-email','clt-gst','clt-pan','clt-address','clt-state','clt-statecode'].forEach(function(fid){ var el=document.getElementById(fid); if(el) el.value=''; });
@@ -5187,6 +5810,19 @@ function openCltModal(id) {
     document.getElementById('clt-status-sel').value = 'Active';
     openModal('clt-modal');
   }
+}
+
+// Starts the Client → Employee → Offer Letter flow required for a
+// client-issued document. The server validates the company boundary again.
+function openClientOfferLetter(clientId) {
+  if (typeof openHrDocUpload !== 'function') {
+    return toast('Offer-letter uploader is still loading. Please try again.', 'error');
+  }
+  openHrDocUpload('offer_letter', null, {
+    clientId: clientId,
+    clientRequired: true,
+    lockClient: true
+  });
 }
 
 async function saveClient() {
@@ -5207,13 +5843,18 @@ async function saveClient() {
   };
   if (!data.name) return toast('Client name required','error');
   try {
-    if (editingCltId) await api('PUT', '/clients/'+editingCltId, data);
-    else await api('POST', '/clients', data);
+    var savedClient;
+    if (editingCltId) savedClient = await api('PUT', '/clients/'+editingCltId, data);
+    else savedClient = await api('POST', '/clients', data);
     closeModal('clt-modal');
     renderClients();
     refreshAccountsDataLists();
     refreshAccountCounts();
     toast('Client saved!','success');
+    if (cltReturnToQuotation && savedClient && savedClient.id) {
+      cltReturnToQuotation = false;
+      loadQuoClients().then(function() { refreshQuoClientOptions(String(savedClient.id)); });
+    }
   } catch(e){ toast(e.message||'Error','error'); }
 }
 
@@ -6799,6 +7440,493 @@ function printVen(id) { printAccountDoc('ven', id); }
 function printClt(id) { printAccountDoc('clt', id); }
 function printWO(id)  { printAccountDoc('cwo', id); }
 function printPrj(id) { printAccountDoc('prj', id); }
+
+/* ══════════════════════════════════════════════════════════
+   PAYMENTS & PAYMENT BREAKUP (API-backed)
+   Net = Gross + GST − TDS − GST TDS − Retention − Advance Recovery − Other Recovery
+══════════════════════════════════════════════════════════ */
+var payEditingId = null;
+var payContext = null;
+var payPreviewTimer = null;
+var payPreviewSeq = 0;
+var payInvoiceFilter = null;
+var payLastBreakup = null;
+
+function payMoney(n) {
+  return '₹' + Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+function payPct(n) {
+  var v = Number(n || 0);
+  return (Math.round(v * 1000) / 1000) + '%';
+}
+
+function showInvoicePayments(invoiceId, invoiceNumber) {
+  payInvoiceFilter = { id: invoiceId, number: invoiceNumber };
+  showModule('pay');
+}
+function clearPayInvoiceFilter() {
+  payInvoiceFilter = null;
+  renderPayments();
+}
+
+function renderPayments() {
+  var params = new URLSearchParams();
+  var q = (document.getElementById('pay-search').value || '').trim();
+  var fy = document.getElementById('pay-fy').value;
+  var type = document.getElementById('pay-type').value;
+  if (q) params.set('q', q);
+  if (fy) params.set('financialYear', fy);
+  if (type) params.set('type', type);
+  if (payInvoiceFilter) params.set('invoiceId', payInvoiceFilter.id);
+  var chip = document.getElementById('pay-invoice-filter');
+  if (payInvoiceFilter) {
+    chip.style.display = '';
+    chip.innerHTML = 'Invoice ' + accEsc(payInvoiceFilter.number) + ' <button type="button" title="Show all payments" onclick="clearPayInvoiceFilter()">×</button>';
+  } else {
+    chip.style.display = 'none';
+  }
+  api('GET', '/payments?' + params.toString()).then(function(rows) {
+    rows = rows || [];
+    var fySel = document.getElementById('pay-fy');
+    if (!fy) {
+      var years = Array.from(new Set(rows.map(function(r) { return r.financialYear; }).filter(Boolean))).sort().reverse();
+      fySel.innerHTML = '<option value="">All FY</option>' + years.map(function(y) { return '<option value="' + accEsc(y) + '">FY 20' + accEsc(y) + '</option>'; }).join('');
+    }
+    var sum = function(f) { return rows.reduce(function(s, r) { return s + Number(r[f] || 0); }, 0); };
+    document.getElementById('pay-summary').innerHTML = [
+      ['Payments', String(rows.length)],
+      ['Gross + GST settled', payMoney(sum('grossAmount') + sum('gstAmount'))],
+      ['TDS deducted', payMoney(sum('tdsAmount'))],
+      ['GST TDS', payMoney(sum('gstTdsAmount'))],
+      ['Retention held', payMoney(sum('retentionAmount'))],
+      ['Net received', payMoney(sum('netAmount'))]
+    ].map(function(c) { return '<div class="pay-summary-card"><div class="v">' + c[1] + '</div><div class="l">' + c[0] + '</div></div>'; }).join('');
+
+    document.getElementById('pay-body').innerHTML = rows.length ? rows.map(function(p) {
+      var otherDed = Number(p.gstTdsAmount || 0) + Number(p.retentionAmount || 0) + Number(p.advanceRecovery || 0) + Number(p.otherRecovery || 0);
+      var billLabel = p.paymentType === 'advance'
+        ? '<span style="font-size:11px;font-weight:700;color:#7c3aed;background:#ede9fe;border-radius:6px;padding:2px 8px;">Advance</span>'
+        : accEsc(p.invoiceNumber || '—') + (p.raBillNo ? '<span class="ra-badge">R.A. ' + p.raBillNo + '</span>' : '');
+      var menu = accMenuBtn([
+        {icon:'bx-show',     label:'View Payment Breakup', fn:'viewPaymentPdf(' + p.id + ')'},
+        {icon:'bx-download', label:'Download Breakup PDF', fn:'downloadPaymentPdf(' + p.id + ')'},
+        {icon:'bx-edit-alt', label:'Edit',                 fn:'openPaymentModal({paymentId:' + p.id + '})'},
+        {icon:'bx-trash',    label:'Delete',               fn:'deletePayment(' + p.id + ')', danger:true}
+      ]);
+      return '<tr>' +
+        '<td class="acc-td" style="font-weight:700;color:var(--accent);white-space:nowrap;">' + accEsc(p.paymentNumber) + '</td>' +
+        '<td class="acc-td" style="white-space:nowrap;">' + fmtD(p.paymentDate) + '</td>' +
+        '<td class="acc-td"><div style="font-weight:600;">' + accEsc(p.partyName || '—') + '</div>' + (p.partyPan ? '<div style="font-size:10px;color:var(--text-muted);">PAN ' + accEsc(p.partyPan) + '</div>' : '') + '</td>' +
+        '<td class="acc-td">' + billLabel + '</td>' +
+        '<td class="acc-td" style="text-align:right;white-space:nowrap;">' + payMoney(Number(p.grossAmount) + Number(p.gstAmount)) + '</td>' +
+        '<td class="acc-td" style="text-align:right;white-space:nowrap;">' + payMoney(p.tdsAmount) + (p.tdsCode ? '<div style="font-size:10px;color:var(--text-muted);">' + accEsc(p.tdsCode) + '</div>' : '') + '</td>' +
+        '<td class="acc-td" style="text-align:right;white-space:nowrap;">' + payMoney(otherDed) + '</td>' +
+        '<td class="acc-td" style="text-align:right;font-weight:800;white-space:nowrap;">' + payMoney(p.netAmount) + '</td>' +
+        '<td class="acc-td" style="font-size:12px;">' + accEsc(p.paymentMode || '—') + (p.referenceNo ? '<div style="font-size:10px;color:var(--text-muted);">' + accEsc(p.referenceNo) + '</div>' : '') + '</td>' +
+        '<td class="acc-td">' + menu + '</td>' +
+      '</tr>';
+    }).join('') : emptyRow(10);
+    if (!q && !fy && !type && !payInvoiceFilter) setTabCount('tab-count-pay', rows.length);
+  }).catch(function(e) { toast(e.message || 'Failed to load payments', 'error'); });
+}
+
+function viewPaymentPdf(id) { openPDF('/payments/' + id + '/pdf?view=1', false); }
+function downloadPaymentPdf(id) { openPDF('/payments/' + id + '/pdf', true, 'Payment-Breakup-' + id + '.pdf'); }
+
+function deletePayment(id) {
+  if (!confirm('Delete this payment and its breakup? The invoice balance will be updated.')) return;
+  api('DELETE', '/payments/' + id).then(function() {
+    toast('Payment deleted', 'success');
+    renderPayments();
+    renderInvoices();
+  }).catch(function(e) { toast(e.message || 'Delete failed', 'error'); });
+}
+
+function onPayKindChange() {
+  var advance = document.getElementById('pay-kind').value === 'advance';
+  document.getElementById('pay-invoice-group').style.display = advance ? 'none' : '';
+  document.getElementById('pay-client-group').style.display = advance ? '' : 'none';
+  if (advance) document.getElementById('pay-gst-rate').value = 0;
+  onPayPartyChange();
+}
+
+function onTdsOverrideToggle() {
+  var override = document.getElementById('pay-tds-override').checked;
+  var input = document.getElementById('pay-tds-amount');
+  input.readOnly = !override;
+  if (override) input.focus();
+  schedulePayPreview();
+}
+
+function onPayPartyChange() {
+  var advance = document.getElementById('pay-kind').value === 'advance';
+  var invoiceId = advance ? '' : document.getElementById('pay-invoice').value;
+  var clientId = advance ? document.getElementById('pay-client').value : '';
+  if (!invoiceId && !clientId) {
+    payContext = null;
+    document.getElementById('pay-invoice-info').style.display = 'none';
+    document.getElementById('pay-breakup').innerHTML = '<div class="pay-breakup-empty">' + (advance ? 'Select the client.' : 'Select the invoice / R.A. bill.') + '</div>';
+    return Promise.resolve();
+  }
+  return loadPayContext(invoiceId, clientId, null, true);
+}
+
+function loadPayContext(invoiceId, clientId, payment, applyDefaults) {
+  var qs = invoiceId ? 'invoiceId=' + encodeURIComponent(invoiceId) : 'clientId=' + encodeURIComponent(clientId);
+  if (payEditingId) qs += '&paymentId=' + payEditingId;
+  return api('GET', '/payments/context?' + qs).then(function(ctx) {
+    payContext = ctx;
+    var sel = document.getElementById('pay-tds-rule');
+    sel.innerHTML = '<option value="">— No TDS —</option>' + (ctx.rules || []).map(function(r) {
+      return '<option value="' + r.id + '">' + accEsc(r.code + ' · ' + r.nature + (r.payeeType ? ' (' + r.payeeType + ')' : '') + ' · ' + payPct(r.rate)) + '</option>';
+    }).join('');
+    if (payment) {
+      sel.value = payment.tdsRuleId ? String(payment.tdsRuleId) : '';
+    } else if (applyDefaults) {
+      sel.value = ctx.suggestedTdsRuleId ? String(ctx.suggestedTdsRuleId) : '';
+      if (ctx.lastPayment) {
+        document.getElementById('pay-gsttds-rate').value = ctx.lastPayment.gstTdsRate || 0;
+        document.getElementById('pay-retention-rate').value = ctx.lastPayment.retentionRate || 0;
+      }
+      if (ctx.invoice) {
+        var remaining = ctx.settlement ? ctx.settlement.remainingGross : ctx.invoice.subtotal;
+        document.getElementById('pay-gross').value = remaining > 0 ? remaining : '';
+        document.getElementById('pay-gst-rate').value = ctx.invoice.gstRate || 0;
+      }
+    }
+    var info = document.getElementById('pay-invoice-info');
+    if (ctx.invoice) {
+      var s = ctx.settlement || {};
+      info.innerHTML = '<b>' + accEsc(ctx.invoice.invoiceNumber) + '</b>' + (ctx.invoice.isRABill ? ' · R.A. Bill No. ' + accEsc(ctx.invoice.raBillNo || 1) : '') +
+        ' · ' + fmtD(ctx.invoice.invoiceDate) + ' · ' + accEsc(ctx.invoice.customerName || '') +
+        '<br>Bill: ' + payMoney(ctx.invoice.subtotal) + ' + GST ' + payMoney(ctx.invoice.totalTax) + ' = <b>' + payMoney(ctx.invoice.totalAmount) + '</b>' +
+        ' · Settled so far: ' + payMoney(s.settled) + ' (' + (s.count || 0) + ' payment' + (s.count === 1 ? '' : 's') + ')' +
+        ' · Balance: <b>' + payMoney(s.balance) + '</b>';
+      info.style.display = '';
+    } else if (ctx.client) {
+      info.innerHTML = 'Advance from <b>' + accEsc(ctx.client.name) + '</b>' + (ctx.client.pan ? ' · PAN ' + accEsc(ctx.client.pan) : '');
+      info.style.display = '';
+    } else {
+      info.style.display = 'none';
+    }
+    var advHint = document.getElementById('pay-adv-hint');
+    advHint.innerHTML = ctx.advanceOutstanding > 0
+      ? 'Advance outstanding from this client: <b>' + payMoney(ctx.advanceOutstanding) + '</b> <a href="javascript:void(0)" onclick="document.getElementById(\'pay-adv\').value=' + ctx.advanceOutstanding + ';schedulePayPreview(0);">Recover all</a>'
+      : 'No outstanding advance recorded for this client.';
+    schedulePayPreview(0);
+  }).catch(function(e) { toast(e.message || 'Could not load invoice details', 'error'); });
+}
+
+function collectPaymentForm() {
+  var advance = document.getElementById('pay-kind').value === 'advance';
+  var override = document.getElementById('pay-tds-override').checked;
+  return {
+    paymentId: payEditingId || undefined,
+    paymentType: advance ? 'advance' : 'bill',
+    invoiceId: advance ? null : (document.getElementById('pay-invoice').value || null),
+    clientId: advance ? (document.getElementById('pay-client').value || null) : undefined,
+    paymentDate: document.getElementById('pay-date').value,
+    paymentMode: document.getElementById('pay-mode').value,
+    referenceNo: document.getElementById('pay-ref').value.trim(),
+    bankName: document.getElementById('pay-bank').value.trim(),
+    grossAmount: document.getElementById('pay-gross').value,
+    gstRate: document.getElementById('pay-gst-rate').value,
+    tdsRuleId: document.getElementById('pay-tds-rule').value || null,
+    tdsOverride: override,
+    tdsAmount: override ? document.getElementById('pay-tds-amount').value : undefined,
+    gstTdsRate: document.getElementById('pay-gsttds-rate').value || 0,
+    retentionRate: document.getElementById('pay-retention-rate').value || 0,
+    advanceRecovery: document.getElementById('pay-adv').value || 0,
+    otherRecovery: document.getElementById('pay-other').value || 0,
+    otherRecoveryNote: document.getElementById('pay-other-note').value.trim(),
+    notes: document.getElementById('pay-notes').value
+  };
+}
+
+function schedulePayPreview(delay) {
+  clearTimeout(payPreviewTimer);
+  payPreviewTimer = setTimeout(runPayPreview, delay === undefined ? 350 : delay);
+}
+
+function runPayPreview() {
+  var body = collectPaymentForm();
+  if ((!body.invoiceId && !body.clientId) || !(Number(body.grossAmount) > 0)) {
+    payLastBreakup = null;
+    document.getElementById('pay-breakup').innerHTML = '<div class="pay-breakup-empty">Enter the gross amount to see the breakup.</div>';
+    return;
+  }
+  var seq = ++payPreviewSeq;
+  api('POST', '/payments/preview', body).then(function(b) {
+    if (seq !== payPreviewSeq) return;
+    payLastBreakup = b;
+    renderPayBreakup(b);
+  }).catch(function(e) {
+    if (seq !== payPreviewSeq) return;
+    payLastBreakup = null;
+    document.getElementById('pay-breakup').innerHTML = '<div class="pay-bk-error">' + accEsc(e.message || 'Cannot calculate') + '</div>';
+  });
+}
+
+function renderPayBreakup(b) {
+  var tdsInput = document.getElementById('pay-tds-amount');
+  if (!document.getElementById('pay-tds-override').checked) tdsInput.value = b.tdsAmount;
+  var note = document.getElementById('pay-tds-note');
+  if (b.tdsCode || b.tdsOverride) {
+    note.style.display = '';
+    note.innerHTML = '<b>' + accEsc(b.tdsCode || 'TDS') + (b.tdsSection ? ' (u/s ' + accEsc(b.tdsSection) + ')' : '') + ' @ ' + payPct(b.tdsRate) + ':</b> ' + accEsc(b.tdsNote || '');
+  } else {
+    note.style.display = 'none';
+  }
+  var row = function(label, value, cls) {
+    return '<div class="pay-bk-row ' + (cls || '') + '"><span>' + label + '</span><span>' + value + '</span></div>';
+  };
+  var html =
+    row('Gross Bill / Payment (excl. GST)', payMoney(b.grossAmount)) +
+    row('+ GST @ ' + payPct(b.gstRate), payMoney(b.gstAmount)) +
+    row('Total Bill Amount (incl. GST)', payMoney(Number(b.grossAmount) + Number(b.gstAmount)), 'sub') +
+    row('− TDS' + (b.tdsCode ? ' (' + accEsc(b.tdsCode) + ' @ ' + payPct(b.tdsRate) + ')' : ''), payMoney(b.tdsAmount), 'ded') +
+    row('− GST TDS @ ' + payPct(b.gstTdsRate), payMoney(b.gstTdsAmount), 'ded') +
+    row('− Retention / Security Deposit @ ' + payPct(b.retentionRate), payMoney(b.retentionAmount), 'ded') +
+    row('− Advance Recovery', payMoney(b.advanceRecovery), 'ded') +
+    row('− Other Recovery' + (b.otherRecoveryNote ? ' (' + accEsc(b.otherRecoveryNote) + ')' : ''), payMoney(b.otherRecovery), 'ded') +
+    row('Total Deductions', payMoney(b.totalDeductions), 'sub') +
+    '<div class="pay-bk-net"><span>' + (b.paymentType === 'advance' ? 'Net Advance' : 'Net Received / Payable') + '</span><span>' + payMoney(b.netAmount) + '</span></div>';
+  var s = b.context && b.context.settlement;
+  if (s) {
+    html += '<div class="pay-bk-settle">' +
+      '<div>Invoice total</div><div><b>' + payMoney(s.invoiceTotal) + '</b></div>' +
+      '<div>Settled earlier</div><div><b>' + payMoney(s.settled) + '</b></div>' +
+      '<div>This payment (Gross + GST)</div><div><b>' + payMoney(s.thisPayment) + '</b></div>' +
+      '<div>Balance after this payment</div><div><b style="color:' + (s.balanceAfter < -0.5 ? '#b91c1c' : '#111827') + ';">' + payMoney(s.balanceAfter) + '</b></div>' +
+    '</div>';
+  }
+  document.getElementById('pay-breakup').innerHTML = html;
+}
+
+function payInvoiceOptionLabel(r) {
+  var ps = r.paymentSummary || { balance: Number(r.totalAmount || 0) };
+  return (r.invoiceNumber || ('#' + r.id)) + (r.isRABill ? ' · R.A. ' + (r.raBillNo || 1) : '') + ' · ' + (r.customerName || '') +
+    ' · Balance ' + payMoney(ps.balance);
+}
+
+// opts: { invoiceId } to pay an invoice, { paymentId } to edit, {} for a blank form
+function openPaymentModal(opts) {
+  opts = opts || {};
+  payEditingId = opts.paymentId || null;
+  payContext = null;
+  payLastBreakup = null;
+  document.getElementById('pay-modal-title').innerHTML = '<i class="bx bxs-wallet" style="color:var(--accent)"></i> ' + (payEditingId ? 'Edit Payment' : 'Record Payment');
+  document.getElementById('pay-kind').value = 'bill';
+  document.getElementById('pay-date').value = today();
+  document.getElementById('pay-mode').value = 'NEFT';
+  ['pay-ref', 'pay-bank', 'pay-gross', 'pay-gst-rate', 'pay-other-note', 'pay-notes', 'pay-tds-amount'].forEach(function(id) { document.getElementById(id).value = ''; });
+  ['pay-gsttds-rate', 'pay-retention-rate', 'pay-adv', 'pay-other'].forEach(function(id) { document.getElementById(id).value = 0; });
+  document.getElementById('pay-tds-override').checked = false;
+  document.getElementById('pay-tds-amount').readOnly = true;
+  document.getElementById('pay-tds-note').style.display = 'none';
+  document.getElementById('pay-adv-hint').innerHTML = '';
+  document.getElementById('pay-invoice-info').style.display = 'none';
+  document.getElementById('pay-breakup').innerHTML = '<div class="pay-breakup-empty">Loading…</div>';
+  onPayKindChangeSilently();
+  openModal('pay-modal');
+
+  var loadInvoices = api('GET', '/invoices').then(function(rows) {
+    rows = (rows || []).filter(function(r) { return r.status !== 'Cancelled'; });
+    var sel = document.getElementById('pay-invoice');
+    var open = rows.filter(function(r) { return !r.paymentSummary || r.paymentSummary.balance > 0.5; });
+    var settled = rows.filter(function(r) { return r.paymentSummary && r.paymentSummary.balance <= 0.5; });
+    sel.innerHTML = '<option value="">— Select invoice / R.A. bill —</option>' +
+      (open.length ? '<optgroup label="Open (balance due)">' + open.map(function(r) { return '<option value="' + r.id + '">' + accEsc(payInvoiceOptionLabel(r)) + '</option>'; }).join('') + '</optgroup>' : '') +
+      (settled.length ? '<optgroup label="Fully settled">' + settled.map(function(r) { return '<option value="' + r.id + '">' + accEsc(payInvoiceOptionLabel(r)) + '</option>'; }).join('') + '</optgroup>' : '');
+  });
+  var loadClients = api('GET', '/clients').then(function(rows) {
+    document.getElementById('pay-client').innerHTML = '<option value="">— Select client —</option>' + (rows || []).map(function(c) {
+      return '<option value="' + c.id + '">' + accEsc(c.name + (c.clientCode ? ' (' + c.clientCode + ')' : '')) + '</option>';
+    }).join('');
+  });
+
+  Promise.all([loadInvoices, loadClients]).then(function() {
+    if (payEditingId) {
+      return api('GET', '/payments/' + payEditingId).then(function(p) {
+        document.getElementById('pay-kind').value = p.paymentType === 'advance' ? 'advance' : 'bill';
+        onPayKindChangeSilently();
+        if (p.invoiceId) document.getElementById('pay-invoice').value = String(p.invoiceId);
+        if (p.clientId) document.getElementById('pay-client').value = String(p.clientId);
+        document.getElementById('pay-date').value = p.paymentDate || today();
+        document.getElementById('pay-mode').value = p.paymentMode || 'NEFT';
+        document.getElementById('pay-ref').value = p.referenceNo || '';
+        document.getElementById('pay-bank').value = p.bankName || '';
+        document.getElementById('pay-gross').value = p.grossAmount;
+        document.getElementById('pay-gst-rate').value = p.gstRate;
+        document.getElementById('pay-tds-override').checked = !!p.tdsOverride;
+        document.getElementById('pay-tds-amount').readOnly = !p.tdsOverride;
+        document.getElementById('pay-tds-amount').value = p.tdsAmount;
+        document.getElementById('pay-gsttds-rate').value = p.gstTdsRate;
+        document.getElementById('pay-retention-rate').value = p.retentionRate;
+        document.getElementById('pay-adv').value = p.advanceRecovery;
+        document.getElementById('pay-other').value = p.otherRecovery;
+        document.getElementById('pay-other-note').value = p.otherRecoveryNote || '';
+        document.getElementById('pay-notes').value = p.notes || '';
+        return loadPayContext(p.invoiceId, p.clientId, p, false);
+      });
+    }
+    if (opts.invoiceId) {
+      document.getElementById('pay-invoice').value = String(opts.invoiceId);
+      return loadPayContext(opts.invoiceId, null, null, true);
+    }
+    document.getElementById('pay-breakup').innerHTML = '<div class="pay-breakup-empty">Select the invoice / R.A. bill.</div>';
+  }).catch(function(e) { toast(e.message || 'Could not open the payment form', 'error'); });
+}
+
+function onPayKindChangeSilently() {
+  var advance = document.getElementById('pay-kind').value === 'advance';
+  document.getElementById('pay-invoice-group').style.display = advance ? 'none' : '';
+  document.getElementById('pay-client-group').style.display = advance ? '' : 'none';
+}
+
+function savePayment() {
+  var body = collectPaymentForm();
+  if (body.paymentType === 'bill' && !body.invoiceId) return toast('Select the invoice / R.A. bill', 'error');
+  if (body.paymentType === 'advance' && !body.clientId) return toast('Select the client', 'error');
+  if (!(Number(body.grossAmount) > 0)) return toast('Enter the gross amount', 'error');
+  if (!body.paymentDate) return toast('Enter the payment date', 'error');
+  var outstanding = payContext ? Number(payContext.advanceOutstanding || 0) : 0;
+  if (Number(body.advanceRecovery) > outstanding + 0.5 &&
+      !confirm('Advance recovery (' + payMoney(body.advanceRecovery) + ') is more than the advance outstanding in the system (' + payMoney(outstanding) + '). Save anyway?')) return;
+  var s = payLastBreakup && payLastBreakup.context && payLastBreakup.context.settlement;
+  if (s && s.balanceAfter < -0.5 && !confirm('This payment settles more than the invoice balance (' + payMoney(s.balance) + '). Save anyway?')) return;
+  var btn = document.getElementById('pay-save-btn');
+  btn.disabled = true;
+  var req = payEditingId ? api('PUT', '/payments/' + payEditingId, body) : api('POST', '/payments', body);
+  req.then(function(p) {
+    closeModal('pay-modal');
+    if (activeModule === 'pay') renderPayments();
+    renderInvoices();
+    refreshAccountCounts();
+    document.getElementById('pay-done-body').innerHTML =
+      '<div style="font-size:14px;line-height:1.7;">Payment <b>' + accEsc(p.paymentNumber) + '</b> ' + (payEditingId ? 'updated' : 'recorded') + '.<br>' +
+      'Gross + GST ' + payMoney(Number(p.grossAmount) + Number(p.gstAmount)) + ' − deductions ' + payMoney(p.totalDeductions) +
+      ' = <b>Net ' + payMoney(p.netAmount) + '</b>' +
+      (p.invoiceNumber ? '<br>Linked to invoice <b>' + accEsc(p.invoiceNumber) + '</b>' + (p.raBillNo ? ' (R.A. ' + p.raBillNo + ')' : '') : '') + '</div>';
+    document.getElementById('pay-done-view').onclick = function() { viewPaymentPdf(p.id); };
+    document.getElementById('pay-done-download').onclick = function() { downloadPaymentPdf(p.id); };
+    openModal('pay-done-modal');
+  }).catch(function(e) {
+    toast(e.message || 'Could not save the payment', 'error');
+  }).finally(function() { btn.disabled = false; });
+}
+
+/* ══════════════════════════════════════════════════════════
+   TDS MASTER (API-backed)
+══════════════════════════════════════════════════════════ */
+var tdsRulesCache = [];
+var TDS_BASIS_LABELS = { whole: 'Whole amount', excess: 'Excess only', current: 'Current payment' };
+
+function tdsCompanyParam() {
+  if (ACCOUNTS_PAGE_ROLE !== 'superadmin') return '';
+  var sel = document.getElementById('tds-company-sel');
+  return sel && sel.value ? 'companyId=' + encodeURIComponent(sel.value) : '';
+}
+
+function renderTdsRules() {
+  var sel = document.getElementById('tds-company-sel');
+  var ready = Promise.resolve();
+  if (ACCOUNTS_PAGE_ROLE === 'superadmin' && !sel.options.length) {
+    sel.style.display = '';
+    ready = fetchAccountCompanies().then(function(companies) {
+      sel.innerHTML = companies.map(function(c) { return '<option value="' + c.id + '">' + accEsc(c.name) + '</option>'; }).join('');
+    });
+  }
+  ready.then(function() {
+    var qs = tdsCompanyParam();
+    return api('GET', '/tds-rules' + (qs ? '?' + qs : ''));
+  }).then(function(rows) {
+    tdsRulesCache = rows || [];
+    var showInactive = document.getElementById('tds-show-inactive').checked;
+    var list = tdsRulesCache.filter(function(r) { return showInactive || r.active; });
+    var money = function(v) { return Number(v || 0) > 0 ? '₹' + Number(v).toLocaleString('en-IN') : '—'; };
+    document.getElementById('tds-body').innerHTML = list.length ? list.map(function(r) {
+      return '<tr' + (r.active ? '' : ' style="opacity:.55;"') + '>' +
+        '<td class="acc-td" style="font-weight:700;white-space:nowrap;">' + accEsc(r.code) + '</td>' +
+        '<td class="acc-td">' + accEsc(r.nature) + (r.conditionNote ? '<div style="font-size:11px;color:var(--text-muted);max-width:320px;">' + accEsc(r.conditionNote) + '</div>' : '') + '</td>' +
+        '<td class="acc-td">' + accEsc(r.section || '—') + '</td>' +
+        '<td class="acc-td">' + accEsc(r.payeeType || '—') + '</td>' +
+        '<td class="acc-td" style="text-align:right;font-weight:700;">' + payPct(r.rate) + '</td>' +
+        '<td class="acc-td" style="text-align:right;">' + money(r.singleLimit) + '</td>' +
+        '<td class="acc-td" style="text-align:right;">' + money(r.aggregateLimit) + '</td>' +
+        '<td class="acc-td">' + accEsc(TDS_BASIS_LABELS[r.thresholdBasis] || r.thresholdBasis) + '</td>' +
+        '<td class="acc-td" style="white-space:nowrap;">' + (r.applicableFrom ? fmtD(r.applicableFrom) : '—') + (r.applicableTo ? ' – ' + fmtD(r.applicableTo) : '') + '</td>' +
+        '<td class="acc-td">' + (r.active ? 'Yes' : 'No') + '</td>' +
+        '<td class="acc-td">' + accMenuBtn([
+          {icon:'bx-edit-alt', label:'Edit',   fn:'openTdsModal(' + r.id + ')'},
+          {icon:'bx-trash',    label:'Delete', fn:'deleteTdsRule(' + r.id + ')', danger:true}
+        ]) + '</td>' +
+      '</tr>';
+    }).join('') : emptyRow(11);
+  }).catch(function(e) { toast(e.message || 'Failed to load TDS master', 'error'); });
+}
+
+function openTdsModal(id) {
+  var r = id ? tdsRulesCache.find(function(x) { return x.id === id; }) : null;
+  document.getElementById('tds-modal-title').textContent = r ? 'Edit TDS Rule' : 'New TDS Rule';
+  document.getElementById('tds-id').value = r ? r.id : '';
+  document.getElementById('tds-code').value = r ? r.code : '';
+  document.getElementById('tds-section').value = r ? (r.section || '') : '';
+  document.getElementById('tds-nature').value = r ? r.nature : '';
+  document.getElementById('tds-payee').value = r ? (r.payeeType || '') : '';
+  document.getElementById('tds-rate').value = r ? Number(r.rate) : '';
+  document.getElementById('tds-basis').value = r ? (r.thresholdBasis || 'whole') : 'whole';
+  document.getElementById('tds-single').value = r ? Number(r.singleLimit || 0) : 0;
+  document.getElementById('tds-aggregate').value = r ? Number(r.aggregateLimit || 0) : 0;
+  document.getElementById('tds-from').value = r ? (r.applicableFrom || '') : '';
+  document.getElementById('tds-to').value = r ? (r.applicableTo || '') : '';
+  document.getElementById('tds-note').value = r ? (r.conditionNote || '') : '';
+  document.getElementById('tds-active').checked = r ? !!r.active : true;
+  openModal('tds-modal');
+}
+
+function saveTdsRule() {
+  var id = document.getElementById('tds-id').value;
+  var body = {
+    code: document.getElementById('tds-code').value.trim(),
+    section: document.getElementById('tds-section').value.trim(),
+    nature: document.getElementById('tds-nature').value.trim(),
+    payeeType: document.getElementById('tds-payee').value.trim(),
+    rate: document.getElementById('tds-rate').value,
+    thresholdBasis: document.getElementById('tds-basis').value,
+    singleLimit: document.getElementById('tds-single').value || 0,
+    aggregateLimit: document.getElementById('tds-aggregate').value || 0,
+    applicableFrom: document.getElementById('tds-from').value || null,
+    applicableTo: document.getElementById('tds-to').value || null,
+    conditionNote: document.getElementById('tds-note').value.trim(),
+    active: document.getElementById('tds-active').checked
+  };
+  if (!body.code || !body.nature || body.rate === '') return toast('Code, nature and rate are required', 'error');
+  if (ACCOUNTS_PAGE_ROLE === 'superadmin') body.companyId = document.getElementById('tds-company-sel').value || null;
+  var req = id ? api('PUT', '/tds-rules/' + id, body) : api('POST', '/tds-rules', body);
+  req.then(function() {
+    closeModal('tds-modal');
+    toast('TDS rule saved', 'success');
+    renderTdsRules();
+  }).catch(function(e) { toast(e.message || 'Save failed', 'error'); });
+}
+
+function deleteTdsRule(id) {
+  if (!confirm('Delete this TDS rule? Payments already recorded keep their TDS details.')) return;
+  api('DELETE', '/tds-rules/' + id).then(function() {
+    toast('TDS rule deleted', 'success');
+    renderTdsRules();
+  }).catch(function(e) { toast(e.message || 'Delete failed', 'error'); });
+}
+
+function restoreTdsDefaults() {
+  var body = ACCOUNTS_PAGE_ROLE === 'superadmin' ? { companyId: document.getElementById('tds-company-sel').value || null } : {};
+  api('POST', '/tds-rules/defaults', body).then(function(res) {
+    toast(res.message || 'Default rules restored', 'success');
+    renderTdsRules();
+  }).catch(function(e) { toast(e.message || 'Failed', 'error'); });
+}
 </script>
+<%- include('../partials/hr-doc-modal') %>
 <div id="acc-action-menu" style="display:none;position:fixed;z-index:9999;background:var(--bg-card);border:1px solid var(--border);border-radius:10px;box-shadow:0 8px 28px rgba(0,0,0,0.18);min-width:200px;overflow:hidden;padding:4px 0;"></div>
 </body></html>

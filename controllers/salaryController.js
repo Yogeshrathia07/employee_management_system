@@ -1,5 +1,7 @@
 const { Op } = require('sequelize');
 const { Salary, Timesheet, Leave, User, Company } = require('../models');
+const PayrollCalc = require('../public/js/payroll-calc');
+const { useUnicodeFonts } = require('./pdfHelper');
 
 async function resolveActorCompanyId(req) {
   if (req.user.companyId) return req.user.companyId;
@@ -8,10 +10,28 @@ async function resolveActorCompanyId(req) {
   return actor?.companyId || null;
 }
 
-// ─── Helper: actual hours from approved timesheets ────────────────────────────
+function monthKey(month, year) {
+  return `${year}-${String(month).padStart(2, '0')}`;
+}
+
+function parseOptionalNumber(value) {
+  if (value === null || value === undefined || value === '') return null;
+  const n = parseFloat(value);
+  return Number.isFinite(n) ? n : null;
+}
+
+// Days in the pay period: requested value (1..calendar days) or the calendar month.
+function resolveTotalDays(requested, month, year) {
+  const calDays = PayrollCalc.daysInMonth(month, year);
+  const n = parseOptionalNumber(requested);
+  return n && n > 0 ? Math.min(calDays, n) : calDays;
+}
+
+// ─── Helper: hours and distinct days logged in approved timesheets ───────────
 async function getActualHours(userId, month, year) {
   const monthStart = new Date(year, month - 1, 1);
   const monthEnd   = new Date(year, month, 0, 23, 59, 59);
+  const prefix     = monthKey(month, year);
 
   const timesheets = await Timesheet.findAll({
     where: {
@@ -22,31 +42,69 @@ async function getActualHours(userId, month, year) {
     },
   });
 
-  let totalHours = 0, presentDays = 0;
+  let totalHours = 0;
+  const days = new Set();
   timesheets.forEach(ts => {
-    let entries = ts.entries || [];
-    if (typeof entries === 'string') { try { entries = JSON.parse(entries); } catch(e) { entries = []; } }
-    if (!Array.isArray(entries)) entries = [];
-    entries.forEach(e => {
-      const d = new Date(e.date);
-      if (d >= monthStart && d <= monthEnd) {
-        totalHours += Number(e.hours) || 0;
-        if (e.workType === 'work' || e.workType === 'half-day') presentDays++;
-      }
+    (ts.entries || []).forEach(e => {
+      const date = String(e.date || '').slice(0, 10);
+      if (date.slice(0, 7) !== prefix) return;
+      const hours = Number(e.hours) || 0;
+      if (hours <= 0) return;
+      totalHours += hours;
+      days.add(date);
     });
   });
-  return { totalHours, presentDays };
+  return { totalHours, loggedDays: days.size };
 }
 
-// ─── Helper: working days (Mon–Fri) in month ─────────────────────────────────
-function getWorkingDays(month, year) {
-  let count = 0;
-  const days = new Date(year, month, 0).getDate();
-  for (let d = 1; d <= days; d++) {
-    const day = new Date(year, month - 1, d).getDay();
-    if (day !== 0 && day !== 6) count++;
-  }
-  return count;
+// ─── Helper: project / work hours from approved timesheets (payslip summary) ─
+function workLabel(entry) {
+  const project = String(entry.project || '').trim();
+  const workItem = String(entry.workItem || '').trim();
+  if (entry.projectId && project) return workItem ? `${project} · ${workItem}` : project;
+  if (workItem) return `General Work · ${workItem}`;
+  return project || 'General Work';
+}
+
+async function getWorkSummary(userId, month, year) {
+  const monthStart = new Date(year, month - 1, 1);
+  const monthEnd   = new Date(year, month, 0, 23, 59, 59);
+  const prefix     = monthKey(month, year);
+  const timesheets = await Timesheet.findAll({
+    where: {
+      userId,
+      status: 'approved',
+      weekStart: { [Op.lte]: monthEnd },
+      weekEnd:   { [Op.gte]: monthStart },
+    },
+  });
+
+  const groups = new Map();
+  const allDays = new Set();
+  let totalHours = 0;
+  timesheets.forEach(ts => {
+    (ts.entries || []).forEach(e => {
+      const date = String(e.date || '').slice(0, 10);
+      if (date.slice(0, 7) !== prefix) return;
+      const hours = Number(e.hours) || 0;
+      if (hours <= 0) return;
+      const label = workLabel(e);
+      if (!groups.has(label)) {
+        groups.set(label, { label, projectId: e.projectId || null, workItemId: e.workItemId || null, hours: 0, billableHours: 0, days: new Set() });
+      }
+      const g = groups.get(label);
+      g.hours += hours;
+      if (String(e.billingType || 'Billable') === 'Billable') g.billableHours += hours;
+      g.days.add(date);
+      allDays.add(date);
+      totalHours += hours;
+    });
+  });
+
+  const rows = Array.from(groups.values())
+    .map(g => ({ label: g.label, projectId: g.projectId, workItemId: g.workItemId, hours: g.hours, billableHours: g.billableHours, days: g.days.size }))
+    .sort((a, b) => b.hours - a.hours);
+  return { rows, totalHours, totalDays: allDays.size };
 }
 
 // ─── Helper: approved leave days in month ────────────────────────────────────
@@ -71,26 +129,8 @@ function numberToWords(n) {
 }
 
 async function getLeaveTaken(userId, month, year) {
-  const monthStart = new Date(year, month - 1, 1);
-  const monthEnd   = new Date(year, month, 0, 23, 59, 59);
-
-  const leaves = await Leave.findAll({
-    where: {
-      userId,
-      status: 'approved',
-      startDate: { [Op.lte]: monthEnd },
-      endDate:   { [Op.gte]: monthStart },
-    },
-  });
-
-  let total = 0;
-  leaves.forEach(l => {
-    const start = new Date(Math.max(new Date(l.startDate), monthStart));
-    const end   = new Date(Math.min(new Date(l.endDate),   monthEnd));
-    const days  = Math.round((end - start) / (1000 * 60 * 60 * 24)) + 1;
-    total += Math.max(0, days);
-  });
-  return total;
+  const { totalLeaveDays } = await getLeaveBreakdown(userId, month, year);
+  return totalLeaveDays;
 }
 
 // ─── Helper: detailed leave breakdown for month ───────────────────────────────
@@ -131,6 +171,17 @@ async function getLeaveBreakdown(userId, month, year) {
   return { breakdown, totalLeaveDays, holidayDays };
 }
 
+// Admins only touch payroll of their own company.
+function canAccessSalary(req, salary) {
+  const actor = req.user;
+  if (actor.role === 'superadmin') return true;
+  if (actor.role === 'admin') {
+    const companyId = Number(actor.companyId || 0);
+    return !!companyId && (Number(salary.companyId || 0) === companyId || Number(salary.user?.companyId || 0) === companyId);
+  }
+  return Number(salary.userId) === Number(actor.id);
+}
+
 // ─── GET /salary/preview — fetch defaults before generation ──────────────────
 exports.getSalaryPreview = async (req, res) => {
   try {
@@ -142,39 +193,45 @@ exports.getSalaryPreview = async (req, res) => {
     const user = await User.findByPk(userId);
     if (!user) return res.status(404).json({ message: 'Employee not found' });
 
-    const [{ totalHours, presentDays }, leaveBreakdown] = await Promise.all([
+    const [{ totalHours, loggedDays }, leaveBreakdown] = await Promise.all([
       getActualHours(Number(userId), Number(month), Number(year)),
       getLeaveBreakdown(Number(userId), Number(month), Number(year)),
     ]);
 
-    const totalWorkDays = getWorkingDays(Number(month), Number(year));
-    const leaveTaken    = leaveBreakdown.totalLeaveDays;
-    const absentDays    = Math.max(0, totalWorkDays - presentDays - leaveTaken);
-    const expectedHours = totalWorkDays * 8;
-    const calDays       = new Date(Number(year), Number(month), 0).getDate();
+    const totalDays     = resolveTotalDays(req.query.totalDays, Number(month), Number(year));
+    const allowedLeave  = user.allowedLeavePerMonth != null ? user.allowedLeavePerMonth : 2;
+    const pfContribution = user.pfApplicable ? PayrollCalc.defaultPf(user.basicSalary, user.da) : 0;
+    const calc = PayrollCalc.compute({
+      totalDays,
+      allowedLeave,
+      leaveTaken: leaveBreakdown.totalLeaveDays,
+      basicSalary: user.basicSalary, da: user.da, hra: user.hra, conveyance: user.conveyance,
+      medicalExpenses: user.medicalExpenses, specialAllowance: user.specialAllowance,
+      bonus: user.bonus, ta: user.ta, pfContribution,
+    });
 
     res.json({
       // Attendance summary
-      leaveTaken,
+      leaveTaken:   leaveBreakdown.totalLeaveDays,
       actualHours:  totalHours,
-      presentDays,
-      absentDays,
-      totalWorkDays,
-      expectedHours,
-      calDays,
+      loggedDays,
+      totalDays,
+      calDays:      PayrollCalc.daysInMonth(Number(month), Number(year)),
       holidayDays:  leaveBreakdown.holidayDays,
       leaveBreakdown: leaveBreakdown.breakdown,
       // Salary structure from profile
-      baseSalary:       user.baseSalary        || 0,
+      baseSalary:       calc.ctc,
       basicSalary:      user.basicSalary       || 0,
-      da:               user.da               || 0,
+      da:               user.da                || 0,
       hra:              user.hra               || 0,
       conveyance:       user.conveyance        || 0,
       medicalExpenses:  user.medicalExpenses   || 0,
       specialAllowance: user.specialAllowance  || 0,
       bonus:            user.bonus             || 0,
       ta:               user.ta                || 0,
-      allowedLeave:     user.allowedLeavePerMonth || 2,
+      allowedLeave,
+      pfContribution,
+      payroll: calc,
     });
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -202,14 +259,53 @@ exports.getSalaries = async (req, res) => {
 
     const salaries = await Salary.findAll({
       where,
-      include: [{ model: User, as: 'user', attributes: ['id', 'name', 'email', 'role', 'department'] }],
+      include: [{ model: User, as: 'user', attributes: ['id', 'name', 'email', 'role', 'department', 'position', 'employeeCode', 'gender', 'pfApplicable', 'companyId'] }],
       order: [['year', 'DESC'], ['month', 'DESC']],
     });
-    res.json(salaries);
+    res.json(salaries.map(s => Salary.withPayroll(s)));
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
 };
+
+// Build the stored inputs for a new salary record from the request + profile.
+function buildSalaryInputs(body, user, month, year, leaveTakenAuto) {
+  const given = (field) => body[field] !== undefined && body[field] !== null && body[field] !== '';
+  const p = (field) => given(field) ? parseFloat(body[field]) || 0 : (user[field] || 0);
+  const bodyNum = (field) => given(field) ? parseFloat(body[field]) || 0 : 0;
+
+  // Older payroll sheets sent their "Worked Days" as totalWorkDays.
+  const legacyWorked = body.totalDays === undefined && body.workedDays === undefined && body.totalWorkDays !== undefined;
+  const basicSalary = p('basicSalary');
+  const da = p('da');
+
+  return {
+    totalDays:    resolveTotalDays(legacyWorked ? null : body.totalDays, month, year),
+    workedDays:   parseOptionalNumber(legacyWorked ? body.totalWorkDays : body.workedDays),
+    leaveTaken:   given('leaveTaken') ? parseFloat(body.leaveTaken) || 0 : leaveTakenAuto,
+    allowedLeave: given('allowedLeave')
+      ? parseFloat(body.allowedLeave) || 0
+      : (user.allowedLeavePerMonth != null ? user.allowedLeavePerMonth : 2),
+    // Earnings
+    basicSalary,
+    da,
+    hra:              p('hra'),
+    conveyance:       p('conveyance'),
+    medicalExpenses:  p('medicalExpenses'),
+    specialAllowance: p('specialAllowance'),
+    bonus:            p('bonus'),
+    ta:               p('ta'),
+    // Deductions
+    pfContribution:  given('pfContribution')
+      ? parseFloat(body.pfContribution) || 0
+      : (user.pfApplicable ? PayrollCalc.defaultPf(basicSalary, da) : 0),
+    professionTax:   bodyNum('professionTax'),
+    tds:             bodyNum('tds'),
+    salaryAdvance:   bodyNum('salaryAdvance'),
+    applyAbsentDeduction: body.applyAbsentDeduction !== undefined ? !!body.applyAbsentDeduction : true,
+    manualDeductionAmount: bodyNum('manualDeductionAmount'),
+  };
+}
 
 // ─── POST /salary — single employee ──────────────────────────────────────────
 exports.createSalary = async (req, res) => {
@@ -238,62 +334,28 @@ exports.createSalary = async (req, res) => {
       return res.status(403).json({ message: 'You can only generate payroll for your own company' });
     }
 
-    const { totalHours, presentDays } = await getActualHours(userId, Number(month), Number(year));
-    const defaultWorkingDays = getWorkingDays(Number(month), Number(year));
-    const calDays = new Date(Number(year), Number(month), 0).getDate();
-    const requestedWorkDays = parseInt(req.body.totalWorkDays, 10);
-    const workingDays = Math.min(calDays, Math.max(0, requestedWorkDays || defaultWorkingDays));
+    const { totalHours } = await getActualHours(userId, Number(month), Number(year));
     const leaveTakenAuto = await getLeaveTaken(userId, Number(month), Number(year));
-    const leaveTakenValue = req.body.leaveTaken !== undefined ? parseFloat(req.body.leaveTaken) || 0 : leaveTakenAuto;
+    const inputs = buildSalaryInputs(req.body, user, Number(month), Number(year), leaveTakenAuto);
     const expectedHours = req.body.expectedHours !== undefined
       ? parseFloat(req.body.expectedHours) || 0
-      : workingDays * 8;
+      : Math.round(inputs.totalDays) * 8;
 
-    // Use request value if provided, else fall back to user's salary structure
-    const p = (field, userField) =>
-      req.body[field] !== undefined ? parseFloat(req.body[field]) || 0 : (user[userField || field] || 0);
-
-    const salary = await Salary.create({
+    const salary = await Salary.create(Object.assign({
       userId,
       companyId: targetCompanyId,
       month: Number(month),
       year:  Number(year),
-      // CTC & attendance
-      baseSalary:   p('baseSalary',  'baseSalary'),
-      leaveTaken:   leaveTakenValue,
-      allowedLeave: p('allowedLeave', 'allowedLeavePerMonth'),
-      // Earnings
-      basicSalary:      p('basicSalary',      'basicSalary'),
-      da:               p('da',              'da'),
-      hra:              p('hra',              'hra'),
-      conveyance:       p('conveyance',       'conveyance'),
-      medicalExpenses:  p('medicalExpenses',  'medicalExpenses'),
-      specialAllowance: p('specialAllowance', 'specialAllowance'),
-      bonus:            p('bonus',            'bonus'),
-      ta:               p('ta',               'ta'),
-      // Deductions
-      pfContribution:  p('pfContribution'),
-      professionTax:   p('professionTax'),
-      tds:             p('tds'),
-      salaryAdvance:   p('salaryAdvance'),
-      applyAbsentDeduction: req.body.applyAbsentDeduction !== undefined ? !!req.body.applyAbsentDeduction : true,
-      manualDeductionDays: req.body.manualDeductionDays !== undefined ? parseFloat(req.body.manualDeductionDays) || 0 : 0,
-      manualDeductionAmount: req.body.manualDeductionAmount !== undefined ? parseFloat(req.body.manualDeductionAmount) || 0 : 0,
-      // Hours
       expectedHours,
-      actualHours:   totalHours,
-      // Days
-      totalWorkDays: workingDays,
-      presentDays,
-      absentDays: Math.max(0, workingDays - presentDays - leaveTakenValue),
-      notes:        req.body.notes || '',
-      generatedBy:  req.user.id,
-    });
+      actualHours: totalHours,
+      notes:       req.body.notes || '',
+      generatedBy: req.user.id,
+    }, inputs));
 
     const populated = await Salary.findByPk(salary.id, {
-      include: [{ model: User, as: 'user', attributes: ['id', 'name', 'email', 'role'] }],
+      include: [{ model: User, as: 'user', attributes: ['id', 'name', 'email', 'role', 'position', 'employeeCode'] }],
     });
-    res.status(201).json(populated);
+    res.status(201).json(Salary.withPayroll(populated));
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -318,47 +380,25 @@ exports.generateBulk = async (req, res) => {
       where: { companyId, status: 'active', role: { [Op.in]: ['employee', 'manager'] } },
     });
 
-    const defaultWorkingDays = getWorkingDays(Number(month), Number(year));
     let created = 0, skipped = 0;
 
     for (const user of users) {
       const exists = await Salary.findOne({ where: { userId: user.id, month: Number(month), year: Number(year) } });
       if (exists) { skipped++; continue; }
 
-      const { totalHours, presentDays } = await getActualHours(user.id, Number(month), Number(year));
+      const { totalHours } = await getActualHours(user.id, Number(month), Number(year));
       const leaveTakenAuto = await getLeaveTaken(user.id, Number(month), Number(year));
-      const workingDays = defaultWorkingDays;
+      const inputs = buildSalaryInputs({ totalDays: req.body.totalDays }, user, Number(month), Number(year), leaveTakenAuto);
 
-      await Salary.create({
+      await Salary.create(Object.assign({
         userId:    user.id,
         companyId,
         month:     Number(month),
         year:      Number(year),
-        baseSalary:       user.baseSalary        || 0,
-        leaveTaken:       leaveTakenAuto,
-        allowedLeave:     user.allowedLeavePerMonth || 2,
-        basicSalary:      user.basicSalary       || 0,
-        da:               user.da                || 0,
-        hra:              user.hra                || 0,
-        conveyance:       user.conveyance         || 0,
-        medicalExpenses:  user.medicalExpenses    || 0,
-        specialAllowance: user.specialAllowance   || 0,
-        bonus:            user.bonus              || 0,
-        ta:               user.ta                 || 0,
-        pfContribution:   0,
-        professionTax:    0,
-        tds:              0,
-        salaryAdvance:    0,
-        applyAbsentDeduction: true,
-        manualDeductionDays: 0,
-        manualDeductionAmount: 0,
-        expectedHours:    workingDays * 8,
-        actualHours:      totalHours,
-        totalWorkDays:    workingDays,
-        presentDays,
-        absentDays: Math.max(0, workingDays - presentDays - leaveTakenAuto),
+        expectedHours: Math.round(inputs.totalDays) * 8,
+        actualHours:   totalHours,
         generatedBy: req.user.id,
-      });
+      }, inputs));
       created++;
     }
 
@@ -371,28 +411,31 @@ exports.generateBulk = async (req, res) => {
 // ─── PUT /salary/:id ──────────────────────────────────────────────────────────
 exports.updateSalary = async (req, res) => {
   try {
-    const salary = await Salary.findByPk(req.params.id);
+    const salary = await Salary.findByPk(req.params.id, {
+      include: [{ model: User, as: 'user', attributes: ['id', 'companyId'] }],
+    });
     if (!salary) return res.status(404).json({ message: 'Salary not found' });
+    if (!canAccessSalary(req, salary)) return res.status(403).json({ message: 'Access denied' });
     if (salary.status === 'paid') return res.status(400).json({ message: 'Cannot edit paid salary' });
 
     const editableFields = [
-      'baseSalary', 'leaveTaken', 'allowedLeave',
+      'leaveTaken', 'allowedLeave',
       'basicSalary', 'da', 'hra', 'conveyance', 'medicalExpenses', 'specialAllowance', 'bonus', 'ta',
       'pfContribution', 'professionTax', 'tds', 'salaryAdvance',
-      'expectedHours', 'totalWorkDays', 'notes', 'status', 'applyAbsentDeduction',
-      'manualDeductionDays', 'manualDeductionAmount',
+      'expectedHours', 'notes', 'status', 'applyAbsentDeduction',
+      'manualDeductionAmount',
     ];
     editableFields.forEach(f => { if (req.body[f] !== undefined) salary[f] = req.body[f]; });
 
-    if (req.body.totalWorkDays !== undefined || req.body.leaveTaken !== undefined || req.body.expectedHours !== undefined) {
-      const calDays = new Date(salary.year, salary.month, 0).getDate();
-      const workDays = Math.min(calDays, Math.max(0, parseInt(salary.totalWorkDays, 10) || 0));
-      salary.totalWorkDays = workDays;
-      const leaveTaken = parseFloat(salary.leaveTaken) || 0;
-      salary.absentDays = Math.max(0, workDays - (salary.presentDays || 0) - leaveTaken);
-      if (!req.body.expectedHours && workDays > 0) {
-        salary.expectedHours = workDays * 8;
-      }
+    if (req.body.totalDays !== undefined) {
+      salary.totalDays = resolveTotalDays(req.body.totalDays, salary.month, salary.year);
+    }
+    if (req.body.workedDays !== undefined) {
+      salary.workedDays = parseOptionalNumber(req.body.workedDays);
+    } else if (req.body.totalDays === undefined && req.body.totalWorkDays !== undefined) {
+      // Older payroll sheets sent their "Worked Days" as totalWorkDays.
+      salary.totalDays = PayrollCalc.daysInMonth(salary.month, salary.year);
+      salary.workedDays = parseOptionalNumber(req.body.totalWorkDays);
     }
 
     if (req.body.status === 'finalized' && salary.changed('status')) {
@@ -400,12 +443,12 @@ exports.updateSalary = async (req, res) => {
       salary.finalizedAt = new Date();
     }
 
-    await salary.save();
+    await salary.save(); // the model hook recalculates every derived figure
 
     const populated = await Salary.findByPk(salary.id, {
-      include: [{ model: User, as: 'user', attributes: ['id', 'name', 'email', 'role'] }],
+      include: [{ model: User, as: 'user', attributes: ['id', 'name', 'email', 'role', 'position', 'employeeCode'] }],
     });
-    res.json(populated);
+    res.json(Salary.withPayroll(populated));
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -414,8 +457,11 @@ exports.updateSalary = async (req, res) => {
 // ─── PATCH /salary/:id/pay ────────────────────────────────────────────────────
 exports.paySalary = async (req, res) => {
   try {
-    const salary = await Salary.findByPk(req.params.id);
+    const salary = await Salary.findByPk(req.params.id, {
+      include: [{ model: User, as: 'user', attributes: ['id', 'companyId'] }],
+    });
     if (!salary) return res.status(404).json({ message: 'Salary not found' });
+    if (!canAccessSalary(req, salary)) return res.status(403).json({ message: 'Access denied' });
     if (salary.status !== 'finalized') return res.status(400).json({ message: 'Salary must be finalized before paying' });
     salary.status = 'paid';
     salary.paidAt = new Date();
@@ -423,7 +469,7 @@ exports.paySalary = async (req, res) => {
     const populated = await Salary.findByPk(salary.id, {
       include: [{ model: User, as: 'user', attributes: ['id', 'name', 'email', 'role'] }],
     });
-    res.json(populated);
+    res.json(Salary.withPayroll(populated));
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -432,8 +478,11 @@ exports.paySalary = async (req, res) => {
 // ─── DELETE /salary/:id ───────────────────────────────────────────────────────
 exports.deleteSalary = async (req, res) => {
   try {
-    const salary = await Salary.findByPk(req.params.id);
+    const salary = await Salary.findByPk(req.params.id, {
+      include: [{ model: User, as: 'user', attributes: ['id', 'companyId'] }],
+    });
     if (!salary) return res.status(404).json({ message: 'Salary not found' });
+    if (!canAccessSalary(req, salary)) return res.status(403).json({ message: 'Access denied' });
     if (salary.status === 'paid') return res.status(400).json({ message: 'Cannot delete paid salary' });
     const { moveToRecycleBin } = require('./recycleBinController');
     await moveToRecycleBin('salary', salary.id, req.user, salary.toJSON(), 'Salary #' + salary.id);
@@ -460,39 +509,31 @@ exports.exportCSV = async (req, res) => {
     });
 
     const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-    let csv = 'Employee,Email,Department,Role,Period,CTC,Leave Taken,' +
-      'Basic Salary,DA,HRA,Conveyance,Medical,Special,Bonus,TA,Gross Salary,' +
-      'PF,Profession Tax,TDS,Salary Advance,Total Deductions,Net Salary,Status,Paid On\n';
+    const header = [
+      'Employee', 'Email', 'Department', 'Role', 'Period', 'CTC',
+      'Total Days', 'Allowed Leave', 'Leave Taken', 'LOP Days', 'Worked Days',
+      'Basic Salary', 'DA', 'HRA', 'Conveyance (Working)', 'Medical', 'Special', 'Bonus', 'TA', 'Gross Salary',
+      'PF', 'Profession Tax', 'TDS', 'Salary Advance', 'Absent/LOP Deduction', 'Total Deductions', 'Net Salary',
+      'Status', 'Paid On',
+    ];
+    const quote = v => `"${String(v == null ? '' : v).replace(/"/g, '""')}"`;
+    let csv = header.join(',') + '\n';
 
-    salaries.forEach(s => {
+    salaries.forEach(row => {
+      const s = Salary.withPayroll(row);
+      const p = s.payroll;
       csv += [
-        `"${s.user?.name || ''}"`,
-        s.user?.email || '',
-        s.user?.department || '',
-        s.user?.role || '',
-        `${MONTHS[s.month - 1]} ${s.year}`,
-        s.baseSalary,
-        s.leaveTaken,
-        s.basicSalary,
-        s.da,
-        s.hra,
-        s.conveyanceWorking,
-        s.medicalWorking,
-        s.specialAllowance,
-        s.bonus,
-        s.ta,
-        s.grossSalary,
-        s.pfContribution,
-        s.professionTax,
-        s.tds,
-        s.salaryAdvance,
-        s.absentDeduction,
-        s.manualDeductionDays,
-        s.manualDeductionAmount,
-        s.deductions,
-        s.netSalary,
-        s.status,
-        s.paidAt ? new Date(s.paidAt).toLocaleDateString() : '',
+        quote(s.user?.name || ''),
+        quote(s.user?.email || ''),
+        quote(s.user?.department || ''),
+        quote(s.user?.role || ''),
+        quote(`${MONTHS[s.month - 1]} ${s.year}`),
+        p.ctc,
+        p.totalDays, p.allowedLeave, p.leaveTaken, p.lopDays, p.workedDays,
+        p.basicSalary, p.da, p.hra, p.conveyanceWorking, p.medicalWorking, p.specialAllowance, p.bonus, p.ta, p.grossSalary,
+        p.pfContribution, p.professionTax, p.tds, p.salaryAdvance, p.absentDeduction, p.totalDeductions, p.netSalary,
+        quote(s.status),
+        quote(s.paidAt ? new Date(s.paidAt).toLocaleDateString('en-IN') : ''),
       ].join(',') + '\n';
     });
 
@@ -504,41 +545,68 @@ exports.exportCSV = async (req, res) => {
   }
 };
 
+// ─── GET /salary/:id/work-summary — project / work hours for the payslip ─────
+exports.getSalaryWorkSummary = async (req, res) => {
+  try {
+    const salary = await Salary.findByPk(req.params.id, {
+      include: [{ model: User, as: 'user', attributes: ['id', 'companyId'] }],
+    });
+    if (!salary) return res.status(404).json({ message: 'Salary not found' });
+    if (!canAccessSalary(req, salary)) return res.status(403).json({ message: 'Access denied' });
+    res.json(await getWorkSummary(salary.userId, salary.month, salary.year));
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
 // ─── GET /salary/:id/payslip ──────────────────────────────────────────────────
 exports.generatePayslip = async (req, res) => {
   try {
     const salary = await Salary.findByPk(req.params.id, {
       include: [
-        { model: User, as: 'user', attributes: ['id', 'name', 'email', 'role', 'department', 'phone', 'employeeCode'] },
+        { model: User, as: 'user', attributes: ['id', 'name', 'email', 'role', 'department', 'position', 'jobTitle', 'phone', 'employeeCode', 'workLocation', 'joiningDate', 'companyId'] },
         { model: Company, as: 'company' },
       ],
     });
     if (!salary) return res.status(404).json({ message: 'Salary not found' });
-
-    const actor = req.user;
-    if ((actor.role === 'employee' || actor.role === 'manager') && salary.userId !== actor.id) {
-      return res.status(403).json({ message: 'Access denied' });
+    if (!canAccessSalary(req, salary)) return res.status(403).json({ message: 'Access denied' });
+    if ((req.user.role === 'employee' || req.user.role === 'manager') && !['finalized', 'paid'].includes(String(salary.status || '').toLowerCase())) {
+      return res.status(403).json({ message: 'Your payslip will be available once payroll for this month is frozen' });
     }
 
+    let company = salary.company;
+    if (!company && salary.user?.companyId) company = await Company.findByPk(salary.user.companyId);
+    company = company || {};
+    const data = Salary.withPayroll(salary);
+    const p = data.payroll;
+    const work = await getWorkSummary(salary.userId, salary.month, salary.year);
+
     const PDFDocument = require('pdfkit');
-    const path = require('path');
     const doc = new PDFDocument({ size: 'A4', margin: 50 });
     const chunks = [];
-
     doc.on('data', (chunk) => chunks.push(chunk));
 
+    const fonts = useUnicodeFonts(doc);
+    const fontRegular = fonts.regular;
+    const fontBold = fonts.bold;
+    const cur = (n) => (fonts.rupee ? '₹ ' : 'Rs. ') + Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const days = (n) => {
+      const v = Number(n || 0);
+      return Number.isInteger(v) ? String(v) : v.toFixed(1);
+    };
+
     const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
-    const company = salary.company || {};
     const user = salary.user || {};
     const pageW = 595.28;
     const mL = 50;
     const cW = pageW - 100;
     const pageR = pageW - 50;
     const monthLabel = `${MONTHS[salary.month - 1]} ${salary.year}`;
-    const calDays = new Date(salary.year, salary.month, 0).getDate();
-    const workedDays = Math.max(0, calDays - (salary.leaveTaken || 0));
-    const presentDays = salary.presentDays || 0;
     const employeeCode = user.employeeCode || `EMP-${String(user.id || salary.userId || 0).padStart(4, '0')}`;
+    const designation = user.position || user.jobTitle || (user.role ? user.role.charAt(0).toUpperCase() + user.role.slice(1) : '');
+    const joiningDate = user.joiningDate
+      ? new Date(user.joiningDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
+      : '';
     const generatedOn = new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'long', year: 'numeric' });
 
     const black = '#111111';
@@ -546,109 +614,153 @@ exports.generatePayslip = async (req, res) => {
     const red = '#c1121f';
     const border = '#d9d9d9';
     const white = '#ffffff';
-    const fontRegular = path.join('C:', 'Windows', 'Fonts', 'arial.ttf');
-    const fontBold = path.join('C:', 'Windows', 'Fonts', 'arialbd.ttf');
 
     function rowText(y, leftLabel, leftValue, rightLabel, rightValue) {
       doc.font(fontRegular).fontSize(8).fillColor(muted).text(leftLabel, mL + 8, y);
-      doc.font(fontBold).fontSize(9).fillColor(black).text(String(leftValue || '-'), mL + 98, y, { width: 180 });
+      doc.font(fontBold).fontSize(9).fillColor(black).text(String(leftValue || '-'), mL + 98, y, { width: 180, lineBreak: false, ellipsis: true });
       doc.font(fontRegular).fontSize(8).fillColor(muted).text(rightLabel, 318, y);
-      doc.font(fontBold).fontSize(9).fillColor(black).text(String(rightValue || '-'), 405, y, { width: 130 });
+      doc.font(fontBold).fontSize(9).fillColor(black).text(String(rightValue || '-'), 405, y, { width: 135, lineBreak: false, ellipsis: true });
     }
 
     function statText(x, y, label, value) {
-      doc.font(fontBold).fontSize(8).fillColor(black).text(label.toUpperCase(), x, y);
-      doc.font(fontBold).fontSize(16).fillColor(black).text(String(value), x, y + 14);
+      doc.font(fontBold).fontSize(7.5).fillColor(black).text(label.toUpperCase(), x, y, { width: 95 });
+      doc.font(fontBold).fontSize(15).fillColor(black).text(String(value), x, y + 13, { width: 95 });
     }
 
+    const ROW_H = 20;
     function drawSplitRow(y, leftLabel, leftValue, rightLabel, rightValue) {
       const half = cW / 2;
-      doc.rect(mL, y, half, 24).fillColor(white).fill();
-      doc.rect(mL + half, y, half, 24).fillColor(white).fill();
-      doc.strokeColor(border).lineWidth(1).moveTo(mL, y + 24).lineTo(pageR, y + 24).stroke();
-      doc.strokeColor(border).lineWidth(1).moveTo(mL + half, y).lineTo(mL + half, y + 24).stroke();
-      doc.font(fontRegular).fontSize(8).fillColor(black).text(leftLabel, mL + 12, y + 7);
-      doc.font(fontBold).fontSize(8).fillColor(black).text(cur(leftValue), mL + half - 96, y + 7, { width: 84, align: 'right' });
-      doc.font(fontRegular).fontSize(8).fillColor(black).text(rightLabel, mL + half + 12, y + 7);
+      doc.strokeColor(border).lineWidth(1).moveTo(mL, y + ROW_H).lineTo(pageR, y + ROW_H).stroke();
+      doc.strokeColor(border).lineWidth(1).moveTo(mL + half, y).lineTo(mL + half, y + ROW_H).stroke();
+      doc.font(fontRegular).fontSize(8).fillColor(black).text(leftLabel, mL + 12, y + 6, { width: half - 110 });
+      doc.font(fontBold).fontSize(8).fillColor(black).text(cur(leftValue), mL + half - 106, y + 6, { width: 94, align: 'right' });
       if (rightLabel) {
-        doc.font(fontBold).fontSize(8).fillColor(black).text(cur(rightValue), pageR - 84, y + 7, { width: 72, align: 'right' });
+        doc.font(fontRegular).fontSize(8).fillColor(black).text(rightLabel, mL + half + 12, y + 6, { width: half - 110 });
+        doc.font(fontBold).fontSize(8).fillColor(black).text(cur(rightValue), pageR - 94, y + 6, { width: 82, align: 'right' });
       }
     }
 
     doc.rect(mL, 40, cW, 752).fillColor(white).strokeColor(border).lineWidth(1).fillAndStroke();
 
     doc.font(fontBold).fontSize(22).fillColor(black)
-      .text(company.name || 'Company', mL, 58, { width: cW, align: 'center' });
+      .text(company.name || 'Company', mL, 56, { width: cW, align: 'center' });
     doc.font(fontRegular).fontSize(9).fillColor(muted)
-      .text(company.address || '', mL + 24, 86, { width: cW - 48, align: 'center' })
-      .text([company.phone, company.email].filter(Boolean).join(' | '), mL + 24, 100, { width: cW - 48, align: 'center' });
+      .text(company.address || '', mL + 24, 84, { width: cW - 48, align: 'center', lineBreak: false, ellipsis: true })
+      .text([company.phone, company.email].filter(Boolean).join(' | '), mL + 24, 97, { width: cW - 48, align: 'center' });
     doc.font(fontBold).fontSize(16).fillColor(black)
-      .text('SALARY SLIP', mL, 126, { width: cW, align: 'center' });
+      .text('SALARY SLIP', mL, 118, { width: cW, align: 'center' });
     doc.font(fontRegular).fontSize(10).fillColor(red)
-      .text(`For the month of ${monthLabel}`, mL, 146, { width: cW, align: 'center' });
+      .text(`For the month of ${monthLabel}`, mL, 138, { width: cW, align: 'center' });
 
-    rowText(182, 'Employee Name:', user.name, 'Employee Code:', employeeCode);
-    rowText(198, 'Department:', user.department, 'Designation:', user.role);
-    rowText(214, 'Email:', user.email, 'Phone:', user.phone);
-    rowText(230, 'Month:', monthLabel, 'CTC:', cur(salary.baseSalary));
+    rowText(164, 'Employee Name:', user.name, 'Employee ID:', employeeCode);
+    rowText(179, 'Department:', user.department, 'Designation:', designation);
+    rowText(194, 'Work Location:', user.workLocation, 'Joining Date:', joiningDate);
+    rowText(209, 'Email:', user.email, 'Phone:', user.phone);
+    rowText(224, 'Pay Period:', monthLabel, 'Monthly CTC:', cur(p.ctc));
 
-    doc.moveTo(mL, 252).lineTo(pageR, 252).strokeColor(border).lineWidth(1).stroke();
-    statText(mL + 12, 264, 'Total Day', calDays);
-    statText(mL + 146, 264, 'Leave Taken', salary.leaveTaken || 0);
-    statText(mL + 280, 264, 'Worked Day', workedDays);
-    statText(mL + 414, 264, 'Present Day', presentDays);
-    doc.moveTo(mL, 312).lineTo(pageR, 312).strokeColor(border).lineWidth(1).stroke();
+    doc.moveTo(mL, 244).lineTo(pageR, 244).strokeColor(border).lineWidth(1).stroke();
+    statText(mL + 12, 254, 'Total Days', days(p.totalDays));
+    statText(mL + 108, 254, 'Leave Taken', days(p.leaveTaken));
+    statText(mL + 204, 254, 'LOP Days', days(p.lopDays));
+    statText(mL + 300, 254, 'Worked Days', days(p.workedDays));
+    statText(mL + 396, 254, 'Present Days', days(p.presentDays));
+    doc.moveTo(mL, 296).lineTo(pageR, 296).strokeColor(border).lineWidth(1).stroke();
 
     const half = cW / 2;
-    doc.font(fontBold).fontSize(10).fillColor(black).text('Earnings', mL + 12, 328);
-    doc.font(fontBold).fontSize(10).fillColor(red).text('Deductions', mL + half + 12, 328);
+    doc.font(fontBold).fontSize(10).fillColor(black).text('Earnings', mL + 12, 306);
+    doc.font(fontBold).fontSize(10).fillColor(red).text('Deductions', mL + half + 12, 306);
+    doc.moveTo(mL, 322).lineTo(pageR, 322).strokeColor(border).lineWidth(1).stroke();
 
+    const conveyanceLabel = p.conveyanceWorking !== p.conveyance ? `Conveyance (${days(p.workedDays)}/${days(p.totalDays)} days)` : 'Conveyance';
     const earnings = [
-      ['Basic Salary', salary.basicSalary || 0],
-      ['DA (Dearness Allow.)', salary.da || 0],
-      ['HRA', salary.hra || 0],
-      ['Conveyance', salary.conveyanceWorking || salary.conveyance || 0],
-      ['Medical Expenses', salary.medicalWorking || salary.medicalExpenses || 0],
-      ['Special Allowance', salary.specialAllowance || 0],
-      ['Bonus', salary.bonus || 0],
-      ['Travel Allow. (TA)', salary.ta || 0],
+      ['Basic Salary', p.basicSalary],
+      ['DA (Dearness Allow.)', p.da],
+      ['HRA', p.hra],
+      [conveyanceLabel, p.conveyanceWorking],
+      ['Medical Allowance', p.medicalWorking],
+      ['Special Allowance', p.specialAllowance],
+      ['Bonus', p.bonus],
+      ['Travel Allow. (TA)', p.ta],
     ];
-    const absentLabel = (salary.manualDeductionAmount || 0) > 0
+    const absentLabel = p.absentDeductionIsManual
       ? 'Deduction (Admin set)'
-      : 'Absent Deduction';
-
+      : `Absent / LOP (${days(p.unpaidDays)} day${p.unpaidDays === 1 ? '' : 's'})`;
     const deductions = [
-      ['PF Contribution', salary.pfContribution || 0],
-      ['Profession Tax', salary.professionTax || 0],
-      ['TDS', salary.tds || 0],
-      ['Salary Advance', salary.salaryAdvance || 0],
-      [absentLabel, salary.absentDeduction || 0],
+      ['PF Contribution', p.pfContribution],
+      ['Profession Tax', p.professionTax],
+      ['TDS', p.tds],
+      ['Salary Advance', p.salaryAdvance],
+      [absentLabel, p.absentDeduction],
       ['', 0],
       ['', 0],
       ['', 0],
     ];
 
-    let y = 344;
+    let y = 322;
     for (let i = 0; i < earnings.length; i++) {
       drawSplitRow(y, earnings[i][0], earnings[i][1], deductions[i][0], deductions[i][1]);
-      y += 24;
+      y += ROW_H;
     }
 
-    doc.rect(mL, y, half, 28).fillColor(white).strokeColor(border).lineWidth(1).fillAndStroke();
-    doc.rect(mL + half, y, half, 28).fillColor(white).strokeColor(border).lineWidth(1).fillAndStroke();
-    doc.font(fontBold).fontSize(9).fillColor(black).text('Gross Salary', mL + 12, y + 9);
-    doc.font(fontBold).fontSize(9).fillColor(black).text(cur(salary.grossSalary), mL + half - 96, y + 9, { width: 84, align: 'right' });
-    doc.font(fontBold).fontSize(9).fillColor(red).text('Total Deductions', mL + half + 12, y + 9);
-    doc.font(fontBold).fontSize(9).fillColor(black).text(cur(salary.deductions), pageR - 84, y + 9, { width: 72, align: 'right' });
+    doc.rect(mL, y, half, 24).fillColor(white).strokeColor(border).lineWidth(1).fillAndStroke();
+    doc.rect(mL + half, y, half, 24).fillColor(white).strokeColor(border).lineWidth(1).fillAndStroke();
+    doc.font(fontBold).fontSize(9).fillColor(black).text('Gross Salary', mL + 12, y + 8);
+    doc.font(fontBold).fontSize(9).fillColor(black).text(cur(p.grossSalary), mL + half - 106, y + 8, { width: 94, align: 'right' });
+    doc.font(fontBold).fontSize(9).fillColor(red).text('Total Deductions', mL + half + 12, y + 8);
+    doc.font(fontBold).fontSize(9).fillColor(black).text(cur(p.totalDeductions), pageR - 94, y + 8, { width: 82, align: 'right' });
+    y += 24;
 
-    doc.rect(mL + 10, y + 46, cW - 20, 44).fillColor(black).fill();
-    doc.font(fontBold).fontSize(14).fillColor(white).text('NET PAY', mL + 26, y + 61);
-    doc.font(fontBold).fontSize(22).fillColor(white).text(cur(salary.netSalary), pageR - 160, y + 56, { width: 132, align: 'right' });
+    doc.rect(mL + 10, y + 12, cW - 20, 38).fillColor(black).fill();
+    doc.font(fontBold).fontSize(14).fillColor(white).text('NET PAY', mL + 26, y + 24);
+    doc.font(fontBold).fontSize(20).fillColor(white).text(cur(p.netSalary), pageR - 200, y + 20, { width: 172, align: 'right' });
+    y += 56;
 
     doc.font(fontRegular).fontSize(8).fillColor(muted)
-      .text(numberToWords(salary.netSalary), mL + 10, y + 102, { width: cW - 20 });
+      .text(numberToWords(p.netSalary), mL + 10, y, { width: cW - 20 });
+    doc.font(fontRegular).fontSize(7).fillColor(muted)
+      .text(`Paid leave: ${days(p.paidLeave)} of ${days(p.allowedLeave)} allowed · LOP days: ${days(p.lopDays)} · Per-day rate for LOP: ${cur(p.perDayRate)} (CTC excl. conveyance ÷ ${days(p.totalDays)} days)`,
+        mL + 10, y + 12, { width: cW - 20 });
+    y += 30;
 
-    const footerY = 720;
+    // Project / work summary from approved timesheets
+    const footerY = 724;
+    if (work.rows.length) {
+      const maxRows = Math.max(1, Math.floor((footerY - 12 - (y + 30)) / 12));
+      let rows = work.rows.slice();
+      if (rows.length > maxRows) {
+        const kept = rows.slice(0, maxRows - 1);
+        const rest = rows.slice(maxRows - 1);
+        kept.push({
+          label: `Other work (${rest.length} item${rest.length === 1 ? '' : 's'})`,
+          hours: rest.reduce((s, r) => s + r.hours, 0),
+          billableHours: rest.reduce((s, r) => s + r.billableHours, 0),
+          days: rest.reduce((s, r) => s + r.days, 0),
+        });
+        rows = kept;
+      }
+      doc.font(fontBold).fontSize(9).fillColor(black)
+        .text('Project / Work Summary (approved timesheets)', mL + 10, y);
+      doc.font(fontRegular).fontSize(7.5).fillColor(muted)
+        .text(`${work.totalHours.toFixed(1)} hrs on ${work.totalDays} day(s)`, pageR - 160, y + 1, { width: 150, align: 'right' });
+      y += 14;
+      doc.rect(mL + 10, y, cW - 20, 13).fillColor('#f3f4f6').fill();
+      doc.font(fontBold).fontSize(7.5).fillColor(black)
+        .text('Project / Work', mL + 16, y + 3)
+        .text('Days', pageR - 190, y + 3, { width: 50, align: 'right' })
+        .text('Billable Hrs', pageR - 135, y + 3, { width: 60, align: 'right' })
+        .text('Hours', pageR - 70, y + 3, { width: 54, align: 'right' });
+      y += 13;
+      rows.forEach(r => {
+        doc.font(fontRegular).fontSize(7.5).fillColor(black)
+          .text(r.label, mL + 16, y + 2, { width: cW - 230, lineBreak: false, ellipsis: true })
+          .text(String(r.days), pageR - 190, y + 2, { width: 50, align: 'right' })
+          .text(r.billableHours.toFixed(1), pageR - 135, y + 2, { width: 60, align: 'right' })
+          .text(r.hours.toFixed(1), pageR - 70, y + 2, { width: 54, align: 'right' });
+        doc.moveTo(mL + 10, y + 12).lineTo(pageR - 10, y + 12).strokeColor('#eeeeee').lineWidth(0.6).stroke();
+        y += 12;
+      });
+    }
+
     doc.moveTo(mL + 10, footerY).lineTo(pageR - 10, footerY).strokeColor(border).lineWidth(1).stroke();
     doc.font(fontRegular).fontSize(8).fillColor('#9ca3af')
       .text(`Generated on ${generatedOn}`, mL + 10, footerY + 10)
@@ -660,7 +772,7 @@ exports.generatePayslip = async (req, res) => {
 
     if (salary.notes) {
       doc.font(fontRegular).fontSize(8).fillColor(muted)
-        .text(`Note: ${salary.notes}`, mL + 10, 772, { width: cW - 20 });
+        .text(`Note: ${salary.notes}`, mL + 10, 766, { width: cW - 20, height: 20, ellipsis: true });
     }
 
     const pdfBuffer = await new Promise((resolve, reject) => {
@@ -670,7 +782,7 @@ exports.generatePayslip = async (req, res) => {
     });
 
     const mode = req.query.mode || 'download';
-    const fname = `payslip_${salary.user?.name?.replace(/\s+/g, '_')}_${salary.month}_${salary.year}.pdf`;
+    const fname = `payslip_${String(user.name || 'employee').replace(/[^a-z0-9]+/gi, '_')}_${salary.month}_${salary.year}.pdf`;
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Length', pdfBuffer.length);
     res.setHeader('Content-Disposition', `${mode === 'view' ? 'inline' : 'attachment'}; filename=${fname}`);
@@ -682,7 +794,3 @@ exports.generatePayslip = async (req, res) => {
     }
   }
 };
-
-function cur(n) {
-  return '₹ ' + Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}

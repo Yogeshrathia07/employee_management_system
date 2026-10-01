@@ -1,0 +1,345 @@
+<!-- ═══ HR documents issued by the company (Offer Letter, Appointment Letter…) ═══
+     Flow: select employee → upload → saved against that employee → appears in
+     the employee's Profile → Documents. Requires /js/api.js. A page can define
+     onHrDocsChanged(userId) to refresh its lists after a change. -->
+<div class="modal-overlay" id="hrdoc-modal">
+  <div class="modal" style="max-width:580px;">
+    <div class="modal-header">
+      <span class="modal-title" id="hrdoc-modal-title"><i class="bx bxs-envelope" style="color:var(--accent);margin-right:6px;"></i>Upload Offer Letter</span>
+      <button class="modal-close" onclick="closeModal('hrdoc-modal')">×</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="hrdoc-mode" value="upload">
+      <input type="hidden" id="hrdoc-doc-id">
+      <div class="form-group" id="hrdoc-employee-group">
+        <label class="form-label">Employee <span style="color:var(--danger)">*</span></label>
+        <select id="hrdoc-employee" class="form-control" onchange="hrDocCheckExisting();hrDocPopulateIssuingClients()"><option value="">Loading…</option></select>
+      </div>
+      <div class="form-group" id="hrdoc-client-group" style="display:none;">
+        <label class="form-label">Issuing Client <span id="hrdoc-client-required" style="display:none;color:var(--danger)">*</span></label>
+        <select id="hrdoc-client" class="form-control"><option value="">Loading clients…</option></select>
+        <div class="form-help" style="margin-top:5px;font-size:11px;color:var(--text-muted);">The offer letter will remain linked to this client and the selected employee.</div>
+      </div>
+      <div class="form-group" id="hrdoc-type-group">
+        <label class="form-label">Document Type</label>
+        <select id="hrdoc-type" class="form-control" onchange="hrDocTypeChanged()">
+          <option value="offer_letter">Offer Letter</option>
+          <option value="appointment_letter">Appointment Letter</option>
+          <option value="employment_contract">Employment Contract</option>
+          <option value="joining_letter">Joining Letter</option>
+          <option value="hr_document">Other HR Document</option>
+        </select>
+      </div>
+      <div id="hrdoc-existing" class="hrdoc-existing" style="display:none;"></div>
+      <div id="hrdoc-replace-info" class="hrdoc-existing" style="display:none;"></div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Title</label><input type="text" id="hrdoc-title" class="form-control" placeholder="e.g. Offer Letter"></div>
+        <div class="form-group"><label class="form-label">Issue Date</label><input type="date" id="hrdoc-issue-date" class="form-control"></div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">File <span class="text-muted">(PDF, max 10 MB)</span> <span style="color:var(--danger)">*</span></label>
+        <input type="file" id="hrdoc-file" class="form-control" accept=".pdf,application/pdf">
+      </div>
+      <div class="form-group"><label class="form-label">Notes <span class="text-muted">(optional)</span></label><textarea id="hrdoc-notes" class="form-control" rows="2"></textarea></div>
+      <div class="hrdoc-perm-box">
+        <div class="hrdoc-perm-title">Employee access</div>
+        <label><input type="checkbox" id="hrdoc-can-view" checked onchange="hrDocPermSync('hrdoc-can-view','hrdoc-can-download')"> Show in the employee's profile (employee can view)</label>
+        <label><input type="checkbox" id="hrdoc-can-download" checked> Allow the employee to download</label>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('hrdoc-modal')">Cancel</button>
+      <button class="btn btn-primary" id="hrdoc-save-btn" onclick="hrDocSave()"><i class="bx bx-upload"></i> Upload</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="hrdoc-access-modal">
+  <div class="modal" style="max-width:440px;">
+    <div class="modal-header">
+      <span class="modal-title"><i class="bx bx-lock-alt" style="margin-right:6px;"></i>Employee Access</span>
+      <button class="modal-close" onclick="closeModal('hrdoc-access-modal')">×</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="hrdoc-access-id">
+      <div id="hrdoc-access-doc" style="font-size:13px;margin-bottom:12px;color:var(--text-secondary);"></div>
+      <div class="hrdoc-perm-box" style="margin:0;">
+        <label><input type="checkbox" id="hrdoc-access-view" onchange="hrDocPermSync('hrdoc-access-view','hrdoc-access-download')"> Show in the employee's profile (employee can view)</label>
+        <label><input type="checkbox" id="hrdoc-access-download"> Allow the employee to download</label>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('hrdoc-access-modal')">Cancel</button>
+      <button class="btn btn-primary" onclick="hrDocSaveAccess()"><i class="bx bx-check"></i> Save</button>
+    </div>
+  </div>
+</div>
+
+<style>
+.hrdoc-perm-box{margin-top:4px;padding:10px 12px;border:1px solid var(--border);border-radius:10px;background:var(--bg-input);display:flex;flex-direction:column;gap:6px;font-size:13px}
+.hrdoc-perm-box label{display:flex;align-items:center;gap:8px;cursor:pointer}
+.hrdoc-perm-title{font-weight:700;font-size:12px;color:var(--text-primary)}
+.hrdoc-existing{margin:-4px 0 14px;padding:10px 12px;border-radius:10px;background:#fffbeb;border:1px solid #fde68a;color:#92400e;font-size:12px;line-height:1.5}
+</style>
+
+<script src="/js/hr-documents.js"></script>
+<script>
+var hrDocEmployees = [];
+var hrDocClients = [];
+var hrDocCache = {};
+var hrDocClientRequired = false;
+var hrDocTypeTitles = {
+  offer_letter: 'Offer Letter', appointment_letter: 'Appointment Letter', employment_contract: 'Employment Contract',
+  joining_letter: 'Joining Letter', hr_document: 'HR Document'
+};
+HRDocs.injectStyles();
+
+function hrDocEsc(v) {
+  return String(v == null ? '' : v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function hrDocRemember(docs) {
+  (docs || []).forEach(function(d) { if (d && d.id) hrDocCache[d.id] = d; });
+}
+function hrDocPermSync(viewId, downloadId) {
+  var view = document.getElementById(viewId);
+  var dl = document.getElementById(downloadId);
+  if (!view.checked) dl.checked = false;
+  dl.disabled = !view.checked;
+}
+function hrDocChanged(userId) {
+  if (typeof onHrDocsChanged === 'function') onHrDocsChanged(userId);
+}
+
+async function hrDocLoadEmployees() {
+  if (hrDocEmployees.length) return hrDocEmployees;
+  try {
+    var users = await api('GET', '/users');
+    hrDocEmployees = (users || []).filter(function(u) { return u.role === 'employee' || u.role === 'manager'; })
+      .sort(function(a, b) { return String(a.name).localeCompare(String(b.name)); });
+  } catch (e) { hrDocEmployees = []; }
+  return hrDocEmployees;
+}
+
+function hrDocResetForm() {
+  document.getElementById('hrdoc-file').value = '';
+  document.getElementById('hrdoc-notes').value = '';
+  document.getElementById('hrdoc-issue-date').value = new Date().toISOString().slice(0, 10);
+  document.getElementById('hrdoc-can-view').checked = true;
+  document.getElementById('hrdoc-can-download').checked = true;
+  document.getElementById('hrdoc-can-download').disabled = false;
+  document.getElementById('hrdoc-existing').style.display = 'none';
+  document.getElementById('hrdoc-replace-info').style.display = 'none';
+  document.getElementById('hrdoc-client-group').style.display = 'none';
+  document.getElementById('hrdoc-client-required').style.display = 'none';
+  document.getElementById('hrdoc-client').innerHTML = '<option value="">— Select client —</option>';
+  document.getElementById('hrdoc-client').disabled = false;
+  document.getElementById('hrdoc-type').disabled = false;
+  hrDocClientRequired = false;
+}
+
+async function hrDocLoadClients() {
+  if (hrDocClients.length) return hrDocClients;
+  try {
+    hrDocClients = await api('GET', '/clients');
+  } catch (e) { hrDocClients = []; }
+  return hrDocClients;
+}
+
+// Keep the issuing-client list within the selected employee's company.
+async function hrDocPopulateIssuingClients(selectedId, lockSelection) {
+  var group = document.getElementById('hrdoc-client-group');
+  if (!group || group.style.display === 'none') return;
+  var sel = document.getElementById('hrdoc-client');
+  var current = selectedId !== undefined ? String(selectedId || '') : String(sel.value || '');
+  var employees = await hrDocLoadEmployees();
+  var employee = employees.find(function(u) {
+    return String(u.id) === String(document.getElementById('hrdoc-employee').value || '');
+  });
+  var clients = await hrDocLoadClients();
+  if (employee && employee.companyId) {
+    clients = clients.filter(function(c) { return String(c.companyId || '') === String(employee.companyId); });
+  }
+  sel.innerHTML = '<option value="">— Select client —</option>' + clients.map(function(c) {
+    var label = c.name + (c.clientCode ? ' (' + c.clientCode + ')' : '');
+    return '<option value="' + c.id + '">' + hrDocEsc(label) + '</option>';
+  }).join('');
+  sel.value = current;
+  sel.disabled = !!lockSelection;
+}
+
+// Upload a new company-issued document. type/userId are optional presets.
+// options.clientId starts the offer-letter flow from a selected Client record.
+async function openHrDocUpload(type, userId, options) {
+  options = options || {};
+  hrDocResetForm();
+  document.getElementById('hrdoc-mode').value = 'upload';
+  document.getElementById('hrdoc-doc-id').value = '';
+  document.getElementById('hrdoc-employee-group').style.display = '';
+  document.getElementById('hrdoc-type-group').style.display = options.clientId ? 'none' : '';
+  document.getElementById('hrdoc-client-group').style.display = options.clientId ? '' : 'none';
+  document.getElementById('hrdoc-client-required').style.display = options.clientRequired ? '' : 'none';
+  hrDocClientRequired = !!options.clientRequired;
+  var typeSel = document.getElementById('hrdoc-type');
+  typeSel.value = options.clientId ? 'offer_letter' : (HRDocs.isIssuedType(type) ? type : 'offer_letter');
+  document.getElementById('hrdoc-title').value = hrDocTypeTitles[typeSel.value];
+  document.getElementById('hrdoc-save-btn').innerHTML = '<i class="bx bx-upload"></i> Upload';
+  hrDocUpdateTitle();
+  openModal('hrdoc-modal');
+
+  var sel = document.getElementById('hrdoc-employee');
+  sel.innerHTML = '<option value="">Loading employees…</option>';
+  var list = await hrDocLoadEmployees();
+  sel.innerHTML = '<option value="">— Select employee —</option>' + list.map(function(u) {
+    var label = u.name + (u.employeeCode ? ' (' + u.employeeCode + ')' : '') + (u.company && u.company.name ? ' — ' + u.company.name : '');
+    return '<option value="' + u.id + '">' + hrDocEsc(label) + '</option>';
+  }).join('');
+  if (userId) sel.value = String(userId);
+  sel.disabled = !!userId;
+  if (options.clientId) await hrDocPopulateIssuingClients(options.clientId, !!options.lockClient);
+  hrDocCheckExisting();
+}
+
+function hrDocUpdateTitle() {
+  var mode = document.getElementById('hrdoc-mode').value;
+  var type = document.getElementById('hrdoc-type').value;
+  var label = hrDocTypeTitles[type] || 'HR Document';
+  document.getElementById('hrdoc-modal-title').innerHTML = '<i class="bx bxs-envelope" style="color:var(--accent);margin-right:6px;"></i>' +
+    (mode === 'replace' ? 'Replace ' : 'Upload ') + hrDocEsc(label);
+}
+
+function hrDocTypeChanged() {
+  var type = document.getElementById('hrdoc-type').value;
+  var titleEl = document.getElementById('hrdoc-title');
+  var known = Object.keys(hrDocTypeTitles).map(function(k) { return hrDocTypeTitles[k]; });
+  if (!titleEl.value || known.indexOf(titleEl.value) !== -1) titleEl.value = hrDocTypeTitles[type] || '';
+  hrDocUpdateTitle();
+  hrDocCheckExisting();
+}
+
+// Warn when the employee already has this document and offer "Replace" instead.
+async function hrDocCheckExisting() {
+  var box = document.getElementById('hrdoc-existing');
+  var userId = document.getElementById('hrdoc-employee').value;
+  var type = document.getElementById('hrdoc-type').value;
+  box.style.display = 'none';
+  if (!userId || document.getElementById('hrdoc-mode').value !== 'upload') return;
+  try {
+    var docs = await api('GET', '/documents?userId=' + encodeURIComponent(userId) + '&type=' + encodeURIComponent(type));
+    hrDocRemember(docs);
+    if (!docs || !docs.length) return;
+    var latest = docs[0];
+    box.innerHTML = '<b>' + hrDocEsc(latest.user ? latest.user.name : 'This employee') + '</b> already has ' + docs.length + ' ' +
+      hrDocEsc(hrDocTypeTitles[type] || 'document') + (docs.length > 1 ? 's' : '') + ' (latest: "' + hrDocEsc(latest.title) + '", ' +
+      new Date(latest.replacedAt || latest.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) + ').' +
+      '<div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap;">' +
+        '<button type="button" class="btn btn-ghost btn-sm" onclick="openHrDocReplace(' + latest.id + ')"><i class="bx bx-transfer-alt"></i> Replace the existing one</button>' +
+        '<span style="align-self:center;">or continue to upload an additional document.</span>' +
+      '</div>';
+    box.style.display = '';
+  } catch (e) {}
+}
+
+// Replace the file of an existing document (keeps it linked to the same employee).
+function openHrDocReplace(docId) {
+  var d = hrDocCache[docId];
+  if (!d) return toast('Document not found — refresh and try again', 'error');
+  hrDocResetForm();
+  document.getElementById('hrdoc-mode').value = 'replace';
+  document.getElementById('hrdoc-doc-id').value = d.id;
+  document.getElementById('hrdoc-employee-group').style.display = 'none';
+  document.getElementById('hrdoc-type-group').style.display = 'none';
+  document.getElementById('hrdoc-type').value = HRDocs.isIssuedType(d.type) ? d.type : 'hr_document';
+  document.getElementById('hrdoc-title').value = d.title || '';
+  document.getElementById('hrdoc-notes').value = d.notes || '';
+  document.getElementById('hrdoc-issue-date').value = d.issueDate || new Date().toISOString().slice(0, 10);
+  document.getElementById('hrdoc-can-view').checked = d.employeeCanView !== false;
+  document.getElementById('hrdoc-can-download').checked = d.employeeCanView !== false && d.employeeCanDownload !== false;
+  hrDocPermSync('hrdoc-can-view', 'hrdoc-can-download');
+  var info = document.getElementById('hrdoc-replace-info');
+  info.innerHTML = 'Replacing <b>' + hrDocEsc(d.title) + '</b>' + (d.user ? ' of <b>' + hrDocEsc(d.user.name) + '</b>' : '') +
+    ' (current file: ' + hrDocEsc(d.fileName) + ', version ' + (d.version || 1) + '). The new file becomes the document the employee sees.';
+  info.style.display = '';
+  document.getElementById('hrdoc-save-btn').innerHTML = '<i class="bx bx-transfer-alt"></i> Replace File';
+  hrDocUpdateTitle();
+  openModal('hrdoc-modal');
+}
+
+async function hrDocSave() {
+  var mode = document.getElementById('hrdoc-mode').value;
+  var fileInput = document.getElementById('hrdoc-file');
+  if (!fileInput.files.length) return toast('Choose the PDF file to upload', 'error');
+  var fd = new FormData();
+  fd.append('file', fileInput.files[0]);
+  fd.append('title', document.getElementById('hrdoc-title').value.trim() || hrDocTypeTitles[document.getElementById('hrdoc-type').value] || 'HR Document');
+  fd.append('notes', document.getElementById('hrdoc-notes').value);
+  fd.append('issueDate', document.getElementById('hrdoc-issue-date').value || '');
+  fd.append('employeeCanView', document.getElementById('hrdoc-can-view').checked ? 'true' : 'false');
+  fd.append('employeeCanDownload', document.getElementById('hrdoc-can-download').checked ? 'true' : 'false');
+  var btn = document.getElementById('hrdoc-save-btn');
+  btn.disabled = true;
+  try {
+    var saved;
+    if (mode === 'replace') {
+      var id = document.getElementById('hrdoc-doc-id').value;
+      saved = await apiForm('PUT', '/documents/' + id + '/file', fd);
+      toast('File replaced — the employee now sees the new version', 'success');
+    } else {
+      var userId = document.getElementById('hrdoc-employee').value;
+      if (!userId) { btn.disabled = false; return toast('Select the employee', 'error'); }
+      var clientId = document.getElementById('hrdoc-client').value;
+      if (hrDocClientRequired && !clientId) { btn.disabled = false; return toast('Select the issuing client', 'error'); }
+      fd.append('userId', userId);
+      fd.append('type', document.getElementById('hrdoc-type').value);
+      if (clientId) fd.append('clientId', clientId);
+      saved = await apiForm('POST', '/documents', fd);
+      toast((hrDocTypeTitles[document.getElementById('hrdoc-type').value] || 'Document') + ' uploaded to the employee profile', 'success');
+    }
+    closeModal('hrdoc-modal');
+    hrDocChanged(saved && saved.userId);
+  } catch (e) {
+    toast(e.message, 'error');
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function openHrDocAccess(docId) {
+  var d = hrDocCache[docId];
+  if (!d) return toast('Document not found — refresh and try again', 'error');
+  document.getElementById('hrdoc-access-id').value = d.id;
+  document.getElementById('hrdoc-access-doc').innerHTML = '<b>' + hrDocEsc(d.title) + '</b>' + (d.user ? ' — ' + hrDocEsc(d.user.name) : '');
+  document.getElementById('hrdoc-access-view').checked = d.employeeCanView !== false;
+  document.getElementById('hrdoc-access-download').checked = d.employeeCanView !== false && d.employeeCanDownload !== false;
+  hrDocPermSync('hrdoc-access-view', 'hrdoc-access-download');
+  openModal('hrdoc-access-modal');
+}
+
+async function hrDocSaveAccess() {
+  var id = document.getElementById('hrdoc-access-id').value;
+  try {
+    var saved = await api('PATCH', '/documents/' + id, {
+      employeeCanView: document.getElementById('hrdoc-access-view').checked,
+      employeeCanDownload: document.getElementById('hrdoc-access-download').checked,
+    });
+    toast('Employee access updated', 'success');
+    closeModal('hrdoc-access-modal');
+    hrDocChanged(saved && saved.userId);
+  } catch (e) { toast(e.message, 'error'); }
+}
+
+function hrDocView(id) {
+  window.open('/api/documents/' + id + '/view?token=' + encodeURIComponent(getToken()), '_blank');
+}
+function hrDocDownload(id) {
+  window.open('/api/documents/' + id + '/download?token=' + encodeURIComponent(getToken()), '_blank');
+}
+async function hrDocDelete(id) {
+  var d = hrDocCache[id];
+  if (!confirm('Delete "' + (d ? d.title : 'this document') + '"? This cannot be undone.')) return;
+  try {
+    await api('DELETE', '/documents/' + id);
+    toast('Document deleted', 'success');
+    hrDocChanged(d && d.userId);
+  } catch (e) { toast(e.message, 'error'); }
+}
+</script>

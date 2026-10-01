@@ -1,6 +1,6 @@
 'use strict';
 const { Op } = require('sequelize');
-const { Invoice, Client, Vendor, ProjectAccount } = require('../models');
+const { Invoice, Client, Vendor, ProjectAccount, Payment } = require('../models');
 const PDFDocument = require('pdfkit');
 const {
   applyCompanyScope,
@@ -11,7 +11,8 @@ const {
   resolveScopedCompany,
   syncAccountsCompanyIds,
 } = require('./accountsCompanyScope');
-const { buildTaxSummaryLabels } = require('./pdfHelper');
+const { buildTaxSummaryLabels, roundMoney } = require('./pdfHelper');
+const { prepareRaBill, refreshSeries, buildNextRaDraft } = require('./raBillService');
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -131,6 +132,91 @@ function cleanGeneratedCode(value) {
   return code.toLowerCase() === 'auto-generated' ? '' : code;
 }
 
+function numberFrom() {
+  for (let i = 0; i < arguments.length; i += 1) {
+    const value = arguments[i];
+    if (value === null || value === undefined || (typeof value === 'string' && !value.trim())) continue;
+    const n = Number(value);
+    if (Number.isFinite(n)) return n;
+  }
+  return 0;
+}
+
+function stateCode(value, gstin) {
+  const code = String(value || '').trim();
+  if (code) return code.length === 1 ? '0' + code : code;
+  const match = String(gstin || '').trim().match(/^(\d{2})/);
+  return match ? match[1] : '';
+}
+
+function isTruthy(value) {
+  return value === true || value === 'true' || value === 1 || value === '1';
+}
+
+// Invoice and R.A. bill summaries are calculated from the current bill quantity,
+// never accepted from browser-supplied subtotal / tax fields.
+function recalculateInvoiceFinancials(data) {
+  const taxExempt = isTruthy(data.taxExempt);
+  const sellerCode = stateCode(data.sellerStateCode, data.sellerGstin);
+  const customerCode = stateCode(data.customerStateCode, data.customerGstin);
+  const useIgst = !taxExempt && !!sellerCode && !!customerCode && sellerCode !== customerCode;
+  const items = Array.isArray(data.items) ? data.items : [];
+  // Preserve legacy summary-only invoices. New invoice and R.A. bill rows use
+  // line items, which are always recalculated below.
+  if (!items.length) return data;
+
+  data.items = items.map(source => {
+    const quantity = Math.max(0, numberFrom(source && source.quantity, source && source.qty));
+    const unitPrice = Math.max(0, numberFrom(source && source.unitPrice, source && source.rate));
+    const discount = Math.min(100, Math.max(0, numberFrom(source && source.discount)));
+    const taxRate = taxExempt ? 0 : Math.min(100, Math.max(0, numberFrom(source && source.taxRate, source && source.taxPercent)));
+    const taxableAmount = roundMoney(quantity * unitPrice * (1 - discount / 100));
+    const taxAmount = roundMoney(taxableAmount * taxRate / 100);
+    const cgst = useIgst ? 0 : roundMoney(taxAmount / 2);
+    const sgst = useIgst ? 0 : roundMoney(taxAmount - cgst);
+    const igst = useIgst ? taxAmount : 0;
+
+    return Object.assign({}, source, {
+      quantity,
+      qty: quantity,
+      unitPrice,
+      rate: unitPrice,
+      discount,
+      taxRate,
+      taxPercent: taxRate,
+      taxableAmount,
+      taxAmount,
+      cgst,
+      sgst,
+      igst,
+      itemTotal: roundMoney(taxableAmount + taxAmount),
+      total: roundMoney(taxableAmount + taxAmount),
+    });
+  });
+
+  const totals = data.items.reduce((result, item) => ({
+    subtotal: result.subtotal + numberFrom(item.taxableAmount),
+    totalCgst: result.totalCgst + numberFrom(item.cgst),
+    totalSgst: result.totalSgst + numberFrom(item.sgst),
+    totalIgst: result.totalIgst + numberFrom(item.igst),
+  }), { subtotal: 0, totalCgst: 0, totalSgst: 0, totalIgst: 0 });
+  data.subtotal = roundMoney(totals.subtotal);
+  data.totalCgst = roundMoney(totals.totalCgst);
+  data.totalSgst = roundMoney(totals.totalSgst);
+  data.totalIgst = roundMoney(totals.totalIgst);
+  data.totalTax = roundMoney(data.totalCgst + data.totalSgst + data.totalIgst);
+
+  const roundMode = ['plus', 'minus'].includes(data.roundOffMode) ? data.roundOffMode : 'none';
+  let roundOff = roundMoney(numberFrom(data.roundOff));
+  if (roundMode === 'none') roundOff = 0;
+  if (roundMode === 'plus') roundOff = Math.abs(roundOff);
+  if (roundMode === 'minus') roundOff = -Math.abs(roundOff);
+  data.roundOffMode = roundMode;
+  data.roundOff = roundOff;
+  data.totalAmount = roundMoney(data.subtotal + data.totalTax + roundOff);
+  return data;
+}
+
 // ── GET /invoices ─────────────────────────────────────────────────────────────
 exports.getInvoices = async (req, res) => {
   try {
@@ -154,6 +240,24 @@ exports.getInvoices = async (req, res) => {
     if (/^\d{2}-\d{2}$/.test(String(financialYear || '').trim())) {
       rows = rows.filter(row => row.financialYear === String(financialYear).trim());
     }
+    // Payments recorded against each invoice (settled = gross + GST of the payments)
+    const ids = rows.map(row => row.id);
+    const payments = ids.length
+      ? await Payment.findAll({ where: { invoiceId: ids, paymentType: 'bill' }, attributes: ['invoiceId', 'grossAmount', 'gstAmount', 'netAmount', 'tdsAmount'], raw: true })
+      : [];
+    const byInvoice = {};
+    payments.forEach(p => {
+      const s = byInvoice[p.invoiceId] || (byInvoice[p.invoiceId] = { count: 0, settled: 0, netReceived: 0, tds: 0 });
+      s.count += 1;
+      s.settled += Number(p.grossAmount || 0) + Number(p.gstAmount || 0);
+      s.netReceived += Number(p.netAmount || 0);
+      s.tds += Number(p.tdsAmount || 0);
+    });
+    rows.forEach(row => {
+      const s = byInvoice[row.id] || { count: 0, settled: 0, netReceived: 0, tds: 0 };
+      s.balance = Math.round((Number(row.totalAmount || 0) - s.settled) * 100) / 100;
+      row.paymentSummary = s;
+    });
     res.json(rows);
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -191,10 +295,18 @@ exports.createInvoice = async (req, res) => {
     data.financialYear = normalizeFinancialYear(data.financialYear, data.invoiceDate, data.invoiceNumber);
     data.invoiceNumber = cleanGeneratedCode(data.invoiceNumber) || await nextInvoiceNumber(data.financialYear, data.companyCode);
     data.createdBy     = req.user.id;
+    data.pdfOrientation = data.pdfOrientation === 'landscape' ? 'landscape' : 'portrait';
+    await prepareRaBill(req, data, null);
+    recalculateInvoiceFinancials(data);
     const inv = await Invoice.create(data);
+    if (inv.isRABill) {
+      if (!inv.raSeriesId) await inv.update({ raSeriesId: inv.id });
+      await refreshSeries(inv.raSeriesId);
+      await inv.reload();
+    }
     res.status(201).json(inv);
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    res.status(err.status || 500).json({ message: err.message });
   }
 };
 
@@ -218,12 +330,74 @@ exports.updateInvoice = async (req, res) => {
       updates.invoiceDate || inv.invoiceDate,
       updates.invoiceNumber || inv.invoiceNumber
     );
+    if (updates.pdfOrientation !== undefined) {
+      updates.pdfOrientation = updates.pdfOrientation === 'landscape' ? 'landscape' : 'portrait';
+    }
+
+    // R.A. bill series: recompute this bill's quantities against earlier bills
+    const has = key => Object.prototype.hasOwnProperty.call(updates, key);
+    const oldSeriesId = inv.isRABill ? (inv.raSeriesId || inv.id) : null;
+    const ra = {
+      isRABill: has('isRABill') ? !!updates.isRABill : !!inv.isRABill,
+      raPrevBillId: has('raPrevBillId') ? updates.raPrevBillId : inv.raPrevBillId,
+      raBillNo: has('raBillNo') ? updates.raBillNo : inv.raBillNo,
+      items: has('items') ? updates.items : inv.items,
+    };
+    await prepareRaBill(req, ra, inv);
+    if (ra.isRABill && !ra.raSeriesId) ra.raSeriesId = inv.id;
+    Object.assign(updates, ra);
+    const recalculated = recalculateInvoiceFinancials(Object.assign({}, inv.toJSON(), updates));
+    ['items', 'subtotal', 'totalCgst', 'totalSgst', 'totalIgst', 'totalTax', 'roundOffMode', 'roundOff', 'totalAmount']
+      .forEach(field => { updates[field] = recalculated[field]; });
+
     await inv.update(updates);
+    if (oldSeriesId && oldSeriesId !== inv.raSeriesId) await refreshSeries(oldSeriesId);
+    if (inv.isRABill) {
+      await refreshSeries(inv.raSeriesId);
+      await inv.reload();
+    }
     res.json(inv);
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    res.status(err.status || 500).json({ message: err.message });
   }
 };
+
+// ── GET /invoices/:id/ra-next — draft of the next R.A. bill ──────────────────
+// For an R.A. bill: the next bill of its series with previous (billed) quantities.
+// For any other bill: R.A. bill no. 1 whose original quantities are this bill's.
+exports.getNextRaBillDraft = async (req, res) => {
+  try {
+    if (req.user.role === 'admin') await syncAccountsCompanyIds();
+    const inv = await findScopedByPk(Invoice, 'invoice', req, req.params.id, null, 'Invoice not found');
+    if (!inv) return res.status(404).json({ message: 'Invoice not found' });
+    res.json(await buildNextRaDraft(inv));
+  } catch (err) {
+    res.status(err.status || 500).json({ message: err.message });
+  }
+};
+
+// Keep the remaining bills of a series linked after a bill is deleted.
+async function relinkSeriesAfterDelete(deleted) {
+  if (!deleted.isRABill) return;
+  const seriesId = deleted.raSeriesId || deleted.id;
+  const bills = await Invoice.findAll({
+    where: { isRABill: true, [Op.or]: [{ id: seriesId }, { raSeriesId: seriesId }] },
+    order: [['raBillNo', 'ASC'], ['id', 'ASC']],
+  });
+  if (!bills.length) return;
+  const newRoot = seriesId === deleted.id ? bills[0].id : seriesId;
+  for (const bill of bills) {
+    let changed = false;
+    if (bill.raPrevBillId === deleted.id) { bill.raPrevBillId = deleted.raPrevBillId || null; changed = true; }
+    if (newRoot !== seriesId) {
+      bill.raSeriesId = newRoot;
+      if (bill.id === newRoot) bill.raPrevBillId = null;
+      changed = true;
+    }
+    if (changed) await bill.save({ hooks: false });
+  }
+  await refreshSeries(newRoot);
+}
 
 // ── DELETE /invoices/:id ──────────────────────────────────────────────────────
 exports.deleteInvoice = async (req, res) => {
@@ -234,6 +408,7 @@ exports.deleteInvoice = async (req, res) => {
     const { moveToRecycleBin } = require('./recycleBinController');
     await moveToRecycleBin('invoice', inv.id, req.user, inv.toJSON(), inv.invoiceNumber || ('Invoice #' + inv.id));
     await inv.destroy();
+    await relinkSeriesAfterDelete(inv);
     res.json({ message: 'Invoice deleted (moved to recycle bin)' });
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -270,14 +445,18 @@ exports.downloadPDF = async (req, res) => {
     res.setHeader('Content-Disposition',
       (inline ? 'inline' : 'attachment') + `; filename="${invoicePdfFilename(inv)}"`);
 
-    const doc = new PDFDocument({ margin: 0, size: 'A4', bufferPages: true });
+    // Portrait (default) or landscape A4 — only the page shape changes; the
+    // amounts and calculations are exactly the same in both layouts.
+    const orientation = String(req.query.orientation || inv.pdfOrientation || 'portrait').toLowerCase() === 'landscape'
+      ? 'landscape' : 'portrait';
+    const doc = new PDFDocument({ margin: 0, size: 'A4', layout: orientation, bufferPages: true });
     doc.pipe(res);
 
     // ── Constants ────────────────────────────────────────────────────────────
     const M   = 10;           // page margin
-    const PW  = 595;          // page width
-    const PH  = 842;          // page height
-    const W   = PW - M * 2;  // 575 usable width
+    const PW  = orientation === 'landscape' ? 842 : 595;  // page width
+    const PH  = orientation === 'landscape' ? 595 : 842;  // page height
+    const W   = PW - M * 2;  // usable width
     const X   = M;
     const BLK = '#000000';
     const DRK = '#1a1a1a';
@@ -469,6 +648,14 @@ exports.downloadPDF = async (req, res) => {
 
     let y = M;
     const items        = inv.items || [];
+    const isRA         = !!inv.isRABill;
+    const raPrevBill   = isRA && inv.raPrevBillId
+      ? await Invoice.findByPk(inv.raPrevBillId, { attributes: ['id', 'invoiceNumber', 'raBillNo', 'invoiceDate'] })
+      : null;
+    function fmtQty(value) {
+      const q = parseFloat(value || 0);
+      return q % 1 === 0 ? String(q) : String(parseFloat(q.toFixed(3)));
+    }
     const taxExempt    = !!inv.taxExempt;
     const showTaxSummary = !taxExempt;
     const showItemTaxColumns = showTaxPercentColumn();
@@ -500,6 +687,8 @@ exports.downloadPDF = async (req, res) => {
 
     const metaRight = [
       'TAX INVOICE (ORIGINAL FOR RECIPIENT)',
+      isRA ? 'R.A. BILL NO. ' + (inv.raBillNo || 1) + ' (RUNNING ACCOUNT BILL)' : '',
+      isRA && raPrevBill ? 'Previous Bill: ' + (raPrevBill.invoiceNumber || '') + (raPrevBill.raBillNo ? ' (R.A. ' + raPrevBill.raBillNo + ')' : '') : '',
       'Date: ' + fmtDate(inv.invoiceDate) + '   Status: ' + (inv.status || 'Draft'),
       inv.billMonth      ? 'Bill for Month: ' + inv.billMonth : '',
       (inv.billPeriodFrom && inv.billPeriodTo)
@@ -623,7 +812,17 @@ exports.downloadPDF = async (req, res) => {
     const qtyTexts = items.map(it => {
       const qty = parseFloat(it.quantity || 0);
       return qty % 1 === 0 ? String(qty) : qty.toFixed(3);
-    }).concat(['Qty']);
+    }).concat([isRA ? 'This Bill' : 'Qty']);
+    // R.A. bills show original / previous / this bill / cumulative / balance quantities
+    const raCols = isRA ? {
+      oqty: dynamicColWidth(items.map(it => fmtQty(it.originalQty)).concat(['Orig. Qty']), 28, 52, 7.1, false, 8),
+      pqty: dynamicColWidth(items.map(it => fmtQty(it.previousQty)).concat(['Prev. Qty']), 28, 52, 7.1, false, 8),
+      cqty: dynamicColWidth(items.map(it => fmtQty(it.cumulativeQty)).concat(['Cum. Qty']), 28, 52, 7.1, false, 8),
+      bqty: dynamicColWidth(items.map(it => fmtQty(it.balanceQty)).concat(['Bal. Qty']), 28, 52, 7.1, false, 8),
+    } : {};
+    const raAdjust = isRA
+      ? [{ key: 'oqty', min: 24 }, { key: 'pqty', min: 24 }, { key: 'cqty', min: 24 }, { key: 'bqty', min: 24 }]
+      : [];
     const priceTexts = items.map(it => cellMoney(parseFloat(it.unitPrice || 0))).concat(['Rate']);
     const amountTexts = items.map(it => {
       const qty = parseFloat(it.quantity || 0);
@@ -645,7 +844,9 @@ exports.downloadPDF = async (req, res) => {
           rate: dynamicColWidth(priceTexts, 42, 72, 7.1, false, 10),
           qty: dynamicColWidth(qtyTexts, 22, 36, 7.1, false, 8),
           amt: dynamicColWidth(amountTexts, 82, 112, 7.1, true, 12),
+          ...raCols,
         }, 180, [
+          ...raAdjust,
           { key: 'amt', min: 82 },
           { key: 'rate', min: 42 },
           { key: 'hsn', min: 34 },
@@ -664,7 +865,9 @@ exports.downloadPDF = async (req, res) => {
             ...(showTaxPercent ? { taxP: dynamicColWidth(taxPctTexts, 24, 40, 6.3, true, 8) } : {}),
             taxAmt: dynamicColWidth(igstTexts, 44, 88, 7.1, false, 10),
             amt: dynamicColWidth(amountTexts, 82, 118, 7.1, true, 12),
+            ...raCols,
           }, showTaxPercent ? 150 : 170, [
+            ...raAdjust,
             { key: 'amt', min: 82 },
             { key: 'taxAmt', min: 44 },
             { key: 'rate', min: 42 },
@@ -684,7 +887,9 @@ exports.downloadPDF = async (req, res) => {
             ...(showTaxPercent ? { taxP: dynamicColWidth(taxPctTexts, 22, 36, 6.3, true, 8) } : {}),
             taxAmt: dynamicColWidth(splitTaxTexts, 48, 82, 7.1, false, 10),
             amt: dynamicColWidth(amountTexts, 78, 110, 7.1, true, 12),
+            ...raCols,
           }, showTaxPercent ? 145 : 165, [
+            ...raAdjust,
             { key: 'amt', min: 78 },
             { key: 'taxAmt', min: 48 },
             { key: 'rate', min: 40 },
@@ -699,6 +904,7 @@ exports.downloadPDF = async (req, res) => {
     const DATA_ROW_MIN_H = 16;
     const ROW_LINE_H = 8;
     const ITEM_SECTION_H = 11;
+    const HEAD_H = isRA ? 20 : ROW_H;  // R.A. quantity headings need two lines
 
     function drawItemsHeader(startY, includeSectionLabel) {
       let hy = startY;
@@ -709,37 +915,42 @@ exports.downloadPDF = async (req, res) => {
         hy += ITEM_SECTION_H;
       }
 
-      fillBox(X, hy, W, ROW_H, HBG);
-      box(X, hy, W, ROW_H, LBD);
+      fillBox(X, hy, W, HEAD_H, HBG);
+      box(X, hy, W, HEAD_H, LBD);
 
       let cx = X;
       function th(label, w) {
-        vLine(cx, hy, hy + ROW_H, LBD);
+        vLine(cx, hy, hy + HEAD_H, LBD);
         txt(label, cx + 2, hy + 3, w - 4, { size: 6.3, bold: true, color: BLK, align: 'center' });
         cx += w;
+      }
+      function thQty() {
+        if (!isRA) return th('Qty', COL.qty);
+        th('Orig. Qty', COL.oqty); th('Prev. Qty', COL.pqty); th('This Bill', COL.qty);
+        th('Cum. Qty', COL.cqty); th('Bal. Qty', COL.bqty);
       }
 
       if (!showTaxSummary || !showItemTaxColumns) {
         th('Sl.', COL.sl); th('Code', COL.code);
         th('Description', COL.desc); th('HSN/SAC', COL.hsn); th('Unit', COL.unit);
-        th('Rate', COL.rate); th('Qty', COL.qty); th('Amount', COL.amt);
+        th('Rate', COL.rate); thQty(); th('Amount', COL.amt);
       } else if (useIGST) {
         th('Sl.', COL.sl); th('Code', COL.code);
         th('Description', COL.desc); th('HSN/SAC', COL.hsn); th('Unit', COL.unit);
-        th('Rate', COL.rate); th('Qty', COL.qty);
+        th('Rate', COL.rate); thQty();
         if (showTaxPercent) th('Tax %', COL.taxP);
         th('IGST Amt', COL.taxAmt); th('Amount', COL.amt);
       } else {
         th('Sl.', COL.sl); th('Code', COL.code);
         th('Description', COL.desc); th('HSN/SAC', COL.hsn); th('Unit', COL.unit);
-        th('Rate', COL.rate); th('Qty', COL.qty);
+        th('Rate', COL.rate); thQty();
         if (showTaxPercent) th('Tax %', COL.taxP);
         th('Tax Amt', COL.taxAmt); th('Amount', COL.amt);
       }
-      return hy + ROW_H;
+      return hy + HEAD_H;
     }
 
-    y = checkPage(y, ITEM_SECTION_H + ROW_H + DATA_ROW_MIN_H);
+    y = checkPage(y, ITEM_SECTION_H + HEAD_H + DATA_ROW_MIN_H);
     y = drawItemsHeader(y, true);
 
     items.forEach((it, idx) => {
@@ -804,7 +1015,16 @@ exports.downloadPDF = async (req, res) => {
         td(firstSegment ? hsnCode : '',                    COL.hsn, { fit: true, minSize: 5.6, lineBreak: false, ellipsis: true });
         td(firstSegment ? unitText : '',                   COL.unit, { fit: true, minSize: 5.6, lineBreak: false, ellipsis: true });
         td(firstSegment ? cellMoney(price) : '',           COL.rate, { align: 'right', fit: true, minSize: 5.8, lineBreak: false });
-        td(firstSegment ? qtyText : '',                    COL.qty, { fit: true, minSize: 5.8, lineBreak: false });
+        if (isRA) {
+          const qOpts = { fit: true, minSize: 5.6, lineBreak: false };
+          td(firstSegment ? fmtQty(it.originalQty) : '',   COL.oqty, qOpts);
+          td(firstSegment ? fmtQty(it.previousQty) : '',   COL.pqty, qOpts);
+          td(firstSegment ? qtyText : '',                  COL.qty, Object.assign({ bold: true }, qOpts));
+          td(firstSegment ? fmtQty(it.cumulativeQty) : '', COL.cqty, qOpts);
+          td(firstSegment ? fmtQty(it.balanceQty) : '',    COL.bqty, qOpts);
+        } else {
+          td(firstSegment ? qtyText : '',                  COL.qty, { fit: true, minSize: 5.8, lineBreak: false });
+        }
 
         if (showItemTaxColumns && useIGST) {
           if (showTaxPercent) td(firstSegment ? taxRate.toFixed(0) + '%' : '', COL.taxP, { fit: true, minSize: 5.8, lineBreak: false });
@@ -826,6 +1046,40 @@ exports.downloadPDF = async (req, res) => {
         }
       }
     });
+
+    // 4b. R.A. BILL ABSTRACT — value of work (excl. GST) at the bill rates
+    if (isRA && items.length) {
+      const lineValue = (qty, it) => qty * parseFloat(it.unitPrice || 0) * (1 - parseFloat(it.discount || 0) / 100);
+      const abs = items.reduce((t, it) => {
+        t.original   += lineValue(parseFloat(it.originalQty || 0), it);
+        t.previous   += lineValue(parseFloat(it.previousQty || 0), it);
+        t.current    += parseFloat(it.taxableAmount || lineValue(parseFloat(it.quantity || 0), it));
+        t.cumulative += lineValue(parseFloat(it.cumulativeQty || 0), it);
+        return t;
+      }, { original: 0, previous: 0, current: 0, cumulative: 0 });
+      const absCols = [
+        ['Value as per Original Qty', abs.original],
+        ['Up to Previous Bill', abs.previous],
+        ['This Bill', abs.current],
+        ['Cumulative to Date', abs.cumulative],
+        ['Balance Value', abs.original - abs.cumulative],
+      ];
+      const absH = 28;
+      y = checkPage(y, 11 + absH);
+      fillBox(X, y, W, 11, HBG);
+      box(X, y, W, 11, LBD);
+      txt('R.A. Bill Abstract (value excl. GST)', X + 5, y + 2, W - 10, { size: 7.5, bold: true, color: BLK });
+      y += 11;
+      const cw = W / absCols.length;
+      box(X, y, W, absH, LBD);
+      absCols.forEach(([label, val], i) => {
+        const cx = X + i * cw;
+        if (i) vLine(cx, y, y + absH, LBD);
+        txt(label, cx + 4, y + 4, cw - 8, { size: 6.8, color: GRY, align: 'center' });
+        txt(fmtINR(val), cx + 4, y + 15, cw - 8, { size: 8, bold: true, color: BLK, align: 'center' });
+      });
+      y += absH;
+    }
 
     // 5. AMOUNT IN WORDS  +  SUMMARY  (side by side)
     // ════════════════════════════════════════════════════════════════════════

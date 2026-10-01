@@ -1,5 +1,6 @@
 const { DataTypes } = require('sequelize');
 const sequelize = require('../config/database');
+const PayrollCalc = require('../public/js/payroll-calc');
 
 const Salary = sequelize.define('Salary', {
   userId:    { type: DataTypes.INTEGER, allowNull: false },
@@ -11,6 +12,10 @@ const Salary = sequelize.define('Salary', {
   baseSalary:   { type: DataTypes.FLOAT, defaultValue: 0 },  // CTC per month
   leaveTaken:   { type: DataTypes.FLOAT, defaultValue: 0 },  // Leave days taken
   allowedLeave: { type: DataTypes.FLOAT, defaultValue: 0 },  // Allowed leave days
+  totalDays:    { type: DataTypes.FLOAT, allowNull: true },  // Days in the pay period
+  workedDays:   { type: DataTypes.FLOAT, allowNull: true },  // Payable days (incl. paid leave)
+  paidLeave:    { type: DataTypes.FLOAT, defaultValue: 0 },  // auto: min(leaveTaken, allowedLeave)
+  lopDays:      { type: DataTypes.FLOAT, defaultValue: 0 },  // auto: leave beyond allowance
 
   // ── Earnings components ───────────────────────────────────────────
   basicSalary:      { type: DataTypes.FLOAT, defaultValue: 0 },
@@ -68,55 +73,85 @@ const Salary = sequelize.define('Salary', {
   empBankIfsc:    { type: DataTypes.STRING, defaultValue: '' },
 }, { timestamps: true });
 
-// ── Round to nearest 10 (DHPE-style) ─────────────────────────────────
-function r10(n) { return Math.round((n || 0) / 10) * 10; }
+// Inputs for PayrollCalc. Rows saved before totalDays existed were written by
+// the old payroll sheet, which kept its "Worked Days" in totalWorkDays against
+// a calendar-day month — read them the same way so old slips keep their days.
+function payrollInput(salary) {
+  const s = salary && typeof salary.get === 'function' ? salary.get({ plain: true }) : (salary || {});
+  const calDays = PayrollCalc.daysInMonth(s.month, s.year);
+  let totalDays = Number(s.totalDays);
+  let workedDays = s.workedDays;
+  if (!(totalDays > 0)) {
+    totalDays = calDays;
+    const legacyWorked = Number(s.totalWorkDays);
+    if ((workedDays === null || workedDays === undefined || workedDays === '') && legacyWorked > 0 && legacyWorked <= calDays) {
+      workedDays = legacyWorked;
+    }
+  }
+  return {
+    month: s.month,
+    year: s.year,
+    totalDays,
+    workedDays,
+    allowedLeave: s.allowedLeave,
+    leaveTaken: s.leaveTaken,
+    basicSalary: s.basicSalary,
+    da: s.da,
+    hra: s.hra,
+    conveyance: s.conveyance,
+    medicalExpenses: s.medicalExpenses,
+    specialAllowance: s.specialAllowance,
+    bonus: s.bonus,
+    ta: s.ta,
+    pfContribution: s.pfContribution,
+    professionTax: s.professionTax,
+    tds: s.tds,
+    salaryAdvance: s.salaryAdvance,
+    manualDeductionAmount: s.manualDeductionAmount,
+    applyAbsentDeduction: s.applyAbsentDeduction,
+  };
+}
+
+function computePayroll(salary) {
+  return PayrollCalc.compute(payrollInput(salary));
+}
+
+// Copy the calculated figures onto a record (instance or plain object).
+function applyPayroll(target, calc) {
+  target.totalDays         = calc.totalDays;
+  target.workedDays        = calc.workedDays;
+  target.paidLeave         = calc.paidLeave;
+  target.lopDays           = calc.lopDays;
+  target.totalWorkDays     = Math.round(calc.totalDays);
+  target.presentDays       = Math.round(calc.presentDays);
+  target.absentDays        = Math.round(calc.unpaidDays);
+  target.baseSalary        = calc.ctc;
+  target.conveyanceWorking = calc.conveyanceWorking;
+  target.medicalWorking    = calc.medicalWorking;
+  target.grossSalary       = calc.grossSalary;
+  target.allowances        = calc.allowances;
+  target.absentDeduction   = calc.absentDeduction;
+  target.manualDeductionDays = 0; // no longer used in calculation
+  target.deductions        = calc.totalDeductions;
+  target.netSalary         = calc.netSalary;
+  return target;
+}
 
 function calcNetSalary(salary) {
-  const calDays = (salary.month && salary.year)
-    ? new Date(salary.year, salary.month, 0).getDate()
-    : 30;
-  const payrollDays = (salary.totalWorkDays && Number(salary.totalWorkDays) > 0)
-    ? Number(salary.totalWorkDays)
-    : calDays;
-  const workedDays = Math.max(0, payrollDays - (salary.leaveTaken || 0));
-  const absentDays = Math.max(0, Number(salary.absentDays || 0));
-
-  // CTC = sum of all fixed salary components (DA is user-defined, included here)
-  salary.baseSalary = (salary.basicSalary || 0) + (salary.da || 0) + (salary.hra || 0)
-    + (salary.conveyance || 0) + (salary.medicalExpenses || 0)
-    + (salary.specialAllowance || 0) + (salary.bonus || 0) + (salary.ta || 0);
-
-  // Auto-calculated working-day proportional components
-  salary.conveyanceWorking  = payrollDays > 0 ? r10((salary.conveyance || 0) / payrollDays * workedDays) : (salary.conveyance || 0);
-  salary.medicalWorking     = payrollDays > 0 ? r10((salary.medicalExpenses || 0) / payrollDays * workedDays) : (salary.medicalExpenses || 0);
-
-  // Gross = basic + DA (fixed) + HRA + conv(working) + medical(working) + special + bonus + TA
-  salary.grossSalary = (salary.basicSalary || 0) + (salary.da || 0) + (salary.hra || 0)
-    + salary.conveyanceWorking + salary.medicalWorking
-    + (salary.specialAllowance || 0) + (salary.bonus || 0) + (salary.ta || 0);
-
-  // Sync allowances (non-basic additions)
-  salary.allowances = (salary.da || 0) + (salary.hra || 0) + salary.conveyanceWorking
-    + salary.medicalWorking + (salary.specialAllowance || 0) + (salary.bonus || 0) + (salary.ta || 0);
-
-  // Total deductions
-  // If admin set a manual amount, use it directly; otherwise auto-calc from absent days
-  const manualDeductionAmount = Math.max(0, Number(salary.manualDeductionAmount || 0));
-  const perDayRate = payrollDays > 0 ? (salary.baseSalary || 0) / payrollDays : 0;
-  const absentDeduction = manualDeductionAmount > 0
-    ? r10(manualDeductionAmount)
-    : (payrollDays > 0 ? r10(perDayRate * absentDays) : 0);
-  salary.manualDeductionDays = 0; // no longer used in calculation
-  const totalDed = (salary.pfContribution || 0) + (salary.professionTax || 0)
-    + (salary.tds || 0) + (salary.salaryAdvance || 0) + absentDeduction;
-  salary.deductions      = totalDed;
-  salary.absentDeduction = absentDeduction;
-
-  salary.netSalary = salary.grossSalary - totalDed;
-  if (salary.netSalary < 0) salary.netSalary = 0;
+  applyPayroll(salary, computePayroll(salary));
 }
 
 Salary.beforeCreate(calcNetSalary);
 Salary.beforeUpdate(calcNetSalary);
+
+// Plain JSON with freshly calculated figures — what every API/PDF consumer shows.
+Salary.withPayroll = function (salary) {
+  const plain = salary && typeof salary.toJSON === 'function' ? salary.toJSON() : Object.assign({}, salary || {});
+  const calc = computePayroll(plain);
+  applyPayroll(plain, calc);
+  plain.payroll = calc;
+  return plain;
+};
+Salary.computePayroll = computePayroll;
 
 module.exports = Salary;

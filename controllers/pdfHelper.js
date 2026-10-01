@@ -1,5 +1,52 @@
 'use strict';
+const fs = require('fs');
+const path = require('path');
 const PDFDocument = require('pdfkit');
+
+// TTF fonts that can render the ₹ sign. The first pair that exists on the host
+// wins (Windows dev machines, common Linux/macOS server font packages); when
+// none is installed the PDF falls back to Helvetica with "Rs.".
+const UNICODE_FONT_CANDIDATES = [
+  ['/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf', '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf'],
+  ['/usr/share/fonts/dejavu/DejaVuSans.ttf', '/usr/share/fonts/dejavu/DejaVuSans-Bold.ttf'],
+  ['/usr/share/fonts/dejavu-sans-fonts/DejaVuSans.ttf', '/usr/share/fonts/dejavu-sans-fonts/DejaVuSans-Bold.ttf'],
+  ['/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf', '/usr/share/fonts/truetype/noto/NotoSans-Bold.ttf'],
+  ['/usr/share/fonts/noto/NotoSans-Regular.ttf', '/usr/share/fonts/noto/NotoSans-Bold.ttf'],
+  ['/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf', '/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf'],
+  ['/usr/share/fonts/liberation-sans/LiberationSans-Regular.ttf', '/usr/share/fonts/liberation-sans/LiberationSans-Bold.ttf'],
+  ['/System/Library/Fonts/Supplemental/Arial.ttf', '/System/Library/Fonts/Supplemental/Arial Bold.ttf'],
+  ['/Library/Fonts/Arial.ttf', '/Library/Fonts/Arial Bold.ttf'],
+];
+let resolvedUnicodeFonts;
+
+function resolveUnicodeFonts() {
+  if (resolvedUnicodeFonts !== undefined) return resolvedUnicodeFonts;
+  const winDir = process.env.WINDIR || process.env.SystemRoot || 'C:\\Windows';
+  const candidates = [[path.join(winDir, 'Fonts', 'arial.ttf'), path.join(winDir, 'Fonts', 'arialbd.ttf')]]
+    .concat(UNICODE_FONT_CANDIDATES);
+  const found = candidates.find(([regular, bold]) => fs.existsSync(regular) && fs.existsSync(bold));
+  resolvedUnicodeFonts = found ? { regular: found[0], bold: found[1] } : null;
+  return resolvedUnicodeFonts;
+}
+
+// Registers "Body"/"Body-Bold" on the document and reports whether ₹ renders.
+function useUnicodeFonts(doc) {
+  const fonts = resolveUnicodeFonts();
+  if (fonts) {
+    try {
+      doc.registerFont('Body', fonts.regular);
+      doc.registerFont('Body-Bold', fonts.bold);
+      doc.font('Body');
+      const face = doc._font && doc._font.font;
+      const rupee = !!(face && typeof face.hasGlyphForCodePoint === 'function' && face.hasGlyphForCodePoint(0x20B9));
+      return { regular: 'Body', bold: 'Body-Bold', rupee };
+    } catch (err) {
+      // unreadable font file — fall through to the built-in font
+    }
+  }
+  doc.font('Helvetica');
+  return { regular: 'Helvetica', bold: 'Helvetica-Bold', rupee: false };
+}
 
 const M        = 10;
 const PW       = 595;
@@ -405,4 +452,5 @@ module.exports = {
   fmtDate, fmtINR, numWords, pdfSafePart, buildPdfFilename, buildTaxSummaryLabels, createDoc, addFooters,
   roundMoney, normalizeAccountItems, deriveItemTotals,
   drawHeader, drawSectionLabel, drawSignature,
+  resolveUnicodeFonts, useUnicodeFonts,
 };

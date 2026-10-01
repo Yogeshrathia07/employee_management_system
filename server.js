@@ -7,6 +7,7 @@ const { Op } = require('sequelize');
 const { sequelize, Company, User } = require('./models');
 const { pageAuth, redirectAuthenticatedUser } = require('./middleware/auth');
 const { cleanupDuplicateIndexes } = require('./config/mysqlIndexCleanup');
+const { runPreSyncMigrations } = require('./config/schemaMigrations');
 const { getSuperadminCredentials } = require('./config/superadminCredentials');
 
 const app = express();
@@ -75,6 +76,7 @@ app.get('/admin/notifications', (req, res) => res.render('admin/notifications', 
 app.get('/admin/policies', (req, res) => res.render('admin/policies', { title: 'Company Policy' }));
 app.get('/admin/recycle-bin', (req, res) => res.redirect('/admin/dashboard'));
 app.get('/admin/tasks', (req, res) => res.render('admin/tasks', { title: 'Tasks' }));
+app.get('/admin/master-data', (req, res) => res.render('admin/master_data', { title: 'Master Data', pageRole: 'admin' }));
 app.get('/admin/accounts', (req, res) => res.render('superadmin/accounts', { title: 'Accounts', pageRole: 'admin' }));
 
 app.get('/superadmin/dashboard', (req, res) => res.render('superadmin/dashboard', { title: 'Dashboard' }));
@@ -85,6 +87,7 @@ app.get('/superadmin/recycle-bin', (req, res) => res.render('superadmin/recycle-
 app.get('/superadmin/policies', (req, res) => res.render('superadmin/policies', { title: 'Company Policies' }));
 app.get('/superadmin/accounts', (req, res) => res.render('superadmin/accounts', { title: 'Accounts', pageRole: 'superadmin' }));
 app.get('/superadmin/projects', (req, res) => res.render('superadmin/projects', { title: 'Projects' }));
+app.get('/superadmin/master-data', (req, res) => res.render('admin/master_data', { title: 'Master Data', pageRole: 'superadmin' }));
 app.get('/superadmin/tasks', (req, res) => res.render('superadmin/tasks', { title: 'Tasks' }));
 
 app.use((req, res) => {
@@ -100,6 +103,7 @@ const SHOULD_ALTER_SCHEMA = String(process.env.DB_SYNC_ALTER || 'true').toLowerC
 sequelize.authenticate()
   .then(async () => {
     await cleanupDuplicateIndexes(sequelize, { logger: console.log });
+    await runPreSyncMigrations(sequelize, { logger: console.log });
     return sequelize.sync({ alter: SHOULD_ALTER_SCHEMA });
   })
   .then(async () => {

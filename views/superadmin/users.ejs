@@ -57,10 +57,34 @@
       </div>
       <div class="form-row">
         <div class="form-group"><label class="form-label">Gender</label><select id="u-gender" class="form-control"><option value="unspecified">Select gender</option><option value="male">Male</option><option value="female">Female</option></select></div>
+        <div class="form-group"><label class="form-label">Employee ID</label><input type="text" id="u-empcode" class="form-control" placeholder="Auto-generated"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Designation</label><input type="text" id="u-position" class="form-control"></div>
+        <div class="form-group"><label class="form-label">Work Location</label><input type="text" id="u-location" class="form-control"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Current Status</label>
+          <select id="u-emp-status" class="form-control">
+            <option>Active</option><option>Probation</option><option>Notice Period</option><option>On Leave</option><option>Resigned</option><option>Terminated</option><option>Retired</option>
+          </select>
+        </div>
+        <div class="form-group"><label class="form-label">Joining Date</label><input type="date" id="u-joining" class="form-control"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Job Title</label><input type="text" id="u-jobtitle" class="form-control"></div>
+        <div class="form-group"><label class="form-label">Employment Type</label>
+          <select id="u-emp-type" class="form-control">
+            <option value="">— Select —</option><option>Full-time</option><option>Part-time</option><option>Contract</option><option>Intern</option><option>Trainee</option><option>Consultant</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Work Schedule</label><input type="text" id="u-schedule" class="form-control" placeholder="e.g. Mon–Sat, 9:30 AM – 6:30 PM"></div>
         <div class="form-group"></div>
       </div>
       <div class="form-row">
-        <div class="form-group"><label class="form-label">Status</label><select id="u-status" class="form-control"><option value="active">Active</option><option value="inactive">Inactive</option></select></div>
+        <div class="form-group"><label class="form-label">Account Status (login)</label><select id="u-status" class="form-control"><option value="active">Active</option><option value="inactive">Inactive</option></select></div>
         <div class="form-group"><label class="form-label">Password <span style="color:var(--text-muted)">(default: Employee@123)</span></label><input type="password" id="u-pass" class="form-control" placeholder="Leave blank for default"></div>
       </div>
       <div class="form-row">
@@ -87,9 +111,23 @@
 #detail-modal .modal-close i{font-size:18px;}
 </style>
 
+<%- include('../partials/hr-doc-modal') %>
+
+<style>
+.emp-info-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px 16px;padding:12px 14px;border:1px solid var(--border);border-radius:12px;background:var(--bg-input)}
+.emp-info-grid .lbl{font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--text-muted)}
+.emp-info-grid .val{font-size:13px;font-weight:600;color:var(--text-primary);margin-top:2px;word-break:break-word}
+.emp-detail-title{font-weight:700;margin:16px 0 8px;display:flex;align-items:center;justify-content:space-between;gap:8px}
+</style>
+
 <script src="/js/api.js"></script>
 <script>
 let editId = null, allUsers = [], companies = [];
+let detailUserId = null;
+const PROFILE_FIELD_IDS = {
+  employeeCode: 'u-empcode', position: 'u-position', workLocation: 'u-location', employmentStatus: 'u-emp-status',
+  joiningDate: 'u-joining', jobTitle: 'u-jobtitle', employmentType: 'u-emp-type', workSchedule: 'u-schedule'
+};
 const DOC_TYPE_LABELS = {
   aadhaar:'Aadhaar Card', pan_card:'PAN Card', passport:'Passport', voter_id:'Voter ID',
   driving_license:'Driving License', bank_passbook:'Bank Passbook',
@@ -163,6 +201,7 @@ function renderUsers() {
         </div>
         <div class="employee-showcase-actions">
           <button class="btn btn-ghost btn-sm" onclick="viewUser(${u.id})"><i class="bx bx-show"></i> View</button>
+          ${['employee', 'manager'].includes(u.role) ? `<button class="btn btn-ghost btn-sm" onclick="openHrDocUpload('offer_letter', ${u.id})" title="Upload Offer Letter"><i class="bx bxs-envelope"></i></button>` : ''}
           ${u.role === 'superadmin' ? '' : `<button class="btn btn-danger btn-sm" onclick="delUser(${u.id})"><i class="bx bx-trash"></i></button>`}
           <button class="btn btn-ghost btn-sm" onclick="editUser(${u.id})"><i class="bx bx-edit"></i></button>
         </div>
@@ -174,7 +213,9 @@ function renderUsers() {
 function openCreate() {
   editId = null;
   document.getElementById('u-modal-title').textContent = 'Add User';
-  ['u-name','u-email','u-pass','u-pass-confirm','u-dept','u-phone'].forEach(id => document.getElementById(id).value = '');
+  ['u-name','u-email','u-pass','u-pass-confirm','u-dept','u-phone','u-empcode','u-position','u-location','u-joining','u-jobtitle','u-schedule'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('u-emp-status').value = 'Active';
+  document.getElementById('u-emp-type').value = '';
   document.getElementById('u-gender').value = 'unspecified';
   document.getElementById('u-role').value = 'employee';
   document.getElementById('u-company').value = '';
@@ -195,6 +236,9 @@ function editUser(id) {
   document.getElementById('u-dept').value = u.department || '';
   document.getElementById('u-phone').value = u.phone || '';
   document.getElementById('u-gender').value = u.gender || 'unspecified';
+  Object.keys(PROFILE_FIELD_IDS).forEach(function(k) {
+    document.getElementById(PROFILE_FIELD_IDS[k]).value = u[k] || (k === 'employmentStatus' ? 'Active' : '');
+  });
   document.getElementById('u-status').value = u.role === 'superadmin' ? 'active' : u.status;
   document.getElementById('u-status').disabled = u.role === 'superadmin';
   document.getElementById('u-pass').value = '';
@@ -214,6 +258,10 @@ async function saveUser() {
     gender: document.getElementById('u-gender').value,
     status: currentUser && currentUser.role === 'superadmin' ? 'active' : document.getElementById('u-status').value
   };
+  Object.keys(PROFILE_FIELD_IDS).forEach(function(k) {
+    body[k] = document.getElementById(PROFILE_FIELD_IDS[k]).value.trim();
+  });
+  if (!body.joiningDate) body.joiningDate = null;
   var pass = document.getElementById('u-pass').value;
   var passConfirm = document.getElementById('u-pass-confirm').value;
   if (pass) {
@@ -241,6 +289,7 @@ async function delUser(id) {
 async function viewUser(id) {
   var u = allUsers.find(function(x){ return x.id == id; });
   if (!u) return;
+  detailUserId = id;
   document.getElementById('detail-title').textContent = u.name + ' - Details';
   try {
     var docsPromise = api('GET', '/documents?userId=' + id).catch(function(){ return []; });
@@ -282,16 +331,20 @@ async function viewUser(id) {
       html += '</tbody></table></div></div>';
     }
 
-    if (docs.length) {
-      html += '<div style="margin-bottom:16px;"><div style="font-weight:700;margin-bottom:8px;">Documents</div>';
-      html += '<div class="table-wrapper"><table><thead><tr><th>Title</th><th>Type</th><th>Actions</th></tr></thead><tbody>';
-      docs.forEach(function(d){
-        html += '<tr><td>' + esc(d.title) + '</td><td><span class="badge badge-draft">' + esc(DOC_TYPE_LABELS[d.type] || d.type || 'Other') + '</span></td>' +
-          '<td><button class="btn btn-ghost btn-sm" onclick="window.open(\'/api/documents/' + d.id + '/view?token=\'+getToken(),\'_blank\')"><i class="bx bx-show"></i></button> ' +
-          '<button class="btn btn-ghost btn-sm" onclick="window.open(\'/api/documents/' + d.id + '/download?token=\'+getToken(),\'_blank\')"><i class="bx bx-download"></i></button></td></tr>';
-      });
-      html += '</tbody></table></div></div>';
+    if (['employee', 'manager', 'admin'].includes(u.role)) {
+      html += '<div class="emp-detail-title"><span><i class="bx bxs-user-detail"></i> Basic Information</span></div><div class="emp-info-grid">' +
+        infoCell('Employee ID', u.employeeCode) + infoCell('Designation', u.position) + infoCell('Department', u.department) +
+        infoCell('Work Location', u.workLocation) + infoCell('Current Status', u.employmentStatus || 'Active') + infoCell('Company', u.company && u.company.name) +
+        '</div>';
+      html += '<div class="emp-detail-title"><span><i class="bx bxs-briefcase"></i> Employment Information</span></div><div class="emp-info-grid">' +
+        infoCell('Joining Date', u.joiningDate ? new Date(u.joiningDate + 'T00:00:00').toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '') +
+        infoCell('Job Title', u.jobTitle) + infoCell('Reporting Manager', u.manager && u.manager.name) +
+        infoCell('Employment Type', u.employmentType) + infoCell('Work Schedule', u.workSchedule) +
+        '</div>';
     }
+    html += '<div class="emp-detail-title"><span><i class="bx bxs-file-doc"></i> Documents</span>' +
+      (['employee', 'manager'].includes(u.role) ? '<button class="btn btn-primary btn-sm" onclick="uploadHrDocForDetail(\'offer_letter\')"><i class="bx bx-upload"></i> Upload Offer Letter / HR Document</button>' : '') +
+      '</div><div id="detail-docs">' + employeeDocsHtml(docs) + '</div>';
 
     if (salaries.length) {
       html += '<div><div style="font-weight:700;margin-bottom:8px;">Recent Salary</div>';
@@ -306,6 +359,29 @@ async function viewUser(id) {
     document.getElementById('detail-body').innerHTML = html;
     openModal('detail-modal');
   } catch(e) { toast(e.message, 'error'); }
+}
+
+function infoCell(label, value) {
+  return '<div><div class="lbl">' + esc(label) + '</div><div class="val">' + esc(value || '—') + '</div></div>';
+}
+
+function employeeDocsHtml(docs) {
+  hrDocRemember(docs);
+  return HRDocs.renderSections(docs, {
+    mode: 'admin',
+    actions: { view: 'hrDocView', download: 'hrDocDownload', replace: 'openHrDocReplace', permissions: 'openHrDocAccess', remove: 'hrDocDelete', upload: 'uploadHrDocForDetail' }
+  });
+}
+
+function uploadHrDocForDetail(type) {
+  if (detailUserId) openHrDocUpload(type, detailUserId);
+}
+
+async function onHrDocsChanged(userId) {
+  if (!detailUserId || (userId && String(userId) !== String(detailUserId))) return;
+  const box = document.getElementById('detail-docs');
+  if (!box) return;
+  try { box.innerHTML = employeeDocsHtml(await api('GET', '/documents?userId=' + detailUserId)); } catch (e) {}
 }
 
 async function approveLeaveFromDetail(id) {

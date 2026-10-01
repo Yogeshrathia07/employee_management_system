@@ -1,0 +1,433 @@
+<%- include('../partials/head', {title: 'Master Data'}) %>
+<div class="app-layout">
+  <% if (pageRole === 'superadmin') { %>
+    <%- include('../partials/sidebar-superadmin') %>
+  <% } else { %>
+    <%- include('../partials/sidebar-admin') %>
+  <% } %>
+  <div class="main-content">
+    <header class="page-header">
+      <div class="flex items-center gap-3">
+        <button class="mobile-menu-btn" onclick="openSidebar()"><i class="bx bx-menu"></i></button>
+        <div>
+          <div class="page-title"><i class="bx bxs-data"></i> Master Data</div>
+          <div class="page-subtitle">Projects and general work items used in timesheets and payslips</div>
+        </div>
+      </div>
+      <div class="header-actions">
+        <span id="company-filter-container" style="display:none;"></span>
+      </div>
+    </header>
+
+    <div class="page-body admin-employees-page employee-shared-page">
+      <div class="employee-directory-shell">
+
+        <div class="md-intro">
+          <i class="bx bx-info-circle"></i>
+          <div>
+            Enter <b>Project Master Data</b> here. Active projects and work items appear in the <b>Project / Work</b> dropdown of every
+            employee and manager timesheet; hours from approved timesheets are summarised per project / work item on the payslip.
+          </div>
+        </div>
+
+        <div class="tabs" style="margin-bottom:18px;border-bottom:2px solid var(--border-subtle);">
+          <button class="tab-btn active" id="md-tab-projects" onclick="switchMdTab('projects')"><i class="bx bxs-briefcase" style="margin-right:5px;"></i>Projects</button>
+          <button class="tab-btn" id="md-tab-work" onclick="switchMdTab('work')"><i class="bx bxs-wrench" style="margin-right:5px;"></i>General Work Items</button>
+        </div>
+
+        <!-- ═════════ PROJECTS ═════════ -->
+        <div id="md-panel-projects">
+          <div class="admin-toolbar" style="margin-bottom:14px;">
+            <div class="search-bar" style="width:240px;">
+              <span class="search-icon"><i class="bx bx-search"></i></span>
+              <input type="text" id="prj-search" placeholder="Search projects..." oninput="renderProjects()">
+            </div>
+            <select id="prj-status-filter" class="form-control" style="width:150px;" onchange="renderProjects()">
+              <option value="">All Status</option>
+              <option value="active">Active</option>
+              <option value="on_hold">On Hold</option>
+              <option value="completed">Completed</option>
+            </select>
+            <span id="prj-count" style="font-size:13px;color:var(--text-muted);"></span>
+            <button class="btn btn-primary" style="margin-left:auto;" onclick="openProjectModal()"><i class="bx bx-plus"></i> New Project</button>
+          </div>
+          <div class="card">
+            <div class="table-wrapper">
+              <table>
+                <thead><tr>
+                  <th>Code</th><th>Project Name</th><th>Client</th><th>Location</th><th>Manager</th><th>Duration</th><th>Status</th><th>Actions</th>
+                </tr></thead>
+                <tbody id="prj-tbody"><tr><td colspan="8" style="text-align:center;padding:50px;"><span class="spinner"></span></td></tr></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- ═════════ WORK ITEMS ═════════ -->
+        <div id="md-panel-work" style="display:none;">
+          <div class="admin-toolbar" style="margin-bottom:14px;">
+            <div class="search-bar" style="width:240px;">
+              <span class="search-icon"><i class="bx bx-search"></i></span>
+              <input type="text" id="wi-search" placeholder="Search work items..." oninput="renderWorkItems()">
+            </div>
+            <span id="wi-count" style="font-size:13px;color:var(--text-muted);"></span>
+            <div style="margin-left:auto;display:flex;gap:8px;flex-wrap:wrap;">
+              <button class="btn btn-ghost" onclick="addDefaultWorkItems()"><i class="bx bx-list-plus"></i> Add Default Items</button>
+              <button class="btn btn-primary" onclick="openWorkItemModal()"><i class="bx bx-plus"></i> New Work Item</button>
+            </div>
+          </div>
+          <div class="card">
+            <div class="table-wrapper">
+              <table>
+                <thead><tr>
+                  <th>Code</th><th>Work Item</th><th>Category</th><th>Billing</th><th>Status</th><th>Description</th><th>Actions</th>
+                </tr></thead>
+                <tbody id="wi-tbody"><tr><td colspan="7" style="text-align:center;padding:50px;"><span class="spinner"></span></td></tr></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Project modal -->
+<div class="modal-overlay" id="prj-modal">
+  <div class="modal" style="max-width:640px;">
+    <div class="modal-header">
+      <span class="modal-title" id="prj-modal-title">New Project</span>
+      <button class="modal-close" onclick="closeModal('prj-modal')">×</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="prj-id">
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Project Code</label><input type="text" id="prj-code" class="form-control" maxlength="30" placeholder="e.g. PRJ-001"></div>
+        <div class="form-group"><label class="form-label">Project Name <span style="color:var(--danger)">*</span></label><input type="text" id="prj-name" class="form-control" placeholder="e.g. Toilet Block 3D Model"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Client</label><input type="text" id="prj-client" class="form-control" list="md-client-list" placeholder="Client name"></div>
+        <div class="form-group"><label class="form-label">Location / Site</label><input type="text" id="prj-location" class="form-control" placeholder="Site or office"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Start Date</label><input type="date" id="prj-start" class="form-control"></div>
+        <div class="form-group"><label class="form-label">End Date</label><input type="date" id="prj-end" class="form-control"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Project Manager <span class="text-muted">(optional)</span></label>
+          <select id="prj-manager" class="form-control"><option value="">— Not assigned —</option></select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Status</label>
+          <select id="prj-status" class="form-control">
+            <option value="active">Active</option>
+            <option value="on_hold">On Hold</option>
+            <option value="completed">Completed</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-group mb-0"><label class="form-label">Description</label><textarea id="prj-desc" class="form-control" rows="2" placeholder="Scope or notes"></textarea></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('prj-modal')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveProject()"><i class="bx bx-check"></i> Save Project</button>
+    </div>
+  </div>
+</div>
+
+<!-- Work item modal -->
+<div class="modal-overlay" id="wi-modal">
+  <div class="modal" style="max-width:560px;">
+    <div class="modal-header">
+      <span class="modal-title" id="wi-modal-title">New Work Item</span>
+      <button class="modal-close" onclick="closeModal('wi-modal')">×</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="wi-id">
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Code</label><input type="text" id="wi-code" class="form-control" maxlength="30" placeholder="e.g. GW-DRF"></div>
+        <div class="form-group"><label class="form-label">Work Item <span style="color:var(--danger)">*</span></label><input type="text" id="wi-name" class="form-control" placeholder="e.g. Drafting / CAD"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Category</label><input type="text" id="wi-category" class="form-control" list="md-category-list" placeholder="e.g. Project Work"></div>
+        <div class="form-group">
+          <label class="form-label">Billing</label>
+          <select id="wi-billable" class="form-control"><option value="true">Billable</option><option value="false">Non-billable</option></select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Status</label>
+          <select id="wi-status" class="form-control"><option value="active">Active</option><option value="inactive">Inactive</option></select>
+        </div>
+        <div class="form-group"></div>
+      </div>
+      <div class="form-group mb-0"><label class="form-label">Description</label><textarea id="wi-desc" class="form-control" rows="2"></textarea></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('wi-modal')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveWorkItem()"><i class="bx bx-check"></i> Save Work Item</button>
+    </div>
+  </div>
+</div>
+
+<datalist id="md-client-list"></datalist>
+<datalist id="md-category-list"></datalist>
+
+<style>
+.md-intro{display:flex;gap:10px;align-items:flex-start;padding:12px 14px;margin-bottom:16px;border-radius:12px;background:#eef4ff;border:1px solid #c7d7f8;color:#3b4f7a;font-size:13px;line-height:1.5}
+.md-intro i{font-size:18px;margin-top:1px;color:#4a6194}
+.md-badge{display:inline-block;font-size:11px;font-weight:700;border-radius:12px;padding:3px 10px}
+</style>
+
+<script src="/js/api.js"></script>
+<script src="/js/sidebar-fix.js"></script>
+<script src="/js/admin-company-filter.js"></script>
+<script>
+var MD_ROLE = <%- JSON.stringify(pageRole || 'admin') %>;
+var mdProjects = [], mdWorkItems = [], mdManagers = [];
+var STATUS_LABEL = { active: 'Active', on_hold: 'On Hold', completed: 'Completed', inactive: 'Inactive' };
+var STATUS_COLOR = { active: '#16a34a', on_hold: '#d97706', completed: '#4f46e5', inactive: '#64748b' };
+var STATUS_BG    = { active: '#dcfce7', on_hold: '#fef3c7', completed: 'rgba(99,102,241,0.12)', inactive: '#f1f5f9' };
+
+function escH(s) { return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
+function statusPill(s) { return '<span class="md-badge" style="background:' + (STATUS_BG[s] || '#f1f5f9') + ';color:' + (STATUS_COLOR[s] || '#64748b') + ';">' + (STATUS_LABEL[s] || escH(s)) + '</span>'; }
+function shortDate(d) { return d ? new Date(d + 'T00:00:00').toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : ''; }
+
+function companyParam(prefix) {
+  var cid = MD_ROLE === 'superadmin' ? getSelectedCompanyId() : '';
+  return cid ? (prefix || '?') + 'companyId=' + encodeURIComponent(cid) : '';
+}
+function requireCompanyForSuperadmin() {
+  if (MD_ROLE === 'superadmin' && !getSelectedCompanyId()) {
+    toast('Select a company in the header first', 'error');
+    return false;
+  }
+  return true;
+}
+
+function switchMdTab(tab) {
+  document.getElementById('md-panel-projects').style.display = tab === 'projects' ? '' : 'none';
+  document.getElementById('md-panel-work').style.display = tab === 'work' ? '' : 'none';
+  document.getElementById('md-tab-projects').classList.toggle('active', tab === 'projects');
+  document.getElementById('md-tab-work').classList.toggle('active', tab === 'work');
+  try { localStorage.setItem('md_tab', tab); } catch (e) {}
+}
+
+/* ── Projects ─────────────────────────────────────────── */
+function renderProjects() {
+  var q = (document.getElementById('prj-search').value || '').toLowerCase();
+  var st = document.getElementById('prj-status-filter').value;
+  var rows = mdProjects.filter(function(p) {
+    if (st && p.status !== st) return false;
+    if (q && ![p.code, p.name, p.clientName, p.location, p.manager && p.manager.name].some(function(v) { return String(v || '').toLowerCase().indexOf(q) !== -1; })) return false;
+    return true;
+  });
+  document.getElementById('prj-count').textContent = rows.length + ' project' + (rows.length !== 1 ? 's' : '');
+  var tbody = document.getElementById('prj-tbody');
+  if (!rows.length) {
+    tbody.innerHTML = '<tr><td colspan="8"><div class="empty-state"><div class="empty-icon"><i class="bx bxs-briefcase"></i></div><h3>No projects yet</h3><p>Click <b>New Project</b> to add project master data.</p></div></td></tr>';
+    return;
+  }
+  tbody.innerHTML = rows.map(function(p) {
+    var duration = [shortDate(p.startDate), shortDate(p.endDate)].filter(Boolean).join(' – ') || '—';
+    return '<tr>' +
+      '<td style="font-weight:700;font-size:12px;">' + escH(p.code || '—') + '</td>' +
+      '<td><div style="font-weight:700;">' + escH(p.name) + '</div>' + (p.description ? '<div style="font-size:11px;color:var(--text-muted);max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + escH(p.description) + '</div>' : '') + '</td>' +
+      '<td>' + escH(p.clientName || '—') + '</td>' +
+      '<td>' + escH(p.location || '—') + '</td>' +
+      '<td>' + escH(p.manager ? p.manager.name : '—') + '</td>' +
+      '<td style="font-size:12px;white-space:nowrap;">' + duration + '</td>' +
+      '<td>' + statusPill(p.status) + '</td>' +
+      '<td><div style="display:flex;gap:5px;">' +
+        '<button class="btn btn-ghost btn-sm" onclick="openProjectModal(' + p.id + ')" title="Edit"><i class="bx bx-edit"></i></button>' +
+        '<button class="btn btn-danger btn-sm" onclick="deleteProject(' + p.id + ')" title="Delete"><i class="bx bx-trash"></i></button>' +
+      '</div></td>' +
+    '</tr>';
+  }).join('');
+}
+
+function fillManagerSelect(selected) {
+  var sel = document.getElementById('prj-manager');
+  sel.innerHTML = '<option value="">— Not assigned —</option>' + mdManagers.map(function(m) {
+    return '<option value="' + m.id + '">' + escH(m.name) + (m.department ? ' (' + escH(m.department) + ')' : '') + '</option>';
+  }).join('');
+  sel.value = selected ? String(selected) : '';
+}
+
+function openProjectModal(id) {
+  var p = id ? mdProjects.find(function(x) { return x.id === id; }) : null;
+  if (!p && !requireCompanyForSuperadmin()) return;
+  document.getElementById('prj-modal-title').textContent = p ? 'Edit Project' : 'New Project';
+  document.getElementById('prj-id').value = p ? p.id : '';
+  document.getElementById('prj-code').value = p ? (p.code || '') : '';
+  document.getElementById('prj-name').value = p ? p.name : '';
+  document.getElementById('prj-client').value = p ? (p.clientName || '') : '';
+  document.getElementById('prj-location').value = p ? (p.location || '') : '';
+  document.getElementById('prj-start').value = p ? (p.startDate || '') : '';
+  document.getElementById('prj-end').value = p ? (p.endDate || '') : '';
+  document.getElementById('prj-status').value = p ? (p.status || 'active') : 'active';
+  document.getElementById('prj-desc').value = p ? (p.description || '') : '';
+  fillManagerSelect(p ? p.managerId : '');
+  openModal('prj-modal');
+}
+
+async function saveProject() {
+  var id = document.getElementById('prj-id').value;
+  var body = {
+    code: document.getElementById('prj-code').value.trim(),
+    name: document.getElementById('prj-name').value.trim(),
+    clientName: document.getElementById('prj-client').value.trim(),
+    location: document.getElementById('prj-location').value.trim(),
+    startDate: document.getElementById('prj-start').value || null,
+    endDate: document.getElementById('prj-end').value || null,
+    managerId: document.getElementById('prj-manager').value || null,
+    status: document.getElementById('prj-status').value,
+    description: document.getElementById('prj-desc').value.trim(),
+  };
+  if (!body.name) return toast('Project name is required', 'error');
+  if (body.startDate && body.endDate && body.endDate < body.startDate) return toast('End date cannot be before start date', 'error');
+  if (MD_ROLE === 'superadmin' && getSelectedCompanyId()) body.companyId = Number(getSelectedCompanyId());
+  try {
+    if (id) await api('PUT', '/projects/' + id, body);
+    else await api('POST', '/projects', body);
+    toast('Project saved', 'success');
+    closeModal('prj-modal');
+    loadProjects();
+  } catch (e) { toast(e.message, 'error'); }
+}
+
+async function deleteProject(id) {
+  var p = mdProjects.find(function(x) { return x.id === id; });
+  if (!confirm('Delete project "' + (p ? p.name : '') + '"? Existing timesheets keep the project name.')) return;
+  try { await api('DELETE', '/projects/' + id); toast('Project deleted', 'success'); loadProjects(); }
+  catch (e) { toast(e.message, 'error'); }
+}
+
+async function loadProjects() {
+  try {
+    mdProjects = await api('GET', '/projects' + companyParam('?')) || [];
+    renderProjects();
+  } catch (e) { toast(e.message, 'error'); }
+}
+
+async function loadSupportLists() {
+  try {
+    var users = await api('GET', '/users' + companyParam('?')) || [];
+    mdManagers = users.filter(function(u) { return u.role === 'manager' || u.role === 'admin'; });
+  } catch (e) { mdManagers = []; }
+  try {
+    var clients = await api('GET', '/clients') || [];
+    var cid = MD_ROLE === 'superadmin' ? getSelectedCompanyId() : '';
+    document.getElementById('md-client-list').innerHTML = clients
+      .filter(function(c) { return !cid || !c.companyId || String(c.companyId) === String(cid); })
+      .map(function(c) { return '<option value="' + escH(c.name) + '"></option>'; }).join('');
+  } catch (e) {}
+}
+
+/* ── Work items ───────────────────────────────────────── */
+function renderWorkItems() {
+  var q = (document.getElementById('wi-search').value || '').toLowerCase();
+  var rows = mdWorkItems.filter(function(w) {
+    return !q || [w.code, w.name, w.category, w.description].some(function(v) { return String(v || '').toLowerCase().indexOf(q) !== -1; });
+  });
+  document.getElementById('wi-count').textContent = rows.length + ' item' + (rows.length !== 1 ? 's' : '');
+  var cats = Array.from(new Set(mdWorkItems.map(function(w) { return w.category; }).filter(Boolean))).sort();
+  document.getElementById('md-category-list').innerHTML = cats.map(function(c) { return '<option value="' + escH(c) + '"></option>'; }).join('');
+  var tbody = document.getElementById('wi-tbody');
+  if (!rows.length) {
+    tbody.innerHTML = '<tr><td colspan="7"><div class="empty-state"><div class="empty-icon"><i class="bx bxs-wrench"></i></div><h3>No work items yet</h3><p>Click <b>Add Default Items</b> to load a starter list, or <b>New Work Item</b> to add your own.</p></div></td></tr>';
+    return;
+  }
+  tbody.innerHTML = rows.map(function(w) {
+    return '<tr>' +
+      '<td style="font-weight:700;font-size:12px;">' + escH(w.code || '—') + '</td>' +
+      '<td style="font-weight:700;">' + escH(w.name) + '</td>' +
+      '<td>' + escH(w.category || '—') + '</td>' +
+      '<td>' + (w.billable ? 'Billable' : 'Non-billable') + '</td>' +
+      '<td>' + statusPill(w.status) + '</td>' +
+      '<td style="font-size:12px;color:var(--text-muted);max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + escH(w.description || '—') + '</td>' +
+      '<td><div style="display:flex;gap:5px;">' +
+        '<button class="btn btn-ghost btn-sm" onclick="openWorkItemModal(' + w.id + ')" title="Edit"><i class="bx bx-edit"></i></button>' +
+        '<button class="btn btn-danger btn-sm" onclick="deleteWorkItem(' + w.id + ')" title="Delete"><i class="bx bx-trash"></i></button>' +
+      '</div></td>' +
+    '</tr>';
+  }).join('');
+}
+
+function openWorkItemModal(id) {
+  var w = id ? mdWorkItems.find(function(x) { return x.id === id; }) : null;
+  if (!w && !requireCompanyForSuperadmin()) return;
+  document.getElementById('wi-modal-title').textContent = w ? 'Edit Work Item' : 'New Work Item';
+  document.getElementById('wi-id').value = w ? w.id : '';
+  document.getElementById('wi-code').value = w ? (w.code || '') : '';
+  document.getElementById('wi-name').value = w ? w.name : '';
+  document.getElementById('wi-category').value = w ? (w.category || '') : '';
+  document.getElementById('wi-billable').value = w && !w.billable ? 'false' : 'true';
+  document.getElementById('wi-status').value = w ? (w.status || 'active') : 'active';
+  document.getElementById('wi-desc').value = w ? (w.description || '') : '';
+  openModal('wi-modal');
+}
+
+async function saveWorkItem() {
+  var id = document.getElementById('wi-id').value;
+  var body = {
+    code: document.getElementById('wi-code').value.trim(),
+    name: document.getElementById('wi-name').value.trim(),
+    category: document.getElementById('wi-category').value.trim(),
+    billable: document.getElementById('wi-billable').value === 'true',
+    status: document.getElementById('wi-status').value,
+    description: document.getElementById('wi-desc').value.trim(),
+  };
+  if (!body.name) return toast('Work item name is required', 'error');
+  if (MD_ROLE === 'superadmin' && getSelectedCompanyId()) body.companyId = Number(getSelectedCompanyId());
+  try {
+    if (id) await api('PUT', '/work-items/' + id, body);
+    else await api('POST', '/work-items', body);
+    toast('Work item saved', 'success');
+    closeModal('wi-modal');
+    loadWorkItems();
+  } catch (e) { toast(e.message, 'error'); }
+}
+
+async function deleteWorkItem(id) {
+  var w = mdWorkItems.find(function(x) { return x.id === id; });
+  if (!confirm('Delete work item "' + (w ? w.name : '') + '"? Existing timesheets keep the name.')) return;
+  try { await api('DELETE', '/work-items/' + id); toast('Work item deleted', 'success'); loadWorkItems(); }
+  catch (e) { toast(e.message, 'error'); }
+}
+
+async function addDefaultWorkItems() {
+  if (!requireCompanyForSuperadmin()) return;
+  try {
+    var body = MD_ROLE === 'superadmin' ? { companyId: Number(getSelectedCompanyId()) } : {};
+    var res = await api('POST', '/work-items/defaults', body);
+    toast(res.message || 'Default work items added', 'success');
+    loadWorkItems();
+  } catch (e) { toast(e.message, 'error'); }
+}
+
+async function loadWorkItems() {
+  try {
+    mdWorkItems = await api('GET', '/work-items' + companyParam('?')) || [];
+    renderWorkItems();
+  } catch (e) { toast(e.message, 'error'); }
+}
+
+function reloadPageData() {
+  loadProjects();
+  loadWorkItems();
+  loadSupportLists();
+}
+
+(function init() {
+  var saved = '';
+  try { saved = localStorage.getItem('md_tab') || ''; } catch (e) {}
+  if (saved === 'work') switchMdTab('work');
+  var ready = MD_ROLE === 'superadmin' && typeof initCompanyFilter === 'function' ? initCompanyFilter() : Promise.resolve();
+  Promise.resolve(ready).then(reloadPageData);
+})();
+</script>
+</body></html>

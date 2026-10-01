@@ -64,8 +64,43 @@
             <button class="payroll-btn btn-primary" onclick="payroll.generateAll()">
               <i class="bx bxs-magic-wand"></i> Generate All
             </button>
+            <button class="payroll-btn" onclick="document.getElementById('payroll-howto').classList.toggle('open')">
+              <i class="bx bx-help-circle"></i> How payroll is calculated
+            </button>
             <span style="flex:1"></span>
             <span id="save-status" class="save-status status-saved">✓ Saved</span>
+          </div>
+
+          <!-- Payroll process & formula reference -->
+          <div id="payroll-howto" class="payroll-howto print-hide">
+            <div class="payroll-howto-grid">
+              <div>
+                <div class="payroll-howto-title"><i class="bx bx-list-ol"></i> Payslip process</div>
+                <ol>
+                  <li><b>Salary structure</b> — set Basic, DA, HRA, Conveyance, Medical, Special, Bonus, TA, PF applicable and allowed leave per month in <b>Employees → Edit → Salary Structure</b>.</li>
+                  <li><b>Leave &amp; timesheets</b> — approve leave in Leave Management (approved leave days are pulled in automatically). Approved timesheet hours per project / work item are printed on the payslip.</li>
+                  <li><b>Generate</b> — pick month &amp; year and click <b>Generate All</b> (or <b>Add Employee</b>). One <b>Draft</b> record is created per employee.</li>
+                  <li><b>Review</b> — edit the Draft row (worked days, PF, profession tax, TDS, salary advance, deduction) and <b>Save</b>.</li>
+                  <li><b>Freeze</b> — set status to <b>Frozen</b>. The payslip is then visible to the employee under <b>Profile → My Salary</b>.</li>
+                  <li><b>Paid</b> — after the bank transfer, set status to <b>Paid</b>. Paid records are locked.</li>
+                </ol>
+              </div>
+              <div>
+                <div class="payroll-howto-title"><i class="bx bx-calculator"></i> Formula (same on screen, payslip PDF and exports)</div>
+                <table class="payroll-howto-table">
+                  <tr><td>Total Days</td><td>Days in the month (calendar days by default)</td></tr>
+                  <tr><td>LOP Days</td><td>Leave Taken − Allowed Leave (if positive)</td></tr>
+                  <tr><td>Worked Days</td><td>Total Days − LOP Days (can be reduced for unauthorised absence)</td></tr>
+                  <tr><td>CTC</td><td>Basic + DA + HRA + Conveyance + Medical + Special + Bonus + TA</td></tr>
+                  <tr><td>Conv. Working</td><td>Conveyance ÷ Total Days × Worked Days (rounded to ₹10)</td></tr>
+                  <tr><td>Gross Salary</td><td>Basic + DA + HRA + Conv. Working + Medical + Special + Bonus + TA</td></tr>
+                  <tr><td>Absent / LOP Ded.</td><td>(CTC − Conveyance) ÷ Total Days × (Total Days − Worked Days), rounded to ₹10 — or the manual “Deduction (₹)” if entered</td></tr>
+                  <tr><td>Total Deductions</td><td>PF + Profession Tax + TDS + Salary Advance + Absent / LOP Ded.</td></tr>
+                  <tr><td><b>Net Pay</b></td><td><b>Gross Salary − Total Deductions</b></td></tr>
+                  <tr><td>PF default</td><td>12% of (Basic + DA), max ₹1,800 when PF is applicable</td></tr>
+                </table>
+              </div>
+            </div>
           </div>
 
           <!-- Filter bar -->
@@ -461,6 +496,7 @@
 
 <script src="/js/api.js"></script>
 <script src="/js/sidebar-fix.js"></script>
+<script src="/js/payroll-calc.js"></script>
 <script src="/js/spreadsheet.js"></script>
 <script>
   window.PAYROLL_PAGE_ROLE = '<%= pageRole || "admin" %>';

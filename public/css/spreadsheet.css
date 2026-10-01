@@ -1397,3 +1397,40 @@
   .print-hide { display: none !important; }
   body { background: #fff; }
 }
+
+/* ═══════════ PAYROLL PROCESS / FORMULA PANEL ═══════════ */
+.payroll-howto {
+  display: none;
+  margin: 0 0 12px;
+  padding: 14px 16px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  font-size: 12px;
+  color: #334155;
+}
+.payroll-howto.open { display: block; }
+.payroll-howto-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 18px;
+}
+.payroll-howto-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #0f172a;
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.payroll-howto ol { margin: 0; padding-left: 18px; line-height: 1.55; }
+.payroll-howto ol li { margin-bottom: 4px; }
+.payroll-howto-table { width: 100%; border-collapse: collapse; }
+.payroll-howto-table td {
+  padding: 4px 6px;
+  border-bottom: 1px solid #e2e8f0;
+  vertical-align: top;
+  line-height: 1.4;
+}
+.payroll-howto-table td:first-child { width: 130px; font-weight: 600; color: #0f172a; white-space: nowrap; }
