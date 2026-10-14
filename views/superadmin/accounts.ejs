@@ -94,13 +94,14 @@
               </div>
               <div class="acc-inline-field">
                 <label class="acc-inline-label" for="inv-fy-sel">Financial Year</label>
-                <select id="inv-fy-sel" class="form-control acc-inline-input" onchange="updateInvNumPreview()"></select>
+                <select id="inv-fy-sel" class="form-control acc-inline-input" onchange="onInvoiceNumberFinancialYearChange()"></select>
+                <input type="number" id="inv-fy-custom-year" class="form-control acc-inline-input" style="display:none;width:118px" min="1000" max="9999" step="1" inputmode="numeric" placeholder="Start year" title="Enter any four-digit financial-year start" aria-label="Custom financial-year start" oninput="onInvoiceNumberCustomYearInput(false)" onchange="onInvoiceNumberCustomYearInput(true)">
               </div>
               <div class="acc-inline-preview">Preview: <code id="inv-num-preview" class="acc-inline-code">001/DHPE/26-27/XXXXXX</code></div>
             </div>
-            <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;flex-wrap:wrap;">
-              <div style="margin-left:auto;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
-                <div class="search-bar" style="width:200px;"><span class="search-icon"><i class="bx bx-search"></i></span><input type="text" id="inv-search" placeholder="Search ref, customer..." oninput="renderInvoices()"></div>
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px;flex-wrap:wrap;">
+              <div style="display:flex;align-items:center;gap:8px;flex:1 1 620px;min-width:0;flex-wrap:wrap;">
+                <div class="search-bar" style="width:220px;"><span class="search-icon"><i class="bx bx-search"></i></span><input type="text" id="inv-search" placeholder="Search ref, customer..." oninput="scheduleInvoiceRender()"></div>
                 <select id="inv-status" class="form-control" style="width:120px" onchange="renderInvoices()">
                   <option value="">All Status</option><option>Draft</option><option>Sent</option><option>Paid</option><option>Overdue</option><option>Cancelled</option>
                 </select>
@@ -113,19 +114,37 @@
                   <option value="Credit Note">Credit Note</option>
                   <option value="Debit Note">Debit Note</option>
                 </select>
-                <select id="inv-fy-filter" class="form-control" style="width:145px" onchange="renderInvoices()">
-                  <option value="">All FY</option>
+                <select id="inv-sort" class="form-control" style="width:170px" onchange="renderInvoices()" aria-label="Sort invoices">
+                  <option value="date_desc">Sort: Newest first</option>
+                  <option value="date_asc">Sort: Oldest first</option>
+                  <option value="amount_desc">Amount: High to low</option>
+                  <option value="amount_asc">Amount: Low to high</option>
+                  <option value="customer_asc">Customer: A to Z</option>
+                  <option value="customer_desc">Customer: Z to A</option>
+                  <option value="reference_asc">Reference: A to Z</option>
+                  <option value="reference_desc">Reference: Z to A</option>
                 </select>
-                <select id="inv-year" class="form-control" style="width:120px" onchange="renderInvoices()">
-                  <option value="">All Years</option>
+                <% if (pageRole === 'superadmin') { %>
+                <select id="inv-company-filter" class="form-control" style="width:185px" onchange="renderInvoices()" aria-label="Filter invoices by company">
+                  <option value="">All Companies</option>
                 </select>
-                <select id="inv-month" class="form-control" style="width:130px" onchange="renderInvoices()">
-                  <option value="">All Months</option>
-                </select>
-                <button class="btn btn-primary" onclick="openGSTModal()" style="font-weight:700;gap:6px;">
-                  <i class="bx bx-plus-circle"></i> Create Invoice
-                </button>
+                <% } %>
+                <div style="display:flex;align-items:center;gap:5px;padding:4px 6px;border:1px solid var(--border);border-radius:10px;background:var(--bg-input);" title="Enter any four-digit year, then choose a month. The system will use its April-March financial year.">
+                  <span style="font-size:11px;font-weight:800;color:var(--text-muted);padding-left:2px;">FY</span>
+                  <input type="number" id="inv-fy-year" class="form-control" style="width:72px;height:30px;padding:4px 7px" min="1000" max="9999" step="1" inputmode="numeric" placeholder="Year" title="Enter any four-digit year" aria-label="Financial year calendar year" oninput="validateInvoiceFinancialYearInput(false)" onchange="applyInvoiceFinancialYearCalendar()">
+                  <select id="inv-fy-month" class="form-control" style="width:82px;height:30px;padding:4px 6px" aria-label="Financial year calendar month" onchange="applyInvoiceFinancialYearCalendar()">
+                    <option value="">Month</option>
+                    <option value="01">Jan</option><option value="02">Feb</option><option value="03">Mar</option>
+                    <option value="04">Apr</option><option value="05">May</option><option value="06">Jun</option>
+                    <option value="07">Jul</option><option value="08">Aug</option><option value="09">Sep</option>
+                    <option value="10">Oct</option><option value="11">Nov</option><option value="12">Dec</option>
+                  </select>
+                </div>
+                <button type="button" id="inv-fy-all" style="width:132px;min-height:38px;cursor:pointer;font-size:12px;font-weight:800;display:inline-flex;align-items:center;justify-content:center;gap:6px;white-space:nowrap;border:1px solid #111827;border-radius:10px;background:#111827;color:#fff;transition:background .18s ease,border-color .18s ease,color .18s ease,box-shadow .18s ease;" title="Showing invoices from all financial years" aria-label="Showing invoices from all financial years" aria-pressed="true" onclick="clearInvoiceFinancialYearFilter()"><i class="bx bx-check-circle" aria-hidden="true"></i><span>All Years</span></button>
               </div>
+              <button class="btn btn-primary" onclick="openGSTModal()" style="margin-left:auto;font-weight:700;gap:6px;white-space:nowrap;">
+                <i class="bx bx-plus-circle"></i> Create Invoice
+              </button>
             </div>
             <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;">
               <table style="width:100%;border-collapse:collapse;" id="inv-table">
@@ -2588,7 +2607,11 @@ function showModule(key) {
   tab.classList.add('active');
   activeModule = key;
   if(key==='home') updateDashStats();
-  else if(key==='inv') { initInvSettings(); renderInvoices(); }
+  else if(key==='inv') {
+    initInvSettings();
+    updateInvoiceFinancialYearControl();
+    initInvoiceCompanyFilter().then(renderInvoices);
+  }
   else if(key==='pay') renderPayments();
   else if(key==='tds') renderTdsRules();
   else if(key==='pro') renderProforma();
@@ -2742,6 +2765,15 @@ function populateAccountCompanySelect(selectId, selectedId, options) {
       renderAccountCompanyMeta(selectId, options.metaId, options.emptyText);
     }
     return chosen;
+  });
+}
+
+function initInvoiceCompanyFilter() {
+  var sel = document.getElementById('inv-company-filter');
+  if (!sel) return Promise.resolve();
+  return populateAccountCompanySelect('inv-company-filter', sel.value, {
+    placeholder: 'All Companies',
+    autoSelectFirst: false
   });
 }
 
@@ -3314,6 +3346,8 @@ function saveGSTInvoice() {
   syncAllAccountStateCodes();
   if (!document.getElementById('gst-c-name').value.trim()) return toast('Customer name is required','error');
   if (!document.getElementById('gst-date').value)          return toast('Invoice date is required','error');
+  var invoiceFinancialYear = getInvoiceNumberFinancialYear();
+  if (!invoiceFinancialYear) return toast('Choose a financial year or enter a valid four-digit start year', 'error');
 
   var sgstRate = parseFloat(document.getElementById('gst-sgst-rate').value) || 0;
   var cgstRate = parseFloat(document.getElementById('gst-cgst-rate').value) || 0;
@@ -3383,7 +3417,7 @@ function saveGSTInvoice() {
     bankIfsc:          document.getElementById('gst-bank-ifsc').value.toUpperCase(),
     bankBranch:        document.getElementById('gst-bank-branch').value,
     notes:             document.getElementById('gst-notes').value,
-    financialYear:     (document.getElementById('inv-fy-sel') && document.getElementById('inv-fy-sel').value) || localStorage.getItem('inv_fy') || '',
+    financialYear:     invoiceFinancialYear,
     companyCode:       (document.getElementById('inv-company-code') && document.getElementById('inv-company-code').value.trim().toUpperCase()) || localStorage.getItem('inv_company_code') || '',
   };
 
@@ -3413,9 +3447,63 @@ function toggleGSTPanel(hdr) {
 }
 
 /* ── Invoice number settings (FY + company code) ───────── */
+var INVOICE_CUSTOM_YEAR_OPTION = '__custom_year__';
+
+function invoiceFinancialYearCodeFromStartYear(value) {
+  if (!isValidInvoiceFinancialYearInput(value)) return '';
+  var startYear = Number(value);
+  return String(startYear).slice(-2).padStart(2, '0') + '-' + String(startYear + 1).slice(-2).padStart(2, '0');
+}
+
+function isCustomInvoiceNumberFinancialYear() {
+  var sel = document.getElementById('inv-fy-sel');
+  return !!sel && sel.value === INVOICE_CUSTOM_YEAR_OPTION;
+}
+
+function getInvoiceNumberFinancialYear() {
+  var sel = document.getElementById('inv-fy-sel');
+  if (!sel) return '';
+  if (!isCustomInvoiceNumberFinancialYear()) return sel.value || '';
+  var input = document.getElementById('inv-fy-custom-year');
+  return invoiceFinancialYearCodeFromStartYear(input && input.value);
+}
+
+function validateInvoiceNumberCustomYear(showMessage) {
+  var input = document.getElementById('inv-fy-custom-year');
+  if (!input) return true;
+  var value = String(input.value || '').trim();
+  var valid = !value || isValidInvoiceFinancialYearInput(value);
+  input.setCustomValidity(valid ? '' : 'Enter a four-digit year.');
+  input.setAttribute('aria-invalid', valid ? 'false' : 'true');
+  input.style.borderColor = valid ? '' : '#dc2626';
+  if (!valid && showMessage && typeof input.reportValidity === 'function') input.reportValidity();
+  return valid;
+}
+
+function onInvoiceNumberFinancialYearChange(focusCustomYear) {
+  var input = document.getElementById('inv-fy-custom-year');
+  var custom = isCustomInvoiceNumberFinancialYear();
+  if (input) {
+    input.style.display = custom ? '' : 'none';
+    input.required = custom;
+    if (!custom) {
+      input.setCustomValidity('');
+      input.setAttribute('aria-invalid', 'false');
+      input.style.borderColor = '';
+    }
+    if (custom && focusCustomYear !== false) input.focus();
+  }
+  updateInvNumPreview();
+}
+
+function onInvoiceNumberCustomYearInput(showMessage) {
+  validateInvoiceNumberCustomYear(showMessage);
+  updateInvNumPreview();
+}
+
 function initInvSettings() {
   var sel = document.getElementById('inv-fy-sel');
-  if (!sel || sel.options.length > 0) { updateInvNumPreview(); return; }
+  if (!sel || sel.options.length > 0) { onInvoiceNumberFinancialYearChange(false); return; }
   var now = new Date(), yr = now.getFullYear(), mo = now.getMonth() + 1;
   var startYear = mo >= 4 ? yr : yr - 1;
   var firstYear = 2018;
@@ -3426,13 +3514,20 @@ function initInvSettings() {
     var selected = (i === startYear) ? ' selected' : '';
     html += '<option value="' + fy + '"' + selected + '>' + i + '-' + (i+1) + '</option>';
   }
+  html += '<option value="' + INVOICE_CUSTOM_YEAR_OPTION + '">Enter custom year…</option>';
   sel.innerHTML = html;
   // Restore saved values
   var savedCode = localStorage.getItem('inv_company_code') || '';
   var savedFY   = localStorage.getItem('inv_fy') || '';
+  var savedCustomYear = localStorage.getItem('inv_fy_custom_start') || '';
   if (savedCode) document.getElementById('inv-company-code').value = savedCode.toUpperCase();
-  if (savedFY && sel.querySelector('option[value="'+savedFY+'"]')) sel.value = savedFY;
-  updateInvNumPreview();
+  if (isValidInvoiceFinancialYearInput(savedCustomYear)) {
+    sel.value = INVOICE_CUSTOM_YEAR_OPTION;
+    document.getElementById('inv-fy-custom-year').value = savedCustomYear;
+  } else if (savedFY && sel.querySelector('option[value="'+savedFY+'"]')) {
+    sel.value = savedFY;
+  }
+  onInvoiceNumberFinancialYearChange(false);
 }
 
 /* ── India GST States ───────────────────────────────────── */
@@ -3625,19 +3720,73 @@ function formatFinancialYearLabel(fy) {
   return 'FY 20' + fy.slice(0, 2) + '-' + fy.slice(3);
 }
 
-function populateInvoiceFinancialYearFilter(rows) {
-  var fyEl = document.getElementById('inv-fy-filter');
-  if (!fyEl) return;
-  var selected = fyEl.value;
-  var current = deriveAccountFinancialYear(new Date());
-  var values = Array.from(new Set((rows || []).map(normalizeInvoiceFinancialYear).filter(Boolean)));
-  if (current && values.indexOf(current) === -1) values.push(current);
-  if (selected && values.indexOf(selected) === -1) values.push(selected);
-  values.sort(function(a, b) { return Number(('20' + b.slice(0, 2))) - Number(('20' + a.slice(0, 2))); });
-  fyEl.innerHTML = '<option value="">All FY</option>' + values.map(function(fy) {
-    return '<option value="' + fy + '">' + formatFinancialYearLabel(fy) + '</option>';
-  }).join('');
-  fyEl.value = selected || '';
+function financialYearFromCalendarMonth(value) {
+  var match = String(value || '').match(/^(\d{4})-(\d{2})$/);
+  if (!match) return '';
+  var year = Number(match[1]);
+  var month = Number(match[2]);
+  if (month < 1 || month > 12) return '';
+  var startYear = month >= 4 ? year : year - 1;
+  return String(startYear).slice(-2) + '-' + String(startYear + 1).slice(-2);
+}
+
+function isValidInvoiceFinancialYearInput(value) {
+  var year = String(value || '').trim();
+  return /^\d{4}$/.test(year) && Number(year) >= 1000 && Number(year) <= 9999;
+}
+
+function validateInvoiceFinancialYearInput(showMessage) {
+  var yearEl = document.getElementById('inv-fy-year');
+  if (!yearEl) return true;
+  var year = String(yearEl.value || '').trim();
+  var valid = !year || isValidInvoiceFinancialYearInput(year);
+  yearEl.setCustomValidity(valid ? '' : 'Enter a four-digit year.');
+  yearEl.setAttribute('aria-invalid', valid ? 'false' : 'true');
+  yearEl.style.borderColor = valid ? '' : '#dc2626';
+  if (!valid && showMessage && typeof yearEl.reportValidity === 'function') yearEl.reportValidity();
+  return valid;
+}
+
+function invoiceFinancialYearCalendarValue() {
+  var year = String((document.getElementById('inv-fy-year') || {}).value || '').trim();
+  var month = String((document.getElementById('inv-fy-month') || {}).value || '').trim();
+  if (!isValidInvoiceFinancialYearInput(year) || !/^(0[1-9]|1[0-2])$/.test(month)) return '';
+  return year + '-' + month;
+}
+
+function updateInvoiceFinancialYearControl() {
+  var allYearsButton = document.getElementById('inv-fy-all');
+  var fy = financialYearFromCalendarMonth(invoiceFinancialYearCalendarValue());
+  if (allYearsButton) {
+    var isAllYears = !fy;
+    allYearsButton.innerHTML = isAllYears
+      ? '<i class="bx bx-check-circle" aria-hidden="true"></i><span>All Years</span>'
+      : '<i class="bx bx-filter-alt" aria-hidden="true"></i><span>' + formatFinancialYearLabel(fy) + '</span><i class="bx bx-x" aria-hidden="true"></i>';
+    allYearsButton.style.background = isAllYears ? '#111827' : '#fff';
+    allYearsButton.style.borderColor = isAllYears ? '#111827' : '#d1d5db';
+    allYearsButton.style.color = isAllYears ? '#fff' : '#374151';
+    allYearsButton.style.boxShadow = isAllYears ? '0 1px 2px rgba(17,24,39,.18)' : 'none';
+    allYearsButton.title = isAllYears ? 'Showing invoices from all financial years' : 'Financial-year filter is active. Click to clear it.';
+    allYearsButton.setAttribute('aria-label', allYearsButton.title);
+    allYearsButton.setAttribute('aria-pressed', isAllYears ? 'true' : 'false');
+  }
+  return fy;
+}
+
+function applyInvoiceFinancialYearCalendar() {
+  validateInvoiceFinancialYearInput(true);
+  updateInvoiceFinancialYearControl();
+  renderInvoices();
+}
+
+function clearInvoiceFinancialYearFilter() {
+  var year = document.getElementById('inv-fy-year');
+  var month = document.getElementById('inv-fy-month');
+  if (year) year.value = '';
+  if (month) month.value = '';
+  validateInvoiceFinancialYearInput(false);
+  updateInvoiceFinancialYearControl();
+  renderInvoices();
 }
 
 function populateAccountDateFilters(prefix, rows, dateKey) {
@@ -3647,12 +3796,22 @@ function populateAccountDateFilters(prefix, rows, dateKey) {
   var selectedYear = yearEl.value;
   var selectedMonth = monthEl.value;
   var currentYear = String(new Date().getFullYear());
-  var years = Array.from(new Set((rows || []).map(function(r) {
+  var dataYears = Array.from(new Set((rows || []).map(function(r) {
     return accountDateParts(r[dateKey]).year;
   }).filter(Boolean)));
-  if (years.indexOf(currentYear) === -1) years.push(currentYear);
-  if (selectedYear && years.indexOf(selectedYear) === -1) years.push(selectedYear);
-  years.sort(function(a, b) { return Number(b) - Number(a); });
+  var firstYear = 2018;
+  var lastYear = Number(currentYear) + 5;
+  dataYears.forEach(function(year) {
+    var parsed = Number(year);
+    if (parsed && parsed < firstYear) firstYear = parsed;
+    if (parsed > lastYear) lastYear = parsed;
+  });
+  if (selectedYear && Number(selectedYear)) {
+    firstYear = Math.min(firstYear, Number(selectedYear));
+    lastYear = Math.max(lastYear, Number(selectedYear));
+  }
+  var years = [];
+  for (var year = lastYear; year >= firstYear; year--) years.push(String(year));
   yearEl.innerHTML = '<option value="">All Years</option>' + years.map(function(y) {
     return '<option value="' + y + '">' + y + '</option>';
   }).join('');
@@ -3700,36 +3859,57 @@ function syncAllAccountStateCodes() {
 
 function updateInvNumPreview() {
   var code = (document.getElementById('inv-company-code').value || 'DHPE').toUpperCase().replace(/[^A-Z0-9]/g,'') || 'INV';
-  var fy   = (document.getElementById('inv-fy-sel') && document.getElementById('inv-fy-sel').value) || '26-27';
+  var fy = getInvoiceNumberFinancialYear();
   localStorage.setItem('inv_company_code', code);
-  localStorage.setItem('inv_fy', fy);
+  if (fy) localStorage.setItem('inv_fy', fy);
+  if (isCustomInvoiceNumberFinancialYear()) {
+    var customInput = document.getElementById('inv-fy-custom-year');
+    var customYear = String((customInput && customInput.value) || '').trim();
+    if (isValidInvoiceFinancialYearInput(customYear)) localStorage.setItem('inv_fy_custom_start', customYear);
+  } else {
+    localStorage.removeItem('inv_fy_custom_start');
+  }
   var el = document.getElementById('inv-num-preview');
-  if (el) el.textContent = '001/' + code + '/' + fy + '/XXXXXX';
+  if (el) el.textContent = fy ? '001/' + code + '/' + fy + '/XXXXXX' : 'Enter a valid four-digit start year';
 }
 
 /* ── Render Invoice List ────────────────────────────────── */
+var invoiceRenderTimer = null;
+var invoiceRenderSequence = 0;
+
+function scheduleInvoiceRender() {
+  if (invoiceRenderTimer) clearTimeout(invoiceRenderTimer);
+  invoiceRenderTimer = setTimeout(function() {
+    invoiceRenderTimer = null;
+    renderInvoices();
+  }, 250);
+}
+
 function renderInvoices() {
+  if (invoiceRenderTimer) {
+    clearTimeout(invoiceRenderTimer);
+    invoiceRenderTimer = null;
+  }
+  var renderSequence = ++invoiceRenderSequence;
   var q  = (document.getElementById('inv-search').value || '').trim();
   var st = document.getElementById('inv-status').value;
   var tp = document.getElementById('inv-type').value;
-  var fy = document.getElementById('inv-fy-filter') ? document.getElementById('inv-fy-filter').value : '';
-  var yr = document.getElementById('inv-year') ? document.getElementById('inv-year').value : '';
-  var mo = document.getElementById('inv-month') ? document.getElementById('inv-month').value : '';
+  var sort = (document.getElementById('inv-sort') || {}).value || 'date_desc';
+  var fy = updateInvoiceFinancialYearControl();
+  var companyId = document.getElementById('inv-company-filter') ? document.getElementById('inv-company-filter').value : '';
   var params = new URLSearchParams();
   if (q)  params.set('q', q);
   if (st) params.set('status', st);
+  if (sort) params.set('sort', sort);
   if (fy) params.set('financialYear', fy);
+  if (companyId) params.set('companyId', companyId);
 
   api('GET', '/invoices?' + params.toString())
     .then(function(data) {
+      if (renderSequence !== invoiceRenderSequence) return;
       var tbody = document.getElementById('inv-body');
       data = data || [];
-      populateInvoiceFinancialYearFilter(data);
-      populateAccountDateFilters('inv', data, 'invoiceDate');
-      yr = document.getElementById('inv-year') ? document.getElementById('inv-year').value : yr;
-      mo = document.getElementById('inv-month') ? document.getElementById('inv-month').value : mo;
       data = data.filter(function(r) { return matchesInvoiceTypeFilter(r, tp); });
-      data = data.filter(function(r) { return matchesAccountDateFilter(r, 'invoiceDate', yr, mo); });
       if (!data.length) { tbody.innerHTML = emptyRow(7); setTabCount('tab-count-inv', 0); return; }
 
       tbody.innerHTML = data.map(function(r) {
@@ -3774,6 +3954,7 @@ function renderInvoices() {
       setTabCount('tab-count-inv', data.length);
     })
     .catch(function(err) {
+      if (renderSequence !== invoiceRenderSequence) return;
       document.getElementById('inv-body').innerHTML =
         '<tr><td colspan="7" style="padding:40px;text-align:center;">' +
           '<div style="color:#ef4444;font-weight:600;margin-bottom:6px;"><i class="bx bx-error-circle"></i> Failed to load invoices</div>' +

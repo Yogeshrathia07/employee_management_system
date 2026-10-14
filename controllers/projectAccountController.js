@@ -11,7 +11,7 @@ const {
 const {
   M, W, X, BLK, GRY, HBG, LBD,
   fmtDate, fmtINR, buildPdfFilename, createDoc, addFooters,
-  drawSectionLabel, drawSignature,
+  drawHeader, drawSectionLabel, drawSignature,
 } = require('./pdfHelper');
 
 function genCode() { return Math.random().toString(36).substr(2,6).toUpperCase(); }
@@ -110,22 +110,25 @@ exports.generatePDF = async (req, res) => {
       ])}"`
     );
 
-    const { doc, hLine, vLine, box, fillBox, txt, checkPage } = createDoc();
+    const { doc, hLine, vLine, box, fillBox, txt, txtH, checkPage } = createDoc();
     doc.pipe(res);
 
-    const HW = W / 2;
-    const RX = X + HW;
-    const headerH = 56;
-    box(X, M, W, headerH, LBD);
-    vLine(X + HW, M, M + headerH, LBD);
-    txt(co.name || 'DHPE', X + 5, M + 6, HW - 10, { size: 12, bold: true, color: BLK });
-    txt(co.address || '', X + 5, M + 22, HW - 10, { size: 7.5, color: BLK });
-    txt((co.phone || co.email) ? 'Phone: ' + (co.phone || '') + (co.email ? ' | Email: ' + co.email : '') : '', X + 5, M + 38, HW - 10, { size: 7.5, color: BLK });
-    txt('PROJECT ACCOUNT', RX + 4, M + 6, HW - 10, { size: 9, bold: true, align: 'right', color: BLK });
-    txt('Ref No.: ' + (pa.projectCode || pa.id), RX + 4, M + 22, HW - 10, { size: 7.5, align: 'right', color: BLK });
-    txt('Status: ' + (pa.status || 'Planning'), RX + 4, M + 34, HW - 10, { size: 7.5, align: 'right', color: BLK });
-
-    let y = M + headerH;
+    const sellerLines = [
+      co.name || 'DHPE',
+      co.address ? 'Address: ' + co.address : '',
+      (co.phone || co.email) ? 'Phone: ' + (co.phone || '') + (co.email ? ' | Email: ' + co.email : '') : '',
+      [
+        co.gstNo ? 'GSTIN: ' + co.gstNo : '',
+        co.panNo ? 'PAN: ' + co.panNo : '',
+        co.state ? 'State: ' + co.state + (co.stateCode ? ', Code: ' + co.stateCode : '') : '',
+      ].filter(Boolean).join(' | '),
+    ].filter(Boolean);
+    const metaRight = [
+      'PROJECT ACCOUNT',
+      'Ref No.: ' + (pa.projectCode || pa.id),
+      'Status: ' + (pa.status || 'Planning'),
+    ];
+    let y = drawHeader({ doc, hLine, vLine, box, fillBox, txt, txtH }, metaRight, sellerLines);
     y = drawSectionLabel({ fillBox, box, txt }, 'Project Details', y);
     const details = [
       ['Project Name', pa.name],

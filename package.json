@@ -4,7 +4,7 @@
   "description": "Employee Management System",
   "main": "server.js",
   "scripts": {
-    "start": "nodemon server.js",
+    "start": "node server.js",
     "dev": "nodemon server.js",
     "repair:indexes": "node scripts/repair-indexes.js"
   },

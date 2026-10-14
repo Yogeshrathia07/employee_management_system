@@ -14,6 +14,18 @@ const {
 const { buildTaxSummaryLabels, roundMoney } = require('./pdfHelper');
 const { prepareRaBill, refreshSeries, buildNextRaDraft } = require('./raBillService');
 
+// Only expose intentional database orderings to the invoice list endpoint.
+const INVOICE_SORTS = Object.freeze({
+  date_desc: [['invoiceDate', 'DESC'], ['createdAt', 'DESC']],
+  date_asc: [['invoiceDate', 'ASC'], ['createdAt', 'ASC']],
+  amount_desc: [['totalAmount', 'DESC'], ['createdAt', 'DESC']],
+  amount_asc: [['totalAmount', 'ASC'], ['createdAt', 'DESC']],
+  customer_asc: [['customerName', 'ASC'], ['createdAt', 'DESC']],
+  customer_desc: [['customerName', 'DESC'], ['createdAt', 'DESC']],
+  reference_asc: [['invoiceNumber', 'ASC'], ['createdAt', 'DESC']],
+  reference_desc: [['invoiceNumber', 'DESC'], ['createdAt', 'DESC']],
+});
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function fmtINR(n) {
@@ -220,9 +232,16 @@ function recalculateInvoiceFinancials(data) {
 // ── GET /invoices ─────────────────────────────────────────────────────────────
 exports.getInvoices = async (req, res) => {
   try {
-    const { q, status, type, from, to, financialYear } = req.query;
-    if (req.user.role === 'admin') await syncAccountsCompanyIds();
+    const { q, status, type, from, to, financialYear, companyId, sort } = req.query;
+    const selectedCompanyId = Number(companyId);
+    const hasSelectedCompany = Number.isInteger(selectedCompanyId) && selectedCompanyId > 0;
+    // Backfill legacy links before applying a company filter so older invoices
+    // remain discoverable under their issuing company.
+    if (req.user.role === 'admin' || (req.user.role === 'superadmin' && hasSelectedCompany)) {
+      await syncAccountsCompanyIds();
+    }
     const where = applyCompanyScope(req, {});
+    if (req.user.role === 'superadmin' && hasSelectedCompany) where.companyId = selectedCompanyId;
     if (status)        where.status      = status;
     if (type)          where.invoiceType = type;
     if (q)             where[Op.or] = [
@@ -235,7 +254,8 @@ exports.getInvoices = async (req, res) => {
       if (from) where.invoiceDate[Op.gte] = from;
       if (to)   where.invoiceDate[Op.lte] = to;
     }
-    let rows = await Invoice.findAll({ where, order: [['createdAt', 'DESC']] });
+    const order = INVOICE_SORTS[sort] || INVOICE_SORTS.date_desc;
+    let rows = await Invoice.findAll({ where, order });
     rows = rows.map(withNormalizedFinancialYear);
     if (/^\d{2}-\d{2}$/.test(String(financialYear || '').trim())) {
       rows = rows.filter(row => row.financialYear === String(financialYear).trim());
@@ -1083,8 +1103,6 @@ exports.downloadPDF = async (req, res) => {
 
     // 5. AMOUNT IN WORDS  +  SUMMARY  (side by side)
     // ════════════════════════════════════════════════════════════════════════
-    y = checkPage(y, 60);
-
     const igstV = showTaxSummary ? taxAmount(inv.totalIgst) : 0;
     const cgstV = showTaxSummary ? taxAmount(inv.totalCgst) : 0;
     const sgstV = showTaxSummary ? taxAmount(inv.totalSgst) : 0;
@@ -1107,6 +1125,25 @@ exports.downloadPDF = async (req, res) => {
     const wordText = numWords(parseFloat(inv.totalAmount || 0));
     const wordH    = txtH(wordText, HW - 14, 7.5, false);
     const botH     = Math.max(sumH, wordH + 16);
+
+    const bankLines = [
+      ['Bank:',     inv.bankName    || 'N/A'],
+      ['A/c Name:', inv.bankAcName  || 'N/A'],
+      ['A/c No.:',  inv.bankAccount || 'N/A'],
+      ['IFSC:',     inv.bankIfsc    || 'N/A'],
+      ['Branch:',   inv.bankBranch  || 'N/A'],
+    ];
+    const bankH = bankLines.length * 10 + 17;
+    const noteLines = [
+      String(inv.notes || '').trim() ? 'Remarks: ' + String(inv.notes).trim() : '',
+      String(inv.termsConditions || '').trim() ? 'Terms & Conditions: ' + String(inv.termsConditions).trim() : '',
+    ].filter(Boolean);
+    const noteH = noteLines.length
+      ? noteLines.reduce((sum, line) => sum + txtH(line, W - 10, 7, false) + 2, 5)
+      : 0;
+
+    // Keep the closing block together so remarks never create an almost-empty page.
+    y = checkPage(y, botH + bankH + noteH);
 
     // Now draw all borders (they paint over the fill, keeping lines clean)
     box(X, y, W, botH, LBD);
@@ -1137,18 +1174,6 @@ exports.downloadPDF = async (req, res) => {
     // ════════════════════════════════════════════════════════════════════════
     // 6. BANK ACCOUNT DETAILS
     // ════════════════════════════════════════════════════════════════════════
-    y = checkPage(y, 70);
-
-    const bankLines = [
-      ['Bank:',     inv.bankName    || 'N/A'],
-      ['A/c Name:', inv.bankAcName  || 'N/A'],
-      ['A/c No.:',  inv.bankAccount || 'N/A'],
-      ['IFSC:',     inv.bankIfsc    || 'N/A'],
-      ['Branch:',   inv.bankBranch  || 'N/A'],
-    ];
-
-    const bankH = bankLines.length * 10 + 17;
-
     // Draw fills FIRST, then all borders on top (prevents fill from covering borders)
     fillBox(X, y, W, 11, HBG);          // header background
     // Outer box + dividers drawn after fills so borders are always visible
@@ -1176,14 +1201,7 @@ exports.downloadPDF = async (req, res) => {
     // ════════════════════════════════════════════════════════════════════════
     // 7. FOOTER NOTE
     // ════════════════════════════════════════════════════════════════════════
-    const noteLines = [
-      String(inv.notes || '').trim() ? 'Remarks: ' + String(inv.notes).trim() : '',
-      String(inv.termsConditions || '').trim() ? 'Terms & Conditions: ' + String(inv.termsConditions).trim() : '',
-    ].filter(Boolean);
     if (noteLines.length) {
-      const noteH = noteLines.reduce((sum, line) => sum + txtH(line, W - 10, 7, false) + 2, 5);
-      y = checkPage(y, noteH);
-
       box(X, y, W, noteH, LBD);
       let ny = y + 4;
       noteLines.forEach(line => {

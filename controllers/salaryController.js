@@ -642,34 +642,64 @@ exports.generatePayslip = async (req, res) => {
 
     doc.rect(mL, 40, cW, 752).fillColor(white).strokeColor(border).lineWidth(1).fillAndStroke();
 
+    // Reserve header space so a multi-line company address cannot collide with the slip title.
+    const companyInfoX = mL + 24;
+    const companyInfoW = cW - 48;
+    const companyName = String(company.name || 'Company').trim() || 'Company';
+    const companyAddress = String(company.address || '').replace(/\r/g, '').trim();
+    const companyContacts = [company.phone, company.email].filter(Boolean).join(' | ');
+    const companyNameY = 56;
     doc.font(fontBold).fontSize(22).fillColor(black)
-      .text(company.name || 'Company', mL, 56, { width: cW, align: 'center' });
-    doc.font(fontRegular).fontSize(9).fillColor(muted)
-      .text(company.address || '', mL + 24, 84, { width: cW - 48, align: 'center', lineBreak: false, ellipsis: true })
-      .text([company.phone, company.email].filter(Boolean).join(' | '), mL + 24, 97, { width: cW - 48, align: 'center' });
+      .text(companyName, mL, companyNameY, { width: cW, align: 'center', lineBreak: false, ellipsis: true });
+
+    let companyInfoY = companyNameY + 27;
+    if (companyAddress) {
+      doc.font(fontRegular).fontSize(9);
+      const addressH = Math.min(26, doc.heightOfString(companyAddress, { width: companyInfoW, align: 'center', lineGap: 1 }));
+      doc.fillColor(muted).text(companyAddress, companyInfoX, companyInfoY, {
+        width: companyInfoW, align: 'center', lineGap: 1, height: addressH, ellipsis: true,
+      });
+      companyInfoY += addressH + 2;
+    }
+    if (companyContacts) {
+      doc.font(fontRegular).fontSize(9).fillColor(muted)
+        .text(companyContacts, companyInfoX, companyInfoY, {
+          width: companyInfoW, align: 'center', lineBreak: false, ellipsis: true,
+        });
+      companyInfoY += 12;
+    }
+
+    const slipTitleY = Math.max(118, companyInfoY + 8);
     doc.font(fontBold).fontSize(16).fillColor(black)
-      .text('SALARY SLIP', mL, 118, { width: cW, align: 'center' });
+      .text('SALARY SLIP', mL, slipTitleY, { width: cW, align: 'center' });
+    const payMonthY = slipTitleY + 20;
     doc.font(fontRegular).fontSize(10).fillColor(red)
-      .text(`For the month of ${monthLabel}`, mL, 138, { width: cW, align: 'center' });
+      .text(`For the month of ${monthLabel}`, mL, payMonthY, { width: cW, align: 'center' });
 
-    rowText(164, 'Employee Name:', user.name, 'Employee ID:', employeeCode);
-    rowText(179, 'Department:', user.department, 'Designation:', designation);
-    rowText(194, 'Work Location:', user.workLocation, 'Joining Date:', joiningDate);
-    rowText(209, 'Email:', user.email, 'Phone:', user.phone);
-    rowText(224, 'Pay Period:', monthLabel, 'Monthly CTC:', cur(p.ctc));
+    const employeeY = payMonthY + 26;
+    rowText(employeeY, 'Employee Name:', user.name, 'Employee ID:', employeeCode);
+    rowText(employeeY + 15, 'Department:', user.department, 'Designation:', designation);
+    rowText(employeeY + 30, 'Work Location:', user.workLocation, 'Joining Date:', joiningDate);
+    rowText(employeeY + 45, 'Email:', user.email, 'Phone:', user.phone);
+    rowText(employeeY + 60, 'Pay Period:', monthLabel, 'Monthly CTC:', cur(p.ctc));
 
-    doc.moveTo(mL, 244).lineTo(pageR, 244).strokeColor(border).lineWidth(1).stroke();
-    statText(mL + 12, 254, 'Total Days', days(p.totalDays));
-    statText(mL + 108, 254, 'Leave Taken', days(p.leaveTaken));
-    statText(mL + 204, 254, 'LOP Days', days(p.lopDays));
-    statText(mL + 300, 254, 'Worked Days', days(p.workedDays));
-    statText(mL + 396, 254, 'Present Days', days(p.presentDays));
-    doc.moveTo(mL, 296).lineTo(pageR, 296).strokeColor(border).lineWidth(1).stroke();
+    const attendanceDividerY = employeeY + 80;
+    doc.moveTo(mL, attendanceDividerY).lineTo(pageR, attendanceDividerY).strokeColor(border).lineWidth(1).stroke();
+    const statsY = attendanceDividerY + 10;
+    statText(mL + 12, statsY, 'Total Days', days(p.totalDays));
+    statText(mL + 108, statsY, 'Leave Taken', days(p.leaveTaken));
+    statText(mL + 204, statsY, 'LOP Days', days(p.lopDays));
+    statText(mL + 300, statsY, 'Worked Days', days(p.workedDays));
+    statText(mL + 396, statsY, 'Present Days', days(p.presentDays));
+    const statsDividerY = statsY + 42;
+    doc.moveTo(mL, statsDividerY).lineTo(pageR, statsDividerY).strokeColor(border).lineWidth(1).stroke();
 
     const half = cW / 2;
-    doc.font(fontBold).fontSize(10).fillColor(black).text('Earnings', mL + 12, 306);
-    doc.font(fontBold).fontSize(10).fillColor(red).text('Deductions', mL + half + 12, 306);
-    doc.moveTo(mL, 322).lineTo(pageR, 322).strokeColor(border).lineWidth(1).stroke();
+    const earningsHeaderY = statsDividerY + 10;
+    doc.font(fontBold).fontSize(10).fillColor(black).text('Earnings', mL + 12, earningsHeaderY);
+    doc.font(fontBold).fontSize(10).fillColor(red).text('Deductions', mL + half + 12, earningsHeaderY);
+    const earningsTableY = earningsHeaderY + 16;
+    doc.moveTo(mL, earningsTableY).lineTo(pageR, earningsTableY).strokeColor(border).lineWidth(1).stroke();
 
     const conveyanceLabel = p.conveyanceWorking !== p.conveyance ? `Conveyance (${days(p.workedDays)}/${days(p.totalDays)} days)` : 'Conveyance';
     const earnings = [
@@ -696,7 +726,7 @@ exports.generatePayslip = async (req, res) => {
       ['', 0],
     ];
 
-    let y = 322;
+    let y = earningsTableY;
     for (let i = 0; i < earnings.length; i++) {
       drawSplitRow(y, earnings[i][0], earnings[i][1], deductions[i][0], deductions[i][1]);
       y += ROW_H;
@@ -724,8 +754,9 @@ exports.generatePayslip = async (req, res) => {
 
     // Project / work summary from approved timesheets
     const footerY = 724;
-    if (work.rows.length) {
-      const maxRows = Math.max(1, Math.floor((footerY - 12 - (y + 30)) / 12));
+    const summaryRowsAvailable = Math.floor((footerY - y - 27) / 12);
+    if (work.rows.length && summaryRowsAvailable > 0) {
+      const maxRows = Math.max(1, summaryRowsAvailable);
       let rows = work.rows.slice();
       if (rows.length > maxRows) {
         const kept = rows.slice(0, maxRows - 1);
