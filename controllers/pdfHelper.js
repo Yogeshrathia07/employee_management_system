@@ -61,10 +61,12 @@ const HBG      = '#f2f2f2';
 const LBD      = 0.5;
 const FOOTER_H = 24;
 
-const CONF_TEXT =
-  'Note: This document is the property of DHPE and is confidential. It must not be disclosed, ' +
+function confidentialityText(companyName) {
+  const owner = String(companyName || '').replace(/\s+/g, ' ').trim();
+  return 'Note: This document is ' + (owner ? 'the property of ' + owner + ' and ' : '') + 'confidential. It must not be disclosed, ' +
   'shared, or transmitted to any person or firm not authorized by us. No part of this ' +
   'document may be copied, reproduced, or used in whole or in part without our prior written consent.';
+}
 
 function fmtDate(s) {
   if (!s) return '';
@@ -306,7 +308,7 @@ function createDoc() {
     opts = opts || {};
     doc.fontSize(opts.size||8).font(opts.bold?'Helvetica-Bold':'Helvetica')
        .fillColor(opts.color||DRK)
-       .text(String(text||''), x, y, {
+       .text(String(text ?? ''), x, y, {
          width:w, align:opts.align||'left',
          lineGap:opts.lineGap!==undefined?opts.lineGap:0.5,
          ellipsis:opts.ellipsis!==undefined?opts.ellipsis:false,
@@ -316,7 +318,7 @@ function createDoc() {
   }
   function txtH(text, w, size, bold) {
     doc.fontSize(size||8).font(bold?'Helvetica-Bold':'Helvetica');
-    return doc.heightOfString(String(text||''), { width:w, lineGap:0.5 });
+    return doc.heightOfString(String(text ?? ''), { width:w, lineGap:0.5 });
   }
   function checkPage(y, needed) {
     if (y + needed > PH - M - FOOTER_H) { doc.addPage(); return M; }
@@ -328,6 +330,7 @@ function createDoc() {
 
 function addFooters(doc, options) {
   options = options || {};
+  const confidentialNote = confidentialityText(options.companyName);
   const infoText = String(options.infoText || '').trim();
   const infoOnAllPages = options.infoOnAllPages === true;
   const range = doc.bufferedPageRange();
@@ -335,14 +338,15 @@ function addFooters(doc, options) {
   if (!total) return;
   for (let pageIndex = 0; pageIndex < total; pageIndex += 1) {
     doc.switchToPage(range.start + pageIndex);
-    const footerY = PH - M - FOOTER_H + 3;
+    const pageW = doc.page.width - M * 2;
+    const footerY = doc.page.height - M - FOOTER_H + 3;
     const pageLabelW = 60;
-    const sepX = X + W - pageLabelW - 8;
+    const sepX = X + pageW - pageLabelW - 8;
     const noteW = sepX - X - 6;
     const showInfo = !!infoText && (infoOnAllPages || pageIndex === total - 1);
 
     doc.moveTo(X, footerY)
-      .lineTo(X + W, footerY)
+      .lineTo(X + pageW, footerY)
       .lineWidth(0.3)
       .strokeColor('#d7dce5')
       .stroke();
@@ -354,16 +358,23 @@ function addFooters(doc, options) {
       .stroke();
 
     if (showInfo) {
-      doc.fontSize(5.5).font('Helvetica-Oblique').fillColor('#8a94a3')
+      doc.fontSize(5.5).font('Helvetica-Bold').fillColor('#4b5563')
         .text(infoText, X + 4, footerY + 1, {
           width: noteW,
-          align: 'left',
+          align: 'center',
           lineGap: 0,
         });
     }
 
-    doc.fontSize(showInfo ? 4.9 : 5.2).font('Helvetica').fillColor('#7c8797')
-      .text(CONF_TEXT, X + 4, showInfo ? footerY + 8 : footerY + 3, {
+    let noteSize = showInfo ? 4.9 : 5.2;
+    const noteY = showInfo ? footerY + 8 : footerY + 3;
+    doc.font('Helvetica').fontSize(noteSize);
+    while (noteSize > 3.5 && doc.heightOfString(confidentialNote, { width: noteW, lineGap: 0.1 }) > doc.page.height - M - noteY) {
+      noteSize -= 0.2;
+      doc.fontSize(noteSize);
+    }
+    doc.fillColor('#7c8797')
+      .text(confidentialNote, X + 4, noteY, {
         width: noteW,
         align: 'center',
         lineGap: showInfo ? 0.1 : 0.15,
@@ -376,6 +387,114 @@ function addFooters(doc, options) {
         lineGap: 0,
       });
   }
+}
+
+// Split at a word boundary before drawing, so PDFKit cannot create an untracked page.
+function splitTextToFit(h, text, width, height, size, bold) {
+  const value = String(text ?? '');
+  if (h.txtH(value, width, size, bold) <= height) return [value, ''];
+  let low = 0;
+  let high = value.length;
+  while (low < high) {
+    const mid = Math.ceil((low + high) / 2);
+    if (h.txtH(value.slice(0, mid), width, size, bold) <= height) low = mid;
+    else high = mid - 1;
+  }
+  if (!low) throw new Error('PDF text area is too small for one line');
+  const boundary = value.slice(0, low + 1).search(/\s+\S*$/);
+  const end = boundary > 0 ? boundary : low;
+  return [value.slice(0, end).trimEnd(), value.slice(end).trimStart()];
+}
+
+function drawTextSection(h, label, text, y, options = {}) {
+  let remaining = String(text ?? '').trim();
+  if (!remaining) return y;
+  const size = options.size || 7.5;
+  let continued = false;
+  while (remaining) {
+    y = h.checkPage(y, 11 + h.txtH('Ag', W - 10, size) + 10);
+    y = drawSectionLabel(h, label + (continued ? ' (continued)' : ''), y);
+    const available = PH - M - FOOTER_H - y - 9;
+    const [part, rest] = splitTextToFit(h, remaining, W - 10, available, size);
+    const height = h.txtH(part, W - 10, size) + 9;
+    h.box(X, y, W, height, LBD);
+    h.txt(part, X + 5, y + 4, W - 10, { size, color: options.color || GRY });
+    y += height;
+    remaining = rest;
+    continued = true;
+  }
+  return y;
+}
+
+function drawDetailRows(h, rows, y, options = {}) {
+  const labelWidth = options.labelWidth || 150;
+  const valueWidth = W - labelWidth - 12;
+  rows.forEach(([label, value], index) => {
+    let remaining = String(value ?? '').trim() || 'N/A';
+    let continued = false;
+    while (remaining) {
+      const caption = label + (continued ? ' (continued)' : '');
+      const minH = Math.max(14, h.txtH(caption, labelWidth - 10, 7.5, true) + 7);
+      y = h.checkPage(y, Math.max(minH, h.txtH('Ag', valueWidth, 7.5) + 8));
+      const available = PH - M - FOOTER_H - y - 8;
+      const [part, rest] = splitTextToFit(h, remaining, valueWidth, available, 7.5);
+      const height = Math.max(minH, h.txtH(part, valueWidth, 7.5) + 7);
+      if (index % 2 === 0) h.fillBox(X, y, W, height, '#fafafa');
+      h.box(X, y, W, height, LBD);
+      h.vLine(X + labelWidth, y, y + height, LBD);
+      h.txt(caption, X + 5, y + 3, labelWidth - 10, { size: 7.5, bold: true, color: BLK });
+      h.txt(part, X + labelWidth + 6, y + 3, valueWidth, { size: 7.5, color: BLK });
+      y += height;
+      remaining = rest;
+      continued = true;
+    }
+  });
+  return y;
+}
+
+function drawPagedTable(h, columns, rows, y, options = {}) {
+  const size = options.size || 7.5;
+  const headerH = options.headerHeight || 14;
+  const minRowH = Math.max(16, h.txtH('Ag', 100, size) + 8);
+  const pageBottom = PH - M - FOOTER_H;
+  function header() {
+    h.fillBox(X, y, W, headerH, HBG);
+    h.box(X, y, W, headerH, LBD);
+    let x = X;
+    columns.forEach(column => {
+      h.vLine(x, y, y + headerH, LBD);
+      h.txt(column.label, x + 2, y + 3, column.width - 4, { size: 6.3, bold: true, align: 'center', color: BLK });
+      x += column.width;
+    });
+    y += headerH;
+  }
+  y = h.checkPage(y, 11 + headerH + minRowH);
+  y = drawSectionLabel(h, options.label || 'Item Details', y);
+  header();
+  rows.forEach((values, rowIndex) => {
+    let remaining = values.map(value => String(value ?? ''));
+    do {
+      const fullH = Math.max(minRowH, ...remaining.map((value, i) => h.txtH(value, columns[i].width - 6, size, columns[i].bold) + 8));
+      const needed = fullH <= pageBottom - M - headerH ? fullH : minRowH;
+      if (y + needed > pageBottom) { h.doc.addPage(); y = M; header(); }
+      const segments = remaining.map((value, i) => value
+        ? splitTextToFit(h, value, columns[i].width - 6, pageBottom - y - 8, size, columns[i].bold)
+        : ['', '']);
+      const rowH = Math.max(minRowH, ...segments.map(([value], i) => h.txtH(value, columns[i].width - 6, size, columns[i].bold) + 8));
+      if (rowIndex % 2 === 0) h.fillBox(X, y, W, rowH, '#fafafa');
+      h.box(X, y, W, rowH, LBD);
+      let x = X;
+      columns.forEach((column, i) => {
+        h.vLine(x, y, y + rowH, LBD);
+        h.txt(segments[i][0], x + 3, y + 3, column.width - 6,
+          { size, bold: column.bold, align: column.align || 'center', color: BLK });
+        x += column.width;
+      });
+      y += rowH;
+      remaining = segments.map(segment => segment[1]);
+    } while (remaining.some(Boolean));
+  });
+  return y;
 }
 
 // ── Standard header box: company info (left) | doc meta (right) ───────────────
@@ -421,27 +540,40 @@ function drawSectionLabel(h, label, y) {
 }
 
 // ── Signature block (bank left + authorized right) ────────────────────────────
-function drawSignature(h, y, companyName, bankLines) {
-  const { fillBox, box, vLine, hLine, txt } = h;
-  const HW = W / 2;
-  const RX = X + HW;
-  const bankH = bankLines.length * 10 + 17;
+function signatureLayout(h, companyName, bankLines, width = W) {
+  const half = width / 2;
+  const rows = bankLines.map(([label, value]) => ({
+    text: label + ' ' + value,
+    height: Math.max(10, h.txtH(label + ' ' + value, half - 10, 7.5) + 2),
+  }));
+  const nameHeight = h.txtH('For ' + (companyName || ''), half - 10, 7.5, true);
+  return { rows, nameHeight, height: Math.max(rows.reduce((sum, row) => sum + row.height, 0) + 18, nameHeight + 42) };
+}
 
-  fillBox(X, y, W, 11, HBG);
-  box(X, y, W, bankH, LBD);
+function drawSignature(h, y, companyName, bankLines, options = {}) {
+  const { fillBox, box, vLine, hLine, txt } = h;
+  const width = options.width || W;
+  const HW = width / 2;
+  const RX = X + HW;
+  const layout = signatureLayout(h, companyName, bankLines, width);
+  const bankH = layout.height;
+  if (h.checkPage) y = h.checkPage(y, bankH);
+
+  fillBox(X, y, width, 11, HBG);
+  box(X, y, width, bankH, LBD);
   vLine(X+HW, y, y+bankH, LBD);
-  hLine(y+11, X, X+W, LBD);
+  hLine(y+11, X, X+width, LBD);
 
   txt('Bank Account Details:', X+5, y+2, HW-10, { size:7.5, bold:true, color:BLK });
   txt('Authorized Signature', RX+5, y+2, HW-10, { size:7.5, bold:true, color:BLK, align:'right' });
 
   let bky = y + 14;
-  bankLines.forEach(([label, val]) => {
-    txt(label+' '+val, X+5, bky, HW-10, { size:7.5, color:BLK });
-    bky += 10;
+  layout.rows.forEach(row => {
+    txt(row.text, X+5, bky, HW-10, { size:7.5, color:BLK });
+    bky += row.height;
   });
 
-  txt('For '+(companyName||''), RX+5, y+bankH-19, HW-10, { size:7.5, bold:true, color:BLK, align:'right' });
+  txt('For '+(companyName||''), RX+5, y+bankH-layout.nameHeight-13, HW-10, { size:7.5, bold:true, color:BLK, align:'right' });
   txt('Authorized Signatory',   RX+5, y+bankH-10, HW-10, { size:7.5, color:BLK, align:'right' });
 
   return y + bankH;
@@ -451,6 +583,7 @@ module.exports = {
   M, PW, PH, W, X, BLK, DRK, GRY, LGY, HBG, LBD, FOOTER_H,
   fmtDate, fmtINR, numWords, pdfSafePart, buildPdfFilename, buildTaxSummaryLabels, createDoc, addFooters,
   roundMoney, normalizeAccountItems, deriveItemTotals,
-  drawHeader, drawSectionLabel, drawSignature,
+  drawHeader, drawSectionLabel, drawSignature, signatureLayout,
+  drawTextSection, drawDetailRows, drawPagedTable, splitTextToFit, confidentialityText,
   resolveUnicodeFonts, useUnicodeFonts,
 };

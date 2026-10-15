@@ -14,7 +14,7 @@ const {
   M, W, X, BLK, GRY, HBG, LBD,
   fmtDate, fmtINR, numWords, buildPdfFilename, buildTaxSummaryLabels, createDoc, addFooters,
   roundMoney, normalizeAccountItems, deriveItemTotals,
-  drawSectionLabel, drawSignature,
+  drawSectionLabel, drawSignature, drawTextSection, drawPagedTable,
 } = require('./pdfHelper');
 
 function genCode() { return Math.random().toString(36).substr(2,6).toUpperCase(); }
@@ -351,7 +351,7 @@ exports.generatePDF = async (req, res) => {
     res.setHeader(
       'Content-Disposition',
       (inline ? 'inline' : 'attachment') + `; filename="${buildPdfFilename([
-        q.sellerName || 'DHPE',
+        q.sellerName || 'Company',
         'Quotation',
         q.quotationNumber || q.id,
       ])}"`
@@ -366,7 +366,7 @@ exports.generatePDF = async (req, res) => {
     const useIGST = taxModeFromQuotation(q) === 'igst';
 
     const sellerLines = [
-      q.sellerName || 'DHPE',
+      q.sellerName || 'Company not specified',
       q.sellerAddress ? 'Address: ' + q.sellerAddress : 'Address: 182 / 1 Purbachal, Rahara, Khardaha, North 24 PGS, Kolkata, West Bengal, Pin-700118',
       (q.sellerPhone || q.sellerEmail)
         ? 'Phone: ' + (q.sellerPhone || '') + (q.sellerEmail ? ' | Email: ' + q.sellerEmail : '') : 'Phone: +91-9876543210 | Email: contact@dhpe.in',
@@ -465,50 +465,22 @@ exports.generatePDF = async (req, res) => {
       if (reduction > 0) { COL[key] -= reduction; COL.desc += reduction; }
     });
 
-    const ROW_H = 14;
-    const drawItemsHeader = (startY, withLabel) => {
-      let headerY = startY;
-      if (withLabel) headerY = drawSectionLabel({ fillBox, box, txt }, 'Item Details', headerY);
-      fillBox(X, headerY, W, ROW_H, HBG);
-      box(X, headerY, W, ROW_H, LBD);
-      let hx = X;
-      const th = (label, width) => {
-        vLine(hx, headerY, headerY + ROW_H, LBD);
-        txt(label, hx + 2, headerY + 3, width - 4, { size: 6.3, bold: true, color: BLK, align: 'center' });
-        hx += width;
-      };
-      th('Sl.', COL.sl); th('Code', COL.code); th('Description', COL.desc); th('HSN/SAC', COL.hsn);
-      th('Unit', COL.unit); th('Rate', COL.rate); th('Qty', COL.qty); th('Tax %', COL.taxP);
-      th(useIGST ? 'IGST Amt' : 'Tax Amt', COL.taxAmt); th('Amount', COL.amt);
-      return headerY + ROW_H;
-    };
-
-    y = checkPage(y, 26);
-    y = drawItemsHeader(y, true);
-    items.forEach((it, idx) => {
-      const qty = Number(it.quantity || 0);
-      const price = Number(it.unitPrice || 0);
-      const taxRate = Number(it.taxRate || 0);
-      const taxable = Number(it.taxableAmount || 0);
-      const taxAmount = useIGST ? Number(it.igst || 0) : Number(it.cgst || 0) + Number(it.sgst || 0);
-      const descText = String(it.name || it.description || it.itemName || '-').trim() || '-';
-      const rowH = Math.max(16, txtH(descText, COL.desc - 8, 7.1) + 6);
-      y = checkPage(y, rowH);
-      if (y === M) y = drawItemsHeader(y, false);
-      if (idx % 2 === 0) fillBox(X, y, W, rowH, '#fafafa');
-      box(X, y, W, rowH, LBD);
-      let dx = X;
-      const td = (value, width, options) => {
-        vLine(dx, y, y + rowH, LBD);
-        txt(String(value), dx + 3, y + 3, width - 6, Object.assign({ size: 7.1, color: BLK, align: 'center', lineGap: 0.4 }, options || {}));
-        dx += width;
-      };
-      td(idx + 1, COL.sl); td(it.itemCode || '', COL.code); td(descText, COL.desc, { align: 'left' });
-      td(it.hsnCode || '', COL.hsn); td(it.unit || '', COL.unit); td(money(price), COL.rate, { align: 'right' });
-      td(qty % 1 === 0 ? qty : qty.toFixed(3), COL.qty); td(taxRate.toFixed(0) + '%', COL.taxP);
-      td(money(taxAmount), COL.taxAmt, { align: 'right' }); td(money(taxable), COL.amt, { align: 'right', bold: true });
-      y += rowH;
-    });
+    const columns = [
+      { label: 'Sl.', width: COL.sl }, { label: 'Code', width: COL.code },
+      { label: 'Description', width: COL.desc, align: 'left' },
+      { label: 'HSN/SAC', width: COL.hsn }, { label: 'Unit', width: COL.unit },
+      { label: 'Rate', width: COL.rate, align: 'right' }, { label: 'Qty', width: COL.qty },
+      { label: 'Tax %', width: COL.taxP },
+      { label: useIGST ? 'IGST Amt' : 'Tax Amt', width: COL.taxAmt, align: 'right' },
+      { label: 'Amount', width: COL.amt, align: 'right', bold: true },
+    ];
+    const itemRows = items.map((item, index) => [
+      index + 1, item.itemCode || '', item.name || item.description || item.itemName || '-',
+      item.hsnCode || '', item.unit || '', money(item.unitPrice), Number(item.quantity || 0),
+      Number(item.taxRate || 0) + '%',
+      money(useIGST ? item.igst : Number(item.cgst || 0) + Number(item.sgst || 0)), money(item.taxableAmount),
+    ]);
+    y = drawPagedTable({ doc, box, fillBox, vLine, txt, txtH, checkPage }, columns, itemRows, y, { size: 7.1 });
 
     y = checkPage(y, 60);
     const taxLabels = buildTaxSummaryLabels(q, useIGST ? 'igst' : 'split');
@@ -530,19 +502,22 @@ exports.generatePDF = async (req, res) => {
     // below it, so the box's top border is the only line above "Subtotal".
     const sumRowH = 11;
     const sumTotalH = 14;
-    const sumH = sumLines.length * sumRowH + sumTotalH;
+    const sumRowHeights = sumLines.map(([label, value]) => Math.max(sumRowH, txtH(label, HW / 2 - 6, 7.5) + 3, txtH(value, HW / 2 - 6, 7.5) + 3));
+    const sumH = sumRowHeights.reduce((sum, height) => sum + height, 0) + sumTotalH;
     const wordText = numWords(parseFloat(q.totalAmount || 0));
     const botH = Math.max(sumH, txtH(wordText, HW - 14, 7.5) + 16);
+    y = checkPage(y, botH);
     box(X, y, W, botH, LBD);
     vLine(X + HW, y, y + botH, LBD);
     txt('Amount in Words:', X + 5, y + 4, HW - 10, { size: 7.5, bold: true, color: BLK });
     txt(wordText, X + 5, y + 14, HW - 10, { size: 7.5, color: BLK });
 
     let sy = y;
-    sumLines.forEach(([label, val]) => {
-      sy += sumRowH;
-      txt(label, X + HW + 4, sy - 8, HW / 2 - 6, { size: 7.5, color: BLK });
-      txt(val, X + HW + HW / 2, sy - 8, HW / 2 - 6, { size: 7.5, align: 'right', color: BLK });
+    sumLines.forEach(([label, val], index) => {
+      const textY = sy + 3;
+      sy += sumRowHeights[index];
+      txt(label, X + HW + 4, textY, HW / 2 - 6, { size: 7.5, color: BLK });
+      txt(val, X + HW + HW / 2, textY, HW / 2 - 6, { size: 7.5, align: 'right', color: BLK });
       hLine(sy, X + HW, X + W, LBD);
     });
     fillBox(X + HW, sy, HW, sumTotalH, HBG);
@@ -559,24 +534,16 @@ exports.generatePDF = async (req, res) => {
       ['IFSC:', q.bankIfsc || 'N/A'],
       ['Branch:', q.bankBranch || 'N/A'],
     ];
-    y = drawSignature({ fillBox, box, vLine, hLine, txt }, y, q.sellerName, bankLines);
+    y = drawSignature({ fillBox, box, vLine, hLine, txt, txtH, checkPage }, y, q.sellerName, bankLines);
 
     const noteLines = [
       String(q.notes || '').trim() ? 'Remarks: ' + String(q.notes).trim() : '',
       String(q.termsConditions || '').trim() ? 'Terms & Conditions: ' + String(q.termsConditions).trim() : '',
     ].filter(Boolean);
-    if (noteLines.length) {
-      const noteH = noteLines.reduce((sum, line) => sum + txtH(line, W - 10, 7, false) + 2, 5);
-      y = checkPage(y, noteH);
-      box(X, y, W, noteH, LBD);
-      let ny = y + 4;
-      noteLines.forEach(line => {
-        txt(line, X + 5, ny, W - 10, { size: 7, color: GRY });
-        ny = doc.y + 2;
-      });
-    }
+    y = drawTextSection({ doc, fillBox, box, txt, txtH, checkPage }, 'Additional Information', noteLines.join('\n'), y, { size: 7 });
 
     addFooters(doc, {
+      companyName: q.sellerName,
       infoText: 'This is a computer-generated quotation and remains subject to the terms stated above.',
     });
     doc.end();

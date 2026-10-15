@@ -14,7 +14,7 @@ const {
   M, PH, W, X, BLK, DRK, GRY, LGY, HBG, LBD, FOOTER_H,
   fmtDate, fmtINR, numWords, buildPdfFilename, buildTaxSummaryLabels, createDoc, addFooters,
   roundMoney, normalizeAccountItems, deriveItemTotals,
-  drawSectionLabel, drawSignature,
+  drawSectionLabel, drawSignature, drawTextSection,
 } = require('./pdfHelper');
 
 function genCode() { return Math.random().toString(36).substr(2,6).toUpperCase(); }
@@ -290,7 +290,7 @@ exports.generatePDF = async (req, res) => {
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition',
       (inline ? 'inline' : 'attachment') + `; filename="${buildPdfFilename([
-        p.sellerName || 'DHPE',
+        p.sellerName || 'Company',
         'Proforma-Invoice',
         p.proformaNumber || p.id,
       ])}"`);
@@ -652,10 +652,12 @@ exports.generatePDF = async (req, res) => {
     ];
     const sumRowH   = 11;
     const sumTotalH = 14;
-    const sumH      = sumLines.length * sumRowH + sumTotalH;
+    const sumRowHeights = sumLines.map(([label, value]) => Math.max(sumRowH, txtH(label, HW / 2 - 6, 7.5) + 3, txtH(value, HW / 2 - 6, 7.5) + 3));
+    const sumH      = sumRowHeights.reduce((sum, height) => sum + height, 0) + sumTotalH;
     const wordText  = numWords(parseFloat(p.totalAmount || 0));
     const wordH     = txtH(wordText, HW - 14, 7.5);
     const botH      = Math.max(sumH, wordH + 16);
+    y = checkPage(y, botH);
 
     box(X, y, W, botH, LBD);
     vLine(X + HW, y, y + botH, LBD);
@@ -664,10 +666,11 @@ exports.generatePDF = async (req, res) => {
     txt(wordText, X+5, y+14, HW-10, { size:7.5, color:BLK });
 
     let sy = y;
-    sumLines.forEach(([label, val]) => {
-      sy += sumRowH;
-      txt(label, X+HW+4, sy-8, HW/2-6, { size:7.5, color:BLK });
-      txt(val,   X+HW+HW/2, sy-8, HW/2-6, { size:7.5, align:'right', color:BLK });
+    sumLines.forEach(([label, val], index) => {
+      const textY = sy + 3;
+      sy += sumRowHeights[index];
+      txt(label, X+HW+4, textY, HW/2-6, { size:7.5, color:BLK });
+      txt(val,   X+HW+HW/2, textY, HW/2-6, { size:7.5, align:'right', color:BLK });
       hLine(sy, X+HW, X+W, LBD);
     });
 
@@ -686,7 +689,7 @@ exports.generatePDF = async (req, res) => {
       ['IFSC:',     p.bankIfsc    || 'N/A'],
       ['Branch:',   p.bankBranch  || 'N/A'],
     ];
-    y = drawSignature({ fillBox, box, vLine, hLine, txt }, y, p.sellerName, bankLines);
+    y = drawSignature({ fillBox, box, vLine, hLine, txt, txtH, checkPage }, y, p.sellerName, bankLines);
 
     // ── 7. PAYMENT TERMS / DELIVERY / WARRANTY ─────────────────────────────────
     const extraLines = [
@@ -695,41 +698,15 @@ exports.generatePDF = async (req, res) => {
       p.warranty        ? 'Warranty: '          + p.warranty        : '',
     ].filter(Boolean);
 
-    if (extraLines.length) {
-      let exH = 5;
-      extraLines.forEach(l => { exH += txtH(l, W-12, 7.5) + 1.5; });
-      exH += 3;
-      y = checkPage(y, exH);
-      box(X, y, W, exH, LBD);
-      let ey = y+4;
-      extraLines.forEach(line => {
-        txt(line, X+5, ey, W-10, { size:7.5, color:BLK });
-        ey = doc.y+0.5;
-      });
-      y += exH;
-    }
+    const sectionHelpers = { doc, box, fillBox, txt, txtH, checkPage };
+    y = drawTextSection(sectionHelpers, 'Payment / Delivery / Warranty', extraLines.join('\n'), y, { color: BLK });
 
     // ── 8. NOTES / TERMS ───────────────────────────────────────────────────────
     const noteLines = [
       String(p.notes || '').trim() ? 'Remarks: ' + String(p.notes).trim() : '',
       String(p.termsConditions || '').trim() ? 'Terms & Conditions: ' + String(p.termsConditions).trim() : '',
     ].filter(Boolean);
-    if (noteLines.length) {
-      const noteH = noteLines.reduce((sum, line) => sum + txtH(line, W - 10, 7, false) + 2, 5);
-      y = checkPage(y, noteH);
-      box(X, y, W, noteH, LBD);
-      let ny = y + 4;
-      noteLines.forEach(line => {
-        txt(line, X + 5, ny, W - 10, { size: 7, color: GRY });
-        ny = doc.y + 2;
-      });
-    }
-
-    const footerInfoText = 'This is a computer-generated proforma invoice, not a tax invoice.';
-    const CONF_TEXT =
-      'Note: This document is the property of DHPE and is confidential. It must not be disclosed, ' +
-      'shared, or transmitted to any person or firm not authorized by us. No part of this ' +
-      'document may be copied, reproduced, or used in whole or in part without our prior written consent.';
+    y = drawTextSection(sectionHelpers, 'Additional Information', noteLines.join('\n'), y, { size: 7 });
 
     const pageRange  = doc.bufferedPageRange();
     const totalPages = pageRange.count;
@@ -737,34 +714,7 @@ exports.generatePDF = async (req, res) => {
       doc.switchToPage(pageRange.start + pi);
       box(X, M, W, PH - (M * 2), LBD);
     }
-    if (totalPages) {
-      for (let pi = 0; pi < totalPages; pi++) {
-        doc.switchToPage(pageRange.start + pi);
-        const footerY = PH - M - FOOTER_H + 3;
-        const pageLabelW = 60;
-        const sepX = X + W - pageLabelW - 8;
-        const noteW = sepX - X - 6;
-        const showInfo = pi === totalPages - 1;
-        doc.moveTo(X, footerY).lineTo(X + W, footerY).lineWidth(0.3).strokeColor('#d7dce5').stroke();
-        doc.moveTo(sepX, footerY + 2).lineTo(sepX, footerY + FOOTER_H - 8).lineWidth(0.3).strokeColor('#d7dce5').stroke();
-        if (showInfo) {
-          doc.fontSize(5.5).font('Helvetica-Oblique').fillColor('#8a94a3')
-             .text(footerInfoText, X + 4, footerY + 1, { width: noteW, align: 'left', lineGap: 0 });
-        }
-        doc.fontSize(showInfo ? 4.9 : 5.2).font('Helvetica').fillColor('#7c8797')
-           .text(CONF_TEXT, X + 4, showInfo ? footerY + 8 : footerY + 3, {
-             width: noteW,
-             align: 'center',
-             lineGap: showInfo ? 0.1 : 0.15,
-           });
-        doc.fontSize(5.8).font('Helvetica').fillColor('#7c8797')
-           .text(`Page ${pi + 1} of ${totalPages}`, sepX + 4, showInfo ? footerY + 7 : footerY + 4, {
-             width: pageLabelW,
-             align: 'right',
-             lineGap: 0,
-           });
-      }
-    }
+    addFooters(doc, { companyName: p.sellerName, infoText: 'This is a computer-generated proforma invoice, not a tax invoice.' });
 
     doc.end();
   } catch (err) {

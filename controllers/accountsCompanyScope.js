@@ -62,6 +62,25 @@ async function resolveScopedCompany(req, payload) {
   return resolveCompanyFromPayload(payload);
 }
 
+async function resolveAccountCompanyId(req, payload, fallbackIds = []) {
+  const actorId = isAdminScoped(req) ? getActorCompanyId(req) : null;
+  if (isAdminScoped(req) && !actorId) {
+    const err = new Error('Admin company not found');
+    err.status = 400;
+    throw err;
+  }
+  const selected = payload && payload.companyId;
+  const candidate = actorId || (selected !== null && selected !== undefined && selected !== ''
+    ? Number(selected) : fallbackIds.find(id => Number(id) > 0));
+  if (!candidate && (selected === null || selected === undefined || selected === '')) return null;
+  if (!Number.isInteger(Number(candidate)) || Number(candidate) <= 0 || !await Company.findByPk(candidate)) {
+    const err = new Error('Select a valid company');
+    err.status = 400;
+    throw err;
+  }
+  return Number(candidate);
+}
+
 function applySellerCompanySnapshot(target, company) {
   if (!target || !company) return target;
   target.companyId = company.id || null;
@@ -313,5 +332,6 @@ module.exports = {
   isAdminScoped,
   resolveCompanyFromPayload,
   resolveScopedCompany,
+  resolveAccountCompanyId,
   syncAccountsCompanyIds,
 };

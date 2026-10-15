@@ -2731,7 +2731,7 @@ function fillAccountCompanySelect(selectId, selectedId, options) {
   if (!chosen && options.fallbackName) {
     chosen = findAccountCompanyByName(options.fallbackName);
   }
-  if (!chosen && options.autoSelectFirst !== false && companies.length) {
+  if (!chosen && options.autoSelectFirst !== false && (ACCOUNTS_COMPANY_LOCKED || companies.length === 1) && companies.length) {
     chosen = companies[0];
   }
   sel.value = chosen ? String(chosen.id) : '';
@@ -2792,7 +2792,7 @@ function syncPOCompanyFromRelations() {
   var vendorOpt = vendorSel && vendorSel.selectedIndex > 0 ? vendorSel.options[vendorSel.selectedIndex] : null;
   var companyId = (projectOpt && projectOpt.dataset.companyId) || (vendorOpt && vendorOpt.dataset.companyId) || '';
   var sel = document.getElementById('po-company-sel');
-  if (sel && companyId) sel.value = String(companyId);
+  if (sel && companyId && !sel.value) sel.value = String(companyId);
   renderPOCompanyMeta();
 }
 
@@ -2801,7 +2801,7 @@ function syncProjectCompanyFromClient() {
   var clientOpt = clientSel && clientSel.selectedIndex > 0 ? clientSel.options[clientSel.selectedIndex] : null;
   var companyId = clientOpt ? (clientOpt.dataset.companyId || '') : '';
   var sel = document.getElementById('prj-company-sel');
-  if (sel && companyId) sel.value = String(companyId);
+  if (sel && companyId && !sel.value) sel.value = String(companyId);
 }
 
 function toggleDocCompanySection(type) {

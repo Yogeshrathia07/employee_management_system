@@ -5,13 +5,13 @@ const {
   applyCompanyScope,
   assertScopedRelation,
   findScopedByPk,
-  getActorCompanyId,
+  resolveAccountCompanyId,
   syncAccountsCompanyIds,
 } = require('./accountsCompanyScope');
 const {
   M, W, X, BLK, GRY, HBG, LBD,
   fmtDate, fmtINR, buildPdfFilename, createDoc, addFooters,
-  drawHeader, drawSectionLabel, drawSignature,
+  drawHeader, drawSectionLabel, drawSignature, drawTextSection, drawDetailRows,
 } = require('./pdfHelper');
 
 function genCode() { return Math.random().toString(36).substr(2,6).toUpperCase(); }
@@ -104,17 +104,18 @@ exports.generatePDF = async (req, res) => {
     res.setHeader(
       'Content-Disposition',
       (inline ? 'inline' : 'attachment') + `; filename="${buildPdfFilename([
-        co.name || 'DHPE',
+        co.name || 'Company',
         'Project-Account',
         pa.projectCode || pa.id,
       ])}"`
     );
 
     const { doc, hLine, vLine, box, fillBox, txt, txtH, checkPage } = createDoc();
+    const h = { doc, hLine, vLine, box, fillBox, txt, txtH, checkPage };
     doc.pipe(res);
 
     const sellerLines = [
-      co.name || 'DHPE',
+      co.name || 'Company not specified',
       co.address ? 'Address: ' + co.address : '',
       (co.phone || co.email) ? 'Phone: ' + (co.phone || '') + (co.email ? ' | Email: ' + co.email : '') : '',
       [
@@ -141,22 +142,10 @@ exports.generatePDF = async (req, res) => {
       ['Remaining Budget', fmtINR(remaining)],
     ];
     const rowH = 14;
-    details.forEach(([label, value], idx) => {
-      y = checkPage(y, rowH);
-      if (idx % 2 === 0) fillBox(X, y, W, rowH, '#fafafa');
-      box(X, y, W, rowH, LBD);
-      vLine(X + 150, y, y + rowH, LBD);
-      txt(label, X + 5, y + 3, 140, { size: 7.5, bold: true, color: BLK });
-      txt(value || 'N/A', X + 156, y + 3, W - 162, { size: 7.5, color: BLK });
-      y += rowH;
-    });
+    y = drawDetailRows(h, details, y);
 
     if (pa.description) {
-      y = checkPage(y, 42);
-      y = drawSectionLabel({ fillBox, box, txt }, 'Description', y);
-      box(X, y, W, 30, LBD);
-      txt(pa.description, X + 5, y + 5, W - 10, { size: 7.5, color: GRY });
-      y += 30;
+      y = drawTextSection(h, 'Description', pa.description, y);
     }
 
     const linkedRows = [
@@ -164,7 +153,7 @@ exports.generatePDF = async (req, res) => {
       ['Invoices', (plain.invoices || []).length, fmtINR(billed)],
       ['Work Orders', (plain.workOrders || []).length, ''],
     ];
-    y = checkPage(y, 60);
+    y = checkPage(y, 11 + rowH * 4);
     y = drawSectionLabel({ fillBox, box, txt }, 'Linked Records Summary', y);
     fillBox(X, y, W, rowH, HBG);
     box(X, y, W, rowH, LBD);
@@ -185,7 +174,6 @@ exports.generatePDF = async (req, res) => {
       y += rowH;
     });
 
-    y = checkPage(y, 55);
     const bankLines = [
       ['Bank:', co.bankName || 'N/A'],
       ['A/c Name:', co.bankAcName || 'N/A'],
@@ -193,9 +181,9 @@ exports.generatePDF = async (req, res) => {
       ['IFSC:', co.bankIfsc || 'N/A'],
       ['Branch:', co.bankBranch || 'N/A'],
     ];
-    drawSignature({ fillBox, box, vLine, hLine, txt }, y, co.name || 'DHPE', bankLines);
+    drawSignature(h, y, co.name || '', bankLines);
 
-    addFooters(doc);
+    addFooters(doc, { companyName: co.name });
     doc.end();
   } catch (err) {
     if (!res.headersSent) res.status(500).json({ message: err.message });
@@ -212,17 +200,14 @@ exports.createProjectAccount = async (req, res) => {
     const client = data.clientId
       ? await assertScopedRelation(Client, 'client', req, data.clientId, 'Client not found')
       : null;
-    data.companyId = getActorCompanyId(req)
-      || (client && client.companyId)
-      || data.companyId
-      || null;
+    data.companyId = await resolveAccountCompanyId(req, data, [client && client.companyId]);
     // auto-fill clientName
     if (data.clientId && !data.clientName) {
       if (client) data.clientName = client.name;
     }
     const pa = await ProjectAccount.create(data);
     res.status(201).json(pa);
-  } catch (err) { res.status(500).json({ message: err.message }); }
+  } catch (err) { res.status(err.status || 500).json({ message: err.message }); }
 };
 
 // ── PUT /project-accounts/:id ─────────────────────────────────────────────────
@@ -236,13 +221,10 @@ exports.updateProjectAccount = async (req, res) => {
       ? await assertScopedRelation(Client, 'client', req, updates.clientId, 'Client not found')
       : null;
     if (updates.clientId && !updates.clientName && client) updates.clientName = client.name;
-    updates.companyId = getActorCompanyId(req)
-      || (client && client.companyId)
-      || pa.companyId
-      || null;
+    updates.companyId = await resolveAccountCompanyId(req, updates, [pa.companyId, client && client.companyId]);
     await pa.update(updates);
     res.json(pa);
-  } catch (err) { res.status(500).json({ message: err.message }); }
+  } catch (err) { res.status(err.status || 500).json({ message: err.message }); }
 };
 
 // ── DELETE /project-accounts/:id ──────────────────────────────────────────────

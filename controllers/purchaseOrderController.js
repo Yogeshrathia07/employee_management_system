@@ -5,13 +5,13 @@ const {
   applyCompanyScope,
   assertScopedRelation,
   findScopedByPk,
-  getActorCompanyId,
+  resolveAccountCompanyId,
   syncAccountsCompanyIds,
 } = require('./accountsCompanyScope');
 const {
   M, PH, W, X, BLK, DRK, GRY, LGY, HBG, LBD, FOOTER_H,
   fmtDate, fmtINR, numWords, buildPdfFilename, createDoc, addFooters,
-  drawSectionLabel, drawSignature,
+  drawSectionLabel, drawSignature, drawTextSection, drawPagedTable,
 } = require('./pdfHelper');
 
 function genCode() { return Math.random().toString(36).substr(2,6).toUpperCase(); }
@@ -71,18 +71,16 @@ exports.createPurchaseOrder = async (req, res) => {
     const projectAccount = data.projectAccountId
       ? await assertScopedRelation(ProjectAccount, 'projectAccount', req, data.projectAccountId, 'Project account not found')
       : null;
-    data.companyId = getActorCompanyId(req)
-      || (projectAccount && projectAccount.companyId)
-      || (vendor && vendor.companyId)
-      || data.companyId
-      || null;
+    data.companyId = await resolveAccountCompanyId(req, data, [
+      projectAccount && projectAccount.companyId, vendor && vendor.companyId,
+    ]);
     // auto-fill vendorName from vendorId if provided
     if (data.vendorId && !data.vendorName) {
       if (vendor) data.vendorName = vendor.name;
     }
     const po = await PurchaseOrder.create(data);
     res.status(201).json(po);
-  } catch (err) { res.status(500).json({ message: err.message }); }
+  } catch (err) { res.status(err.status || 500).json({ message: err.message }); }
 };
 
 // ── PUT /purchase-orders/:id ──────────────────────────────────────────────────
@@ -99,14 +97,12 @@ exports.updatePurchaseOrder = async (req, res) => {
       ? await assertScopedRelation(ProjectAccount, 'projectAccount', req, updates.projectAccountId, 'Project account not found')
       : null;
     if (updates.vendorId && !updates.vendorName && vendor) updates.vendorName = vendor.name;
-    updates.companyId = getActorCompanyId(req)
-      || (projectAccount && projectAccount.companyId)
-      || (vendor && vendor.companyId)
-      || po.companyId
-      || null;
+    updates.companyId = await resolveAccountCompanyId(req, updates, [
+      po.companyId, projectAccount && projectAccount.companyId, vendor && vendor.companyId,
+    ]);
     await po.update(updates);
     res.json(po);
-  } catch (err) { res.status(500).json({ message: err.message }); }
+  } catch (err) { res.status(err.status || 500).json({ message: err.message }); }
 };
 
 // ── GET /purchase-orders/:id/pdf ─────────────────────────────────────────────
@@ -128,7 +124,7 @@ exports.generatePDF = async (req, res) => {
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition',
       (inline?'inline':'attachment') + `; filename="${buildPdfFilename([
-        (company && company.name) || 'DHPE',
+        (company && company.name) || 'Company',
         'Purchase-Order',
         po.poNumber || po.id,
       ])}"`);
@@ -144,7 +140,7 @@ exports.generatePDF = async (req, res) => {
 
     // ── 1. HEADER ──────────────────────────────────────────────────────────────
     const sellerLines = [
-      co.name || 'DHPE',
+      co.name || 'Company not specified',
       co.address ? 'Address: '+co.address : '',
       (co.phone||co.email) ? 'Phone: '+(co.phone||'')+(co.email?' | Email: '+co.email:'') : '',
       [co.gstNo?'GSTIN: '+co.gstNo:'', co.panNo?'PAN: '+co.panNo:'', co.state?'State: '+co.state:'']
@@ -218,59 +214,27 @@ exports.generatePDF = async (req, res) => {
     y += vendorBoxH;
 
     // ── 3. ITEMS TABLE ─────────────────────────────────────────────────────────
-    // Keep the description column wide; the other columns are compact numeric fields.
-    const C = { sl:18, desc:340, qty:40, unit:42, rate:65, amt:70 };
-
-    y = checkPage(y, 26);
-    y = drawSectionLabel({ fillBox, box, txt }, 'Item Details', y);
-
-    const ROW_H = 14;
-    fillBox(X, y, W, ROW_H, HBG);
-    box(X, y, W, ROW_H, LBD);
-
-    let hcx = X;
-    function th(label, w) {
-      vLine(hcx, y, y+ROW_H, LBD);
-      txt(label, hcx+2, y+3, w-4, { size:6.5, bold:true, color:BLK, align:'center' });
-      hcx += w;
-    }
-    th('Sl.', C.sl); th('Description', C.desc); th('Qty', C.qty);
-    th('Unit', C.unit); th('Rate (Rs.)', C.rate); th('Amount (Rs.)', C.amt);
-    y += ROW_H;
-
-    items.forEach((it, idx) => {
-      const qty  = parseFloat(it.qty  || 0);
-      const rate = parseFloat(it.rate || 0);
-      const amt  = qty * rate;
-      const rowH = Math.max(14, txtH(it.name || '', C.desc - 6, 7.5) + 7);
-      y = checkPage(y, rowH+1);
-      if (idx%2===0) fillBox(X, y, W, rowH, '#fafafa');
-      box(X, y, W, rowH, LBD);
-
-      let dcx = X;
-      function td(text, w, opts) {
-        vLine(dcx, y, y+rowH, LBD);
-        const to = Object.assign({ size:7.5, align:'center', lineGap:0.5 }, opts||{});
-        const ty = y + 3;
-        txt(String(text), dcx+3, ty, w-6, to);
-        dcx += w;
-      }
-      td(idx+1,            C.sl);
-      td(it.name||'',      C.desc, { align:'left' });
-      td(qty%1===0?qty:qty.toFixed(3), C.qty);
-      td(it.unit||'',      C.unit);
-      td(rate.toFixed(2),  C.rate, { align:'right' });
-      td(amt.toFixed(2),   C.amt,  { align:'right', bold:true });
-      y += rowH;
+    const columns = [
+      { label: 'Sl.', width: 18 }, { label: 'Description', width: 340, align: 'left' },
+      { label: 'Qty', width: 40 }, { label: 'Unit', width: 42 },
+      { label: 'Rate (Rs.)', width: 65, align: 'right' },
+      { label: 'Amount (Rs.)', width: 70, align: 'right', bold: true },
+    ];
+    const itemRows = items.map((item, index) => {
+      const qty = Number(item.qty ?? item.quantity ?? 0);
+      const rate = Number(item.rate ?? item.unitPrice ?? 0);
+      return [index + 1, item.name || item.description || '', qty, item.unit || '', rate.toFixed(2), (qty * rate).toFixed(2)];
     });
+    y = drawPagedTable({ doc, box, fillBox, vLine, txt, txtH, checkPage }, columns, itemRows, y);
 
-    // ── 4. AMOUNT IN WORDS + TOTAL ─────────────────────────────────────────────
+    // Amount in words and total
     y = checkPage(y, 50);
     const totalAmt  = parseFloat(po.totalAmount || 0);
     const wordText  = numWords(totalAmt);
     const wordH     = txtH(wordText, HW-14, 7.5);
     const sumTotalH = 14;
     const botH      = Math.max(sumTotalH+3, wordH+18);
+    y = checkPage(y, botH);
 
     fillBox(X+HW, y+botH-sumTotalH, HW, sumTotalH, HBG);
     box(X, y, W, botH, LBD);
@@ -285,18 +249,9 @@ exports.generatePDF = async (req, res) => {
     y += botH;
 
     // ── 5. NOTES ───────────────────────────────────────────────────────────────
-    const noteLines = [po.notes||'', 'This is a computer-generated Purchase Order.'].filter(Boolean);
-    y = checkPage(y, 32);
-    box(X, y, W, noteLines.length*9+7, LBD);
-    let ny = y+4;
-    noteLines.forEach(line => {
-      txt(line, X+5, ny, W-10, { size:7, color:GRY });
-      ny += 9;
-    });
-    y += noteLines.length*9+7;
+    y = drawTextSection({ doc, txt, txtH, box, fillBox, checkPage }, 'Remarks', po.notes, y);
 
     // ── 6. SIGNATURE ───────────────────────────────────────────────────────────
-    y = checkPage(y, 55);
     const bankLines = [
       ['Bank:',     co.bankName    || 'N/A'],
       ['A/c Name:', co.bankAcName  || 'N/A'],
@@ -304,9 +259,9 @@ exports.generatePDF = async (req, res) => {
       ['IFSC:',     co.bankIfsc    || 'N/A'],
       ['Branch:',   co.bankBranch  || 'N/A'],
     ];
-    drawSignature({ fillBox, box, vLine, hLine, txt }, y, co.name||'DHPE', bankLines);
+    drawSignature({ fillBox, box, vLine, hLine, txt, txtH, checkPage }, y, co.name || '', bankLines);
 
-    addFooters(doc);
+    addFooters(doc, { companyName: co.name, infoText: 'This is a computer-generated Purchase Order.' });
     doc.end();
   } catch (err) {
     if (!res.headersSent) res.status(500).json({ message: err.message });

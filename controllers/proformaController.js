@@ -1,10 +1,10 @@
 'use strict';
 const PDFDocument = require('pdfkit');
 const { applySellerCompanySnapshot, getRequestCompany } = require('./accountsCompanyScope');
-const { buildTaxSummaryLabels } = require('./pdfHelper');
+const { buildTaxSummaryLabels, addFooters, drawSignature, drawTextSection, drawPagedTable } = require('./pdfHelper');
 
 function fmtINR(n) {
-  return '₹ ' + Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return 'Rs. ' + Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 function fmtDate(s) {
   if (!s) return '';
@@ -170,68 +170,29 @@ exports.generatePDF = async (req, res) => {
     }
 
     // ── 4. ITEMS TABLE ────────────────────────────────────────────────────────
-    const COL=useIGST||!showItemTaxColumns
-      ?{sl:18,code:38,desc:260,hsn:40,unit:28,rate:52,qty:34,amt:105}
-      :{sl:16,code:32,desc:217,hsn:36,unit:26,rate:42,qty:30,cgstP:26,cgst:34,sgstP:26,sgst:34};
-
-    y=checkPage(y,30);
-    fillBox(X,y,W,14,HBG); box(X,y,W,14,LBD);
-    txt('Item Details',X+6,y+3,W-12,{size:8,bold:true,color:BLK});
-    y+=14;
-
-    const ROW_H=18;
-    fillBox(X,y,W,ROW_H,HBG); box(X,y,W,ROW_H,LBD);
-
-    (function drawHdr(y){
-      let cx=X;
-      const th=(label,w)=>{ vLine(cx,y,y+ROW_H,LBD); txt(label,cx+2,y+4,w-4,{size:7,bold:true,color:BLK,align:'center'}); cx+=w; };
-      if(useIGST||!showItemTaxColumns){
-        th('Sl.',COL.sl);th('Item Code',COL.code);th('Description',COL.desc);
-        th('HSN/SAC',COL.hsn);th('Unit',COL.unit);th('Rate (₹)',COL.rate);th('Qty',COL.qty);th('Amount (₹)',COL.amt);
-      } else {
-        th('Sl.',COL.sl);th('Item Code',COL.code);th('Description',COL.desc);
-        th('HSN/SAC',COL.hsn);th('Unit',COL.unit);th('Rate (₹)',COL.rate);th('Qty',COL.qty);
-        th('CGST%',COL.cgstP);th('CGST',COL.cgst);th('SGST%',COL.sgstP);th('SGST',COL.sgst);
-        const amtW=W-(COL.sl+COL.code+COL.desc+COL.hsn+COL.unit+COL.rate+COL.qty+COL.cgstP+COL.cgst+COL.sgstP+COL.sgst);
-        vLine(cx,y,y+ROW_H,LBD); txt('Amount (₹)',cx+2,y+4,amtW-4,{size:7,bold:true,color:BLK,align:'center'});
-      }
-    })(y);
-    y+=ROW_H;
-
-    items.forEach((it,idx)=>{
-      const qty=parseFloat(it.quantity||0),price=parseFloat(it.unitPrice||0),disc=parseFloat(it.discount||0),taxRate=parseFloat(it.taxRate||0);
-      const taxable=parseFloat(it.taxableAmount||(qty*price*(1-disc/100)));
-      const igst=parseFloat(it.igst||(taxable*taxRate/100));
-      const cgst=parseFloat(it.cgst||(igst/2));
-      const itemCode=it.itemCode||'N/A';
-      const descH=txtH(it.name||'',COL.desc-6,7.5,false);
-      const rowH=Math.max(descH+8,18);
-
-      y=checkPage(y,rowH+2);
-      if(idx%2===0) fillBox(X,y,W,rowH,'#fafafa');
-      box(X,y,W,rowH,LBD);
-
-      let cx=X;
-      const td=(text,w,opts)=>{ vLine(cx,y,y+rowH,LBD); txt(text,cx+2,y+3,w-4,Object.assign({size:7.5,align:'center',lineGap:0.5},opts||{})); cx+=w; };
-      const tdDesc=(text,w)=>{ vLine(cx,y,y+rowH,LBD); txt(text,cx+3,y+3,w-6,{size:7.5,align:'left',lineGap:1}); cx+=w; };
-
-      if(useIGST||!showItemTaxColumns){
-        td(idx+1,COL.sl);td(itemCode,COL.code);tdDesc(it.name||'',COL.desc);
-        td(it.hsnCode||'',COL.hsn);td(it.unit||'',COL.unit);
-        td(price.toFixed(2),COL.rate,{align:'right'});td(qty%1===0?qty:qty.toFixed(3),COL.qty);
-        td(taxable.toFixed(2),COL.amt,{align:'right',bold:true});
-      } else {
-        td(idx+1,COL.sl);td(itemCode,COL.code);tdDesc(it.name||'',COL.desc);
-        td(it.hsnCode||'',COL.hsn);td(it.unit||'',COL.unit);
-        td(price.toFixed(2),COL.rate,{align:'right'});td(qty%1===0?qty:qty.toFixed(3),COL.qty);
-        td((taxRate/2).toFixed(0)+'%',COL.cgstP);td(cgst.toFixed(2),COL.cgst,{align:'right'});
-        td((taxRate/2).toFixed(0)+'%',COL.sgstP);td(cgst.toFixed(2),COL.sgst,{align:'right'});
-        const amtW=W-(COL.sl+COL.code+COL.desc+COL.hsn+COL.unit+COL.rate+COL.qty+COL.cgstP+COL.cgst+COL.sgstP+COL.sgst);
-        vLine(cx,y,y+rowH,LBD);
-        txt(taxable.toFixed(2),cx+2,y+3,amtW-4,{size:7.5,align:'right',bold:true,lineGap:0.5});
-      }
-      y+=rowH;
+    const columns = [
+      { label: 'Sl.', width: 18 }, { label: 'Code', width: 32 },
+      { label: 'Description', width: showItemTaxColumns ? 207 : 294, align: 'left' },
+      { label: 'HSN/SAC', width: 36 }, { label: 'Unit', width: 28 },
+      { label: 'Rate', width: 50, align: 'right' }, { label: 'Qty', width: 32 },
+      ...(showItemTaxColumns ? [
+        { label: 'Tax %', width: 32 },
+        { label: useIGST ? 'IGST Amt' : 'Tax Amt', width: 55, align: 'right' },
+      ] : []),
+      { label: 'Amount', width: 85, align: 'right', bold: true },
+    ];
+    const itemRows = items.map((item, index) => {
+      const qty = Number(item.quantity ?? item.qty ?? 0);
+      const price = Number(item.unitPrice ?? item.rate ?? 0);
+      const taxRate = Number(item.taxRate || 0);
+      const taxable = Number(item.taxableAmount ?? qty * price * (1 - Number(item.discount || 0) / 100));
+      const tax = useIGST ? Number(item.igst ?? taxable * taxRate / 100)
+        : Number(item.cgst ?? taxable * taxRate / 200) + Number(item.sgst ?? taxable * taxRate / 200);
+      return [index + 1, item.itemCode || 'N/A', item.name || item.description || '',
+        item.hsnCode || '', item.unit || '', price.toFixed(2), qty,
+        ...(showItemTaxColumns ? [taxRate + '%', tax.toFixed(2)] : []), taxable.toFixed(2)];
     });
+    y = drawPagedTable({ doc, box, fillBox, vLine, txt, txtH, checkPage }, columns, itemRows, y);
 
     // ── 5. AMOUNT IN WORDS + SUMMARY ─────────────────────────────────────────
     y=checkPage(y,60);
@@ -245,6 +206,7 @@ exports.generatePDF = async (req, res) => {
     const wordText=numWords(parseFloat(inv.totalAmount||0));
     const wordH=txtH(wordText,HW-16,8,false);
     const botH=Math.max(sumH+4,wordH+28);
+    y = checkPage(y, botH);
 
     box(X,y,HW,botH,LBD); box(X+HW,y,HW,botH,LBD);
     txt('Amount in Words (This Bill):',X+6,y+5,HW-12,{size:7.5,bold:true,color:BLK});
@@ -259,61 +221,20 @@ exports.generatePDF = async (req, res) => {
 
     // ── 6. PAYMENT TERMS ─────────────────────────────────────────────────────
     const ptLines=[inv.paymentTerms?'Payment Terms: '+inv.paymentTerms:'',inv.deliveryTimeline?'Delivery: '+inv.deliveryTimeline:''].filter(Boolean);
-    if(ptLines.length){
-      y=checkPage(y,40);
-      let ptH=8; ptLines.forEach(l=>{ ptH+=txtH(l,W-14,7.5,false)+2; }); ptH+=4+14;
-      box(X,y,W,ptH,LBD); fillBox(X,y,W,14,HBG); hLine(y+14,X,X+W,LBD);
-      txt('Payment Terms & Delivery',X+6,y+3,W-12,{size:8,bold:true,color:BLK});
-      let pty=y+18;
-      ptLines.forEach(l=>{ txt(l,X+6,pty,W-12,{size:7.5,color:BLK}); pty+=12; });
-      y+=ptH;
-    }
+    const sectionHelpers = { doc, box, fillBox, txt, txtH, checkPage };
+    y = drawTextSection(sectionHelpers, 'Payment Terms & Delivery', ptLines.join('\n'), y, { color: BLK });
 
     // ── 7. BANK + SIGNATURE ───────────────────────────────────────────────────
-    y=checkPage(y,70);
     const bankLines=[['Bank:',inv.bankName||'N/A'],['A/c Name:',inv.bankAcName||'N/A'],['A/c No.:',inv.bankAccount||'N/A'],['IFSC:',inv.bankIfsc||'N/A'],['Branch:',inv.bankBranch||'N/A']];
-    const bankH=bankLines.length*12+20;
-    box(X,y,HW,bankH,LBD); fillBox(X,y,HW,14,HBG); hLine(y+14,X,X+HW,LBD);
-    txt('Bank Account Details:',X+6,y+3,HW-12,{size:8,bold:true,color:BLK});
-    let bky=y+18;
-    bankLines.forEach(([label,val])=>{ txt(label+' '+val,X+6,bky,HW-12,{size:7.5,color:BLK}); bky+=12; });
-    box(X+HW,y,HW,bankH,LBD);
-    txt('For '+(inv.sellerName||''),X+HW+4,y+bankH-30,HW-10,{size:8,bold:true,color:BLK,align:'right'});
-    txt('Authorized Signatory',X+HW+4,y+bankH-16,HW-10,{size:8,color:BLK,align:'right'});
-    y+=bankH;
+    y = drawSignature({ ...sectionHelpers, vLine, hLine }, y, inv.sellerName, bankLines);
 
     // ── 8. FOOTER ─────────────────────────────────────────────────────────────
     const footLines=[
       String(inv.notes || '').trim() ? 'Remarks: ' + String(inv.notes).trim() : '',
       String(inv.termsConditions || '').trim() ? 'Terms & Conditions: ' + String(inv.termsConditions).trim() : '',
     ].filter(Boolean);
-    if (footLines.length) {
-      const footH = footLines.reduce((sum, line) => sum + txtH(line, W - 12, 7, false) + 2, 6);
-      y = checkPage(y, footH);
-      box(X, y, W, footH, LBD);
-      let ny = y + 5;
-      footLines.forEach(line => {
-        txt(line, X + 6, ny, W - 12, { size: 7, color: GRY });
-        ny = doc.y + 2;
-      });
-    }
-
-    const footerInfoText = 'This is a computer-generated proforma invoice, not a tax invoice.';
-    const CONF_TEXT =
-      'Note: This document is the property of DHPE and is confidential. It must not be disclosed, ' +
-      'shared, or transmitted to any person or firm not authorized by us. No part of this ' +
-      'document may be copied, reproduced, or used in whole or in part without our prior written consent.';
-    const pageRange = doc.bufferedPageRange();
-    const totalPages = pageRange.count;
-    if (totalPages) {
-      doc.switchToPage(pageRange.start + totalPages - 1);
-      const fy = PH - M - 30;
-      doc.moveTo(X, fy).lineTo(X + W, fy).lineWidth(0.3).strokeColor('#aaaaaa').stroke();
-      doc.fontSize(5.5).font('Helvetica-Oblique').fillColor('#8a94a3')
-        .text(footerInfoText, X, fy + 3, { width: W, align: 'left', lineGap: 0 });
-      doc.fontSize(4.9).font('Helvetica').fillColor('#888888')
-        .text(CONF_TEXT, X, fy + 10, { width: W, align: 'left', lineGap: 0.4 });
-    }
+    y = drawTextSection(sectionHelpers, 'Additional Information', footLines.join('\n'), y, { size: 7 });
+    addFooters(doc, { companyName: inv.sellerName, infoText: 'This is a computer-generated proforma invoice, not a tax invoice.' });
 
     doc.end();
   } catch(err) {

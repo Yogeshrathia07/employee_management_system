@@ -14,7 +14,7 @@ const {
 const {
   M, PH, W, X, BLK, DRK, GRY, LGY, HBG, LBD, FOOTER_H,
   fmtDate, fmtINR, numWords, buildPdfFilename, createDoc, addFooters,
-  drawSectionLabel, drawSignature,
+  drawSectionLabel, drawSignature, drawTextSection, drawPagedTable,
 } = require('./pdfHelper');
 
 const DOCUMENT_UPLOAD_DIR = path.join(__dirname, '..', 'uploads', 'documents');
@@ -378,7 +378,7 @@ exports.generatePDF = async (req, res) => {
 
     const company = wo.company || await resolveWorkOrderCompany(req, wo.companyId);
     const co = Object.assign({}, company && company.toJSON ? company.toJSON() : (company || {}), {
-      name: wo.sellerName || (company && company.name) || 'DHPE',
+      name: wo.sellerName || (company && company.name) || '',
       address: wo.sellerAddress || (company && company.address) || '',
       phone: wo.sellerPhone || (company && company.phone) || '',
       email: wo.sellerEmail || (company && company.email) || '',
@@ -407,7 +407,7 @@ exports.generatePDF = async (req, res) => {
 
     // ── 1. HEADER ──────────────────────────────────────────────────────────────
     const sellerLines = [
-      co.name || 'DHPE',
+      co.name || 'Company not specified',
       co.address ? 'Address: '+co.address : '',
       (co.phone||co.email) ? 'Phone: '+(co.phone||'')+(co.email?' | Email: '+co.email:'') : '',
       [co.gstNo?'GSTIN: '+co.gstNo:'', co.panNo?'PAN: '+co.panNo:'', co.state?'State: '+co.state:'']
@@ -500,59 +500,20 @@ exports.generatePDF = async (req, res) => {
       wo.scope ? 'Scope of Work: ' + wo.scope : '',
     ].filter(Boolean);
 
-    if (scopeLines.length) {
-      let scH = 5;
-      scopeLines.forEach(l => { scH += txtH(l, W-12, 7.5)+1.5; });
-      scH += 3;
-      y = checkPage(y, scH);
-      box(X, y, W, scH, LBD);
-      let wy = y+4;
-      scopeLines.forEach((line,i) => {
-        txt(line, X+5, wy, W-10, { size:7.5, bold:i===0, color:BLK });
-        wy = doc.y+0.5;
-      });
-      y += scH;
-    }
+    y = drawTextSection({ doc, fillBox, box, txt, txtH, checkPage }, 'Project / Scope of Work', scopeLines.join('\n'), y, { color: BLK });
 
     // ── 4. MILESTONES TABLE (if any) ───────────────────────────────────────────
     if (milestones.length) {
-      // Sl(20) | Milestone(265) | Due Date(90) | Amount(90) | Status(90) = 555
-      const MC = { sl:20, title:265, due:90, amt:90, st:90 };
-      y = checkPage(y, 26);
-      y = drawSectionLabel({ fillBox, box, txt }, 'Milestones', y);
-
-      const MRH = 14;
-      fillBox(X, y, W, MRH, HBG);
-      box(X, y, W, MRH, LBD);
-      let mcx = X;
-      function mth(label, w) {
-        vLine(mcx, y, y+MRH, LBD);
-        txt(label, mcx+2, y+3, w-4, { size:6.5, bold:true, color:BLK, align:'center' });
-        mcx += w;
-      }
-      mth('Sl.', MC.sl); mth('Milestone', MC.title);
-      mth('Due Date', MC.due); mth('Amount (Rs.)', MC.amt); mth('Status', MC.st);
-      y += MRH;
-
-      milestones.forEach((ms, idx) => {
-        y = checkPage(y, MRH+1);
-        if (idx%2===0) fillBox(X, y, W, MRH, '#fafafa');
-        box(X, y, W, MRH, LBD);
-        let mcx2 = X;
-        function mtd(text, w, opts) {
-          vLine(mcx2, y, y+MRH, LBD);
-          const to = Object.assign({ size:7.5, align:'center', lineGap:0.5 }, opts||{});
-          const ty = y+(MRH-(to.size+2))/2+1;
-          txt(String(text), mcx2+3, ty, w-6, to);
-          mcx2 += w;
-        }
-        mtd(idx+1,                   MC.sl);
-        mtd(ms.title||ms.name||'',   MC.title, { align:'left' });
-        mtd(fmtDate(ms.dueDate||ms.due), MC.due);
-        mtd(ms.amount ? fmtINR(ms.amount) : '—', MC.amt, { align:'right' });
-        mtd(ms.status||'Pending',    MC.st);
-        y += MRH;
-      });
+      const columns = [
+        { label: 'Sl.', width: 20 }, { label: 'Milestone', width: 265, align: 'left' },
+        { label: 'Due Date', width: 90 }, { label: 'Amount (Rs.)', width: 90, align: 'right' },
+        { label: 'Status', width: 90 },
+      ];
+      const milestoneRows = milestones.map((milestone, index) => [
+        index + 1, milestone.title || milestone.name || '', fmtDate(milestone.dueDate || milestone.due),
+        milestone.amount ? fmtINR(milestone.amount) : '-', milestone.status || 'Pending',
+      ]);
+      y = drawPagedTable({ doc, box, fillBox, vLine, txt, txtH, checkPage }, columns, milestoneRows, y, { label: 'Milestones' });
     }
 
     // ── 5. NOTES + SIGNATURE ───────────────────────────────────────────────────
@@ -561,7 +522,6 @@ exports.generatePDF = async (req, res) => {
     txt('This is a computer-generated Work Order.', X+5, y+4, W-10, { size:7, color:GRY });
     y += 9+7;
 
-    y = checkPage(y, 55);
     const bankLines = [
       ['Bank:',     co.bankName    || 'N/A'],
       ['A/c Name:', co.bankAcName  || 'N/A'],
@@ -569,9 +529,9 @@ exports.generatePDF = async (req, res) => {
       ['IFSC:',     co.bankIfsc    || 'N/A'],
       ['Branch:',   co.bankBranch  || 'N/A'],
     ];
-    drawSignature({ fillBox, box, vLine, hLine, txt }, y, co.name||'DHPE', bankLines);
+    drawSignature({ fillBox, box, vLine, hLine, txt, txtH, checkPage }, y, co.name || '', bankLines);
 
-    addFooters(doc);
+    addFooters(doc, { companyName: co.name });
     doc.end();
 
     let finalBuffer = await pdfBufferPromise;
@@ -591,7 +551,7 @@ exports.generatePDF = async (req, res) => {
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition',
       (inline?'inline':'attachment') + `; filename="${buildPdfFilename([
-        co.name || 'DHPE',
+        co.name || 'Company',
         wo.type === 'CWO' ? 'Client-Work-Order' : 'Vendor-Work-Order',
         wo.woNumber || wo.id,
       ])}"`);

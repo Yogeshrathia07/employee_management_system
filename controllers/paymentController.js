@@ -15,7 +15,7 @@ const {
 const { ensureCompanyTdsRules, calculateTds, ruleAppliesOn } = require('./tdsController');
 const {
   W, X, BLK, GRY, HBG, LBD,
-  fmtDate, fmtINR, numWords, buildPdfFilename, createDoc, addFooters, drawHeader, drawSectionLabel,
+  fmtDate, fmtINR, numWords, buildPdfFilename, createDoc, addFooters, drawHeader, drawSectionLabel, drawTextSection,
 } = require('./pdfHelper');
 
 const MONEY_FIELDS = ['grossAmount', 'gstAmount', 'tdsBaseAmount', 'tdsAmount', 'gstTdsAmount', 'retentionAmount',
@@ -507,20 +507,19 @@ exports.generatePDF = async (req, res) => {
         ['Work Order', invoice.workOrder || '-'],
         ['Project', invoice.projectName || '-'],
       ];
-      const rowH = 13;
-      const rows = Math.ceil(facts.length / 2);
-      box(X, y, W, rows * rowH, LBD);
-      vLine(X + HW, y, y + rows * rowH, LBD);
-      facts.forEach(([label, value], i) => {
-        const col = i % 2;
-        const row = Math.floor(i / 2);
-        const fx = X + col * HW;
-        const fy = y + row * rowH;
-        if (row > 0 && col === 0) hLine(fy, X, X + W, LBD);
-        txt(label + ':', fx + 5, fy + 3, 110, { size: 7.5, color: GRY });
-        txt(value, fx + 115, fy + 3, HW - 120, { size: 7.5, bold: true, color: BLK, lineBreak: false, ellipsis: true });
-      });
-      y += rows * rowH;
+      for (let index = 0; index < facts.length; index += 2) {
+        const pair = facts.slice(index, index + 2);
+        const rowH = Math.max(14, ...pair.map(([, value]) => txtH(value, HW - 120, 7.5, true) + 7));
+        y = checkPage(y, rowH);
+        box(X, y, W, rowH, LBD);
+        vLine(X + HW, y, y + rowH, LBD);
+        pair.forEach(([label, value], col) => {
+          const fx = X + col * HW;
+          txt(label + ':', fx + 5, y + 3, 110, { size: 7.5, color: GRY });
+          txt(value, fx + 115, y + 3, HW - 120, { size: 7.5, bold: true, color: BLK });
+        });
+        y += rowH;
+      }
     }
 
     // 4. Breakup table
@@ -606,22 +605,17 @@ exports.generatePDF = async (req, res) => {
 
     // 6. Notes + signature
     const note = String(p.notes || '').trim();
-    if (note) {
-      const noteH = txtH('Remarks: ' + note, W - 10, 7) + 8;
-      y = checkPage(y, noteH);
-      box(X, y, W, noteH, LBD);
-      txt('Remarks: ' + note, X + 5, y + 4, W - 10, { size: 7, color: GRY });
-      y += noteH;
-    }
-    const signH = 44;
+    y = drawTextSection(h, 'Remarks', note, y, { size: 7 });
+    const sellerNameH = txtH('For ' + (seller.name || ''), HW - 10, 7.5, true);
+    const signH = Math.max(44, sellerNameH + 30);
     y = checkPage(y, signH);
     box(X, y, W, signH, LBD);
     vLine(X + HW, y, y + signH, LBD);
     txt('Received / verified by', X + 5, y + 4, HW - 10, { size: 7.5, bold: true, color: BLK });
-    txt('For ' + (seller.name || ''), X + HW + 5, y + signH - 21, HW - 10, { size: 7.5, bold: true, color: BLK, align: 'right' });
+    txt('For ' + (seller.name || ''), X + HW + 5, y + signH - sellerNameH - 14, HW - 10, { size: 7.5, bold: true, color: BLK, align: 'right' });
     txt('Authorized Signatory', X + HW + 5, y + signH - 11, HW - 10, { size: 7.5, color: BLK, align: 'right' });
 
-    addFooters(doc, { infoText: 'This is a computer-generated payment breakup.' });
+    addFooters(doc, { companyName: seller.name, infoText: 'This is a computer-generated payment breakup.' });
     doc.end();
   } catch (err) {
     if (!res.headersSent) res.status(500).json({ message: err.message });

@@ -11,7 +11,7 @@ const {
   resolveScopedCompany,
   syncAccountsCompanyIds,
 } = require('./accountsCompanyScope');
-const { buildTaxSummaryLabels, roundMoney } = require('./pdfHelper');
+const { buildTaxSummaryLabels, roundMoney, addFooters, signatureLayout, drawSignature, splitTextToFit } = require('./pdfHelper');
 const { prepareRaBill, refreshSeries, buildNextRaDraft } = require('./raBillService');
 
 // Only expose intentional database orderings to the invoice list endpoint.
@@ -100,7 +100,7 @@ function pdfSafePart(value) {
 }
 
 function invoicePdfFilename(inv) {
-  const company = pdfSafePart(inv.sellerName || 'DHPE')
+  const company = pdfSafePart(inv.sellerName || 'Company')
     .replace(/[^a-z0-9]+/gi, '-')
     .replace(/-+/g, '-')
     .replace(/^-+|-+$/g, '');
@@ -112,7 +112,7 @@ function invoicePdfFilename(inv) {
     .replace(/[^a-z0-9]+/gi, '-')
     .replace(/-+/g, '-')
     .replace(/^-+|-+$/g, '');
-  return [company || 'DHPE', docType || 'Tax-Invoice', number || 'invoice']
+  return [company || 'Company', docType || 'Tax-Invoice', number || 'invoice']
     .filter(Boolean)
     .join('-') + '.pdf';
 }
@@ -1121,7 +1121,8 @@ exports.downloadPDF = async (req, res) => {
 
     const sumRowH  = 11;
     const sumTotalH = 14;
-    const sumH = sumLines.length * sumRowH + sumTotalH;
+    const sumRowHeights = sumLines.map(([label, value]) => Math.max(sumRowH, txtH(label, HW / 2 - 6, 7.5) + 3, txtH(value, HW / 2 - 6, 7.5) + 3));
+    const sumH = sumRowHeights.reduce((sum, height) => sum + height, 0) + sumTotalH;
     const wordText = numWords(parseFloat(inv.totalAmount || 0));
     const wordH    = txtH(wordText, HW - 14, 7.5, false);
     const botH     = Math.max(sumH, wordH + 16);
@@ -1133,7 +1134,8 @@ exports.downloadPDF = async (req, res) => {
       ['IFSC:',     inv.bankIfsc    || 'N/A'],
       ['Branch:',   inv.bankBranch  || 'N/A'],
     ];
-    const bankH = bankLines.length * 10 + 17;
+    const signatureHelpers = { txtH, txt, fillBox, box, vLine, hLine, checkPage };
+    const bankH = signatureLayout(signatureHelpers, inv.sellerName, bankLines, W).height;
     const noteLines = [
       String(inv.notes || '').trim() ? 'Remarks: ' + String(inv.notes).trim() : '',
       String(inv.termsConditions || '').trim() ? 'Terms & Conditions: ' + String(inv.termsConditions).trim() : '',
@@ -1143,7 +1145,8 @@ exports.downloadPDF = async (req, res) => {
       : 0;
 
     // Keep the closing block together so remarks never create an almost-empty page.
-    y = checkPage(y, botH + bankH + noteH);
+    const closingH = botH + bankH + noteH;
+    y = checkPage(y, closingH <= PH - M * 2 - FOOTER_H ? closingH : botH + bankH);
 
     // Now draw all borders (they paint over the fill, keeping lines clean)
     box(X, y, W, botH, LBD);
@@ -1154,10 +1157,11 @@ exports.downloadPDF = async (req, res) => {
 
     // Summary rows (right half)
     let sy = y;
-    sumLines.forEach(([label, val]) => {
-      sy += sumRowH;
-      txt(label, X + HW + 4, sy - 8, HW / 2 - 6, { size: 7.5, color: BLK });
-      txt(val,   X + HW + HW / 2, sy - 8, HW / 2 - 6, { size: 7.5, align: 'right', color: BLK });
+    sumLines.forEach(([label, val], index) => {
+      const textY = sy + 3;
+      sy += sumRowHeights[index];
+      txt(label, X + HW + 4, textY, HW / 2 - 6, { size: 7.5, color: BLK });
+      txt(val,   X + HW + HW / 2, textY, HW / 2 - 6, { size: 7.5, align: 'right', color: BLK });
       hLine(sy, X + HW, X + W, LBD);
     });
 
@@ -1174,51 +1178,25 @@ exports.downloadPDF = async (req, res) => {
     // ════════════════════════════════════════════════════════════════════════
     // 6. BANK ACCOUNT DETAILS
     // ════════════════════════════════════════════════════════════════════════
-    // Draw fills FIRST, then all borders on top (prevents fill from covering borders)
-    fillBox(X, y, W, 11, HBG);          // header background
-    // Outer box + dividers drawn after fills so borders are always visible
-    box(X, y, W, bankH, LBD);
-    vLine(X + HW, y, y + bankH, LBD);
-    hLine(y + 11, X, X + W, LBD);
-    // Header labels
-    txt('Bank Account Details:', X + 5, y + 2, HW - 10, { size: 7.5, bold: true, color: BLK });
-    txt('Authorized Signature', X + HW + 5, y + 2, HW - 10, { size: 7.5, bold: true, color: BLK, align: 'right' });
-
-    let bky = y + 14;
-    bankLines.forEach(([label, val]) => {
-      txt(label + ' ' + val, X + 5, bky, HW - 10, { size: 7.5, color: BLK });
-      bky += 10;
-    });
-
-    // Signature text (bottom of right column)
-    txt('For ' + (inv.sellerName || ''), X + HW + 5, y + bankH - 19,
-        HW - 10, { size: 7.5, bold: true, color: BLK, align: 'right' });
-    txt('Authorized Signatory', X + HW + 5, y + bankH - 10,
-        HW - 10, { size: 7.5, color: BLK, align: 'right' });
-
-    y += bankH;
+    y = drawSignature(signatureHelpers, y, inv.sellerName, bankLines, { width: W });
 
     // ════════════════════════════════════════════════════════════════════════
     // 7. FOOTER NOTE
     // ════════════════════════════════════════════════════════════════════════
-    if (noteLines.length) {
-      box(X, y, W, noteH, LBD);
-      let ny = y + 4;
-      noteLines.forEach(line => {
-        txt(line, X + 5, ny, W - 10, { size: 7, color: GRY });
-        ny = doc.y + 2;
-      });
+    let remainingNotes = noteLines.join('\n');
+    while (remainingNotes) {
+      y = checkPage(y, txtH('Ag', W - 10, 7) + 9);
+      const [part, rest] = splitTextToFit({ txtH }, remainingNotes, W - 10, PH - M - FOOTER_H - y - 9, 7);
+      const height = txtH(part, W - 10, 7) + 9;
+      box(X, y, W, height, LBD);
+      txt(part, X + 5, y + 4, W - 10, { size: 7, color: GRY });
+      y += height;
+      remainingNotes = rest;
     }
 
     // ════════════════════════════════════════════════════════════════════════
     // 8. FOOTER: slim full-width footer strip on every page
     // ════════════════════════════════════════════════════════════════════════
-    const footerInfoText = 'This is a computer-generated invoice.';
-    const CONF_TEXT =
-      'Note: This document is the property of DHPE and is confidential. It must not be disclosed, ' +
-      'shared, or transmitted to any person or firm not authorized by us. No part of this ' +
-      'document may be copied, reproduced, or used in whole or in part without our prior written consent.';
-
     const pageRange  = doc.bufferedPageRange();
     const totalPages = pageRange.count;
 
@@ -1227,52 +1205,7 @@ exports.downloadPDF = async (req, res) => {
       box(X, M, W, PH - (M * 2), LBD);
     }
 
-    if (totalPages) {
-      for (let pageIndex = 0; pageIndex < totalPages; pageIndex += 1) {
-        doc.switchToPage(pageRange.start + pageIndex);
-        const pageLabel = `Page ${pageIndex + 1} of ${totalPages}`;
-        const footerY = PH - M - FOOTER_H + 3;
-        const pageLabelW = 60;
-        const sepX = X + W - pageLabelW - 8;
-        const noteW = sepX - X - 6;
-        const showInfo = pageIndex === totalPages - 1;
-
-        doc.moveTo(X, footerY)
-           .lineTo(X + W, footerY)
-           .lineWidth(0.3)
-           .strokeColor('#d7dce5')
-           .stroke();
-
-        doc.moveTo(sepX, footerY + 2)
-           .lineTo(sepX, footerY + FOOTER_H - 8)
-           .lineWidth(0.3)
-           .strokeColor('#d7dce5')
-           .stroke();
-
-        if (showInfo) {
-          doc.fontSize(5.7).font('Helvetica-Bold').fillColor('#4b5563')
-             .text(footerInfoText, X + 4, footerY + 1, {
-               width: noteW,
-               align: 'center',
-               lineGap: 0,
-             });
-        }
-
-        doc.fontSize(showInfo ? 4.9 : 5.2).font('Helvetica').fillColor('#7c8797')
-           .text(CONF_TEXT, X + 4, showInfo ? footerY + 8 : footerY + 3, {
-             width: noteW,
-             align: 'center',
-             lineGap: showInfo ? 0.1 : 0.15,
-           });
-
-        doc.fontSize(5.8).font('Helvetica').fillColor('#7c8797')
-           .text(pageLabel, sepX + 4, showInfo ? footerY + 7 : footerY + 4, {
-             width: pageLabelW,
-             align: 'right',
-             lineGap: 0,
-           });
-      }
-    }
+    addFooters(doc, { companyName: inv.sellerName, infoText: 'This is a computer-generated invoice.' });
 
     doc.end();
   } catch (err) {
