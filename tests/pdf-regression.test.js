@@ -72,9 +72,15 @@ async function generate(t, name, handler, req = {}) {
   const originalText = PDFKit.prototype.text;
   t.mock.method(PDFKit.prototype, 'text', function (value, x, y, options) {
     const opts = options || (typeof x === 'object' ? x : {});
-    calls.push({ text: String(value ?? ''), x: typeof x === 'number' ? x : this.x,
+    const text = String(value ?? '');
+    calls.push({ text, x: typeof x === 'number' ? x : this.x,
       y: typeof y === 'number' ? y : this.y, width: opts.width, page: this.page,
-      height: this.heightOfString(String(value ?? ''), opts) });
+      // A height limit (used with ellipsis) caps how much of the text is drawn.
+      height: Math.min(this.heightOfString(text, opts), opts.height ?? Infinity),
+      // A number wider than its box would be broken across lines.
+      splitNumber: opts.width
+        ? text.split(/\s+/).find(token => /^[\d.,%]+$/.test(token) && this.widthOfString(token) > opts.width + 0.01)
+        : undefined });
     return originalText.apply(this, arguments);
   });
   const response = new PassThrough();
@@ -94,7 +100,8 @@ async function generate(t, name, handler, req = {}) {
   assert.ok(pdf.getPageCount() > 0);
   assert.equal(response.headers['Content-Type'], 'application/pdf');
   const footers = calls.filter(call => call.text.startsWith('Note: This document is'));
-  if (name !== 'salary') {
+  const isSalary = name.startsWith('salary');
+  if (!isSalary) {
     assert.equal(footers.length, pdf.getPageCount(), `${name}: footer on every page`);
     assert.ok(footers.every(call => call.text.includes(company.name)), `${name}: selected company in footer`);
     assert.ok(calls.every(call => !call.text.includes('property of DHPE')), `${name}: no hard-coded company`);
@@ -103,6 +110,11 @@ async function generate(t, name, handler, req = {}) {
     if (!call.text.trim()) continue;
     assert.ok(call.x >= 0 && call.y >= 0, `${name}: text begins inside page: ${call.text.slice(0, 55)}`);
     assert.ok(call.y + call.height < call.page.height + 1, `${name}: text exceeds page: ${call.text.slice(0, 55)}`);
+    assert.ok(!call.splitNumber, `${name}: number split across lines: ${call.splitNumber}`);
+    const footerTop = call.page.height - helper.M - helper.FOOTER_H;
+    if (!isSalary && call.y < footerTop) {
+      assert.ok(call.y + call.height <= footerTop + 0.5, `${name}: text runs into the footer: ${call.text.slice(0, 55)}`);
+    }
   }
   if (process.env.PDF_QA_OUTPUT) {
     fs.mkdirSync(process.env.PDF_QA_OUTPUT, { recursive: true });
@@ -293,6 +305,104 @@ for (const [name, moduleName, method, model] of [
     assert.ok(cgst.y + cgst.height <= sgst.y, `${name}: GST summary labels overlap`);
   });
 }
+test('ad-hoc proforma grows wrapped GST summary rows instead of overlapping them', async t => {
+  const data = account();
+  data.items = [0, 0.1, 0.25, 1, 3, 5, 6, 12, 18, 28].map((rate, index) => ({
+    ...data.items[index], taxRate: rate, cgst: rate, sgst: rate, taxAmount: rate * 2,
+  }));
+  const { calls } = await generate(t, 'proforma-adhoc-mixed-tax', require('../controllers/proformaController').generatePDF, { body: data });
+  const sgst = calls.find(call => call.text.startsWith('SGST @'));
+  const cgst = calls.find(call => call.text.startsWith('CGST @'));
+  assert.ok(sgst && cgst && sgst.height > 10, 'mixed-rate GST label should wrap');
+  assert.ok(sgst.y + sgst.height <= cgst.y, 'ad-hoc GST summary labels overlap');
+});
+test('amount in words reads naturally, including paise and zero', () => {
+  assert.equal(helper.numWords(6608), 'Rupees Six Thousand Six Hundred Eight Only');
+  assert.equal(helper.numWords(2146.7), 'Rupees Two Thousand One Hundred Forty Six and Seventy Paise Only');
+  assert.equal(helper.numWords(0), 'Rupees Zero Only');
+  assert.equal(helper.numWords(9.999), 'Rupees Ten Only');
+});
+for (const [name, moduleName, method, model] of [
+  ['invoice-wide-values', 'invoiceController', 'downloadPDF', 'Invoice'],
+  ['proforma-wide-values', 'proformaDbController', 'generatePDF', 'Proforma'],
+  ['quotation-wide-values', 'quotationController', 'generatePDF', 'Quotation'],
+  ['purchase-order-wide-values', 'purchaseOrderController', 'generatePDF', 'PurchaseOrder'],
+  ['proforma-adhoc-wide-values', 'proformaController', 'generatePDF', null],
+]) {
+  test(`${name} keeps row numbers above 99, large values and long codes inside their rows`, async t => {
+    const data = account();
+    data.items = Array.from({ length: 105 }, (_, index) => ({
+      ...data.items[0], name: 'Item ' + (index + 1), itemCode: 'STEEL-TMT-FE500D-12MM-' + (index + 1),
+      unit: 'Running Metre', quantity: 12345.678, qty: 12345.678, unitPrice: 1234567.89, rate: 1234567.89,
+      taxableAmount: 15241578750.01, cgst: 1371742087.5, sgst: 1371742087.5, taxAmount: 2743484175, itemTotal: 17985062925.01,
+    }));
+    if (model) t.mock.method(models[model], 'findByPk', async () => data);
+    const { calls } = await generate(t, name, require('../controllers/' + moduleName)[method], model ? {} : { body: data });
+    const serial = calls.find(call => call.text === '100');
+    assert.ok(serial && serial.height < 12, `${name}: row number 100 wraps`);
+    for (let n = 1; n < 105; n += 1) {
+      const code = calls.find(call => call.text === 'STEEL-TMT-FE500D-12MM-' + n);
+      const next = calls.find(call => call.text === String(n + 1) && call.width < 30);
+      if (!code || !next || code.page !== next.page) continue;
+      assert.ok(code.y + code.height <= next.y + 0.5, `${name}: item ${n} code spills into the next row`);
+    }
+  });
+}
+for (const [name, moduleName, method, model] of [
+  ['invoice-long-work-details', 'invoiceController', 'downloadPDF', 'Invoice'],
+  ['invoice-landscape-long-work-details', 'invoiceController', 'downloadPDF', 'Invoice'],
+  ['proforma-long-work-details', 'proformaDbController', 'generatePDF', 'Proforma'],
+  ['proforma-adhoc-long-work-details', 'proformaController', 'generatePDF', null],
+]) {
+  test(`${name} continues long work details on the next page instead of under the footer`, async t => {
+    const data = account({ workDetails: description.repeat(12) + '\nEND-OF-WORK-DETAILS' });
+    if (model) t.mock.method(models[model], 'findByPk', async () => data);
+    const { calls, pdf } = await generate(t, name, require('../controllers/' + moduleName)[method],
+      model ? { query: { orientation: name.includes('landscape') ? 'landscape' : 'portrait' } } : { body: data });
+    assert.ok(pdf.getPageCount() >= 2);
+    assert.ok(calls.some(call => call.text.includes('END-OF-WORK-DETAILS')));
+  });
+}
+test('quotation without seller contact details never prints another company address', async t => {
+  t.mock.method(models.Quotation, 'findByPk', async () => account({ sellerAddress: '', sellerPhone: '', sellerEmail: '' }));
+  const { calls } = await generate(t, 'quotation-no-seller-contact', require('../controllers/quotationController').generatePDF);
+  assert.ok(!calls.some(call => /Purbachal|dhpe\.in|9876543210/.test(call.text)));
+});
+test('work order milestone columns span the table so Status is centred in its cell', async t => {
+  t.mock.method(models.WorkOrder, 'findByPk', async () => account());
+  const { calls } = await generate(t, 'work-order-columns', require('../controllers/workOrderController').generatePDF);
+  const status = calls.find(call => call.text === 'Status');
+  assert.equal(Math.round(status.x + status.width + 2), helper.X + helper.W);
+});
+test('salary slip keeps long company and employee details from overlapping', async t => {
+  const longCompany = { ...company,
+    name: 'DHARMAPURI HIGHWAY & PUBLIC ENGINEERING CONSTRUCTION AND CIVIL INFRASTRUCTURE SERVICES PRIVATE LIMITED',
+    email: 'accounts.receivable.department@dharmapuri-highway-engineering.example.co.in',
+    phone: '+91 98300 00000 / +91 33 4000 0000' };
+  t.mock.method(models.Salary, 'findByPk', async () => record({ id: 1, companyId: 2, company: longCompany, month: 10,
+    year: 2026, userId: 5, basicSalary: 912345.67, hra: 1500, conveyance: 2700, specialAllowance: 3700,
+    bonus: 2500, totalDays: 31, workedDays: 31, allowedLeave: 2, status: 'finalized',
+    user: { id: 5, companyId: 2, role: 'employee', name: 'Venkata Subramanian Lakshminarayanan Raghavendra Krishnamurthy',
+      email: 'venkata.subramanian.lakshminarayanan@dharmapuri-highway-engineering.example.co.in',
+      department: 'Highway Construction & Civil Infrastructure Project Management',
+      workLocation: 'Barasat Divisional Site Office, North 24 Parganas' } }));
+  const entries = Array.from({ length: 6 }, (_, i) => ({ date: '2026-10-0' + (i + 1), hours: 8,
+    projectId: i + 1, project: longName, workItem: 'Zone ' + i, billingType: 'Billable' }));
+  t.mock.method(models.Timesheet, 'findAll', async () => [{ entries }]);
+  const { calls, pdf } = await generate(t, 'salary-long-fields', require('../controllers/salaryController').generatePayslip);
+  assert.equal(pdf.getPageCount(), 1);
+  const at = text => calls.find(call => call.text === text);
+  const bottom = call => call.y + call.height;
+  const header = [at(longCompany.name), at(company.address), at(longCompany.phone + ' | ' + longCompany.email), at('SALARY SLIP')];
+  header.slice(1).forEach((call, i) => assert.ok(bottom(header[i]) <= call.y + 0.5, 'salary header lines overlap'));
+  const rows = ['Employee Name:', 'Department:', 'Work Location:', 'Email:', 'Pay Period:'].map(at);
+  rows.slice(1).forEach((row, i) => {
+    calls.filter(call => call.y >= rows[i].y && call.y < row.y)
+      .forEach(call => assert.ok(bottom(call) <= row.y + 0.5, 'employee details overlap the next row: ' + call.text.slice(0, 40)));
+  });
+  const work = calls.filter(call => call.text.startsWith('Repairing of footpaths'));
+  assert.ok(work.length && work.every(call => call.height < 10), 'work summary labels stay on one line');
+});
 for (const orientation of ['portrait', 'landscape']) {
   test(`R.A. bill ${orientation} preserves quantities and amount in the PDF`, async t => {
     const data = account({ isRABill: true, raBillNo: 2 });

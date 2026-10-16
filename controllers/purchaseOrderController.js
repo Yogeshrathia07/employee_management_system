@@ -11,7 +11,7 @@ const {
 const {
   M, PH, W, X, BLK, DRK, GRY, LGY, HBG, LBD, FOOTER_H,
   fmtDate, fmtINR, numWords, buildPdfFilename, createDoc, addFooters,
-  drawSectionLabel, drawSignature, drawTextSection, drawPagedTable,
+  drawSectionLabel, drawSignature, drawTextSection, drawPagedTable, serialColumnWidth,
 } = require('./pdfHelper');
 
 function genCode() { return Math.random().toString(36).substr(2,6).toUpperCase(); }
@@ -214,16 +214,18 @@ exports.generatePDF = async (req, res) => {
     y += vendorBoxH;
 
     // ── 3. ITEMS TABLE ─────────────────────────────────────────────────────────
+    const slW = serialColumnWidth({ doc }, items.length);
+    const money = value => Number(value || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     const columns = [
-      { label: 'Sl.', width: 18 }, { label: 'Description', width: 340, align: 'left' },
-      { label: 'Qty', width: 40 }, { label: 'Unit', width: 42 },
-      { label: 'Rate (Rs.)', width: 65, align: 'right' },
-      { label: 'Amount (Rs.)', width: 70, align: 'right', bold: true },
+      { label: 'Sl.', width: slW }, { label: 'Description', width: 340 - (slW - 18), align: 'left' },
+      { label: 'Qty', width: 40, fit: true }, { label: 'Unit', width: 42 },
+      { label: 'Rate (Rs.)', width: 65, align: 'right', fit: true },
+      { label: 'Amount (Rs.)', width: 70, align: 'right', bold: true, fit: true },
     ];
     const itemRows = items.map((item, index) => {
       const qty = Number(item.qty ?? item.quantity ?? 0);
       const rate = Number(item.rate ?? item.unitPrice ?? 0);
-      return [index + 1, item.name || item.description || '', qty, item.unit || '', rate.toFixed(2), (qty * rate).toFixed(2)];
+      return [index + 1, item.name || item.description || '', qty, item.unit || '', money(rate), money(qty * rate)];
     });
     y = drawPagedTable({ doc, box, fillBox, vLine, txt, txtH, checkPage }, columns, itemRows, y);
 

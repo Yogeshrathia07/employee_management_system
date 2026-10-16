@@ -14,7 +14,7 @@ const {
 const {
   M, PH, W, X, BLK, DRK, GRY, LGY, HBG, LBD, FOOTER_H,
   fmtDate, fmtINR, numWords, buildPdfFilename, createDoc, addFooters,
-  drawSectionLabel, drawSignature, drawTextSection, drawPagedTable,
+  drawSectionLabel, drawSignature, drawTextSection, drawPagedTable, serialColumnWidth,
 } = require('./pdfHelper');
 
 const DOCUMENT_UPLOAD_DIR = path.join(__dirname, '..', 'uploads', 'documents');
@@ -504,9 +504,11 @@ exports.generatePDF = async (req, res) => {
 
     // ── 4. MILESTONES TABLE (if any) ───────────────────────────────────────────
     if (milestones.length) {
+      const slW = serialColumnWidth({ doc }, milestones.length, 7.5, 20);
+      // Widths add up to the table width (W) so the Status column is centred in its own cell.
       const columns = [
-        { label: 'Sl.', width: 20 }, { label: 'Milestone', width: 265, align: 'left' },
-        { label: 'Due Date', width: 90 }, { label: 'Amount (Rs.)', width: 90, align: 'right' },
+        { label: 'Sl.', width: slW }, { label: 'Milestone', width: W - slW - 270, align: 'left' },
+        { label: 'Due Date', width: 90 }, { label: 'Amount (Rs.)', width: 90, align: 'right', fit: true },
         { label: 'Status', width: 90 },
       ];
       const milestoneRows = milestones.map((milestone, index) => [

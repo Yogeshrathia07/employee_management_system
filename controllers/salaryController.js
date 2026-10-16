@@ -615,11 +615,25 @@ exports.generatePayslip = async (req, res) => {
     const border = '#d9d9d9';
     const white = '#ffffff';
 
+    // Draws text in at most `maxLines` lines (PDFKit only applies the "…" ellipsis when a
+    // height is given) and returns the height used.
+    function boundedText(text, x, y, width, size, font, maxLines, align) {
+      doc.font(font).fontSize(size);
+      const lineH = doc.currentLineHeight(true);
+      const height = Math.min(doc.heightOfString(text, { width }), lineH * maxLines);
+      doc.text(text, x, y, { width, height: height + 0.1, ellipsis: true, align: align || 'left' });
+      return height;
+    }
+
+    // Returns the row height so long values push the next row down instead of overlapping it.
     function rowText(y, leftLabel, leftValue, rightLabel, rightValue) {
-      doc.font(fontRegular).fontSize(8).fillColor(muted).text(leftLabel, mL + 8, y);
-      doc.font(fontBold).fontSize(9).fillColor(black).text(String(leftValue || '-'), mL + 98, y, { width: 180, lineBreak: false, ellipsis: true });
-      doc.font(fontRegular).fontSize(8).fillColor(muted).text(rightLabel, 318, y);
-      doc.font(fontBold).fontSize(9).fillColor(black).text(String(rightValue || '-'), 405, y, { width: 135, lineBreak: false, ellipsis: true });
+      doc.font(fontRegular).fontSize(8).fillColor(muted).text(leftLabel, mL + 8, y, { width: 88 });
+      doc.fillColor(black);
+      const leftH = boundedText(String(leftValue || '-'), mL + 98, y, 162, 9, fontBold, 2);
+      doc.font(fontRegular).fontSize(8).fillColor(muted).text(rightLabel, 318, y, { width: 85 });
+      doc.fillColor(black);
+      const rightH = boundedText(String(rightValue || '-'), 405, y, 135, 9, fontBold, 2);
+      return Math.max(15, Math.max(leftH, rightH) + 4.6);
     }
 
     function statText(x, y, label, value) {
@@ -649,10 +663,15 @@ exports.generatePayslip = async (req, res) => {
     const companyAddress = String(company.address || '').replace(/\r/g, '').trim();
     const companyContacts = [company.phone, company.email].filter(Boolean).join(' | ');
     const companyNameY = 56;
-    doc.font(fontBold).fontSize(22).fillColor(black)
-      .text(companyName, mL, companyNameY, { width: cW, align: 'center', lineBreak: false, ellipsis: true });
+    // Long names shrink to fit one line, then wrap to at most two lines at the smallest size.
+    const nameW = cW - 20;
+    let nameSize = 22;
+    doc.font(fontBold);
+    while (nameSize > 14 && doc.fontSize(nameSize).widthOfString(companyName) > nameW) nameSize -= 1;
+    doc.fillColor(black);
+    const nameH = boundedText(companyName, mL + 10, companyNameY, nameW, nameSize, fontBold, 2, 'center');
 
-    let companyInfoY = companyNameY + 27;
+    let companyInfoY = companyNameY + Math.max(27, nameH + 2);
     if (companyAddress) {
       doc.font(fontRegular).fontSize(9);
       const addressH = Math.min(26, doc.heightOfString(companyAddress, { width: companyInfoW, align: 'center', lineGap: 1 }));
@@ -662,11 +681,8 @@ exports.generatePayslip = async (req, res) => {
       companyInfoY += addressH + 2;
     }
     if (companyContacts) {
-      doc.font(fontRegular).fontSize(9).fillColor(muted)
-        .text(companyContacts, companyInfoX, companyInfoY, {
-          width: companyInfoW, align: 'center', lineBreak: false, ellipsis: true,
-        });
-      companyInfoY += 12;
+      doc.fillColor(muted);
+      companyInfoY += boundedText(companyContacts, companyInfoX, companyInfoY, companyInfoW, 9, fontRegular, 2, 'center') + 1.65;
     }
 
     const slipTitleY = Math.max(118, companyInfoY + 8);
@@ -676,14 +692,14 @@ exports.generatePayslip = async (req, res) => {
     doc.font(fontRegular).fontSize(10).fillColor(red)
       .text(`For the month of ${monthLabel}`, mL, payMonthY, { width: cW, align: 'center' });
 
-    const employeeY = payMonthY + 26;
-    rowText(employeeY, 'Employee Name:', user.name, 'Employee ID:', employeeCode);
-    rowText(employeeY + 15, 'Department:', user.department, 'Designation:', designation);
-    rowText(employeeY + 30, 'Work Location:', user.workLocation, 'Joining Date:', joiningDate);
-    rowText(employeeY + 45, 'Email:', user.email, 'Phone:', user.phone);
-    rowText(employeeY + 60, 'Pay Period:', monthLabel, 'Monthly CTC:', cur(p.ctc));
+    let rowY = payMonthY + 26;
+    rowY += rowText(rowY, 'Employee Name:', user.name, 'Employee ID:', employeeCode);
+    rowY += rowText(rowY, 'Department:', user.department, 'Designation:', designation);
+    rowY += rowText(rowY, 'Work Location:', user.workLocation, 'Joining Date:', joiningDate);
+    rowY += rowText(rowY, 'Email:', user.email, 'Phone:', user.phone);
+    rowY += rowText(rowY, 'Pay Period:', monthLabel, 'Monthly CTC:', cur(p.ctc));
 
-    const attendanceDividerY = employeeY + 80;
+    const attendanceDividerY = rowY + 5;
     doc.moveTo(mL, attendanceDividerY).lineTo(pageR, attendanceDividerY).strokeColor(border).lineWidth(1).stroke();
     const statsY = attendanceDividerY + 10;
     statText(mL + 12, statsY, 'Total Days', days(p.totalDays));
@@ -742,7 +758,10 @@ exports.generatePayslip = async (req, res) => {
 
     doc.rect(mL + 10, y + 12, cW - 20, 38).fillColor(black).fill();
     doc.font(fontBold).fontSize(14).fillColor(white).text('NET PAY', mL + 26, y + 24);
-    doc.font(fontBold).fontSize(20).fillColor(white).text(cur(p.netSalary), pageR - 200, y + 20, { width: 172, align: 'right' });
+    const netText = cur(p.netSalary);
+    let netSize = 20;
+    while (netSize > 12 && doc.fontSize(netSize).widthOfString(netText) > 172) netSize -= 0.5;
+    doc.fontSize(netSize).fillColor(white).text(netText, pageR - 200, y + 20 + (20 - netSize) * 0.55, { width: 172, align: 'right' });
     y += 56;
 
     doc.font(fontRegular).fontSize(8).fillColor(muted)
@@ -781,9 +800,11 @@ exports.generatePayslip = async (req, res) => {
         .text('Billable Hrs', pageR - 135, y + 3, { width: 60, align: 'right' })
         .text('Hours', pageR - 70, y + 3, { width: 54, align: 'right' });
       y += 13;
+      // One line per project; the height limit is what makes PDFKit add the "…".
+      const workLabelH = doc.font(fontRegular).fontSize(7.5).currentLineHeight(true) + 0.1;
       rows.forEach(r => {
         doc.font(fontRegular).fontSize(7.5).fillColor(black)
-          .text(r.label, mL + 16, y + 2, { width: cW - 230, lineBreak: false, ellipsis: true })
+          .text(r.label, mL + 16, y + 2, { width: cW - 230, height: workLabelH, ellipsis: true })
           .text(String(r.days), pageR - 190, y + 2, { width: 50, align: 'right' })
           .text(r.billableHours.toFixed(1), pageR - 135, y + 2, { width: 60, align: 'right' })
           .text(r.hours.toFixed(1), pageR - 70, y + 2, { width: 54, align: 'right' });

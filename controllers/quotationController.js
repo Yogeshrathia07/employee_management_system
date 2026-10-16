@@ -14,7 +14,7 @@ const {
   M, W, X, BLK, GRY, HBG, LBD,
   fmtDate, fmtINR, numWords, buildPdfFilename, buildTaxSummaryLabels, createDoc, addFooters,
   roundMoney, normalizeAccountItems, deriveItemTotals,
-  drawSectionLabel, drawSignature, drawTextSection, drawPagedTable,
+  drawSectionLabel, drawSignature, drawTextSection, drawPagedTable, serialColumnWidth,
 } = require('./pdfHelper');
 
 function genCode() { return Math.random().toString(36).substr(2,6).toUpperCase(); }
@@ -367,9 +367,9 @@ exports.generatePDF = async (req, res) => {
 
     const sellerLines = [
       q.sellerName || 'Company not specified',
-      q.sellerAddress ? 'Address: ' + q.sellerAddress : 'Address: 182 / 1 Purbachal, Rahara, Khardaha, North 24 PGS, Kolkata, West Bengal, Pin-700118',
+      q.sellerAddress ? 'Address: ' + q.sellerAddress : '',
       (q.sellerPhone || q.sellerEmail)
-        ? 'Phone: ' + (q.sellerPhone || '') + (q.sellerEmail ? ' | Email: ' + q.sellerEmail : '') : 'Phone: +91-9876543210 | Email: contact@dhpe.in',
+        ? 'Phone: ' + (q.sellerPhone || '') + (q.sellerEmail ? ' | Email: ' + q.sellerEmail : '') : '',
       [
         q.sellerGstin ? 'GSTIN: ' + q.sellerGstin : '',
         q.sellerPan ? 'PAN: ' + q.sellerPan : '',
@@ -447,7 +447,7 @@ exports.generatePDF = async (req, res) => {
     }
 
     const COL = {
-      sl: 18,
+      sl: serialColumnWidth({ doc }, items.length, 7.1),
       code: contentWidth(items.map(it => it.itemCode || '').concat(['Code']), 28, 48),
       hsn: contentWidth(items.map(it => it.hsnCode || '').concat(['HSN/SAC']), 34, 58),
       unit: contentWidth(items.map(it => it.unit || '').concat(['Unit']), 26, 42),
@@ -468,11 +468,11 @@ exports.generatePDF = async (req, res) => {
     const columns = [
       { label: 'Sl.', width: COL.sl }, { label: 'Code', width: COL.code },
       { label: 'Description', width: COL.desc, align: 'left' },
-      { label: 'HSN/SAC', width: COL.hsn }, { label: 'Unit', width: COL.unit },
-      { label: 'Rate', width: COL.rate, align: 'right' }, { label: 'Qty', width: COL.qty },
-      { label: 'Tax %', width: COL.taxP },
-      { label: useIGST ? 'IGST Amt' : 'Tax Amt', width: COL.taxAmt, align: 'right' },
-      { label: 'Amount', width: COL.amt, align: 'right', bold: true },
+      { label: 'HSN/SAC', width: COL.hsn, fit: true }, { label: 'Unit', width: COL.unit },
+      { label: 'Rate', width: COL.rate, align: 'right', fit: true }, { label: 'Qty', width: COL.qty, fit: true },
+      { label: 'Tax %', width: COL.taxP, fit: true },
+      { label: useIGST ? 'IGST Amt' : 'Tax Amt', width: COL.taxAmt, align: 'right', fit: true },
+      { label: 'Amount', width: COL.amt, align: 'right', bold: true, fit: true },
     ];
     const itemRows = items.map((item, index) => [
       index + 1, item.itemCode || '', item.name || item.description || item.itemName || '-',

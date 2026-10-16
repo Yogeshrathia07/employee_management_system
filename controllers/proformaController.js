@@ -1,7 +1,9 @@
 'use strict';
 const PDFDocument = require('pdfkit');
 const { applySellerCompanySnapshot, getRequestCompany } = require('./accountsCompanyScope');
-const { buildTaxSummaryLabels, addFooters, drawSignature, drawTextSection, drawPagedTable } = require('./pdfHelper');
+const {
+  buildTaxSummaryLabels, addFooters, drawSignature, drawTextSection, drawPagedTable, drawLineBlock, numWords, serialColumnWidth,
+} = require('./pdfHelper');
 
 function fmtINR(n) {
   return 'Rs. ' + Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -12,24 +14,8 @@ function fmtDate(s) {
   if (isNaN(d)) return s;
   return ('0' + d.getDate()).slice(-2) + '/' + ('0' + (d.getMonth() + 1)).slice(-2) + '/' + d.getFullYear();
 }
-function numWords(n) {
-  const ones = ['','One','Two','Three','Four','Five','Six','Seven','Eight','Nine',
-    'Ten','Eleven','Twelve','Thirteen','Fourteen','Fifteen','Sixteen','Seventeen','Eighteen','Nineteen'];
-  const tens = ['','','Twenty','Thirty','Forty','Fifty','Sixty','Seventy','Eighty','Ninety'];
-  function toWords(num) {
-    if (num === 0) return '';
-    if (num < 20)      return ones[num] + ' ';
-    if (num < 100)     return tens[Math.floor(num/10)] + (num%10 ? ' '+ones[num%10] : '') + ' ';
-    if (num < 1000)    return ones[Math.floor(num/100)] + ' Hundred ' + toWords(num%100);
-    if (num < 100000)  return toWords(Math.floor(num/1000)) + 'Thousand ' + toWords(num%1000);
-    if (num < 10000000) return toWords(Math.floor(num/100000)) + 'Lakh ' + toWords(num%100000);
-    return toWords(Math.floor(num/10000000)) + 'Crore ' + toWords(num%10000000);
-  }
-  const intPart = Math.floor(Math.abs(n));
-  const decPart = Math.round((Math.abs(n) - intPart) * 100);
-  let result = toWords(intPart).trim() + ' Rupees';
-  if (decPart > 0) result += ' and ' + toWords(decPart).trim() + ' Paise';
-  return 'Rupees ' + result + '.';
+function cellMoney(n) {
+  return Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
 // POST /api/proformas/pdf  — accepts full proforma object in body
@@ -162,24 +148,23 @@ exports.generatePDF = async (req, res) => {
         inv.projectName?'Project Name: '+inv.projectName:'',
         inv.workDetails?'Work Details: '+inv.workDetails:'',
       ].filter(Boolean);
-      let woH=8; woLines.forEach(l=>{ woH+=txtH(l,W-14,7.5,false)+2; }); woH+=4;
-      y=checkPage(y,woH); box(X,y,W,woH,LBD);
-      let wy=y+5;
-      woLines.forEach((line,i)=>{ txt(line,X+6,wy,W-12,{size:7.5,bold:i===0,color:BLK}); wy=doc.y+1; });
-      y+=woH;
+      y = drawLineBlock({ doc, txt, txtH, box, checkPage },
+        woLines.map((text, i) => ({ text, bold: i === 0 })), y, { padX: 6 });
     }
 
     // ── 4. ITEMS TABLE ────────────────────────────────────────────────────────
+    const slW = serialColumnWidth({ doc }, items.length);
+    // Unit and Qty are wide enough for values such as "Running Metre" and "12345.678".
     const columns = [
-      { label: 'Sl.', width: 18 }, { label: 'Code', width: 32 },
-      { label: 'Description', width: showItemTaxColumns ? 207 : 294, align: 'left' },
-      { label: 'HSN/SAC', width: 36 }, { label: 'Unit', width: 28 },
-      { label: 'Rate', width: 50, align: 'right' }, { label: 'Qty', width: 32 },
+      { label: 'Sl.', width: slW }, { label: 'Code', width: 32 },
+      { label: 'Description', width: (showItemTaxColumns ? 197 : 284) - (slW - 18), align: 'left' },
+      { label: 'HSN/SAC', width: 36, fit: true }, { label: 'Unit', width: 34 },
+      { label: 'Rate', width: 50, align: 'right', fit: true }, { label: 'Qty', width: 36, fit: true },
       ...(showItemTaxColumns ? [
-        { label: 'Tax %', width: 32 },
-        { label: useIGST ? 'IGST Amt' : 'Tax Amt', width: 55, align: 'right' },
+        { label: 'Tax %', width: 32, fit: true },
+        { label: useIGST ? 'IGST Amt' : 'Tax Amt', width: 55, align: 'right', fit: true },
       ] : []),
-      { label: 'Amount', width: 85, align: 'right', bold: true },
+      { label: 'Amount', width: 85, align: 'right', bold: true, fit: true },
     ];
     const itemRows = items.map((item, index) => {
       const qty = Number(item.quantity ?? item.qty ?? 0);
@@ -189,8 +174,8 @@ exports.generatePDF = async (req, res) => {
       const tax = useIGST ? Number(item.igst ?? taxable * taxRate / 100)
         : Number(item.cgst ?? taxable * taxRate / 200) + Number(item.sgst ?? taxable * taxRate / 200);
       return [index + 1, item.itemCode || 'N/A', item.name || item.description || '',
-        item.hsnCode || '', item.unit || '', price.toFixed(2), qty,
-        ...(showItemTaxColumns ? [taxRate + '%', tax.toFixed(2)] : []), taxable.toFixed(2)];
+        item.hsnCode || '', item.unit || '', cellMoney(price), qty,
+        ...(showItemTaxColumns ? [taxRate + '%', cellMoney(tax)] : []), cellMoney(taxable)];
     });
     y = drawPagedTable({ doc, box, fillBox, vLine, txt, txtH, checkPage }, columns, itemRows, y);
 
@@ -202,21 +187,31 @@ exports.generatePDF = async (req, res) => {
       ...(useIGST?[[taxLabels.igst + ':',fmtINR(inv.totalIgst)]]:[[taxLabels.sgst + ':',fmtINR(inv.totalSgst)],[taxLabels.cgst + ':',fmtINR(inv.totalCgst)]]),
       ...(parseFloat(inv.roundOff)?[['Round Off:',fmtINR(inv.roundOff)]]:[]),
     ];
-    const sumRowH=14,sumTotalH=18,sumH=sumLines.length*sumRowH+sumTotalH;
+    const sumRowH=14,sumTotalH=18;
+    // Rows grow when a mixed-rate label such as "CGST @ 0.05%, 0.13%, ..." wraps.
+    const sumRowHeights=sumLines.map(([label,val])=>Math.max(sumRowH,txtH(label,HW/2-6,8)+5,txtH(val,HW/2-6,8)+5));
+    const sumH=sumRowHeights.reduce((sum,height)=>sum+height,0)+sumTotalH;
     const wordText=numWords(parseFloat(inv.totalAmount||0));
     const wordH=txtH(wordText,HW-16,8,false);
-    const botH=Math.max(sumH+4,wordH+28);
+    const botH=Math.max(sumH,wordH+28);
     y = checkPage(y, botH);
 
+    const totalY=y+botH-sumTotalH;
+    fillBox(X+HW,totalY,HW,sumTotalH,HBG);
     box(X,y,HW,botH,LBD); box(X+HW,y,HW,botH,LBD);
     txt('Amount in Words (This Bill):',X+6,y+5,HW-12,{size:7.5,bold:true,color:BLK});
     txt(wordText,X+6,y+18,HW-12,{size:8,color:BLK});
 
-    let sy=y+4;
-    sumLines.forEach(([label,val])=>{ hLine(sy,X+HW,X+W,LBD); txt(label,X+HW+4,sy+3,HW/2-6,{size:8,color:BLK}); txt(val,X+HW+HW/2,sy+3,HW/2-6,{size:8,align:'right',color:BLK}); sy+=sumRowH; });
-    fillBox(X+HW,sy,HW,sumTotalH,HBG);
-    txt('Total Amount:',X+HW+4,sy+4,HW/2-6,{size:9,bold:true,color:BLK});
-    txt(fmtINR(inv.totalAmount),X+HW+HW/2,sy+4,HW/2-6,{size:9,bold:true,color:BLK,align:'right'});
+    let sy=y;
+    sumLines.forEach(([label,val],i)=>{
+      txt(label,X+HW+4,sy+3,HW/2-6,{size:8,color:BLK});
+      txt(val,X+HW+HW/2,sy+3,HW/2-6,{size:8,align:'right',color:BLK});
+      sy+=sumRowHeights[i];
+      if (i<sumLines.length-1) hLine(sy,X+HW,X+W,LBD);
+    });
+    hLine(totalY,X+HW,X+W,LBD);
+    txt('Total Amount:',X+HW+4,totalY+4,HW/2-6,{size:9,bold:true,color:BLK});
+    txt(fmtINR(inv.totalAmount),X+HW+HW/2,totalY+4,HW/2-6,{size:9,bold:true,color:BLK,align:'right'});
     y+=botH;
 
     // ── 6. PAYMENT TERMS ─────────────────────────────────────────────────────

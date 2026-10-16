@@ -79,6 +79,7 @@ function fmtINR(n) {
   return 'Rs. ' + Number(n||0).toLocaleString('en-IN', { minimumFractionDigits:2, maximumFractionDigits:2 });
 }
 
+// e.g. "Rupees Six Thousand Six Hundred Eight and Fifty Paise Only"
 function numWords(n) {
   const ones = ['','One','Two','Three','Four','Five','Six','Seven','Eight','Nine',
     'Ten','Eleven','Twelve','Thirteen','Fourteen','Fifteen','Sixteen','Seventeen','Eighteen','Nineteen'];
@@ -92,11 +93,13 @@ function numWords(n) {
     if (num < 10000000) return toWords(Math.floor(num/100000))  + 'Lakh '     + toWords(num%100000);
     return               toWords(Math.floor(num/10000000)) + 'Crore ' + toWords(num%10000000);
   }
-  const intPart = Math.floor(Math.abs(n));
-  const decPart = Math.round((Math.abs(n) - intPart) * 100);
-  let result = toWords(intPart).trim() + ' Rupees';
+  // Work in whole paise so values such as 9.999 round to the next rupee, not "One Hundred Paise".
+  const paise = Math.round(Math.abs(Number(n) || 0) * 100);
+  const intPart = Math.floor(paise / 100);
+  const decPart = paise % 100;
+  let result = 'Rupees ' + (toWords(intPart).trim() || 'Zero');
   if (decPart > 0) result += ' and ' + toWords(decPart).trim() + ' Paise';
-  return 'Rupees ' + result + '.';
+  return result + ' Only';
 }
 
 function pdfSafePart(value) {
@@ -452,18 +455,31 @@ function drawDetailRows(h, rows, y, options = {}) {
   return y;
 }
 
+// Columns may set `fit: true` (with an optional `minSize`) so a single token such as
+// a number or code shrinks to its column instead of being broken across lines.
 function drawPagedTable(h, columns, rows, y, options = {}) {
   const size = options.size || 7.5;
-  const headerH = options.headerHeight || 14;
-  const minRowH = Math.max(16, h.txtH('Ag', 100, size) + 8);
+  // A label that wraps onto two lines makes the header row taller; labels stay vertically centred.
+  const labelH = columns.map(column => h.txtH(column.label, column.width - 4, 6.3, true));
+  const headerH = Math.max(options.headerHeight || 14, Math.ceil(Math.max(...labelH) + 5));
+  const minRowH = Math.max(16, h.txtH('Ag', 100, size) + 6);
   const pageBottom = PH - M - FOOTER_H;
+  function cellSize(value, column) {
+    if (!column.fit || !value || /\s/.test(value)) return size;
+    const minSize = column.minSize || 5.8;
+    let fitted = size;
+    h.doc.font(column.bold ? 'Helvetica-Bold' : 'Helvetica');
+    while (fitted > minSize && h.doc.fontSize(fitted).widthOfString(value) > column.width - 6) fitted -= 0.2;
+    return Math.max(minSize, fitted);
+  }
+  const textH = (value, i, cellFont) => h.txtH(value, columns[i].width - 6, cellFont, columns[i].bold);
   function header() {
     h.fillBox(X, y, W, headerH, HBG);
     h.box(X, y, W, headerH, LBD);
     let x = X;
-    columns.forEach(column => {
+    columns.forEach((column, i) => {
       h.vLine(x, y, y + headerH, LBD);
-      h.txt(column.label, x + 2, y + 3, column.width - 4, { size: 6.3, bold: true, align: 'center', color: BLK });
+      h.txt(column.label, x + 2, y + (headerH - labelH[i]) / 2 + 1, column.width - 4, { size: 6.3, bold: true, align: 'center', color: BLK });
       x += column.width;
     });
     y += headerH;
@@ -473,21 +489,22 @@ function drawPagedTable(h, columns, rows, y, options = {}) {
   header();
   rows.forEach((values, rowIndex) => {
     let remaining = values.map(value => String(value ?? ''));
+    const sizes = remaining.map((value, i) => cellSize(value, columns[i]));
     do {
-      const fullH = Math.max(minRowH, ...remaining.map((value, i) => h.txtH(value, columns[i].width - 6, size, columns[i].bold) + 8));
+      const fullH = Math.max(minRowH, ...remaining.map((value, i) => textH(value, i, sizes[i]) + 6));
       const needed = fullH <= pageBottom - M - headerH ? fullH : minRowH;
       if (y + needed > pageBottom) { h.doc.addPage(); y = M; header(); }
       const segments = remaining.map((value, i) => value
-        ? splitTextToFit(h, value, columns[i].width - 6, pageBottom - y - 8, size, columns[i].bold)
+        ? splitTextToFit(h, value, columns[i].width - 6, pageBottom - y - 6, sizes[i], columns[i].bold)
         : ['', '']);
-      const rowH = Math.max(minRowH, ...segments.map(([value], i) => h.txtH(value, columns[i].width - 6, size, columns[i].bold) + 8));
+      const rowH = Math.max(minRowH, ...segments.map(([value], i) => textH(value, i, sizes[i]) + 6));
       if (rowIndex % 2 === 0) h.fillBox(X, y, W, rowH, '#fafafa');
       h.box(X, y, W, rowH, LBD);
       let x = X;
       columns.forEach((column, i) => {
         h.vLine(x, y, y + rowH, LBD);
-        h.txt(segments[i][0], x + 3, y + 3, column.width - 6,
-          { size, bold: column.bold, align: column.align || 'center', color: BLK });
+        h.txt(segments[i][0], x + 3, y + 4, column.width - 6,
+          { size: sizes[i], bold: column.bold, align: column.align || 'center', color: BLK });
         x += column.width;
       });
       y += rowH;
@@ -495,6 +512,50 @@ function drawPagedTable(h, columns, rows, y, options = {}) {
     } while (remaining.some(Boolean));
   });
   return y;
+}
+
+// Sl. column wide enough to keep the largest row number ("100", "1000") on one line.
+function serialColumnWidth(h, count, size = 7.5, min = 18) {
+  h.doc.font('Helvetica').fontSize(size);
+  return Math.max(min, Math.ceil(h.doc.widthOfString(String(Math.max(1, count || 0))) + 7));
+}
+
+// Bordered block of lines (work order / project details). Long text continues on the
+// next page in a new box instead of running through the footer. `lines` items are
+// { text, bold }; width defaults to the portrait content width.
+function drawLineBlock(h, lines, y, options = {}) {
+  const width = options.width || W;
+  const size = options.size || 7.5;
+  const padX = options.padX || 5;
+  const textW = width - padX * 2;
+  const items = lines
+    .map(line => ({ text: String(line.text ?? '').trim(), bold: !!line.bold }))
+    .filter(line => line.text);
+  if (!items.length) return y;
+  const oneLine = item => h.txtH('Ag', textW, size, item.bold);
+  y = h.checkPage(y, oneLine(items[0]) + 8);
+  let top = y;
+  let ty = y + 4;
+  const closeBox = () => h.box(X, top, width, ty - top + 3);
+  items.forEach(item => {
+    let remaining = item.text;
+    while (remaining) {
+      const available = h.doc.page.height - M - FOOTER_H - ty - 4;
+      if (available < oneLine(item)) {
+        closeBox();
+        h.doc.addPage();
+        top = M;
+        ty = M + 4;
+        continue;
+      }
+      const [part, rest] = splitTextToFit(h, remaining, textW, available, size, item.bold);
+      h.txt(part, X + padX, ty, textW, { size, bold: item.bold, color: BLK });
+      ty += h.txtH(part, textW, size, item.bold) + 0.5;
+      remaining = rest;
+    }
+  });
+  closeBox();
+  return ty + 3;
 }
 
 // ── Standard header box: company info (left) | doc meta (right) ───────────────
@@ -585,5 +646,6 @@ module.exports = {
   roundMoney, normalizeAccountItems, deriveItemTotals,
   drawHeader, drawSectionLabel, drawSignature, signatureLayout,
   drawTextSection, drawDetailRows, drawPagedTable, splitTextToFit, confidentialityText,
+  serialColumnWidth, drawLineBlock,
   resolveUnicodeFonts, useUnicodeFonts,
 };

@@ -14,7 +14,7 @@ const {
   M, PH, W, X, BLK, DRK, GRY, LGY, HBG, LBD, FOOTER_H,
   fmtDate, fmtINR, numWords, buildPdfFilename, buildTaxSummaryLabels, createDoc, addFooters,
   roundMoney, normalizeAccountItems, deriveItemTotals,
-  drawSectionLabel, drawSignature, drawTextSection,
+  drawSectionLabel, drawSignature, drawTextSection, drawLineBlock,
 } = require('./pdfHelper');
 
 function genCode() { return Math.random().toString(36).substr(2,6).toUpperCase(); }
@@ -386,22 +386,11 @@ exports.generatePDF = async (req, res) => {
 
     // ── 3. WORK ORDER / PROJECT (optional) ─────────────────────────────────────
     if (p.workOrder || p.projectName || p.workDetails) {
-      const woLines = [
-        p.workOrder   ? 'Work Order: '+p.workOrder : '',
-        p.projectName ? 'Project Name: '+p.projectName : '',
-        p.workDetails ? 'Work Details: '+p.workDetails : '',
-      ].filter(Boolean);
-      let woH = 5;
-      woLines.forEach(l => { woH += txtH(l, W-12, 7.5) + 1.5; });
-      woH += 3;
-      y = checkPage(y, woH);
-      box(X, y, W, woH, LBD);
-      let wy = y+4;
-      woLines.forEach((line,i) => {
-        txt(line, X+5, wy, W-10, { size:7.5, bold:i===0||line.startsWith('Project'), color:BLK });
-        wy = doc.y+0.5;
-      });
-      y += woH;
+      y = drawLineBlock({ doc, txt, txtH, box, checkPage }, [
+        { text: p.workOrder ? 'Work Order: '+p.workOrder : '', bold: true },
+        { text: p.projectName ? 'Project Name: '+p.projectName : '', bold: true },
+        { text: p.workDetails ? 'Work Details: '+p.workDetails : '' },
+      ], y);
     }
 
     // ── 4. ITEMS TABLE ─────────────────────────────────────────────────────────
@@ -497,9 +486,11 @@ exports.generatePDF = async (req, res) => {
               : cellMoney(parseFloat(it.cgst || 0) + parseFloat(it.sgst || 0))
     ).concat(['Tax Amt']);
 
+    // Sl. grows with the item count so "100" or "1000" never wraps inside its row.
+    const slW = dynW(items.map((_, i) => String(i + 1)), 18, 34, 7.4, false, 7);
     const COL = !showItemTaxColumns
       ? fitLayout({
-          sl: 18,
+          sl: slW,
           code: dynW(codeTexts, 28, 50, 7.1, false, 8),
           hsn: dynW(hsnTexts, 34, 58, 7.1, false, 8),
           unit: dynW(unitTexts, 26, 44, 7.1, false, 8),
@@ -515,9 +506,9 @@ exports.generatePDF = async (req, res) => {
           { key: 'qty', min: 22 },
         ])
       : fitLayout({
-          sl: 18,
+          sl: slW,
           code: dynW(codeTexts, 26, 48, 7.1, false, 8),
-          hsn: dynW(hsnTexts, 32, 54, 7.1, false, 8),
+          hsn: dynW(hsnTexts, 34, 54, 7.1, false, 8),
           unit: dynW(unitTexts, 26, 42, 7.1, false, 8),
           qty: dynW(qtyTexts, 20, 34, 7.1, false, 8),
           rate: dynW(priceTexts, 40, 66, 7.1, false, 10),
@@ -528,17 +519,43 @@ exports.generatePDF = async (req, res) => {
           { key: 'amt', min: 78 },
           { key: 'taxAmt', min: 48 },
           { key: 'rate', min: 40 },
-          { key: 'hsn', min: 32 },
+          { key: 'hsn', min: 34 },
           { key: 'unit', min: 26 },
           { key: 'code', min: 26 },
           { key: 'qty', min: 20 },
           ...(showTaxPercent ? [{ key: 'taxP', min: 22 }] : []),
         ]);
 
+    // Numbers never wrap: when a numeric column cannot hold its widest value even at
+    // the smallest cell font, widen it and take the space from Description.
+    function reserveWidth(key, values, minSize, bold) {
+      if (!COL[key]) return;
+      const need = Math.ceil(values.reduce((mx, v) => Math.max(mx, textW(v, minSize, bold)), 0) + 7);
+      if (need > COL[key]) { COL.desc -= need - COL[key]; COL[key] = need; }
+    }
+    reserveWidth('hsn', hsnTexts.slice(0, -1), 5.6, false);
+    reserveWidth('rate', priceTexts.slice(0, -1), 5.8, false);
+    reserveWidth('qty', qtyTexts.slice(0, -1), 5.8, false);
+    if (showItemTaxColumns) {
+      if (showTaxPercent) reserveWidth('taxP', taxPctTexts.slice(0, -1), 5.8, false);
+      reserveWidth('taxAmt', taxAmtTexts.slice(0, -1), 5.8, false);
+    }
+    reserveWidth('amt', amtTexts.slice(0, -1), 5.6, true);
+
     const ROW_H = 14;
     const DATA_ROW_MIN = 16;
     const LINE_H = 8;
     const SEC_H = 11;
+    const headCols = [
+      ['Sl.', COL.sl], ['Code', COL.code], ['Description', COL.desc], ['HSN/SAC', COL.hsn],
+      ['Unit', COL.unit], ['Rate', COL.rate], ['Qty', COL.qty],
+      ...(showItemTaxColumns
+        ? [...(showTaxPercent ? [['Tax %', COL.taxP]] : []), [useIGST ? 'IGST Amt' : 'Tax Amt', COL.taxAmt]]
+        : []),
+      ['Amount', COL.amt],
+    ];
+    const headLabelH = headCols.map(([label, w]) => txtH(label, w - 4, 6.3, true));
+    const HEAD_H = Math.max(ROW_H, Math.ceil(Math.max(...headLabelH) + 5));
 
     function drawProHeader(startY, withLabel) {
       let hy = startY;
@@ -548,25 +565,28 @@ exports.generatePDF = async (req, res) => {
         txt('Item Details', X+5, hy+2, W-10, { size:7.5, bold:true, color:BLK });
         hy += SEC_H;
       }
-      fillBox(X, hy, W, ROW_H, HBG);
-      box(X, hy, W, ROW_H, LBD);
+      fillBox(X, hy, W, HEAD_H, HBG);
+      box(X, hy, W, HEAD_H, LBD);
       let hx = X;
-      function th(label, w) {
-        vLine(hx, hy, hy+ROW_H, LBD);
-        txt(label, hx+2, hy+3, w-4, { size:6.3, bold:true, color:BLK, align:'center' });
+      headCols.forEach(([label, w], i) => {
+        vLine(hx, hy, hy+HEAD_H, LBD);
+        txt(label, hx+2, hy+(HEAD_H-headLabelH[i])/2+1, w-4, { size:6.3, bold:true, color:BLK, align:'center' });
         hx += w;
-      }
-      th('Sl.', COL.sl); th('Code', COL.code); th('Description', COL.desc);
-      th('HSN/SAC', COL.hsn); th('Unit', COL.unit); th('Rate', COL.rate); th('Qty', COL.qty);
-      if (showItemTaxColumns) {
-        if (showTaxPercent) th('Tax %', COL.taxP);
-        th(useIGST ? 'IGST Amt' : 'Tax Amt', COL.taxAmt);
-      }
-      th('Amount', COL.amt);
-      return hy + ROW_H;
+      });
+      return hy + HEAD_H;
     }
 
-    y = checkPage(y, SEC_H + ROW_H + DATA_ROW_MIN);
+    // Every column except Description is drawn once, on an item's first row; its
+    // height is measured up front so a wrapped code or unit grows the row instead of
+    // spilling into the next one.
+    function cellSpec(text, w, opts) {
+      const o = Object.assign({ size:7.4, align:'center' }, opts||{});
+      const raw = String(text ?? '').trim();
+      const size = o.fit ? fitTextSize(raw, w - 6, o.size, o.minSize || 6.2, !!o.bold) : o.size;
+      return { raw, w, opts: { size, bold: !!o.bold, align: o.align }, height: raw ? txtH(raw, w - 6, size, !!o.bold) : 0 };
+    }
+
+    y = checkPage(y, SEC_H + HEAD_H + DATA_ROW_MIN);
     y = drawProHeader(y, true);
 
     items.forEach((it, idx) => {
@@ -581,50 +601,49 @@ exports.generatePDF = async (req, res) => {
       const itemCode  = String(it.itemCode || '').trim();
       const descText  = String(it.name || it.description || it.itemName || '').trim() || '-';
       const descLns   = wrapLines(descText, COL.desc - 10, 7.1, false);
+      // In drawing order; null marks the Description column.
+      const cells = [
+        cellSpec(idx + 1, COL.sl),
+        cellSpec(itemCode, COL.code, { fit:true, minSize:5.6 }),
+        null,
+        cellSpec(it.hsnCode, COL.hsn, { fit:true, minSize:5.6 }),
+        cellSpec(it.unit, COL.unit, { fit:true, minSize:5.6 }),
+        cellSpec(cellMoney(price), COL.rate, { align:'right', fit:true, minSize:5.8 }),
+        cellSpec(qty % 1 === 0 ? String(qty) : qty.toFixed(3), COL.qty, { fit:true, minSize:5.8 }),
+        ...(showItemTaxColumns ? [
+          ...(showTaxPercent ? [cellSpec(taxRate.toFixed(0) + '%', COL.taxP, { fit:true, minSize:5.8 })] : []),
+          cellSpec(cellMoney(useIGST ? igstAmt : cgstAmt + sgstAmt), COL.taxAmt, { align:'right', fit:true, minSize:5.8 }),
+        ] : []),
+        cellSpec(cellMoney(taxable), COL.amt, { align:'right', bold:true, size:7.2, fit:true, minSize:5.6 }),
+      ];
+      const firstRowMin = Math.max(DATA_ROW_MIN, ...cells.map(cell => (cell ? cell.height + 6 : 0)));
       let lineIdx = 0, firstSeg = true;
 
       while (lineIdx < descLns.length) {
+        const minRowH = firstSeg ? firstRowMin : DATA_ROW_MIN;
         let avail = PH - M - FOOTER_H - y;
-        if (avail < DATA_ROW_MIN) { doc.addPage(); y = drawProHeader(M, false); avail = PH - M - FOOTER_H - y; }
+        if (avail < minRowH) { doc.addPage(); y = drawProHeader(M, false); avail = PH - M - FOOTER_H - y; }
         const segCount = Math.min(descLns.length - lineIdx, Math.max(1, Math.floor((avail - 6) / LINE_H)));
         if (!segCount) { doc.addPage(); y = drawProHeader(M, false); continue; }
-        const rowH = Math.max(DATA_ROW_MIN, segCount * LINE_H + 6);
+        const rowH = Math.max(minRowH, segCount * LINE_H + 6);
 
         if ((idx + (firstSeg ? 0 : 1)) % 2 === 0) fillBox(X, y, W, rowH, '#fafafa');
         box(X, y, W, rowH, LBD);
 
         let dcx = X;
-        function td(text, w, opts) {
-          vLine(dcx, y, y+rowH, LBD);
-          const to = Object.assign({ size:7.4, align:'center', lineGap:0.5 }, opts||{});
-          const raw = String(text || '');
-          const size = to.fit ? fitTextSize(raw, w - 6, to.size, to.minSize || 6.2, !!to.bold) : to.size;
-          txt(raw, dcx+3, y+3, w-6, Object.assign({}, to, { size }));
-          dcx += w;
-        }
-        function tdDesc(lns, w) {
-          vLine(dcx, y, y+rowH, LBD);
-          lns.forEach((line, i) => {
-            txt(line, dcx+3, y+3+(i*LINE_H), w-6, { size:7.1, align:'left', lineGap:0, color:DRK });
-          });
-          dcx += w;
-        }
-
         const seg = descLns.slice(lineIdx, lineIdx + segCount);
-        td(firstSeg ? idx + 1 : '',                                 COL.sl);
-        td(firstSeg ? itemCode : '',                                COL.code, { fit:true, minSize:5.6, lineBreak:false, ellipsis:true });
-        tdDesc(seg,                                                 COL.desc);
-        td(firstSeg ? (it.hsnCode || '') : '',                     COL.hsn, { fit:true, minSize:5.6, lineBreak:false, ellipsis:true });
-        td(firstSeg ? (it.unit || '') : '',                        COL.unit, { fit:true, minSize:5.6, lineBreak:false, ellipsis:true });
-        td(firstSeg ? cellMoney(price) : '',                       COL.rate, { align:'right', fit:true, minSize:5.8, lineBreak:false });
-        td(firstSeg ? (qty % 1 === 0 ? qty : qty.toFixed(3)) : '', COL.qty, { fit:true, minSize:5.8, lineBreak:false });
-        if (showItemTaxColumns) {
-          if (showTaxPercent) {
-            td(firstSeg ? taxRate.toFixed(0) + '%' : '', COL.taxP, { fit:true, minSize:5.8, lineBreak:false });
+        cells.forEach(cell => {
+          vLine(dcx, y, y+rowH, LBD);
+          if (!cell) {
+            seg.forEach((line, i) => {
+              txt(line, dcx+3, y+3+(i*LINE_H), COL.desc-6, { size:7.1, align:'left', lineGap:0, color:DRK });
+            });
+            dcx += COL.desc;
+            return;
           }
-          td(firstSeg ? cellMoney(useIGST ? igstAmt : cgstAmt + sgstAmt) : '', COL.taxAmt, { align:'right', fit:true, minSize:5.8, lineBreak:false });
-        }
-        td(firstSeg ? cellMoney(taxable) : '', COL.amt, { align:'right', bold:true, size:7.2, fit:true, minSize:5.6, lineBreak:false });
+          if (firstSeg && cell.raw) txt(cell.raw, dcx+3, y+3, cell.w-6, cell.opts);
+          dcx += cell.w;
+        });
 
         y += rowH;
         lineIdx += segCount;
