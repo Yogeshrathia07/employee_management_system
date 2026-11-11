@@ -154,7 +154,10 @@
           </div>
           <div class="form-row">
             <div class="form-group"><label class="form-label">Travel Allow. (TA)</label><input type="number" id="u-ta" class="form-control" min="0" value="0" oninput="calcUserCTC()"></div>
-            <div class="form-group"></div>
+            <div class="form-group"><label class="form-label" for="u-esic">ESIC Applicable</label>
+              <select id="u-esic" class="form-control" aria-describedby="u-esic-help"><option value="false">No</option><option value="true">Yes</option></select>
+              <small id="u-esic-help" style="color:var(--text-muted);font-size:11px;">0.75% deducted while monthly CTC is ₹21,000 or less</small>
+            </div>
           </div>
           <div class="form-row">
             <div class="form-group"><label class="form-label">PF Applicable</label>
@@ -251,6 +254,7 @@ function resetSalaryFields() {
     document.getElementById(id).value = 0;
   });
   document.getElementById('u-pf').value = 'true';
+  document.getElementById('u-esic').value = 'false';
   document.getElementById('sal-section').style.display = 'none';
   document.getElementById('sal-toggle-icon').textContent = '▼ Expand';
 }
@@ -265,6 +269,7 @@ function fillSalaryFields(u) {
   document.getElementById('u-bonus').value   = u.bonus              || 0;
   document.getElementById('u-ta').value      = u.ta                 || 0;
   document.getElementById('u-pf').value      = u.pfApplicable === false ? 'false' : 'true';
+  document.getElementById('u-esic').value    = u.esicApplicable ? 'true' : 'false';
   document.getElementById('u-currency').value = u.currency || (function(){ var usr=getUser(); return (usr&&usr.company&&usr.company.currency)||'INR'; })();
   calcUserCTC();
   // Auto-expand if any value is set
@@ -434,6 +439,7 @@ async function saveUser() {
     bonus:            parseFloat(document.getElementById('u-bonus').value)     || 0,
     ta:               parseFloat(document.getElementById('u-ta').value)        || 0,
     pfApplicable:     document.getElementById('u-pf').value === 'true',
+    esicApplicable:   document.getElementById('u-esic').value === 'true',
     currency:         document.getElementById('u-currency').value || 'INR',
   };
   var pass = document.getElementById('u-pass').value;

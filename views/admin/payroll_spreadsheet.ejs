@@ -77,7 +77,7 @@
               <div>
                 <div class="payroll-howto-title"><i class="bx bx-list-ol"></i> Payslip process</div>
                 <ol>
-                  <li><b>Salary structure</b> — set Basic, DA, HRA, Conveyance, Medical, Special, Bonus, TA, PF applicable and allowed leave per month in <b>Employees → Edit → Salary Structure</b>.</li>
+                  <li><b>Salary structure</b> — set Basic, DA, HRA, Conveyance, Medical, Special, Bonus, TA, PF applicable, ESIC applicable and allowed leave per month in <b>Employees → Edit → Salary Structure</b>.</li>
                   <li><b>Leave &amp; timesheets</b> — approve leave in Leave Management (approved leave days are pulled in automatically). Approved timesheet hours per project / work item are printed on the payslip.</li>
                   <li><b>Generate</b> — pick month &amp; year and click <b>Generate All</b> (or <b>Add Employee</b>). One <b>Draft</b> record is created per employee.</li>
                   <li><b>Review</b> — edit the Draft row (worked days, PF, profession tax, TDS, salary advance, deduction) and <b>Save</b>.</li>
@@ -95,7 +95,8 @@
                   <tr><td>Conv. Working</td><td>Conveyance ÷ Total Days × Worked Days (rounded to ₹10)</td></tr>
                   <tr><td>Gross Salary</td><td>Basic + DA + HRA + Conv. Working + Medical + Special + Bonus + TA</td></tr>
                   <tr><td>Absent / LOP Ded.</td><td>(CTC − Conveyance) ÷ Total Days × (Total Days − Worked Days), rounded to ₹10 — or the manual “Deduction (₹)” if entered</td></tr>
-                  <tr><td>Total Deductions</td><td>PF + Profession Tax + TDS + Salary Advance + Absent / LOP Ded.</td></tr>
+                  <tr><td>ESIC</td><td>0.75% of (Gross Salary − Absent / LOP Ded.), rounded up to the next rupee — when ESIC is applicable and CTC is ₹21,000 or less. The company pays 3.25% on top (Employer ESIC, not deducted).</td></tr>
+                  <tr><td>Total Deductions</td><td>PF + ESIC + Profession Tax + TDS + Salary Advance + Absent / LOP Ded.</td></tr>
                   <tr><td><b>Net Pay</b></td><td><b>Gross Salary − Total Deductions</b></td></tr>
                   <tr><td>PF default</td><td>12% of (Basic + DA), max ₹1,800 when PF is applicable</td></tr>
                 </table>
@@ -170,6 +171,7 @@
                 <col style="width:68px">   <!-- TA -->
                 <col style="width:96px">   <!-- Total Gross -->
                 <col style="width:88px">   <!-- PF Contrib -->
+                <col style="width:76px">   <!-- ESIC (auto) -->
                 <col style="width:84px">   <!-- Prof Tax -->
                 <col style="width:65px">   <!-- TDS -->
                 <col style="width:92px">   <!-- Salary Adv -->
@@ -181,6 +183,8 @@
                 <col style="width:62px">   <!-- Prefix -->
                 <col style="width:118px">  <!-- Auth Sign -->
                 <col style="width:90px">   <!-- PF Applicable -->
+                <col style="width:96px">   <!-- ESIC Applicable -->
+                <col style="width:96px">   <!-- Employer ESIC (auto) -->
                 <col style="width:92px">   <!-- Med Bill Sub -->
                 <col style="width:92px">   <!-- Med Bill Amt -->
                 <col style="width:128px">  <!-- Company Name -->
@@ -192,9 +196,9 @@
                   <th rowspan="2" class="col-edit-hdr"><i class="bx bx-edit" style="font-size:14px;"></i></th>
                   <th colspan="10" style="background:#1e3a8a;">Employee Details &amp; Attendance</th>
                   <th colspan="10" class="h-gross">TOTAL GROSS SALARY</th>
-                  <th colspan="6"  class="h-ded">TOTAL DEDUCTIONS</th>
+                  <th colspan="8"  class="h-ded">TOTAL DEDUCTIONS</th>
                   <th rowspan="2" style="background:#4c1d95;color:#fff;min-width:72px;">NET<br>PAYABLE</th>
-                  <th colspan="7"  class="h-extra">Additional Details</th>
+                  <th colspan="9"  class="h-extra">Additional Details</th>
                 </tr>
                 <tr>
                   <!-- Employee details -->
@@ -221,6 +225,7 @@
                   <th class="h-gross" style="background:#14532d;">TOTAL GROSS</th>
                   <!-- Deductions -->
                   <th class="h-ded">PF Contrib.</th>
+                  <th class="h-ded" title="0.75% of wages earned, when ESIC applies">ESIC</th>
                   <th class="h-ded">Prof. Tax</th>
                   <th class="h-ded">TDS</th>
                   <th class="h-ded">Salary Adv.</th>
@@ -232,6 +237,8 @@
                   <th class="h-extra">Prefix</th>
                   <th class="h-extra">Auth. Signatory</th>
                   <th class="h-extra">PF Applicable</th>
+                  <th class="h-extra">ESIC Applicable</th>
+                  <th class="h-extra" title="3.25% paid by the company on top of salary, not deducted">Employer ESIC</th>
                   <th class="h-extra">Med. Bill Sub.</th>
                   <th class="h-extra">Med. Bill Amt</th>
                   <th class="h-extra">Company Name</th>

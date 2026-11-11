@@ -82,7 +82,7 @@ class PayrollApp {
       const list = await api('GET', '/companies');
       this._companies = Array.isArray(list) ? list : [];
       companySelect.innerHTML = '<option value="">Select company</option>' +
-        this._companies.map(c => `<option value="${c.id}">${this._esc(c.name || `Company ${c.id}`)}</option>`).join('');
+        this._companies.map(companyOptionHtml).join('');
       this.currentCompanyId = this.currentUser?.companyId || this.currentUser?.company?.id || (this._companies[0]?.id || null);
       if (this.currentCompanyId) companySelect.value = String(this.currentCompanyId);
     } catch (e) {
@@ -175,6 +175,8 @@ class PayrollApp {
       prefix: user.gender === 'female' ? 'Ms' : 'Mr',
       authorizedSignatory: user.company?.authorizedSignatory || 'Director',
       pfApplicable: user.pfApplicable ? 'Yes' : 'No',
+      // Stored on the salary record, so a past month keeps the ESIC it was paid with.
+      esicApplicable: salary.esicApplicable ? 'Yes' : 'No',
       medicalBillSubmitted: salary.medicalBillAmount > 0 ? 'Yes' : 'No',
       medicalBillAmount: salary.medicalBillAmount || 0,
       companyName: user.company?.name || user.companyName || 'DHPE',
@@ -207,7 +209,7 @@ class PayrollApp {
       manualDeductionAmount: 0, absentDeduction: 0,
       presentDays: 0, absentDays: 0,
       gender: '', prefix: 'Mr', authorizedSignatory: 'Director',
-      pfApplicable: 'Yes', medicalBillSubmitted: 'No',
+      pfApplicable: 'Yes', esicApplicable: 'No', medicalBillSubmitted: 'No',
       medicalBillAmount: 0, companyName: 'DHPE',
     });
   }
@@ -228,7 +230,12 @@ class PayrollApp {
       pfContribution: r.pfContribution, professionTax: r.professionTax, tds: r.tds,
       salaryAdvance: r.salaryAdvance, manualDeductionAmount: r.manualDeductionAmount,
       applyAbsentDeduction: r.applyAbsentDeduction,
+      esicApplicable: r.esicApplicable,
     });
+  }
+  _esicTitle(calc) {
+    if (calc.esicAboveLimit) return `CTC is above the ₹${PayrollCalc.ESIC.wageLimit.toLocaleString('en-IN')} ESIC limit, so no ESIC is deducted`;
+    return calc.esicApplicable ? `0.75% of ₹${calc.esicWages.toLocaleString('en-IN')} wages earned` : 'ESIC not applicable';
   }
   // Maximum payable days: total days minus leave beyond the allowance
   _calcMaxWd(r) { return this._calc(r).maxWorkedDays; }
@@ -282,6 +289,7 @@ class PayrollApp {
     r.ta              = emp.ta || 0;
     r.allowedLeave    = emp.allowedLeavePerMonth != null ? emp.allowedLeavePerMonth : 2;
     r.pfApplicable    = emp.pfApplicable ? 'Yes' : 'No';
+    r.esicApplicable  = emp.esicApplicable ? 'Yes' : 'No';
     const g = emp.gender || '';
     r.gender = g && g !== 'unspecified' ? g.charAt(0).toUpperCase() + g.slice(1).toLowerCase() : '';
     r.companyName     = emp.company?.name || r.companyName || 'DHPE';
@@ -310,7 +318,7 @@ class PayrollApp {
       if (el) el.value = r[f] ?? '';
     }
     // Update selects
-    for (const f of ['pfApplicable','gender','applyAbsentDeduction']) {
+    for (const f of ['pfApplicable','esicApplicable','gender','applyAbsentDeduction']) {
       const el = document.querySelector(`select[data-row="${r.id}"][data-field="${f}"]`);
       if (el) el.value = r[f] ?? '';
     }
@@ -339,6 +347,10 @@ class PayrollApp {
     set('ctc',         calc.ctc);
     set('convWorking', calc.conveyanceWorking);
     set('totalGross',  calc.grossSalary);
+    set('esic',        calc.esic);
+    set('employerEsic', calc.employerEsic);
+    const esicEl = document.querySelector(`[data-row="${rowId}"][data-field="esic"]`);
+    if (esicEl) esicEl.title = this._esicTitle(calc);
     set('absentDeduction', calc.absentDeduction);
     set('totalDed',    calc.totalDeductions);
     set('netPay',      calc.netSalary);
@@ -363,6 +375,7 @@ class PayrollApp {
     };
 
     const locked = r.status === 'finalized' || r.status === 'paid';
+    const calc = this._calc(r);
     return `<tr data-dbrow="${r.id}"${locked ? ' class="row-locked"' : ''}>
       <td class="sl-col">${sl}</td>
       <td class="del-col">${locked
@@ -398,6 +411,7 @@ class PayrollApp {
       <td class="gross-zone">${n('ta','number',r.ta)}</td>
       <td class="gross-zone">${au('totalGross',this._tg(r),'auto-green')}</td>
       <td class="ded-zone">${n('pfContribution','number',r.pfContribution)}</td>
+      <td class="ded-zone" title="${this._esc(this._esicTitle(calc))}">${au('esic',calc.esic,'auto-red')}</td>
       <td class="ded-zone">${n('professionTax','number',r.professionTax)}</td>
       <td class="ded-zone">${n('tds','number',r.tds)}</td>
       <td class="ded-zone">${n('salaryAdvance','number',r.salaryAdvance)}</td>
@@ -409,6 +423,8 @@ class PayrollApp {
       <td>${sel('prefix',['Mr','Mrs','Ms','Dr'])}</td>
       <td>${n('authorizedSignatory')}</td>
       <td>${sel('pfApplicable',['Yes','No'])}</td>
+      <td>${sel('esicApplicable',['No','Yes'])}</td>
+      <td title="Paid by the company on top of salary (3.25%), not deducted">${au('employerEsic',calc.employerEsic)}</td>
       <td>${sel('medicalBillSubmitted',['No','Yes'])}</td>
       <td>${n('medicalBillAmount','number',r.medicalBillAmount)}</td>
       <td>${n('companyName','text',r.companyName)}</td>
@@ -507,7 +523,7 @@ class PayrollApp {
       const hint = (fm || fy)
         ? '<small>Try a different filter or <button class="db-pill" onclick="payroll.clearDbFilter()" style="display:inline;padding:2px 8px;">Clear filters</button></small>'
         : '<small>Click <strong>Add Employee</strong> in the toolbar to get started</small>';
-      tbody.innerHTML = `<tr><td colspan="35" style="padding:0;border:none;">
+      tbody.innerHTML = `<tr><td colspan="41" style="padding:0;border:none;">
         <div class="db-empty-state">
           <i class="bx bx-${fm || fy ? 'search' : 'user-plus'}"></i>
           <p>${msg}</p>${hint}
@@ -1042,7 +1058,7 @@ class PayrollApp {
         allowedLeave:2,
         presentDays: 0, absentDays: 0,
         gender:'', prefix:'Mr', authorizedSignatory:'Director',
-        pfApplicable:'Yes', medicalBillSubmitted:'No',
+        pfApplicable:'Yes', esicApplicable:'No', medicalBillSubmitted:'No',
         medicalBillAmount:0, companyName:'DHPE',
       };
       if (emp) {
@@ -1056,6 +1072,7 @@ class PayrollApp {
         r.ta              = emp.ta              || 0;
         r.allowedLeave    = emp.allowedLeavePerMonth ?? 2;
         r.pfApplicable    = emp.pfApplicable ? 'Yes' : 'No';
+        r.esicApplicable  = emp.esicApplicable ? 'Yes' : 'No';
         const g = emp.gender||'';
         r.gender          = g && g !== 'unspecified' ? g.charAt(0).toUpperCase()+g.slice(1) : '';
         r.companyName     = emp.company?.name || 'DHPE';
@@ -1102,7 +1119,8 @@ class PayrollApp {
     const totalNet = data.reduce((s, r) => s + this._net(r), 0);
 
     const EMPTY_ROWS = Math.max(0, 20 - data.length);
-    const empty17 = '<td>&nbsp;</td>'.repeat(17);
+    const emptyRow = '<td>&nbsp;</td>'.repeat(18);
+    const esicOf = r => this._calc(r).esic;
 
     el.innerHTML = `
       <table class="cons-table" id="cons-print-table">
@@ -1112,7 +1130,7 @@ class PayrollApp {
             <th rowspan="2" class="hdr-plain" style="min-width:120px;">Name of Employee</th>
             <th rowspan="2" class="hdr-plain">CTC</th>
             <th colspan="8" class="hdr-gross">TOTAL GROSS SALARY</th>
-            <th colspan="5" class="hdr-ded">TOTAL DEDUCTIONS</th>
+            <th colspan="6" class="hdr-ded">TOTAL DEDUCTIONS</th>
             <th colspan="1" class="hdr-net">NET PAY</th>
           </tr>
           <tr>
@@ -1125,6 +1143,7 @@ class PayrollApp {
             <th class="hdr-gross">Bonus</th>
             <th class="hdr-gross">TA</th>
             <th class="hdr-ded">Contrib.<br>PF</th>
+            <th class="hdr-ded">ESIC</th>
             <th class="hdr-ded">Prof.<br>Tax</th>
             <th class="hdr-ded">TDS</th>
             <th class="hdr-ded">Salary<br>Adv.</th>
@@ -1146,13 +1165,14 @@ class PayrollApp {
             <td class="num">${r.bonus||0}</td>
             <td class="num">${r.ta||0}</td>
             <td class="num">${r.pfContribution||0}</td>
+            <td class="num">${esicOf(r)}</td>
             <td class="num">${r.professionTax||0}</td>
             <td class="num">${r.tds||0}</td>
             <td class="num">${r.salaryAdvance||0}</td>
             <td class="num">${this._ad(r)}</td>
             <td class="num net-val">${this._net(r)}</td>
           </tr>`).join('')}
-          ${Array(EMPTY_ROWS).fill(`<tr>${empty17}</tr>`).join('')}
+          ${Array(EMPTY_ROWS).fill(`<tr>${emptyRow}</tr>`).join('')}
         </tbody>
         <tfoot>
           <tr class="cons-total-row">
@@ -1167,6 +1187,7 @@ class PayrollApp {
             <td class="num">${sum('bonus')}</td>
             <td class="num">${sum('ta')}</td>
             <td class="num">${sum('pfContribution')}</td>
+            <td class="num">${data.reduce((s,r)=>s+esicOf(r),0)}</td>
             <td class="num">${sum('professionTax')}</td>
             <td class="num">${sum('tds')}</td>
             <td class="num">${sum('salaryAdvance')}</td>
@@ -1545,11 +1566,11 @@ class PayrollApp {
           </thead>
           <tbody>
             <tr><td>Basic Salary</td>           <td class="ss-ea">${fmt(c.basicSalary)}</td>       <td class="ss-dl">PF Contribution</td> <td class="ss-da">${fmt(c.pfContribution)}</td></tr>
-            <tr><td>Dearness Allow. (DA)</td>   <td class="ss-ea">${fmt(c.da)}</td>                <td class="ss-dl">Profession Tax</td>   <td class="ss-da">${fmt(c.professionTax)}</td></tr>
-            <tr><td>House Rent Allow. (HRA)</td><td class="ss-ea">${fmt(c.hra)}</td>               <td class="ss-dl">TDS</td>              <td class="ss-da">${fmt(c.tds)}</td></tr>
-            <tr><td>${esc(convLabel)}</td>      <td class="ss-ea">${fmt(c.conveyanceWorking)}</td> <td class="ss-dl">Salary Advance</td>   <td class="ss-da">${fmt(c.salaryAdvance)}</td></tr>
-            <tr><td>Medical Allowance</td>      <td class="ss-ea">${fmt(c.medicalWorking)}</td>    <td class="ss-dl">${esc(absentLabel)}</td> <td class="ss-da">${fmt(c.absentDeduction)}</td></tr>
-            <tr><td>Special Allowance</td>      <td class="ss-ea">${fmt(c.specialAllowance)}</td>  <td class="ss-dl"></td>                 <td class="ss-da"></td></tr>
+            <tr><td>Dearness Allow. (DA)</td>   <td class="ss-ea">${fmt(c.da)}</td>                <td class="ss-dl">ESIC (0.75%)</td>     <td class="ss-da">${fmt(c.esic)}</td></tr>
+            <tr><td>House Rent Allow. (HRA)</td><td class="ss-ea">${fmt(c.hra)}</td>               <td class="ss-dl">Profession Tax</td>   <td class="ss-da">${fmt(c.professionTax)}</td></tr>
+            <tr><td>${esc(convLabel)}</td>      <td class="ss-ea">${fmt(c.conveyanceWorking)}</td> <td class="ss-dl">TDS</td>              <td class="ss-da">${fmt(c.tds)}</td></tr>
+            <tr><td>Medical Allowance</td>      <td class="ss-ea">${fmt(c.medicalWorking)}</td>    <td class="ss-dl">Salary Advance</td>   <td class="ss-da">${fmt(c.salaryAdvance)}</td></tr>
+            <tr><td>Special Allowance</td>      <td class="ss-ea">${fmt(c.specialAllowance)}</td>  <td class="ss-dl">${esc(absentLabel)}</td> <td class="ss-da">${fmt(c.absentDeduction)}</td></tr>
             <tr><td>Bonus</td>                  <td class="ss-ea">${fmt(c.bonus)}</td>             <td class="ss-dl"></td>                 <td class="ss-da"></td></tr>
             <tr><td>Travel Allow. (TA)</td>     <td class="ss-ea">${fmt(c.ta)}</td>                <td class="ss-dl"></td>                 <td class="ss-da"></td></tr>
           </tbody>
@@ -1784,6 +1805,7 @@ class PayrollApp {
           bonus: Number(row.bonus || 0),
           ta: Number(row.ta || 0),
           pfContribution: Number(row.pfContribution || 0),
+          esicApplicable: PayrollCalc.isYes(row.esicApplicable),
           professionTax: Number(row.professionTax || 0),
           tds: Number(row.tds || 0),
           salaryAdvance: Number(row.salaryAdvance || 0),

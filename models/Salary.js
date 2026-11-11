@@ -35,6 +35,11 @@ const Salary = sequelize.define('Salary', {
 
   // ── Deductions ────────────────────────────────────────────────────
   pfContribution:  { type: DataTypes.FLOAT, defaultValue: 0 },
+  // Copied from the employee when the month is generated, so changing the
+  // employee later never alters a payslip that already exists.
+  esicApplicable:  { type: DataTypes.BOOLEAN, defaultValue: false },
+  esic:            { type: DataTypes.FLOAT, defaultValue: 0 },  // auto: employee share (0.75%)
+  employerEsic:    { type: DataTypes.FLOAT, defaultValue: 0 },  // auto: employer share (3.25%), not deducted
   professionTax:   { type: DataTypes.FLOAT, defaultValue: 0 },
   tds:             { type: DataTypes.FLOAT, defaultValue: 0 },
   salaryAdvance:   { type: DataTypes.FLOAT, defaultValue: 0 },
@@ -104,6 +109,7 @@ function payrollInput(salary) {
     bonus: s.bonus,
     ta: s.ta,
     pfContribution: s.pfContribution,
+    esicApplicable: s.esicApplicable,
     professionTax: s.professionTax,
     tds: s.tds,
     salaryAdvance: s.salaryAdvance,
@@ -131,6 +137,8 @@ function applyPayroll(target, calc) {
   target.grossSalary       = calc.grossSalary;
   target.allowances        = calc.allowances;
   target.absentDeduction   = calc.absentDeduction;
+  target.esic              = calc.esic;
+  target.employerEsic      = calc.employerEsic;
   target.manualDeductionDays = 0; // no longer used in calculation
   target.deductions        = calc.totalDeductions;
   target.netSalary         = calc.netSalary;

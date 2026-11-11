@@ -20,6 +20,7 @@ const User = sequelize.define('User', {
   bonus:            { type: DataTypes.FLOAT, defaultValue: 0 },
   ta:               { type: DataTypes.FLOAT, defaultValue: 0 },
   pfApplicable:         { type: DataTypes.BOOLEAN, defaultValue: true },
+  esicApplicable:       { type: DataTypes.BOOLEAN, defaultValue: false },
   allowedLeavePerMonth: { type: DataTypes.INTEGER, defaultValue: 2 },
   status:        { type: DataTypes.STRING(20), defaultValue: 'active' },
   // Verification workflow for employees

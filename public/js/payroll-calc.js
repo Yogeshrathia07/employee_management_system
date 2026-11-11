@@ -16,8 +16,13 @@
                        + Special + Bonus + TA
    7. Absent / LOP   = (CTC − Conveyance) ÷ Total Days × (Total Days − Worked Days),
       deduction        rounded to ₹10 — or the manual "Deduction (₹)" when entered
-   8. Deductions     = PF + Profession Tax + TDS + Salary Advance + Absent/LOP
-   9. Net Pay        = Gross Salary − Deductions (never below 0)
+   8. ESIC           = 0.75% of the wages earned this month (Gross Salary −
+                       Absent/LOP), rounded up to the next rupee — only when the
+                       employee is marked ESIC applicable and the monthly CTC is
+                       within the ₹21,000 ESIC wage limit. The employer pays
+                       3.25% on the same wages; that is shown, not deducted.
+   9. Deductions     = PF + ESIC + Profession Tax + TDS + Salary Advance + Absent/LOP
+  10. Net Pay        = Gross Salary − Deductions (never below 0)
    PF default (PF applicable) = 12% of (Basic + DA), capped at ₹1,800.
    ═══════════════════════════════════════════════════════════════════════════ */
 (function (root, factory) {
@@ -52,6 +57,18 @@
 
   function defaultPf(basicSalary, da) {
     return Math.min(1800, Math.round((num(basicSalary) + num(da)) * 0.12));
+  }
+
+  var ESIC = { wageLimit: 21000, employeeRate: 0.0075, employerRate: 0.0325 };
+
+  // Stored as a boolean on the server and as "Yes"/"No" in the payroll sheet.
+  function isYes(value) {
+    return value === true || value === 1 || value === '1' || value === 'true' || value === 'Yes';
+  }
+
+  // ESIC contributions are rounded up to the next rupee.
+  function esicShare(wages, rate) {
+    return Math.ceil(round2(wages * rate) - 1e-9);
   }
 
   function compute(input) {
@@ -91,11 +108,17 @@
       ? r10(manualDeductionAmount)
       : (applyAbsent ? r10(perDayRate * unpaidDays) : 0);
 
+    var esicApplicable = isYes(input.esicApplicable);
+    var esicWages = Math.max(0, grossSalary - absentDeduction);
+    var esicCovered = esicApplicable && ctc > 0 && ctc <= ESIC.wageLimit;
+    var esic = esicCovered ? esicShare(esicWages, ESIC.employeeRate) : 0;
+    var employerEsic = esicCovered ? esicShare(esicWages, ESIC.employerRate) : 0;
+
     var pfContribution = num(input.pfContribution);
     var professionTax = num(input.professionTax);
     var tds = num(input.tds);
     var salaryAdvance = num(input.salaryAdvance);
-    var totalDeductions = pfContribution + professionTax + tds + salaryAdvance + absentDeduction;
+    var totalDeductions = pfContribution + esic + professionTax + tds + salaryAdvance + absentDeduction;
     var netSalary = Math.max(0, grossSalary - totalDeductions);
 
     return {
@@ -126,6 +149,12 @@
       absentDeduction: round2(absentDeduction),
       absentDeductionIsManual: manualDeductionAmount > 0,
       pfContribution: pfContribution,
+      esicApplicable: esicApplicable,
+      // Marked applicable but the monthly CTC is above the ESIC wage limit.
+      esicAboveLimit: esicApplicable && !esicCovered,
+      esicWages: round2(esicWages),
+      esic: esic,
+      employerEsic: employerEsic,
       professionTax: professionTax,
       tds: tds,
       salaryAdvance: salaryAdvance,
@@ -139,5 +168,7 @@
     defaultPf: defaultPf,
     daysInMonth: daysInMonth,
     r10: r10,
+    isYes: isYes,
+    ESIC: ESIC,
   };
 });

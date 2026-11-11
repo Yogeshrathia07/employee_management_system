@@ -20,11 +20,34 @@ async function makeColumnNullable(sequelize, table, column, type, logger) {
   }
 }
 
+// Adds a column the models read on every query, so the app keeps working even
+// where DB_SYNC_ALTER=false stops sync from adding new columns.
+async function addColumnIfMissing(sequelize, table, column, definition, logger) {
+  let rows;
+  try {
+    [rows] = await sequelize.query(`SHOW COLUMNS FROM \`${table}\` LIKE '${column}'`);
+  } catch (err) {
+    return; // table not created yet — sync will create it with the column
+  }
+  if (rows && rows.length) return;
+  try {
+    await sequelize.query(`ALTER TABLE \`${table}\` ADD COLUMN \`${column}\` ${definition}`);
+    logger(`[migrate] added ${table}.${column}`);
+  } catch (err) {
+    logger(`[migrate] could not add ${table}.${column}: ${err.message}`);
+  }
+}
+
 async function runPreSyncMigrations(sequelize, options) {
   const logger = (options && options.logger) || console.log;
   // Projects are master data now; a project manager is optional. The column
   // must be nullable before sync adds the "ON DELETE SET NULL" foreign key.
   await makeColumnNullable(sequelize, 'Projects', 'managerId', 'INT(11)', logger);
+  // ESIC in payroll.
+  await addColumnIfMissing(sequelize, 'Users', 'esicApplicable', 'TINYINT(1) DEFAULT 0', logger);
+  await addColumnIfMissing(sequelize, 'Salaries', 'esicApplicable', 'TINYINT(1) DEFAULT 0', logger);
+  await addColumnIfMissing(sequelize, 'Salaries', 'esic', 'FLOAT DEFAULT 0', logger);
+  await addColumnIfMissing(sequelize, 'Salaries', 'employerEsic', 'FLOAT DEFAULT 0', logger);
 }
 
 module.exports = { runPreSyncMigrations };

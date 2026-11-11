@@ -225,6 +225,18 @@ test('salary slip keeps multi-line address above title', async t => {
   const address = calls.find(call => call.text === company.address);
   assert.ok(address.y + address.height <= title.y);
 });
+test('salary slip lists the ESIC deduction', async t => {
+  t.mock.method(models.Salary, 'findByPk', async () => record({ id: 1, companyId: 2, company, month: 10,
+    year: 2026, userId: 5, basicSalary: 3000, hra: 1500, conveyance: 2700, specialAllowance: 3700,
+    bonus: 2500, totalDays: 31, workedDays: 31, allowedLeave: 2, status: 'finalized', esicApplicable: true,
+    user: { id: 5, companyId: 2, name: 'Example Employee', email: 'employee@example.test', role: 'employee' } }));
+  t.mock.method(models.Timesheet, 'findAll', async () => []);
+  const { calls } = await generate(t, 'salary-esic', require('../controllers/salaryController').generatePayslip);
+  const label = calls.find(call => call.text === 'ESIC (0.75%)');
+  assert.ok(label, 'ESIC row is on the payslip');
+  // CTC ₹13,400 → 0.75% = ₹100.50, rounded up to ₹101, printed on the same row.
+  assert.ok(calls.some(call => /\b101\.00\b/.test(call.text) && Math.abs(call.y - label.y) < 2));
+});
 test('unassigned companies never inherit DHPE branding', () => {
   assert.ok(!helper.confidentialityText('').includes('DHPE'));
   assert.ok(helper.confidentialityText(company.name).includes(company.name));

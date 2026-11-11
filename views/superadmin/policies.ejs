@@ -87,8 +87,8 @@ async function loadCompanies() {
     const sel = document.getElementById('company-filter');
     const pSel = document.getElementById('policy-company');
     companies.forEach(c => {
-      sel.innerHTML  += `<option value="${c.id}">${c.name}</option>`;
-      pSel.innerHTML += `<option value="${c.id}">${c.name}</option>`;
+      sel.innerHTML  += companyOptionHtml(c);
+      pSel.innerHTML += companyOptionHtml(c);
     });
   } catch(e) {}
 }

@@ -7,6 +7,23 @@ function getCookieValue(name) {
 const getToken = () => localStorage.getItem('ems_token') || getCookieValue('token');
 const getUser = () => JSON.parse(localStorage.getItem('ems_user') || 'null');
 
+// ─── Company dropdowns ───
+// Company names can repeat (two companies may both be called "DHPE"), so every
+// company list shows the GST number next to the name to tell them apart.
+function companyOptionLabel(company) {
+  if (!company) return '';
+  var name = company.name || ('Company ' + company.id);
+  return company.gstNo ? name + ' | GST: ' + company.gstNo : name;
+}
+function companyOptionHtml(company) {
+  var esc = function (value) {
+    return String(value).replace(/[&<>"']/g, function (ch) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch];
+    });
+  };
+  return '<option value="' + esc(company.id) + '">' + esc(companyOptionLabel(company)) + '</option>';
+}
+
 function setAuthCookie(token) {
   if (!token) return;
   var parts = ['token=' + encodeURIComponent(token), 'Path=/', 'SameSite=Lax'];

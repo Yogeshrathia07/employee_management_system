@@ -211,6 +211,7 @@ exports.getSalaryPreview = async (req, res) => {
       basicSalary: user.basicSalary, da: user.da, hra: user.hra, conveyance: user.conveyance,
       medicalExpenses: user.medicalExpenses, specialAllowance: user.specialAllowance,
       bonus: user.bonus, ta: user.ta, pfContribution,
+      esicApplicable: user.esicApplicable,
     });
 
     res.json({
@@ -234,6 +235,7 @@ exports.getSalaryPreview = async (req, res) => {
       ta:               user.ta                || 0,
       allowedLeave,
       pfContribution,
+      esicApplicable: !!user.esicApplicable,
       payroll: calc,
     });
   } catch (err) {
@@ -262,7 +264,7 @@ exports.getSalaries = async (req, res) => {
 
     const salaries = await Salary.findAll({
       where,
-      include: [{ model: User, as: 'user', attributes: ['id', 'name', 'email', 'role', 'department', 'position', 'employeeCode', 'gender', 'pfApplicable', 'companyId'] }],
+      include: [{ model: User, as: 'user', attributes: ['id', 'name', 'email', 'role', 'department', 'position', 'employeeCode', 'gender', 'pfApplicable', 'esicApplicable', 'companyId'] }],
       order: [['year', 'DESC'], ['month', 'DESC']],
     });
     res.json(salaries.map(s => Salary.withPayroll(s)));
@@ -302,6 +304,10 @@ function buildSalaryInputs(body, user, month, year, leaveTakenAuto) {
     pfContribution:  given('pfContribution')
       ? parseFloat(body.pfContribution) || 0
       : (user.pfApplicable ? PayrollCalc.defaultPf(basicSalary, da) : 0),
+    // The amount itself is calculated from the month's wages (see payroll-calc.js).
+    esicApplicable:  body.esicApplicable !== undefined
+      ? PayrollCalc.isYes(body.esicApplicable)
+      : !!user.esicApplicable,
     professionTax:   bodyNum('professionTax'),
     tds:             bodyNum('tds'),
     salaryAdvance:   bodyNum('salaryAdvance'),
@@ -429,6 +435,7 @@ exports.updateSalary = async (req, res) => {
       'manualDeductionAmount',
     ];
     editableFields.forEach(f => { if (req.body[f] !== undefined) salary[f] = req.body[f]; });
+    if (req.body.esicApplicable !== undefined) salary.esicApplicable = PayrollCalc.isYes(req.body.esicApplicable);
 
     if (req.body.totalDays !== undefined) {
       salary.totalDays = resolveTotalDays(req.body.totalDays, salary.month, salary.year);
@@ -516,8 +523,8 @@ exports.exportCSV = async (req, res) => {
       'Employee', 'Email', 'Department', 'Role', 'Period', 'CTC',
       'Total Days', 'Allowed Leave', 'Leave Taken', 'LOP Days', 'Worked Days',
       'Basic Salary', 'DA', 'HRA', 'Conveyance (Working)', 'Medical', 'Special', 'Bonus', 'TA', 'Gross Salary',
-      'PF', 'Profession Tax', 'TDS', 'Salary Advance', 'Absent/LOP Deduction', 'Total Deductions', 'Net Salary',
-      'Status', 'Paid On',
+      'PF', 'ESIC', 'Profession Tax', 'TDS', 'Salary Advance', 'Absent/LOP Deduction', 'Total Deductions', 'Net Salary',
+      'Employer ESIC', 'Status', 'Paid On',
     ];
     const quote = v => `"${String(v == null ? '' : v).replace(/"/g, '""')}"`;
     let csv = header.join(',') + '\n';
@@ -534,7 +541,8 @@ exports.exportCSV = async (req, res) => {
         p.ctc,
         p.totalDays, p.allowedLeave, p.leaveTaken, p.lopDays, p.workedDays,
         p.basicSalary, p.da, p.hra, p.conveyanceWorking, p.medicalWorking, p.specialAllowance, p.bonus, p.ta, p.grossSalary,
-        p.pfContribution, p.professionTax, p.tds, p.salaryAdvance, p.absentDeduction, p.totalDeductions, p.netSalary,
+        p.pfContribution, p.esic, p.professionTax, p.tds, p.salaryAdvance, p.absentDeduction, p.totalDeductions, p.netSalary,
+        p.employerEsic,
         quote(s.status),
         quote(s.paidAt ? new Date(s.paidAt).toLocaleDateString('en-IN') : ''),
       ].join(',') + '\n';
@@ -773,11 +781,11 @@ exports.generatePayslip = async (req, res) => {
       : `Absent / LOP (${days(p.unpaidDays)} day${p.unpaidDays === 1 ? '' : 's'})`;
     const deductions = [
       ['PF Contribution', p.pfContribution],
+      ['ESIC (0.75%)', p.esic],
       ['Profession Tax', p.professionTax],
       ['TDS', p.tds],
       ['Salary Advance', p.salaryAdvance],
       [absentLabel, p.absentDeduction],
-      ['', 0],
       ['', 0],
       ['', 0],
     ];

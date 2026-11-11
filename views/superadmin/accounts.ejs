@@ -2572,7 +2572,7 @@ function findAccountCompanyByName(name) {
 }
 
 function accountCompanyOptionLabel(company) {
-  return (company.name || 'Company') + (company.gstNo ? '  |  GST: ' + company.gstNo : '');
+  return companyOptionLabel(company);
 }
 
 function fillAccountCompanySelect(selectId, selectedId, options) {
@@ -2683,7 +2683,7 @@ function populateCompanyDropdown(selectedName, autoFill) {
       activeCompanies.push(c);
       var opt = document.createElement('option');
       opt.value = JSON.stringify(c);
-      opt.textContent = c.name + (c.gstNo ? '  |  GST: ' + c.gstNo : '');
+      opt.textContent = companyOptionLabel(c);
       if (selectedName && c.name === selectedName) opt.selected = true;
       sel.appendChild(opt);
     });
@@ -4344,7 +4344,7 @@ function populateProCompanyDropdown(selectedName, autoFill) {
       if (c.status === 'inactive') return;
       var opt = document.createElement('option');
       opt.value = JSON.stringify(c);
-      opt.textContent = c.name + (c.gstNo ? '  |  ' + c.gstNo : '');
+      opt.textContent = companyOptionLabel(c);
       if (selectedName && c.name === selectedName) opt.selected = true;
       sel.appendChild(opt);
     });
@@ -4997,7 +4997,7 @@ function populateWOCompanyDropdown(selectedId, autoFill, fallbackName) {
     woCompanyCache.forEach(function(c) {
       var opt = document.createElement('option');
       opt.value = c.id;
-      opt.textContent = c.name + (c.gstNo ? ' | ' + c.gstNo : '');
+      opt.textContent = companyOptionLabel(c);
       if (selectedId && String(c.id) === String(selectedId)) opt.selected = true;
       if (!selectedId && fallbackName && c.name === fallbackName) opt.selected = true;
       sel.appendChild(opt);

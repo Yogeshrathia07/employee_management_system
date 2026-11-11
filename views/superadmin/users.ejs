@@ -158,8 +158,8 @@ function esc(value) {
 async function init() {
   try {
     companies = await api('GET','/companies');
-    document.getElementById('f-company').innerHTML = '<option value="">All Companies</option>' + companies.map(c => '<option value="' + c.id + '">' + c.name + '</option>').join('');
-    document.getElementById('u-company').innerHTML = '<option value="">Select company...</option>' + companies.map(c => '<option value="' + c.id + '">' + c.name + '</option>').join('');
+    document.getElementById('f-company').innerHTML = '<option value="">All Companies</option>' + companies.map(companyOptionHtml).join('');
+    document.getElementById('u-company').innerHTML = '<option value="">Select company...</option>' + companies.map(companyOptionHtml).join('');
     await loadUsers();
   } catch(e) { toast(e.message,'error'); }
 }

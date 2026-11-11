@@ -109,7 +109,7 @@
           companies.forEach(function(company) {
             var option = document.createElement('option');
             option.value = String(company.id);
-            option.textContent = company.name + (String(company.status).toLowerCase() === 'inactive' ? ' (Inactive)' : '');
+            option.textContent = companyOptionLabel(company) + (String(company.status).toLowerCase() === 'inactive' ? ' (Inactive)' : '');
             select.appendChild(option);
           });
         });

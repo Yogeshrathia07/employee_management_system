@@ -23,7 +23,7 @@ async function initCompanyFilter() {
     if (container && _allCompanies.length) {
       container.innerHTML = '<select id="company-filter" class="form-control" style="width:200px;" onchange="onCompanyFilterChange()">' +
         '<option value="">All Companies</option>' +
-        _allCompanies.map(function(c) { return '<option value="'+c.id+'">'+c.name+'</option>'; }).join('') +
+        _allCompanies.map(companyOptionHtml).join('') +
         '</select>';
       container.style.display = '';
     }

@@ -116,7 +116,7 @@ async function loadRecycleCompanies() {
     if (wrap) {
       wrap.innerHTML = '<select id="rb-company-filter" class="form-control" style="width:200px" onchange="loadBin()">' +
         '<option value="">All Companies</option>' +
-        recycleCompanies.map(function(c){ return '<option value="' + c.id + '">' + c.name + '</option>'; }).join('') +
+        recycleCompanies.map(companyOptionHtml).join('') +
       '</select>';
       wrap.style.display = '';
     }

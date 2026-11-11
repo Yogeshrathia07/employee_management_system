@@ -3,6 +3,7 @@ const { User, Company, Document } = require('../models');
 const { PHOTOS_DIR, findStoredFile } = require('../config/uploads');
 const bcrypt = require('bcryptjs');
 const fs   = require('fs');
+const PayrollCalc = require('../public/js/payroll-calc');
 
 function isStrongPassword(p) {
   return /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&#^()_\-+=])[A-Za-z\d@$!%*?&#^()_\-+=]{8,}$/.test(p);
@@ -100,7 +101,7 @@ exports.createUser = async (req, res) => {
   try {
     const { name, email, password, role, companyId, managerId, baseSalary,
             basicSalary, da, hra, conveyance, medicalExpenses, specialAllowance, bonus, ta,
-            pfApplicable, allowedLeavePerMonth,
+            pfApplicable, esicApplicable, allowedLeavePerMonth,
             department, phone, position, gender } = req.body;
     if (!name || !email) return res.status(400).json({ message: 'Name and email are required' });
 
@@ -147,6 +148,7 @@ exports.createUser = async (req, res) => {
     userData.baseSalary = comp.basicSalary + comp.da + comp.hra + comp.conveyance
       + comp.medicalExpenses + comp.specialAllowance + comp.bonus + comp.ta;
     if (pfApplicable !== undefined)         userData.pfApplicable         = pfApplicable;
+    if (esicApplicable !== undefined)       userData.esicApplicable       = PayrollCalc.isYes(esicApplicable);
     if (allowedLeavePerMonth !== undefined) userData.allowedLeavePerMonth = allowedLeavePerMonth;
     if (req.body.currency)                  userData.currency              = req.body.currency;
 
@@ -178,7 +180,7 @@ exports.updateUser = async (req, res) => {
   try {
     const { name, email, role, companyId, managerId, baseSalary,
             basicSalary, da, hra, conveyance, medicalExpenses, specialAllowance, bonus, ta,
-            pfApplicable, allowedLeavePerMonth,
+            pfApplicable, esicApplicable, allowedLeavePerMonth,
             status, department, phone, password, position, gender } = req.body;
     const user = await User.findByPk(req.params.id);
     if (!user) return res.status(404).json({ message: 'User not found' });
@@ -216,6 +218,7 @@ exports.updateUser = async (req, res) => {
         + (user.medicalExpenses || 0) + (user.specialAllowance || 0) + (user.bonus || 0) + (user.ta || 0);
     }
     if (pfApplicable !== undefined)         user.pfApplicable         = pfApplicable;
+    if (esicApplicable !== undefined)       user.esicApplicable       = PayrollCalc.isYes(esicApplicable);
     if (allowedLeavePerMonth !== undefined) user.allowedLeavePerMonth = allowedLeavePerMonth;
     if (req.body.currency)                  user.currency              = req.body.currency;
     if (password) {
