@@ -2,7 +2,21 @@ const path = require('path');
 const fs   = require('fs');
 const { CompanyPolicy, User, Company } = require('../models');
 
-const UPLOAD_DIR = path.join(__dirname, '..', 'uploads', 'documents');
+const { DOCUMENTS_DIR: UPLOAD_DIR, findStoredFile } = require('../config/uploads');
+
+// A policy belongs to one company; outside HR only active policies are visible.
+function inScope(user, policy, requireActive) {
+  if (user.role === 'superadmin') return true;
+  if (!user.companyId || Number(policy.companyId) !== Number(user.companyId)) return false;
+  return !requireActive || user.role === 'admin' || policy.isActive !== false;
+}
+
+// Policy files share the document uploads folder; a missing file is logged with the path looked up.
+function policyFile(policy) {
+  const found = findStoredFile(UPLOAD_DIR, policy.fileUrl);
+  if (!found.path) console.warn(`[policies] file missing for policy ${policy.id}: looked up ${found.lookedUp || '(invalid path)'}`);
+  return found.path;
+}
 
 // ── GET /policies ─────────────────────────────────────────────────────────────
 exports.getPolicies = async (req, res) => {
@@ -63,7 +77,7 @@ exports.createPolicy = async (req, res) => {
 exports.updatePolicy = async (req, res) => {
   try {
     const policy = await CompanyPolicy.findByPk(req.params.id);
-    if (!policy) return res.status(404).json({ message: 'Policy not found' });
+    if (!policy || !inScope(req.user, policy)) return res.status(404).json({ message: 'Policy not found' });
 
     const { title, content, isActive } = req.body;
     if (title)              policy.title    = title;
@@ -80,10 +94,10 @@ exports.updatePolicy = async (req, res) => {
 exports.deletePolicy = async (req, res) => {
   try {
     const policy = await CompanyPolicy.findByPk(req.params.id);
-    if (!policy) return res.status(404).json({ message: 'Policy not found' });
+    if (!policy || !inScope(req.user, policy)) return res.status(404).json({ message: 'Policy not found' });
     if (policy.fileUrl) {
-      const fp = path.join(UPLOAD_DIR, policy.fileUrl);
-      if (fs.existsSync(fp)) fs.unlinkSync(fp);
+      const fp = findStoredFile(UPLOAD_DIR, policy.fileUrl).path;
+      if (fp) fs.unlinkSync(fp);
     }
     await policy.destroy();
     res.json({ message: 'Policy deleted' });
@@ -94,9 +108,10 @@ exports.deletePolicy = async (req, res) => {
 exports.downloadPolicy = async (req, res) => {
   try {
     const policy = await CompanyPolicy.findByPk(req.params.id);
-    if (!policy || !policy.fileUrl) return res.status(404).json({ message: 'No file attached' });
-    const fp = path.join(UPLOAD_DIR, policy.fileUrl);
-    if (!fs.existsSync(fp)) return res.status(404).json({ message: 'File not found' });
+    if (!policy || !inScope(req.user, policy, true)) return res.status(404).json({ message: 'Policy not found' });
+    if (!policy.fileUrl) return res.status(404).json({ message: 'No file attached' });
+    const fp = policyFile(policy);
+    if (!fp) return res.status(404).json({ message: 'File not found' });
     res.download(fp, policy.title + '.pdf');
   } catch (err) { res.status(500).json({ message: err.message }); }
 };
@@ -105,9 +120,10 @@ exports.downloadPolicy = async (req, res) => {
 exports.viewPolicy = async (req, res) => {
   try {
     const policy = await CompanyPolicy.findByPk(req.params.id);
-    if (!policy || !policy.fileUrl) return res.status(404).json({ message: 'No file attached' });
-    const fp = path.join(UPLOAD_DIR, policy.fileUrl);
-    if (!fs.existsSync(fp)) return res.status(404).json({ message: 'File not found' });
+    if (!policy || !inScope(req.user, policy, true)) return res.status(404).json({ message: 'Policy not found' });
+    if (!policy.fileUrl) return res.status(404).json({ message: 'No file attached' });
+    const fp = policyFile(policy);
+    if (!fp) return res.status(404).json({ message: 'File not found' });
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', 'inline; filename="' + (policy.title || 'policy') + '.pdf"');
     res.sendFile(fp);

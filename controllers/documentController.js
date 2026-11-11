@@ -3,8 +3,7 @@ const fs = require('fs');
 const { Op } = require('sequelize');
 const { Document, User, Client } = require('../models');
 
-const UPLOAD_DIR = path.join(__dirname, '..', 'uploads', 'documents');
-if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+const { DOCUMENTS_DIR: UPLOAD_DIR, findStoredFile, contentDisposition } = require('../config/uploads');
 
 const TYPE_CATEGORY = {
   aadhaar: 'identity', pan_card: 'identity', passport: 'identity',
@@ -42,6 +41,23 @@ function isAdminActor(actor) {
 
 function discardUploadedFile(req) {
   if (req.file && req.file.path) fs.unlink(req.file.path, () => {});
+}
+
+// Sends a document's file inline or as an attachment. A missing file answers 404 and
+// logs the absolute path that was looked up so it can be traced on the server.
+function sendDocumentFile(res, doc, disposition) {
+  const found = findStoredFile(UPLOAD_DIR, doc.filePath);
+  if (!found.path) {
+    console.warn(`[documents] file missing for document ${doc.id}: stored ${JSON.stringify(doc.filePath)}, looked up ${found.lookedUp || '(rejected: not a file name inside the uploads folder)'}`);
+    return res.status(404).json({ message: 'File not found on server' });
+  }
+  res.setHeader('Content-Type', doc.mimeType || 'application/octet-stream');
+  res.setHeader('Content-Disposition', contentDisposition(disposition, doc.fileName));
+  res.sendFile(found.path, err => {
+    if (!err) return;
+    console.error(`[documents] could not send ${found.path} for document ${doc.id}: ${err.message}`);
+    if (!res.headersSent) res.status(500).json({ message: 'Could not read the file on the server' });
+  });
 }
 
 function requestError(message, status = 400) {
@@ -315,9 +331,7 @@ exports.downloadDocument = async (req, res) => {
     const denied = hrDocumentAccessError(req.user, doc, 'download');
     if (denied) return res.status(403).json({ message: denied });
 
-    const filePath = path.join(UPLOAD_DIR, doc.filePath);
-    if (!fs.existsSync(filePath)) return res.status(404).json({ message: 'File not found on server' });
-    res.download(filePath, doc.fileName);
+    sendDocumentFile(res, doc, 'attachment');
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -333,12 +347,7 @@ exports.viewDocument = async (req, res) => {
     const denied = hrDocumentAccessError(req.user, doc, 'view');
     if (denied) return res.status(403).json({ message: denied });
 
-    const filePath = path.join(UPLOAD_DIR, doc.filePath);
-    if (!fs.existsSync(filePath)) return res.status(404).json({ message: 'File not found on server' });
-
-    res.setHeader('Content-Type', doc.mimeType || 'application/octet-stream');
-    res.setHeader('Content-Disposition', `inline; filename="${doc.fileName}"`);
-    fs.createReadStream(filePath).pipe(res);
+    sendDocumentFile(res, doc, 'inline');
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -358,8 +367,8 @@ exports.deleteDocument = async (req, res) => {
       return res.status(403).json({ message: 'Documents issued by the company can only be removed by HR / admin' });
     }
 
-    const filePath = path.join(UPLOAD_DIR, doc.filePath);
-    if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+    const filePath = findStoredFile(UPLOAD_DIR, doc.filePath).path;
+    if (filePath) fs.unlinkSync(filePath);
 
     await doc.destroy();
     if (Document.MANDATORY_TYPES.includes(doc.type)) await _checkAndUpdateVerificationStatus(doc.userId);
@@ -398,9 +407,8 @@ exports.replaceDocumentFile = async (req, res) => {
     }
     await doc.save();
 
-    if (oldFile && oldFile !== doc.filePath) {
-      fs.unlink(path.join(UPLOAD_DIR, oldFile), () => {});
-    }
+    const oldPath = oldFile && oldFile !== doc.filePath ? findStoredFile(UPLOAD_DIR, oldFile).path : null;
+    if (oldPath && oldPath !== path.resolve(req.file.path)) fs.unlink(oldPath, () => {});
     const populated = await Document.findByPk(doc.id, {
       include: [
         { model: User, as: 'user', attributes: ['id', 'name', 'email', 'role', 'employeeCode'] },

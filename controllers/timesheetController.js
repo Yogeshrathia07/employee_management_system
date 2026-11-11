@@ -1,6 +1,15 @@
 const { Op } = require('sequelize');
 const { Timesheet, User } = require('../models');
 
+// An admin may only act on timesheets belonging to their own company.
+function outsideAdminCompany(actor, owner) {
+  return actor.role === 'admin' && (!actor.companyId || !owner || Number(owner.companyId) !== Number(actor.companyId));
+}
+
+function validDate(value) {
+  return /^\d{4}-\d{2}-\d{2}/.test(String(value || '')) && !isNaN(new Date(value));
+}
+
 exports.getTimesheets = async (req, res) => {
   try {
     const { role, id, companyId } = req.user;
@@ -64,6 +73,12 @@ exports.checkExisting = async (req, res) => {
 exports.createTimesheet = async (req, res) => {
   try {
     const { weekStart, weekEnd, entries, notes } = req.body;
+    if (!validDate(weekStart) || !validDate(weekEnd)) {
+      return res.status(400).json({ message: 'Select the week start and end dates' });
+    }
+    if (new Date(weekEnd) < new Date(weekStart)) {
+      return res.status(400).json({ message: 'Week end must be on or after week start' });
+    }
     const totalHours = (entries || []).reduce((sum, e) => sum + (Number(e.hours) || 0), 0);
 
     // Check for overlapping timesheet
@@ -96,10 +111,13 @@ exports.createTimesheet = async (req, res) => {
 // PUT /timesheets/:id — edit existing timesheet (resets to pending)
 exports.updateTimesheet = async (req, res) => {
   try {
-    const ts = await Timesheet.findByPk(req.params.id);
+    const ts = await Timesheet.findByPk(req.params.id, { include: [{ model: User, as: 'user', attributes: ['id', 'companyId'] }] });
     if (!ts) return res.status(404).json({ message: 'Timesheet not found' });
     if (ts.userId !== req.user.id && req.user.role !== 'admin' && req.user.role !== 'superadmin') {
       return res.status(403).json({ message: 'Access denied' });
+    }
+    if (ts.userId !== req.user.id && outsideAdminCompany(req.user, ts.user)) {
+      return res.status(403).json({ message: 'Access denied: this timesheet belongs to another company' });
     }
 
     const { entries, notes } = req.body;
@@ -132,14 +150,16 @@ exports.updateTimesheet = async (req, res) => {
 exports.actionTimesheet = async (req, res) => {
   try {
     const { action, rejectionReason } = req.body;
+    if (!['approve', 'reject'].includes(action)) return res.status(400).json({ message: 'Action must be approve or reject' });
     const ts = await Timesheet.findByPk(req.params.id, {
-      include: [{ model: User, as: 'user', attributes: ['id', 'role', 'managerId'] }],
+      include: [{ model: User, as: 'user', attributes: ['id', 'role', 'managerId', 'companyId'] }],
     });
     if (!ts) return res.status(404).json({ message: 'Timesheet not found' });
-    if (ts.status !== 'pending') return res.status(400).json({ message: 'Timesheet already processed' });
 
     const actor = req.user;
     const submitter = ts.user;
+    if (outsideAdminCompany(actor, submitter)) return res.status(403).json({ message: 'Access denied: this timesheet belongs to another company' });
+    if (ts.status !== 'pending') return res.status(400).json({ message: 'Timesheet already processed' });
 
     if (submitter.id === actor.id) {
       return res.status(403).json({ message: 'Cannot approve your own timesheet' });
@@ -174,10 +194,13 @@ exports.actionTimesheet = async (req, res) => {
 
 exports.deleteTimesheet = async (req, res) => {
   try {
-    const ts = await Timesheet.findByPk(req.params.id);
+    const ts = await Timesheet.findByPk(req.params.id, { include: [{ model: User, as: 'user', attributes: ['id', 'companyId'] }] });
     if (!ts) return res.status(404).json({ message: 'Timesheet not found' });
     if (ts.userId !== req.user.id && req.user.role !== 'admin' && req.user.role !== 'superadmin') {
       return res.status(403).json({ message: 'Access denied' });
+    }
+    if (ts.userId !== req.user.id && outsideAdminCompany(req.user, ts.user)) {
+      return res.status(403).json({ message: 'Access denied: this timesheet belongs to another company' });
     }
     if (ts.status === 'approved') return res.status(400).json({ message: 'Cannot delete approved timesheet' });
     const { moveToRecycleBin } = require('./recycleBinController');

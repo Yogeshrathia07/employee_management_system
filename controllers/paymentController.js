@@ -615,7 +615,7 @@ exports.generatePDF = async (req, res) => {
     txt('For ' + (seller.name || ''), X + HW + 5, y + signH - sellerNameH - 14, HW - 10, { size: 7.5, bold: true, color: BLK, align: 'right' });
     txt('Authorized Signatory', X + HW + 5, y + signH - 11, HW - 10, { size: 7.5, color: BLK, align: 'right' });
 
-    addFooters(doc, { companyName: seller.name, infoText: 'This is a computer-generated payment breakup.' });
+    addFooters(doc, { companyName: seller.name, infoText: 'This is a computer-generated payment breakup.', runningTitle: 'PAYMENT BREAKUP ' + (p.paymentNumber || '') });
     doc.end();
   } catch (err) {
     if (!res.headersSent) res.status(500).json({ message: err.message });

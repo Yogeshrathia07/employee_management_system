@@ -21,7 +21,7 @@
       <div class="employee-directory-shell">
 
         <!-- Module Tabs -->
-        <div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:24px;background:var(--bg-input);border-radius:12px;padding:4px;">
+        <nav class="acc-module-nav" aria-label="Account sections">
           <button class="acc-tab active" id="tab-home"    onclick="showModule('home')"><i class="bx bxs-home"></i> Dashboard</button>
           <button class="acc-tab" id="tab-inv"     onclick="showModule('inv')"><i class="bx bxs-receipt"></i> Invoices <span id="tab-count-inv" class="acc-tab-badge"></span></button>
           <button class="acc-tab" id="tab-pay"     onclick="showModule('pay')"><i class="bx bxs-wallet"></i> Payments <span id="tab-count-pay" class="acc-tab-badge"></span></button>
@@ -35,7 +35,7 @@
           <button class="acc-tab" id="tab-vwo"     onclick="showModule('vwo')"><i class="bx bxs-wrench"></i> Vendor W/O <span id="tab-count-vwo" class="acc-tab-badge"></span></button>
           <button class="acc-tab" id="tab-prj"     onclick="showModule('prj')"><i class="bx bxs-bar-chart-alt-2"></i> Projects <span id="tab-count-prj" class="acc-tab-badge"></span></button>
           <button class="acc-tab" id="tab-rep"     onclick="showModule('rep')"><i class="bx bxs-report"></i> Reports</button>
-        </div>
+        </nav>
 
         <!-- ═══════════════════════════════════════════════════ DASHBOARD -->
         <div id="mod-home" class="acc-module">
@@ -99,53 +99,7 @@
               </div>
               <div class="acc-inline-preview">Preview: <code id="inv-num-preview" class="acc-inline-code">001/DHPE/26-27/XXXXXX</code></div>
             </div>
-            <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px;flex-wrap:wrap;">
-              <div style="display:flex;align-items:center;gap:8px;flex:1 1 620px;min-width:0;flex-wrap:wrap;">
-                <div class="search-bar" style="width:220px;"><span class="search-icon"><i class="bx bx-search"></i></span><input type="text" id="inv-search" placeholder="Search ref, customer..." oninput="scheduleInvoiceRender()"></div>
-                <select id="inv-status" class="form-control" style="width:120px" onchange="renderInvoices()">
-                  <option value="">All Status</option><option>Draft</option><option>Sent</option><option>Paid</option><option>Overdue</option><option>Cancelled</option>
-                </select>
-                <select id="inv-type" class="form-control" style="width:170px" onchange="renderInvoices()">
-                  <option value="">All Types</option>
-                  <option value="Tax Invoice:B2B">Tax Invoice (B2B)</option>
-                  <option value="Tax Invoice:B2C">Tax Invoice (B2C)</option>
-                  <option value="Proforma Invoice">Proforma Invoice</option>
-                  <option value="Quotation">Quotation</option>
-                  <option value="Credit Note">Credit Note</option>
-                  <option value="Debit Note">Debit Note</option>
-                </select>
-                <select id="inv-sort" class="form-control" style="width:170px" onchange="renderInvoices()" aria-label="Sort invoices">
-                  <option value="date_desc">Sort: Newest first</option>
-                  <option value="date_asc">Sort: Oldest first</option>
-                  <option value="amount_desc">Amount: High to low</option>
-                  <option value="amount_asc">Amount: Low to high</option>
-                  <option value="customer_asc">Customer: A to Z</option>
-                  <option value="customer_desc">Customer: Z to A</option>
-                  <option value="reference_asc">Reference: A to Z</option>
-                  <option value="reference_desc">Reference: Z to A</option>
-                </select>
-                <% if (pageRole === 'superadmin') { %>
-                <select id="inv-company-filter" class="form-control" style="width:185px" onchange="renderInvoices()" aria-label="Filter invoices by company">
-                  <option value="">All Companies</option>
-                </select>
-                <% } %>
-                <div style="display:flex;align-items:center;gap:5px;padding:4px 6px;border:1px solid var(--border);border-radius:10px;background:var(--bg-input);" title="Enter any four-digit year, then choose a month. The system will use its April-March financial year.">
-                  <span style="font-size:11px;font-weight:800;color:var(--text-muted);padding-left:2px;">FY</span>
-                  <input type="number" id="inv-fy-year" class="form-control" style="width:72px;height:30px;padding:4px 7px" min="1000" max="9999" step="1" inputmode="numeric" placeholder="Year" title="Enter any four-digit year" aria-label="Financial year calendar year" oninput="validateInvoiceFinancialYearInput(false)" onchange="applyInvoiceFinancialYearCalendar()">
-                  <select id="inv-fy-month" class="form-control" style="width:82px;height:30px;padding:4px 6px" aria-label="Financial year calendar month" onchange="applyInvoiceFinancialYearCalendar()">
-                    <option value="">Month</option>
-                    <option value="01">Jan</option><option value="02">Feb</option><option value="03">Mar</option>
-                    <option value="04">Apr</option><option value="05">May</option><option value="06">Jun</option>
-                    <option value="07">Jul</option><option value="08">Aug</option><option value="09">Sep</option>
-                    <option value="10">Oct</option><option value="11">Nov</option><option value="12">Dec</option>
-                  </select>
-                </div>
-                <button type="button" id="inv-fy-all" style="width:132px;min-height:38px;cursor:pointer;font-size:12px;font-weight:800;display:inline-flex;align-items:center;justify-content:center;gap:6px;white-space:nowrap;border:1px solid #111827;border-radius:10px;background:#111827;color:#fff;transition:background .18s ease,border-color .18s ease,color .18s ease,box-shadow .18s ease;" title="Showing invoices from all financial years" aria-label="Showing invoices from all financial years" aria-pressed="true" onclick="clearInvoiceFinancialYearFilter()"><i class="bx bx-check-circle" aria-hidden="true"></i><span>All Years</span></button>
-              </div>
-              <button class="btn btn-primary" onclick="openGSTModal()" style="margin-left:auto;font-weight:700;gap:6px;white-space:nowrap;">
-                <i class="bx bx-plus-circle"></i> Create Invoice
-              </button>
-            </div>
+            <%- include('../partials/account-filters', { filterKey: "inv", searchPlaceholder: "Search ref, customer, GST...", statuses: ["Draft","Sent","Paid","Overdue","Cancelled"], createAction: "openGSTModal()", createLabel: "Create Invoice", pageRole: pageRole }) %>
             <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;">
               <table style="width:100%;border-collapse:collapse;" id="inv-table">
                 <thead><tr style="background:var(--bg-input);border-bottom:2px solid var(--border);">
@@ -210,7 +164,7 @@
                 <div style="font-weight:700;font-size:14px;margin-bottom:16px;"><i class="bx bx-trending-down" style="color:var(--accent)"></i> TDS Calculator</div>
                 <div class="form-group"><label class="form-label">Amount</label><input type="number" id="tds-gross" class="form-control" placeholder="Enter amount" oninput="calcTDS()" onwheel="this.blur()"></div>
                 <div class="form-group"><label class="form-label">TDS Rate %</label>
-                  <input type="number" id="tds-rate" class="form-control" placeholder="Enter TDS rate" value="10" min="0" step="0.01" inputmode="decimal" oninput="calcTDS()" onwheel="this.blur()">
+                  <input type="number" id="calc-tds-rate" class="form-control" placeholder="Enter TDS rate" value="10" min="0" step="0.01" inputmode="decimal" oninput="calcTDS()" onwheel="this.blur()">
                 </div>
                 <div class="form-group"><label class="form-label">TDS Type</label>
                   <select id="tds-mode" class="form-control" onchange="calcTDS()">
@@ -235,15 +189,8 @@
             <div style="font-size:12px;color:var(--text-muted);">Every payment gets its own breakup: Gross + GST − TDS − GST TDS − Retention − Advance Recovery − Other Recovery = Net. TDS follows the TDS Master (rate + thresholds).</div>
           </div>
           <div id="pay-summary" class="pay-summary"></div>
-          <div class="admin-toolbar" style="margin-bottom:16px;">
-            <div class="search-bar" style="width:240px;"><span class="search-icon"><i class="bx bx-search"></i></span><input type="text" id="pay-search" placeholder="Search payment, party, invoice, UTR..." oninput="renderPayments()"></div>
-            <select id="pay-fy" class="form-control" style="width:140px" onchange="renderPayments()"><option value="">All FY</option></select>
-            <select id="pay-type" class="form-control" style="width:160px" onchange="renderPayments()">
-              <option value="">All Types</option><option value="bill">Against Invoice / R.A. Bill</option><option value="advance">Advance</option>
-            </select>
-            <span id="pay-invoice-filter" class="pay-filter-chip" style="display:none;"></span>
-            <button class="btn btn-primary" style="margin-left:auto;" onclick="openPaymentModal()"><i class="bx bx-plus-circle"></i> Record Payment</button>
-          </div>
+          <%- include('../partials/account-filters', { filterKey: "pay", searchPlaceholder: "Search payment, party, invoice, UTR...", statuses: [], createAction: "openPaymentModal()", createLabel: "Record Payment", pageRole: pageRole }) %>
+          <span id="pay-invoice-filter" class="pay-filter-chip" style="display:none;"></span>
           <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;">
             <div class="table-wrapper" style="overflow-x:auto;">
               <table style="width:100%;border-collapse:collapse;">
@@ -265,19 +212,15 @@
             <div style="font-size:17px;font-weight:800;color:var(--text-primary);margin-bottom:4px;"><i class="bx bxs-calculator" style="color:var(--accent);margin-right:6px;"></i>TDS Master</div>
             <div style="font-size:12px;color:var(--text-muted);">TDS is calculated from the rate <b>and</b> the slab: no TDS while a payment is within the single-payment limit and the party's financial-year total is within the aggregate limit. When the FY total crosses the aggregate limit, TDS is also taken on the earlier untaxed payments of that year ("Whole amount"). "Excess only" (e.g. 194Q) taxes only the amount above the limit.</div>
           </div>
-          <div class="admin-toolbar" style="margin-bottom:16px;">
-            <select id="tds-company-sel" class="form-control" style="width:220px;display:none;" onchange="renderTdsRules()"></select>
-            <label style="display:flex;align-items:center;gap:6px;font-size:13px;"><input type="checkbox" id="tds-show-inactive" onchange="renderTdsRules()"> Show inactive</label>
-            <div style="margin-left:auto;display:flex;gap:8px;flex-wrap:wrap;">
-              <button class="btn btn-ghost" onclick="restoreTdsDefaults()"><i class="bx bx-reset"></i> Restore Default Rules</button>
-              <button class="btn btn-primary" onclick="openTdsModal()"><i class="bx bx-plus"></i> New TDS Rule</button>
-            </div>
+          <%- include('../partials/account-filters', { filterKey: 'tds', searchPlaceholder: 'Search code, nature, section...', statuses: ['Active', 'Inactive'], createAction: 'openTdsModal()', createLabel: 'New TDS Rule', pageRole: pageRole }) %>
+          <div class="account-filter-actions">
+            <button type="button" class="btn btn-ghost" onclick="restoreTdsDefaults()"><i class="bx bx-reset"></i> Restore Default Rules</button>
           </div>
           <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;">
             <div class="table-wrapper" style="overflow-x:auto;">
               <table style="width:100%;border-collapse:collapse;">
                 <thead><tr style="background:var(--bg-input);border-bottom:1px solid var(--border);">
-                  <th class="acc-th">TDS Code</th><th class="acc-th">Nature</th><th class="acc-th">Section</th><th class="acc-th">Payee Type</th>
+                  <th class="acc-th">TDS Code</th><% if (pageRole === 'superadmin') { %><th class="acc-th">Company</th><% } %><th class="acc-th">Nature</th><th class="acc-th">Section</th><th class="acc-th">Payee Type</th>
                   <th class="acc-th" style="text-align:right;">Rate</th><th class="acc-th" style="text-align:right;">Single Payment Limit</th>
                   <th class="acc-th" style="text-align:right;">FY Aggregate Limit</th><th class="acc-th">Basis</th><th class="acc-th">Applicable From</th><th class="acc-th">Active</th><th class="acc-th"></th>
                 </tr></thead>
@@ -289,19 +232,7 @@
 
         <!-- ═══════════════════════════════════════════════ PROFORMA -->
         <div id="mod-pro" class="acc-module" style="display:none;">
-          <div class="admin-toolbar" style="margin-bottom:16px;">
-            <div class="search-bar" style="width:220px;"><span class="search-icon"><i class="bx bx-search"></i></span><input type="text" id="pro-search" placeholder="Search proforma..." oninput="renderProforma()"></div>
-            <select id="pro-status" class="form-control" style="width:140px" onchange="renderProforma()">
-              <option value="">All Status</option><option>Draft</option><option>Sent</option><option>Confirmed</option><option>Rejected</option><option>Converted</option>
-            </select>
-            <select id="pro-year" class="form-control" style="width:120px" onchange="renderProforma()">
-              <option value="">All Years</option>
-            </select>
-            <select id="pro-month" class="form-control" style="width:130px" onchange="renderProforma()">
-              <option value="">All Months</option>
-            </select>
-            <button class="btn btn-primary" style="margin-left:auto;" onclick="openProformaModal()"><i class="bx bx-plus"></i> New Proforma</button>
-          </div>
+          <%- include('../partials/account-filters', { filterKey: "pro", searchPlaceholder: "Search proforma, customer...", statuses: ["Draft","Sent","Confirmed","Accepted","Rejected","Converted"], createAction: "openProformaModal()", createLabel: "New Proforma", pageRole: pageRole }) %>
           <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;">
             <table style="width:100%;border-collapse:collapse;">
               <thead><tr style="background:var(--bg-input);border-bottom:1px solid var(--border);">
@@ -314,13 +245,7 @@
 
         <!-- ═══════════════════════════════════════════════ QUOTATIONS -->
         <div id="mod-quo" class="acc-module" style="display:none;">
-          <div class="admin-toolbar" style="margin-bottom:16px;">
-            <div class="search-bar" style="width:220px;"><span class="search-icon"><i class="bx bx-search"></i></span><input type="text" id="quo-search" placeholder="Search quotation..." oninput="renderQuotations()"></div>
-            <select id="quo-status" class="form-control" style="width:140px" onchange="renderQuotations()">
-              <option value="">All Status</option><option>Draft</option><option>Sent</option><option>Accepted</option><option>Rejected</option>
-            </select>
-            <button class="btn btn-primary" style="margin-left:auto;" onclick="openQuoModal()"><i class="bx bx-plus"></i> New Quotation</button>
-          </div>
+          <%- include('../partials/account-filters', { filterKey: "quo", searchPlaceholder: "Search quotation, client...", statuses: ["Draft","Sent","Accepted","Rejected","Converted"], createAction: "openQuoModal()", createLabel: "New Quotation", pageRole: pageRole }) %>
           <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;">
             <table style="width:100%;border-collapse:collapse;">
               <thead><tr style="background:var(--bg-input);border-bottom:1px solid var(--border);">
@@ -333,13 +258,7 @@
 
         <!-- ══════════════════════════════════════════ PURCHASE ORDERS -->
         <div id="mod-po" class="acc-module" style="display:none;">
-          <div class="admin-toolbar" style="margin-bottom:16px;">
-            <div class="search-bar" style="width:220px;"><span class="search-icon"><i class="bx bx-search"></i></span><input type="text" id="po-search" placeholder="Search PO..." oninput="renderPO()"></div>
-            <select id="po-status" class="form-control" style="width:140px" onchange="renderPO()">
-              <option value="">All Status</option><option>Draft</option><option>Sent</option><option>Received</option><option>Cancelled</option>
-            </select>
-            <button class="btn btn-primary" style="margin-left:auto;" onclick="openPOModal()"><i class="bx bx-plus"></i> New PO</button>
-          </div>
+          <%- include('../partials/account-filters', { filterKey: "po", searchPlaceholder: "Search PO, vendor...", statuses: ["Draft","Sent","Received","Cancelled"], createAction: "openPOModal()", createLabel: "New PO", pageRole: pageRole }) %>
           <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;">
             <table style="width:100%;border-collapse:collapse;">
               <thead><tr style="background:var(--bg-input);border-bottom:1px solid var(--border);">
@@ -352,13 +271,7 @@
 
         <!-- ═════════════════════════════════════════════════ CLIENTS -->
         <div id="mod-clt" class="acc-module" style="display:none;">
-          <div class="admin-toolbar" style="margin-bottom:16px;">
-            <div class="search-bar" style="width:220px;"><span class="search-icon"><i class="bx bx-search"></i></span><input type="text" id="clt-search" placeholder="Search client..." oninput="renderClients()"></div>
-            <select id="clt-status" class="form-control" style="width:140px" onchange="renderClients()">
-              <option value="">All Status</option><option>Active</option><option>Inactive</option>
-            </select>
-            <button class="btn btn-primary" style="margin-left:auto;" onclick="openCltModal()"><i class="bx bx-plus"></i> Register Client</button>
-          </div>
+          <%- include('../partials/account-filters', { filterKey: "clt", searchPlaceholder: "Search client, contact, GST...", statuses: ["Active","Inactive"], createAction: "openCltModal()", createLabel: "Register Client", pageRole: pageRole }) %>
           <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;">
             <table style="width:100%;border-collapse:collapse;">
               <thead><tr style="background:var(--bg-input);border-bottom:1px solid var(--border);">
@@ -371,13 +284,7 @@
 
         <!-- ═══════════════════════════════════════ VENDOR REGISTRATION -->
         <div id="mod-ven" class="acc-module" style="display:none;">
-          <div class="admin-toolbar" style="margin-bottom:16px;">
-            <div class="search-bar" style="width:220px;"><span class="search-icon"><i class="bx bx-search"></i></span><input type="text" id="ven-search" placeholder="Search vendor..." oninput="renderVendors()"></div>
-            <select id="ven-status" class="form-control" style="width:140px" onchange="renderVendors()">
-              <option value="">All Status</option><option>Active</option><option>Inactive</option>
-            </select>
-            <button class="btn btn-primary" style="margin-left:auto;" onclick="openVenModal()"><i class="bx bx-plus"></i> Register Vendor</button>
-          </div>
+          <%- include('../partials/account-filters', { filterKey: "ven", searchPlaceholder: "Search vendor, contact, GST...", statuses: ["Active","Inactive"], createAction: "openVenModal()", createLabel: "Register Vendor", pageRole: pageRole }) %>
           <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;">
             <table style="width:100%;border-collapse:collapse;">
               <thead><tr style="background:var(--bg-input);border-bottom:1px solid var(--border);">
@@ -390,13 +297,7 @@
 
         <!-- ══════════════════════════════════════ CLIENT WORK ORDERS -->
         <div id="mod-cwo" class="acc-module" style="display:none;">
-          <div class="admin-toolbar" style="margin-bottom:16px;">
-            <div class="search-bar" style="width:220px;"><span class="search-icon"><i class="bx bx-search"></i></span><input type="text" id="cwo-search" placeholder="Search CWO..." oninput="renderCWO()"></div>
-            <select id="cwo-status" class="form-control" style="width:140px" onchange="renderCWO()">
-              <option value="">All Status</option><option>Draft</option><option>Proposed</option><option>Active</option><option>Completed</option><option>Cancelled</option>
-            </select>
-            <button class="btn btn-primary" style="margin-left:auto;" onclick="openWOModal('cwo')"><i class="bx bx-plus"></i> Create CWO</button>
-          </div>
+          <%- include('../partials/account-filters', { filterKey: "cwo", searchPlaceholder: "Search CWO, client, project...", statuses: ["Draft","Proposed","Active","Completed","Cancelled"], createAction: "openWOModal('cwo')", createLabel: "Create CWO", pageRole: pageRole }) %>
           <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;">
             <table style="width:100%;border-collapse:collapse;">
               <thead><tr style="background:var(--bg-input);border-bottom:1px solid var(--border);">
@@ -409,13 +310,7 @@
 
         <!-- ═══════════════════════════════════════ VENDOR WORK ORDERS -->
         <div id="mod-vwo" class="acc-module" style="display:none;">
-          <div class="admin-toolbar" style="margin-bottom:16px;">
-            <div class="search-bar" style="width:220px;"><span class="search-icon"><i class="bx bx-search"></i></span><input type="text" id="vwo-search" placeholder="Search VWO..." oninput="renderVWO()"></div>
-            <select id="vwo-status" class="form-control" style="width:140px" onchange="renderVWO()">
-              <option value="">All Status</option><option>Draft</option><option>Proposed</option><option>Active</option><option>Completed</option><option>Cancelled</option>
-            </select>
-            <button class="btn btn-primary" style="margin-left:auto;" onclick="openWOModal('vwo')"><i class="bx bx-plus"></i> Create VWO</button>
-          </div>
+          <%- include('../partials/account-filters', { filterKey: "vwo", searchPlaceholder: "Search VWO, vendor, project...", statuses: ["Draft","Proposed","Active","Completed","Cancelled"], createAction: "openWOModal('vwo')", createLabel: "Create VWO", pageRole: pageRole }) %>
           <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;">
             <table style="width:100%;border-collapse:collapse;">
               <thead><tr style="background:var(--bg-input);border-bottom:1px solid var(--border);">
@@ -428,13 +323,7 @@
 
         <!-- ════════════════════════════════════════ PROJECT ACCOUNTS -->
         <div id="mod-prj" class="acc-module" style="display:none;">
-          <div class="admin-toolbar" style="margin-bottom:16px;">
-            <div class="search-bar" style="width:220px;"><span class="search-icon"><i class="bx bx-search"></i></span><input type="text" id="prj-search" placeholder="Search project..." oninput="renderProjects()"></div>
-            <select id="prj-status" class="form-control" style="width:140px" onchange="renderProjects()">
-              <option value="">All Status</option><option>Planning</option><option>Active</option><option>Completed</option><option>On Hold</option>
-            </select>
-            <button class="btn btn-primary" style="margin-left:auto;" onclick="openPrjModal()"><i class="bx bx-plus"></i> New Project</button>
-          </div>
+          <%- include('../partials/account-filters', { filterKey: "prj", searchPlaceholder: "Search project, client...", statuses: ["Planning","Active","Completed","On Hold"], createAction: "openPrjModal()", createLabel: "New Project", pageRole: pageRole }) %>
           <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;">
             <table style="width:100%;border-collapse:collapse;">
               <thead><tr style="background:var(--bg-input);border-bottom:1px solid var(--border);">
@@ -460,50 +349,18 @@
             </button>
           </div>
 
-          <!-- Filters Card -->
-          <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:16px 20px;margin-bottom:20px;">
-            <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px;align-items:end;">
-              <div>
-                <label style="font-size:11px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px;">Section</label>
-                <select id="rep-section" class="form-control" onchange="onRepSectionChange()">
-                  <option value="inv">Invoices</option>
-                  <option value="pro">Proforma</option>
-                  <option value="quo">Quotations</option>
-                  <option value="po">Purchase Orders</option>
-                  <option value="clt">Clients</option>
-                  <option value="ven">Vendors</option>
-                  <option value="cwo">Client Work Orders</option>
-                  <option value="vwo">Vendor Work Orders</option>
-                  <option value="prj">Projects</option>
-                </select>
-              </div>
-              <div id="rep-date-from-wrap">
-                <label style="font-size:11px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px;">Date From</label>
-                <input type="date" id="rep-date-from" class="form-control" onchange="renderReport()">
-              </div>
-              <div id="rep-date-to-wrap">
-                <label style="font-size:11px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px;">Date To</label>
-                <input type="date" id="rep-date-to" class="form-control" onchange="renderReport()">
-              </div>
-              <div>
-                <label style="font-size:11px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px;">Status</label>
-                <select id="rep-status" class="form-control" onchange="renderReport()">
-                  <option value="">All Status</option>
-                </select>
-              </div>
-              <div>
-                <label style="font-size:11px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px;">Search</label>
-                <input type="text" id="rep-search" class="form-control" placeholder="Name / number..." oninput="renderReport()">
-              </div>
-              <div style="display:flex;gap:8px;">
-                <button class="btn" style="flex:1;font-size:12px;padding:8px 10px;" onclick="clearRepFilters()">
-                  <i class="bx bx-reset"></i> Clear
-                </button>
-                <button class="btn btn-primary" style="flex:1;font-size:12px;padding:8px 10px;background:#111111;" onclick="renderReport()">
-                  <i class="bx bx-filter-alt"></i> Apply
-                </button>
-              </div>
-            </div>
+          <%- include('../partials/account-filters', { filterKey: "rep", searchPlaceholder: "Search name, number, reference...", statuses: [], createAction: "", createLabel: "", pageRole: pageRole }) %>
+          <div class="account-report-range">
+            <label>Section<select id="rep-section" class="form-control" onchange="onRepSectionChange()">
+              <option value="inv">Invoices</option><option value="pay">Payments</option><option value="tds">TDS Master</option>
+              <option value="pro">Proforma</option><option value="quo">Quotations</option>
+              <option value="po">Purchase Orders</option><option value="clt">Clients</option>
+              <option value="ven">Vendors</option><option value="cwo">Client Work Orders</option>
+              <option value="vwo">Vendor Work Orders</option><option value="prj">Projects</option>
+            </select></label>
+            <label id="rep-date-from-wrap">Date From<input type="date" id="rep-date-from" class="form-control" onchange="renderReport()"></label>
+            <label id="rep-date-to-wrap">Date To<input type="date" id="rep-date-to" class="form-control" onchange="renderReport()"></label>
+            <button type="button" class="btn btn-ghost" onclick="clearRepFilters()"><i class="bx bx-reset"></i> Clear Filters</button>
           </div>
 
           <!-- Summary Cards -->
@@ -1109,6 +966,7 @@
     <div class="acc-doc-toolbar">
       <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;">
         <button class="btn btn-ghost" onclick="closeModal('acc-doc-preview-modal')">Close</button>
+        <button class="btn btn-ghost" id="acc-doc-open-btn" onclick="openCurrentAccountDocInTab()"><i class="bx bx-link-external"></i> Open in new tab</button>
         <button class="btn btn-secondary" id="acc-doc-print-btn" onclick="printCurrentAccountDoc()"><i class="bx bx-printer"></i> Print</button>
         <button class="btn btn-primary" id="acc-doc-download-btn" onclick="downloadCurrentAccountDoc()"><i class="bx bx-download"></i> Download PDF</button>
       </div>
@@ -1523,6 +1381,9 @@
     <div class="modal-header"><span class="modal-title" id="tds-modal-title">New TDS Rule</span><button class="modal-close" onclick="closeModal('tds-modal')">×</button></div>
     <div class="modal-body">
       <input type="hidden" id="tds-id">
+      <% if (pageRole === 'superadmin') { %>
+      <div class="form-group"><label class="form-label" for="tds-rule-company">Company <span style="color:#ef4444">*</span></label><select id="tds-rule-company" class="form-control"><option value="">Select a company</option></select></div>
+      <% } %>
       <div class="form-row">
         <div class="form-group"><label class="form-label">TDS Code <span style="color:#ef4444">*</span></label><input type="text" id="tds-code" class="form-control" maxlength="30" placeholder="e.g. TDS-CON-OTH" style="text-transform:uppercase"></div>
         <div class="form-group"><label class="form-label">Section</label><input type="text" id="tds-section" class="form-control" maxlength="20" placeholder="e.g. 194C"></div>
@@ -2173,7 +2034,10 @@
 }
 </style>
 
+<link rel="stylesheet" href="/css/account-filters.css">
 <script src="/js/api.js"></script>
+<script src="/js/account-filters.js"></script>
+<script src="/js/account-filter-controls.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script>
 var ACCOUNTS_PAGE_ROLE = <%- JSON.stringify(pageRole || 'superadmin') %>;
@@ -2769,12 +2633,7 @@ function populateAccountCompanySelect(selectId, selectedId, options) {
 }
 
 function initInvoiceCompanyFilter() {
-  var sel = document.getElementById('inv-company-filter');
-  if (!sel) return Promise.resolve();
-  return populateAccountCompanySelect('inv-company-filter', sel.value, {
-    placeholder: 'All Companies',
-    autoSelectFirst: false
-  });
+  return initAccountListFilters();
 }
 
 function renderDocCompanyMeta() {
@@ -3755,38 +3614,16 @@ function invoiceFinancialYearCalendarValue() {
 }
 
 function updateInvoiceFinancialYearControl() {
-  var allYearsButton = document.getElementById('inv-fy-all');
-  var fy = financialYearFromCalendarMonth(invoiceFinancialYearCalendarValue());
-  if (allYearsButton) {
-    var isAllYears = !fy;
-    allYearsButton.innerHTML = isAllYears
-      ? '<i class="bx bx-check-circle" aria-hidden="true"></i><span>All Years</span>'
-      : '<i class="bx bx-filter-alt" aria-hidden="true"></i><span>' + formatFinancialYearLabel(fy) + '</span><i class="bx bx-x" aria-hidden="true"></i>';
-    allYearsButton.style.background = isAllYears ? '#111827' : '#fff';
-    allYearsButton.style.borderColor = isAllYears ? '#111827' : '#d1d5db';
-    allYearsButton.style.color = isAllYears ? '#fff' : '#374151';
-    allYearsButton.style.boxShadow = isAllYears ? '0 1px 2px rgba(17,24,39,.18)' : 'none';
-    allYearsButton.title = isAllYears ? 'Showing invoices from all financial years' : 'Financial-year filter is active. Click to clear it.';
-    allYearsButton.setAttribute('aria-label', allYearsButton.title);
-    allYearsButton.setAttribute('aria-pressed', isAllYears ? 'true' : 'false');
-  }
-  return fy;
+  var period = updateAccountFilterMeta('inv');
+  return period.valid && !period.all ? period.code : '';
 }
 
 function applyInvoiceFinancialYearCalendar() {
-  validateInvoiceFinancialYearInput(true);
-  updateInvoiceFinancialYearControl();
-  renderInvoices();
+  changeAccountFilter('inv', 'period');
 }
 
 function clearInvoiceFinancialYearFilter() {
-  var year = document.getElementById('inv-fy-year');
-  var month = document.getElementById('inv-fy-month');
-  if (year) year.value = '';
-  if (month) month.value = '';
-  validateInvoiceFinancialYearInput(false);
-  updateInvoiceFinancialYearControl();
-  renderInvoices();
+  clearAccountFinancialYear('inv');
 }
 
 function populateAccountDateFilters(prefix, rows, dateKey) {
@@ -3895,13 +3732,17 @@ function renderInvoices() {
   var st = document.getElementById('inv-status').value;
   var tp = document.getElementById('inv-type').value;
   var sort = (document.getElementById('inv-sort') || {}).value || 'date_desc';
-  var fy = updateInvoiceFinancialYearControl();
+  var period = updateAccountFilterMeta('inv');
+  if (!period.valid) {
+    document.getElementById('inv-body').innerHTML = emptyRow(7);
+    return;
+  }
   var companyId = document.getElementById('inv-company-filter') ? document.getElementById('inv-company-filter').value : '';
   var params = new URLSearchParams();
   if (q)  params.set('q', q);
   if (st) params.set('status', st);
   if (sort) params.set('sort', sort);
-  if (fy) params.set('financialYear', fy);
+  if (!period.all) { params.set('from', period.from); params.set('to', period.to); }
   if (companyId) params.set('companyId', companyId);
 
   api('GET', '/invoices?' + params.toString())
@@ -3909,7 +3750,7 @@ function renderInvoices() {
       if (renderSequence !== invoiceRenderSequence) return;
       var tbody = document.getElementById('inv-body');
       data = data || [];
-      data = data.filter(function(r) { return matchesInvoiceTypeFilter(r, tp); });
+      data = applyAccountListFilters('inv', data);
       if (!data.length) { tbody.innerHTML = emptyRow(7); setTabCount('tab-count-inv', 0); return; }
 
       tbody.innerHTML = data.map(function(r) {
@@ -4222,8 +4063,19 @@ function shareWhatsApp(num, amount) {
 }
 
 /* ── Shared PDF open/download helper ───────────────────── */
+// Server URL that opens a PDF directly in a browser tab (the API accepts ?token=).
+function accountPdfTabUrl(apiPath) {
+  return '/api' + apiPath + (apiPath.indexOf('?') === -1 ? '?' : '&') + 'token=' + encodeURIComponent(getToken());
+}
 function openPDF(apiPath, download, filename) {
   var token = getToken();
+  if (!download) {
+    // Open the tab during the click itself: a tab opened after an await is blocked as a
+    // pop-up, and the browser's own viewer then keeps working (save, print, reload).
+    var win = window.open(accountPdfTabUrl(apiPath), '_blank');
+    if (!win) toast('Allow pop-ups for this site to open the PDF', 'error');
+    return;
+  }
   fetch('/api' + apiPath, { headers: { 'Authorization': 'Bearer ' + token } })
     .then(function(r) { if (!r.ok) throw new Error('PDF failed'); return r.blob(); })
     .then(function(blob) {
@@ -5164,13 +5016,9 @@ function populateWOCompanyDropdown(selectedId, autoFill, fallbackName) {
 var editingQuoId = null;
 
 function renderQuotations() {
-  var q = (document.getElementById('quo-search').value||'').toLowerCase();
-  var st = document.getElementById('quo-status').value;
-  api('GET', '/quotations').then(function(data) {
-    var filtered = (data||[]).filter(function(r) {
-      return (!q || (r.clientName||'').toLowerCase().includes(q) || (r.quotationNumber||'').toLowerCase().includes(q))
-          && (!st || r.status === st);
-    });
+  accountListRequest('quo', '/quotations').then(function(data) {
+    if (data === null) return;
+    var filtered = applyAccountListFilters('quo', data || []);
     document.getElementById('quo-body').innerHTML = filtered.length ? filtered.map(function(r) {
       var convBadge = r.status === 'Converted'
         ? '<span style="font-size:10px;background:#dbeafe;color:#1d4ed8;border-radius:12px;padding:2px 8px;margin-left:4px;">Converted</span>' : '';
@@ -5408,20 +5256,9 @@ async function convertQuoToInvoice(id) {
    PROFORMA — render/save/convert (API-backed overrides)
 ══════════════════════════════════════════════════════════ */
 function renderProforma() {
-  var q  = (document.getElementById('pro-search').value||'').toLowerCase();
-  var st = document.getElementById('pro-status').value;
-  var yr = document.getElementById('pro-year') ? document.getElementById('pro-year').value : '';
-  var mo = document.getElementById('pro-month') ? document.getElementById('pro-month').value : '';
-  api('GET', '/proformas-db').then(function(data) {
-    data = data || [];
-    populateAccountDateFilters('pro', data, 'date');
-    yr = document.getElementById('pro-year') ? document.getElementById('pro-year').value : yr;
-    mo = document.getElementById('pro-month') ? document.getElementById('pro-month').value : mo;
-    var filtered = (data||[]).filter(function(r) {
-      return (!q || (r.customerName||'').toLowerCase().includes(q) || (r.proformaNumber||'').toLowerCase().includes(q))
-          && (!st || r.status === st)
-          && matchesAccountDateFilter(r, 'date', yr, mo);
-    });
+  accountListRequest('pro', '/proformas-db').then(function(data) {
+    if (data === null) return;
+    var filtered = applyAccountListFilters('pro', data || []);
     document.getElementById('pro-body').innerHTML = filtered.length ? filtered.map(function(r) {
       var convBadge = r.status === 'Converted'
         ? '<span style="font-size:10px;background:#dcfce7;color:#15803d;border-radius:12px;padding:2px 8px;margin-left:4px;">Invoiced</span>' : '';
@@ -5780,13 +5617,9 @@ async function savePO() {
 }
 
 function renderPO() {
-  var q = (document.getElementById('po-search').value||'').toLowerCase();
-  var st = document.getElementById('po-status').value;
-  api('GET', '/purchase-orders').then(function(data) {
-    var filtered = (data||[]).filter(function(r) {
-      return (!q || (r.vendorName||'').toLowerCase().includes(q) || (r.poNumber||'').toLowerCase().includes(q))
-          && (!st || r.status === st);
-    });
+  accountListRequest('po', '/purchase-orders').then(function(data) {
+    if (data === null) return;
+    var filtered = applyAccountListFilters('po', data || []);
     document.getElementById('po-body').innerHTML = filtered.length ? filtered.map(function(r) {
       return '<tr>' +
         '<td class="acc-td" style="font-weight:600;">'+(r.poNumber||'—')+'</td>' +
@@ -5891,14 +5724,10 @@ async function saveVendor() {
 }
 
 function renderVendors() {
-  var q = (document.getElementById('ven-search').value||'').toLowerCase();
-  var st = document.getElementById('ven-status').value;
-  api('GET', '/vendors').then(function(data) {
+  accountListRequest('ven', '/vendors').then(function(data) {
+    if (data === null) return;
     _allVendors = data || [];
-    var filtered = _allVendors.filter(function(r) {
-      return (!q || (r.name||'').toLowerCase().includes(q) || (r.vendorCode||'').toLowerCase().includes(q) || (r.email||'').toLowerCase().includes(q))
-          && (!st || r.status === st);
-    });
+    var filtered = applyAccountListFilters('ven', data || []);
     document.getElementById('ven-body').innerHTML = filtered.length ? filtered.map(function(r) {
       return '<tr>' +
         '<td class="acc-td" style="font-weight:600;">'+(r.vendorCode||'—')+'</td>' +
@@ -5929,17 +5758,13 @@ async function deleteVen(id) {
 var editingCltId = null;
 
 function renderClients() {
-  var q = (document.getElementById('clt-search').value||'').toLowerCase();
-  var st = document.getElementById('clt-status').value;
-  api('GET', '/clients').then(function(data) {
+  accountListRequest('clt', '/clients').then(function(data) {
+    if (data === null) return;
     _allClients = data || [];
     setAccountQuickFillCustomers(_allClients);
     populateVendorDropdown();
     populateProVendorDropdown();
-    var filtered = _allClients.filter(function(r) {
-      return (!q || (r.name||'').toLowerCase().includes(q) || (r.clientCode||'').toLowerCase().includes(q) || (r.email||'').toLowerCase().includes(q))
-          && (!st || r.status === st);
-    });
+    var filtered = applyAccountListFilters('clt', data || []);
     document.getElementById('clt-body').innerHTML = filtered.length ? filtered.map(function(r) {
       return '<tr>' +
         '<td class="acc-td" style="font-weight:600;">'+(r.clientCode||'—')+'</td>' +
@@ -6256,13 +6081,9 @@ async function saveWO() {
 }
 
 function renderCWO() {
-  var q = (document.getElementById('cwo-search').value||'').toLowerCase();
-  var st = document.getElementById('cwo-status').value;
-  api('GET', '/work-orders?type=CWO').then(function(data) {
-    var filtered = (data||[]).filter(function(r) {
-      return (!q || (r.partyName||'').toLowerCase().includes(q) || (r.woNumber||'').toLowerCase().includes(q) || (r.projectName||'').toLowerCase().includes(q) || (r.projectCode||'').toLowerCase().includes(q))
-          && (!st || r.status === st);
-    });
+  accountListRequest('cwo', '/work-orders?type=CWO').then(function(data) {
+    if (data === null) return;
+    var filtered = applyAccountListFilters('cwo', data || []);
     document.getElementById('cwo-body').innerHTML = filtered.length ? filtered.map(function(r) {
       return '<tr>' +
         '<td class="acc-td" style="font-weight:600;">'+(r.woNumber||'—')+'</td>' +
@@ -6284,13 +6105,9 @@ function renderCWO() {
 }
 
 function renderVWO() {
-  var q = (document.getElementById('vwo-search').value||'').toLowerCase();
-  var st = document.getElementById('vwo-status').value;
-  api('GET', '/work-orders?type=VWO').then(function(data) {
-    var filtered = (data||[]).filter(function(r) {
-      return (!q || (r.partyName||'').toLowerCase().includes(q) || (r.woNumber||'').toLowerCase().includes(q) || (r.projectName||'').toLowerCase().includes(q) || (r.projectCode||'').toLowerCase().includes(q))
-          && (!st || r.status === st);
-    });
+  accountListRequest('vwo', '/work-orders?type=VWO').then(function(data) {
+    if (data === null) return;
+    var filtered = applyAccountListFilters('vwo', data || []);
     document.getElementById('vwo-body').innerHTML = filtered.length ? filtered.map(function(r) {
       return '<tr>' +
         '<td class="acc-td" style="font-weight:600;">'+(r.woNumber||'—')+'</td>' +
@@ -6323,14 +6140,10 @@ async function deleteWO(id) {
 var editingPrjId = null;
 
 function renderProjects() {
-  var q = (document.getElementById('prj-search').value||'').toLowerCase();
-  var st = document.getElementById('prj-status').value;
-  api('GET', '/project-accounts').then(function(data) {
+  accountListRequest('prj', '/project-accounts').then(function(data) {
+    if (data === null) return;
     _allProjects = data || [];
-    var filtered = _allProjects.filter(function(r) {
-      return (!q || (r.name||'').toLowerCase().includes(q) || (r.projectCode||'').toLowerCase().includes(q) || (r.clientName||'').toLowerCase().includes(q))
-          && (!st || r.status === st);
-    });
+    var filtered = applyAccountListFilters('prj', data || []);
     document.getElementById('prj-body').innerHTML = filtered.length ? filtered.map(function(r) {
       var spent = parseFloat(r.spent||0), budget = parseFloat(r.budget||0), rem = budget - spent;
       var pct = budget ? Math.round((spent/budget)*100) : 0;
@@ -6451,7 +6264,7 @@ function calcDiscount() {
 }
 function calcTDS() {
   var gross=parseFloat(document.getElementById('tds-gross').value)||0;
-  var rate=parseFloat(document.getElementById('tds-rate').value)||10;
+  var rate=parseFloat(document.getElementById('calc-tds-rate').value)||10;
   var mode=(document.getElementById('tds-mode')||{}).value||'exclusive';
   var baseAmt=mode==='inclusive' && rate>0 ? (gross/(1+(rate/100))) : gross;
   var ded=mode==='inclusive' ? (gross-baseAmt) : (gross*rate/100);
@@ -6776,6 +6589,38 @@ var repData     = [];
 var repFiltered = [];
 
 var REP_CONFIG = {
+  tds: {
+    label: 'TDS Master', endpoint: '/tds-rules', statuses: ['Active', 'Inactive'],
+    dateField: 'applicableFrom', nameField: 'nature', numField: 'code', amountField: null,
+    columns: [
+      { h: 'TDS Code', v: function(r) { return r.code || ''; } },
+      { h: 'Company', v: function(r) { return (r.company && r.company.name) || ''; } },
+      { h: 'Nature', v: function(r) { return r.nature || ''; } },
+      { h: 'Section', v: function(r) { return r.section || ''; } },
+      { h: 'Payee Type', v: function(r) { return r.payeeType || ''; } },
+      { h: 'Rate', v: function(r) { return payPct(r.rate); } },
+      { h: 'Single Payment Limit', v: function(r) { return Number(r.singleLimit || 0); } },
+      { h: 'FY Aggregate Limit', v: function(r) { return Number(r.aggregateLimit || 0); } },
+      { h: 'Applicable From', v: function(r) { return r.applicableFrom || 'Any date'; } },
+      { h: 'Applicable To', v: function(r) { return r.applicableTo || 'No end date'; } },
+      { h: 'Status', v: function(r) { return r.active ? 'Active' : 'Inactive'; } }
+    ]
+  },
+  pay: {
+    label: 'Payments', endpoint: '/payments', statuses: [],
+    dateField: 'paymentDate', nameField: 'partyName', numField: 'paymentNumber', amountField: 'netAmount',
+    columns: [
+      { h: 'Payment #', v: function(r) { return r.paymentNumber || ''; } },
+      { h: 'Date', v: function(r) { return r.paymentDate || ''; } },
+      { h: 'Party', v: function(r) { return r.partyName || ''; } },
+      { h: 'Invoice', v: function(r) { return r.invoiceNumber || ''; } },
+      { h: 'Type', v: function(r) { return r.paymentType || ''; } },
+      { h: 'Gross + GST', v: function(r) { return Number(r.grossAmount || 0) + Number(r.gstAmount || 0); } },
+      { h: 'TDS', v: function(r) { return Number(r.tdsAmount || 0); } },
+      { h: 'Net Amount', v: function(r) { return Number(r.netAmount || 0); } },
+      { h: 'Reference', v: function(r) { return r.referenceNo || ''; } }
+    ]
+  },
   inv: {
     label: 'Invoices', endpoint: '/invoices',
     statuses: ['Draft','Sent','Paid','Cancelled'],
@@ -6865,11 +6710,11 @@ var REP_CONFIG = {
   cwo: {
     label: 'Client Work Orders', endpoint: '/work-orders?type=CWO',
     statuses: ['Draft','Active','Completed','Cancelled'],
-    dateField: 'date', nameField: 'clientName', numField: 'woNumber', amountField: 'totalAmount',
+    dateField: 'startDate', nameField: 'partyName', numField: 'woNumber', amountField: 'totalAmount',
     columns: [
       { h:'WO #',         v:function(r){ return r.woNumber||''; } },
-      { h:'Client',       v:function(r){ return r.clientName||r.customerName||''; } },
-      { h:'Date',         v:function(r){ return r.date||''; } },
+      { h:'Client',       v:function(r){ return r.partyName || r.clientName || (r.client && r.client.name) || ''; } },
+      { h:'Start Date',   v:function(r){ return r.startDate || String(r.createdAt || '').slice(0, 10); } },
       { h:'Total Amount', v:function(r){ return parseFloat(r.totalAmount||0); } },
       { h:'Status',       v:function(r){ return r.status||''; } },
     ],
@@ -6877,11 +6722,11 @@ var REP_CONFIG = {
   vwo: {
     label: 'Vendor Work Orders', endpoint: '/work-orders?type=VWO',
     statuses: ['Draft','Active','Completed','Cancelled'],
-    dateField: 'date', nameField: 'vendorName', numField: 'woNumber', amountField: 'totalAmount',
+    dateField: 'startDate', nameField: 'partyName', numField: 'woNumber', amountField: 'totalAmount',
     columns: [
       { h:'WO #',         v:function(r){ return r.woNumber||''; } },
-      { h:'Vendor',       v:function(r){ return r.vendorName||''; } },
-      { h:'Date',         v:function(r){ return r.date||''; } },
+      { h:'Vendor',       v:function(r){ return r.partyName || r.vendorName || (r.vendor && r.vendor.name) || ''; } },
+      { h:'Start Date',   v:function(r){ return r.startDate || String(r.createdAt || '').slice(0, 10); } },
       { h:'Total Amount', v:function(r){ return parseFloat(r.totalAmount||0); } },
       { h:'Status',       v:function(r){ return r.status||''; } },
     ],
@@ -6910,11 +6755,23 @@ function onRepSectionChange() {
   // Update status options
   var stSel = document.getElementById('rep-status');
   stSel.innerHTML = '<option value="">All Status</option>';
-  (cfg.statuses||[]).forEach(function(s){
+  var sectionStatus = document.getElementById(sec + '-status');
+  var statuses = sectionStatus ? Array.from(sectionStatus.options).map(function(option) { return option.value; }).filter(Boolean) : [];
+  stSel.disabled = sec === 'pay';
+  statuses.forEach(function(s){
     var o = document.createElement('option'); o.value = s; o.textContent = s; stSel.appendChild(o);
   });
   // Show/hide date filters
-  var showDate = !!cfg.dateField;
+  var showDate = !!AccountFilters.configs[sec];
+  var sourceSort = document.getElementById(sec + '-sort');
+  var reportSort = document.getElementById('rep-sort');
+  var previousSort = reportSort.value;
+  if (sourceSort) {
+    reportSort.innerHTML = sourceSort.innerHTML;
+    if (Array.from(reportSort.options).some(function(option) { return option.value === previousSort; })) reportSort.value = previousSort;
+  }
+  document.querySelectorAll('#rep-sort option[value^="amount_"]').forEach(function(option) { option.disabled = !cfg.amountField; });
+  if (!cfg.amountField && document.getElementById('rep-sort').value.indexOf('amount_') === 0) document.getElementById('rep-sort').value = 'date_desc';
   document.getElementById('rep-date-from-wrap').style.display = showDate ? '' : 'none';
   document.getElementById('rep-date-to-wrap').style.display   = showDate ? '' : 'none';
   repData = []; repFiltered = [];
@@ -6928,24 +6785,13 @@ function renderReport() {
   var thead = document.getElementById('rep-thead');
   tbody.innerHTML = '<tr><td colspan="20" style="text-align:center;padding:32px;color:var(--text-muted);">Loading...</td></tr>';
 
-  api('GET', cfg.endpoint).then(function(data) {
+  repFiltered = [];
+  accountListRequest('rep', cfg.endpoint).then(function(data) {
+    if (data === null) return;
     repData = data || [];
-    var q     = (document.getElementById('rep-search').value||'').toLowerCase();
-    var st    = document.getElementById('rep-status').value;
     var dfrom = document.getElementById('rep-date-from').value;
-    var dto   = document.getElementById('rep-date-to').value;
-
-    repFiltered = repData.filter(function(r) {
-      if (st && r.status !== st) return false;
-      if (q) {
-        var num  = String(r[cfg.numField]  ||'').toLowerCase();
-        var name = String(r[cfg.nameField] ||'').toLowerCase();
-        if (!num.includes(q) && !name.includes(q)) return false;
-      }
-      if (cfg.dateField && dfrom && (r[cfg.dateField]||'') < dfrom) return false;
-      if (cfg.dateField && dto   && (r[cfg.dateField]||'') > dto)   return false;
-      return true;
-    });
+    var dto = document.getElementById('rep-date-to').value;
+    repFiltered = applyAccountListFilters('rep', repData, sec, { from: dfrom, to: dto });
 
     // Header
     thead.innerHTML = '<tr style="background:var(--bg-input);border-bottom:1px solid var(--border);">' +
@@ -6973,7 +6819,7 @@ function renderReport() {
     }
     // Status breakdown
     var byStatus = {};
-    repFiltered.forEach(function(r){ var s=r.status||'—'; byStatus[s]=(byStatus[s]||0)+1; });
+    repFiltered.forEach(function(r){ var s = sec === 'tds' ? (r.active ? 'Active' : 'Inactive') : (r.status || '—'); byStatus[s]=(byStatus[s]||0)+1; });
     Object.keys(byStatus).forEach(function(s){ cards.push({ label:s, val:byStatus[s], money:false }); });
     summaryEl.innerHTML = cards.map(function(c){
       return '<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:12px 18px;min-width:110px;">' +
@@ -6993,7 +6839,11 @@ function clearRepFilters() {
   document.getElementById('rep-date-to').value   = '';
   document.getElementById('rep-status').value    = '';
   document.getElementById('rep-search').value    = '';
-  renderReport();
+  document.getElementById('rep-sort').value = 'date_desc';
+  var company = document.getElementById('rep-company-filter');
+  if (company) company.value = '';
+  changeAccountFilter('rep', 'company');
+  clearAccountFinancialYear('rep');
 }
 
 function exportReportExcel() {
@@ -7574,14 +7424,26 @@ function viewAccountDoc(kind, id) {
     var printBtn = document.getElementById('acc-doc-print-btn');
     var downloadBtn = document.getElementById('acc-doc-download-btn');
     if (printBtn) printBtn.style.display = pdfControls ? '' : 'none';
+    var openBtn = document.getElementById('acc-doc-open-btn');
+    if (openBtn) openBtn.style.display = pdfControls ? '' : 'none';
     if (downloadBtn) downloadBtn.style.display = pdfControls ? '' : 'none';
     if (doc.profileOnly || !doc.pdfViewUrl) {
       body.innerHTML = doc.html;
       openModal('acc-doc-preview-modal');
       return;
     }
-    body.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;min-height:240px;color:#64748b;font-size:13px;">Loading PDF preview...</div>';
     openModal('acc-doc-preview-modal');
+    // Phones and some browsers cannot show a PDF inside the page; offer it in a tab instead.
+    if (navigator.pdfViewerEnabled === false) {
+      body.innerHTML = '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;height:100%;min-height:240px;color:#475569;font-size:13px;text-align:center;padding:16px;">' +
+        '<div>This browser cannot show the PDF inside the page.</div>' +
+        '<div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center;">' +
+          '<button class="btn btn-primary" onclick="openCurrentAccountDocInTab()"><i class="bx bx-link-external"></i> Open PDF</button>' +
+          '<button class="btn btn-secondary" onclick="downloadCurrentAccountDoc()"><i class="bx bx-download"></i> Download PDF</button>' +
+        '</div></div>';
+      return;
+    }
+    body.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;min-height:240px;color:#64748b;font-size:13px;">Loading PDF preview...</div>';
     loadPDFBlobUrl(doc.pdfViewUrl).then(function(url) {
       currentAccountDoc.previewUrl = url;
       body.innerHTML = '<iframe class="acc-doc-preview-frame" src="' + accEsc(url) + '"></iframe>';
@@ -7593,6 +7455,8 @@ function viewAccountDoc(kind, id) {
   }).catch(function(e) { toast(e.message || 'Unable to open document', 'error'); });
 }
 function printAccountDoc(kind, id) {
+  // Documents with a PDF open straight away so the new tab is not blocked.
+  if (accountPdfUrl(kind, id, true)) return openPDF(accountPdfUrl(kind, id, true), false);
   loadAccountDoc(kind, id).then(function(doc) {
     if (doc.pdfViewUrl || doc.pdfUrl) return openPDF(doc.pdfViewUrl || doc.pdfUrl, false);
     accPrintFrame(doc.title, doc.html, true);
@@ -7603,6 +7467,10 @@ function downloadAccountDoc(kind, id) {
     if (doc.pdfViewUrl || doc.pdfUrl) return openPDF(doc.pdfViewUrl || doc.pdfUrl, true, accountPdfFilename(kind, id, doc));
     accPrintFrame(doc.title, doc.html, true);
   }).catch(function(e) { toast(e.message || 'Unable to download document', 'error'); });
+}
+function openCurrentAccountDocInTab() {
+  var url = currentAccountDoc.pdfViewUrl || currentAccountDoc.pdfUrl;
+  if (url) openPDF(url, false);
 }
 function printCurrentAccountDoc() {
   if (currentAccountDoc.pdfViewUrl || currentAccountDoc.pdfUrl) return openPDF(currentAccountDoc.pdfViewUrl || currentAccountDoc.pdfUrl, false);
@@ -7652,12 +7520,6 @@ function clearPayInvoiceFilter() {
 
 function renderPayments() {
   var params = new URLSearchParams();
-  var q = (document.getElementById('pay-search').value || '').trim();
-  var fy = document.getElementById('pay-fy').value;
-  var type = document.getElementById('pay-type').value;
-  if (q) params.set('q', q);
-  if (fy) params.set('financialYear', fy);
-  if (type) params.set('type', type);
   if (payInvoiceFilter) params.set('invoiceId', payInvoiceFilter.id);
   var chip = document.getElementById('pay-invoice-filter');
   if (payInvoiceFilter) {
@@ -7666,13 +7528,9 @@ function renderPayments() {
   } else {
     chip.style.display = 'none';
   }
-  api('GET', '/payments?' + params.toString()).then(function(rows) {
-    rows = rows || [];
-    var fySel = document.getElementById('pay-fy');
-    if (!fy) {
-      var years = Array.from(new Set(rows.map(function(r) { return r.financialYear; }).filter(Boolean))).sort().reverse();
-      fySel.innerHTML = '<option value="">All FY</option>' + years.map(function(y) { return '<option value="' + accEsc(y) + '">FY 20' + accEsc(y) + '</option>'; }).join('');
-    }
+  accountListRequest('pay', '/payments?' + params.toString()).then(function(rows) {
+    if (rows === null) return;
+    rows = applyAccountListFilters('pay', rows || []);
     var sum = function(f) { return rows.reduce(function(s, r) { return s + Number(r[f] || 0); }, 0); };
     document.getElementById('pay-summary').innerHTML = [
       ['Payments', String(rows.length)],
@@ -7707,7 +7565,7 @@ function renderPayments() {
         '<td class="acc-td">' + menu + '</td>' +
       '</tr>';
     }).join('') : emptyRow(10);
-    if (!q && !fy && !type && !payInvoiceFilter) setTabCount('tab-count-pay', rows.length);
+    setTabCount('tab-count-pay', rows.length);
   }).catch(function(e) { toast(e.message || 'Failed to load payments', 'error'); });
 }
 
@@ -8005,30 +7863,39 @@ var TDS_BASIS_LABELS = { whole: 'Whole amount', excess: 'Excess only', current: 
 
 function tdsCompanyParam() {
   if (ACCOUNTS_PAGE_ROLE !== 'superadmin') return '';
-  var sel = document.getElementById('tds-company-sel');
+  var sel = document.getElementById('tds-company-filter');
   return sel && sel.value ? 'companyId=' + encodeURIComponent(sel.value) : '';
 }
 
+function populateTdsRuleFilters(rows) {
+  [['section-filter', 'section', 'All Sections'], ['payee-filter', 'payeeType', 'All Payee Types']].forEach(function(config) {
+    var select = document.getElementById('tds-' + config[0]);
+    var selected = select.value;
+    var values = Array.from(new Set(rows.map(function(row) { return String(row[config[1]] || '').trim(); }).filter(Boolean)));
+    if (selected && !values.includes(selected)) values.push(selected);
+    values.sort(function(a, b) { return a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }); });
+    select.innerHTML = '';
+    var all = document.createElement('option');
+    all.value = ''; all.textContent = config[2]; select.appendChild(all);
+    values.forEach(function(value) { var option = document.createElement('option'); option.value = value; option.textContent = value; select.appendChild(option); });
+    select.value = selected;
+  });
+}
+
 function renderTdsRules() {
-  var sel = document.getElementById('tds-company-sel');
-  var ready = Promise.resolve();
-  if (ACCOUNTS_PAGE_ROLE === 'superadmin' && !sel.options.length) {
-    sel.style.display = '';
-    ready = fetchAccountCompanies().then(function(companies) {
-      sel.innerHTML = companies.map(function(c) { return '<option value="' + c.id + '">' + accEsc(c.name) + '</option>'; }).join('');
-    });
-  }
-  ready.then(function() {
+  initAccountListFilters().then(function() {
     var qs = tdsCompanyParam();
-    return api('GET', '/tds-rules' + (qs ? '?' + qs : ''));
+    return accountListRequest('tds', '/tds-rules' + (qs ? '?' + qs : ''));
   }).then(function(rows) {
+    if (rows === null) return;
     tdsRulesCache = rows || [];
-    var showInactive = document.getElementById('tds-show-inactive').checked;
-    var list = tdsRulesCache.filter(function(r) { return showInactive || r.active; });
+    populateTdsRuleFilters(tdsRulesCache);
+    var list = applyAccountListFilters('tds', tdsRulesCache);
     var money = function(v) { return Number(v || 0) > 0 ? '₹' + Number(v).toLocaleString('en-IN') : '—'; };
     document.getElementById('tds-body').innerHTML = list.length ? list.map(function(r) {
       return '<tr' + (r.active ? '' : ' style="opacity:.55;"') + '>' +
         '<td class="acc-td" style="font-weight:700;white-space:nowrap;">' + accEsc(r.code) + '</td>' +
+        (ACCOUNTS_PAGE_ROLE === 'superadmin' ? '<td class="acc-td">' + accEsc((r.company && r.company.name) || ('Company ' + (r.companyId || 'unassigned'))) + '</td>' : '') +
         '<td class="acc-td">' + accEsc(r.nature) + (r.conditionNote ? '<div style="font-size:11px;color:var(--text-muted);max-width:320px;">' + accEsc(r.conditionNote) + '</div>' : '') + '</td>' +
         '<td class="acc-td">' + accEsc(r.section || '—') + '</td>' +
         '<td class="acc-td">' + accEsc(r.payeeType || '—') + '</td>' +
@@ -8043,12 +7910,13 @@ function renderTdsRules() {
           {icon:'bx-trash',    label:'Delete', fn:'deleteTdsRule(' + r.id + ')', danger:true}
         ]) + '</td>' +
       '</tr>';
-    }).join('') : emptyRow(11);
+    }).join('') : emptyRow(ACCOUNTS_PAGE_ROLE === 'superadmin' ? 12 : 11);
   }).catch(function(e) { toast(e.message || 'Failed to load TDS master', 'error'); });
 }
 
 function openTdsModal(id) {
   var r = id ? tdsRulesCache.find(function(x) { return x.id === id; }) : null;
+  if (id && !r) return toast('Reload the TDS list before editing this rule', 'error');
   document.getElementById('tds-modal-title').textContent = r ? 'Edit TDS Rule' : 'New TDS Rule';
   document.getElementById('tds-id').value = r ? r.id : '';
   document.getElementById('tds-code').value = r ? r.code : '';
@@ -8063,7 +7931,23 @@ function openTdsModal(id) {
   document.getElementById('tds-to').value = r ? (r.applicableTo || '') : '';
   document.getElementById('tds-note').value = r ? (r.conditionNote || '') : '';
   document.getElementById('tds-active').checked = r ? !!r.active : true;
-  openModal('tds-modal');
+  initAccountListFilters().then(function() {
+    var select = document.getElementById('tds-rule-company');
+    if (select) {
+      var source = document.getElementById('tds-company-filter');
+      select.innerHTML = '<option value="">Select a company</option>';
+      Array.from(source.options).filter(function(option) { return !!option.value; }).forEach(function(option) { select.appendChild(option.cloneNode(true)); });
+      var selectedId = r ? r.companyId : source.value;
+      if (selectedId && !Array.from(select.options).some(function(option) { return String(option.value) === String(selectedId); })) {
+        var option = document.createElement('option');
+        option.value = String(selectedId); option.textContent = (r && r.company && r.company.name) || ('Company ' + selectedId); select.appendChild(option);
+      }
+      select.value = selectedId ? String(selectedId) : '';
+      select.disabled = !!r;
+      select.title = r ? 'A rule stays with its issuing company.' : '';
+    }
+    openModal('tds-modal');
+  });
 }
 
 function saveTdsRule() {
@@ -8083,7 +7967,10 @@ function saveTdsRule() {
     active: document.getElementById('tds-active').checked
   };
   if (!body.code || !body.nature || body.rate === '') return toast('Code, nature and rate are required', 'error');
-  if (ACCOUNTS_PAGE_ROLE === 'superadmin') body.companyId = document.getElementById('tds-company-sel').value || null;
+  if (ACCOUNTS_PAGE_ROLE === 'superadmin') {
+    body.companyId = document.getElementById('tds-rule-company').value || null;
+    if (!id && !body.companyId) return toast('Select a company for this rule', 'error');
+  }
   var req = id ? api('PUT', '/tds-rules/' + id, body) : api('POST', '/tds-rules', body);
   req.then(function() {
     closeModal('tds-modal');
@@ -8101,7 +7988,8 @@ function deleteTdsRule(id) {
 }
 
 function restoreTdsDefaults() {
-  var body = ACCOUNTS_PAGE_ROLE === 'superadmin' ? { companyId: document.getElementById('tds-company-sel').value || null } : {};
+  var body = ACCOUNTS_PAGE_ROLE === 'superadmin' ? { companyId: document.getElementById('tds-company-filter').value || null } : {};
+  if (ACCOUNTS_PAGE_ROLE === 'superadmin' && !body.companyId) return toast('Choose a company filter before restoring default rules', 'error');
   api('POST', '/tds-rules/defaults', body).then(function(res) {
     toast(res.message || 'Default rules restored', 'success');
     renderTdsRules();

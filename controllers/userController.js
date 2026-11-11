@@ -1,8 +1,8 @@
 const { Op } = require('sequelize');
 const { User, Company, Document } = require('../models');
+const { PHOTOS_DIR, findStoredFile } = require('../config/uploads');
 const bcrypt = require('bcryptjs');
 const fs   = require('fs');
-const path = require('path');
 
 function isStrongPassword(p) {
   return /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&#^()_\-+=])[A-Za-z\d@$!%*?&#^()_\-+=]{8,}$/.test(p);
@@ -17,10 +17,33 @@ function roleRequiresCompany(role) {
   return role !== 'superadmin';
 }
 
-// Admins may only act on users of their own company.
-function outsideAdminCompany(req, user) {
-  return req.user.role === 'admin'
-    && (!normalizeCompanyId(req.user.companyId) || normalizeCompanyId(user.companyId) !== normalizeCompanyId(req.user.companyId));
+const ROLES = ['employee', 'manager', 'admin', 'superadmin'];
+const ADMIN_MANAGED_ROLES = ['employee', 'manager'];
+
+// Admins may only act on employees and managers of their own company (not on
+// other admins or the superadmin); allowSelf lets an admin read their own record.
+function outsideAdminCompany(req, user, allowSelf) {
+  if (req.user.role !== 'admin') return false;
+  if (allowSelf && Number(user.id) === Number(req.user.id)) return false;
+  return !normalizeCompanyId(req.user.companyId)
+    || normalizeCompanyId(user.companyId) !== normalizeCompanyId(req.user.companyId)
+    || !ADMIN_MANAGED_ROLES.includes(user.role);
+}
+
+// A reporting manager must be a manager of the same company.
+async function managerError(managerId, companyId, userId) {
+  if (!managerId) return null;
+  if (userId && Number(managerId) === Number(userId)) return 'A user cannot be their own manager';
+  const manager = await User.findByPk(managerId, { attributes: ['id', 'role', 'companyId'] });
+  if (!manager || manager.role !== 'manager') return 'Selected manager was not found';
+  if (normalizeCompanyId(manager.companyId) !== normalizeCompanyId(companyId)) return 'The manager must belong to the same company';
+  return null;
+}
+
+// Removes a stored photo file, staying inside the photos folder.
+function removePhotoFile(fileName) {
+  const found = findStoredFile(PHOTOS_DIR, fileName).path;
+  if (found) fs.unlinkSync(found);
 }
 
 // Basic + employment information fields (Employees → Add/Edit).
@@ -85,6 +108,10 @@ exports.createUser = async (req, res) => {
     if (exists) return res.status(400).json({ message: 'Email already exists' });
 
     const finalRole = role || 'employee';
+    if (!ROLES.includes(finalRole)) return res.status(400).json({ message: 'Invalid role' });
+    if (req.user.role === 'admin' && !ADMIN_MANAGED_ROLES.includes(finalRole)) {
+      return res.status(403).json({ message: 'Admins can create employees and managers only' });
+    }
     const actorCompanyId = normalizeCompanyId(req.user.companyId);
     const requestedCompanyId = normalizeCompanyId(companyId);
     const userData = {
@@ -135,6 +162,9 @@ exports.createUser = async (req, res) => {
       if (managerId) userData.managerId = managerId;
     }
 
+    const managerProblem = await managerError(userData.managerId, userData.companyId);
+    if (managerProblem) return res.status(400).json({ message: managerProblem });
+
     const user = await User.create(userData);
     const plain = user.toJSON();
     delete plain.password;
@@ -154,6 +184,7 @@ exports.updateUser = async (req, res) => {
     if (!user) return res.status(404).json({ message: 'User not found' });
     if (outsideAdminCompany(req, user)) return res.status(403).json({ message: 'Access denied: employee is outside your company' });
     const nextRole = role || user.role;
+    if (!ROLES.includes(nextRole)) return res.status(400).json({ message: 'Invalid role' });
 
     if (user.role === 'superadmin' && status && status !== 'active') {
       return res.status(400).json({ message: 'Superadmin cannot be deactivated' });
@@ -209,6 +240,11 @@ exports.updateUser = async (req, res) => {
       if (role && ['employee', 'manager'].includes(role)) user.role = role;
       user.companyId = actorCompanyId;
       if (managerId !== undefined) user.managerId = managerId || null;
+    }
+
+    if (user.changed('managerId') || user.changed('companyId')) {
+      const managerProblem = await managerError(user.managerId, user.companyId, user.id);
+      if (managerProblem) return res.status(400).json({ message: managerProblem });
     }
 
     if (nextRole === 'employee' && !user.verificationStatus) {
@@ -294,7 +330,11 @@ exports.updateMyProfile = async (req, res) => {
     const { name, phone, profilePhoto, gender } = req.body;
     if (name) user.name = name;
     if (phone !== undefined) user.phone = phone;
-    if (profilePhoto !== undefined) user.profilePhoto = profilePhoto;
+    // Photos are set only by uploading; this endpoint can only remove the current one.
+    if (profilePhoto !== undefined && !profilePhoto && user.profilePhoto) {
+      removePhotoFile(user.profilePhoto);
+      user.profilePhoto = null;
+    }
     if (gender !== undefined) user.gender = gender || 'unspecified';
 
     await user.save();
@@ -355,7 +395,7 @@ exports.getUserDetails = async (req, res) => {
       ],
     });
     if (!user) return res.status(404).json({ message: 'User not found' });
-    if (outsideAdminCompany(req, user)) return res.status(403).json({ message: 'Access denied: employee is outside your company' });
+    if (outsideAdminCompany(req, user, true)) return res.status(403).json({ message: 'Access denied: employee is outside your company' });
     res.json(user);
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -370,10 +410,7 @@ exports.uploadPhoto = async (req, res) => {
     if (!user) return res.status(404).json({ message: 'User not found' });
 
     // Delete old photo file if exists
-    if (user.profilePhoto) {
-      const oldPath = path.join(__dirname, '..', 'uploads', 'photos', user.profilePhoto);
-      if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
-    }
+    if (user.profilePhoto) removePhotoFile(user.profilePhoto);
 
     user.profilePhoto = req.file.filename;
     await user.save();
@@ -392,10 +429,7 @@ exports.uploadUserPhoto = async (req, res) => {
       fs.unlink(req.file.path, () => {});
       return res.status(user ? 403 : 404).json({ message: user ? 'Access denied: employee is outside your company' : 'User not found' });
     }
-    if (user.profilePhoto) {
-      const oldPath = path.join(__dirname, '..', 'uploads', 'photos', user.profilePhoto);
-      if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
-    }
+    if (user.profilePhoto) removePhotoFile(user.profilePhoto);
     user.profilePhoto = req.file.filename;
     await user.save();
     res.json({ message: 'Photo uploaded', profilePhoto: req.file.filename });
@@ -410,8 +444,8 @@ exports.getPhoto = async (req, res) => {
 
     const user = await User.findByPk(req.params.id, { attributes: ['profilePhoto'] });
     if (!user || !user.profilePhoto) return res.status(404).json({ message: 'No photo' });
-    const filePath = path.join(__dirname, '..', 'uploads', 'photos', user.profilePhoto);
-    if (!fs.existsSync(filePath)) return res.status(404).json({ message: 'File not found' });
+    const filePath = findStoredFile(PHOTOS_DIR, user.profilePhoto).path;
+    if (!filePath) return res.status(404).json({ message: 'File not found' });
     res.sendFile(filePath);
   } catch (err) {
     res.status(500).json({ message: err.message });

@@ -374,7 +374,7 @@ test('work order milestone columns span the table so Status is centred in its ce
   const status = calls.find(call => call.text === 'Status');
   assert.equal(Math.round(status.x + status.width + 2), helper.X + helper.W);
 });
-test('salary slip keeps long company and employee details from overlapping', async t => {
+test('salary slip shows long details in full, without overlap, continuing onto a new page', async t => {
   const longCompany = { ...company,
     name: 'DHARMAPURI HIGHWAY & PUBLIC ENGINEERING CONSTRUCTION AND CIVIL INFRASTRUCTURE SERVICES PRIVATE LIMITED',
     email: 'accounts.receivable.department@dharmapuri-highway-engineering.example.co.in',
@@ -382,6 +382,7 @@ test('salary slip keeps long company and employee details from overlapping', asy
   t.mock.method(models.Salary, 'findByPk', async () => record({ id: 1, companyId: 2, company: longCompany, month: 10,
     year: 2026, userId: 5, basicSalary: 912345.67, hra: 1500, conveyance: 2700, specialAllowance: 3700,
     bonus: 2500, totalDays: 31, workedDays: 31, allowedLeave: 2, status: 'finalized',
+    notes: (longName + ' ').repeat(25) + 'END-OF-NOTE',
     user: { id: 5, companyId: 2, role: 'employee', name: 'Venkata Subramanian Lakshminarayanan Raghavendra Krishnamurthy',
       email: 'venkata.subramanian.lakshminarayanan@dharmapuri-highway-engineering.example.co.in',
       department: 'Highway Construction & Civil Infrastructure Project Management',
@@ -390,18 +391,25 @@ test('salary slip keeps long company and employee details from overlapping', asy
     projectId: i + 1, project: longName, workItem: 'Zone ' + i, billingType: 'Billable' }));
   t.mock.method(models.Timesheet, 'findAll', async () => [{ entries }]);
   const { calls, pdf } = await generate(t, 'salary-long-fields', require('../controllers/salaryController').generatePayslip);
-  assert.equal(pdf.getPageCount(), 1);
+  assert.ok(pdf.getPageCount() >= 2, 'long content continues on another page');
+  assert.ok(calls.some(call => call.text === 'Continued on page 2'));
+  assert.ok(calls.some(call => call.text === 'Page 1 of ' + pdf.getPageCount()));
   const at = text => calls.find(call => call.text === text);
   const bottom = call => call.y + call.height;
   const header = [at(longCompany.name), at(company.address), at(longCompany.phone + ' | ' + longCompany.email), at('SALARY SLIP')];
   header.slice(1).forEach((call, i) => assert.ok(bottom(header[i]) <= call.y + 0.5, 'salary header lines overlap'));
   const rows = ['Employee Name:', 'Department:', 'Work Location:', 'Email:', 'Pay Period:'].map(at);
   rows.slice(1).forEach((row, i) => {
-    calls.filter(call => call.y >= rows[i].y && call.y < row.y)
+    calls.filter(call => call.page === row.page && call.y >= rows[i].y && call.y < row.y)
       .forEach(call => assert.ok(bottom(call) <= row.y + 0.5, 'employee details overlap the next row: ' + call.text.slice(0, 40)));
   });
-  const work = calls.filter(call => call.text.startsWith('Repairing of footpaths'));
-  assert.ok(work.length && work.every(call => call.height < 10), 'work summary labels stay on one line');
+  // Nothing is hidden: every project row is listed in full and the whole note is printed.
+  const work = calls.filter(call => call.text.startsWith('Repairing of footpaths') && call.text.includes(' · Zone '));
+  assert.equal(work.length, 6, 'every project is listed');
+  assert.ok(work.every(call => call.height > 10), 'long project names wrap instead of being cut');
+  assert.ok(!calls.some(call => call.text.startsWith('Other work')), 'projects are not collapsed');
+  assert.ok(calls.some(call => call.text.includes('END-OF-NOTE')), 'the note is printed to its last word');
+  assert.ok(calls.find(call => call.text === longCompany.name).height > 15, 'company name wraps rather than being cut');
 });
 for (const orientation of ['portrait', 'landscape']) {
   test(`R.A. bill ${orientation} preserves quantities and amount in the PDF`, async t => {

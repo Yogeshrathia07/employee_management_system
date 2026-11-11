@@ -17,7 +17,7 @@ const {
   drawSectionLabel, drawSignature, drawTextSection, drawPagedTable, serialColumnWidth,
 } = require('./pdfHelper');
 
-const DOCUMENT_UPLOAD_DIR = path.join(__dirname, '..', 'uploads', 'documents');
+const { DOCUMENTS_DIR: DOCUMENT_UPLOAD_DIR, resolveStoredFile } = require('../config/uploads');
 
 function genCode() { return Math.random().toString(36).substr(2,6).toUpperCase(); }
 function cleanGeneratedCode(value, prefix) {
@@ -127,9 +127,7 @@ function normalizeWorkOrderType(type) {
 }
 
 function resolveAnnexurePdfPath(fileName) {
-  const baseName = path.basename(String(fileName || '').trim());
-  if (!baseName) return '';
-  return path.join(DOCUMENT_UPLOAD_DIR, baseName);
+  return resolveStoredFile(DOCUMENT_UPLOAD_DIR, fileName) || '';
 }
 
 async function deleteAnnexureFile(fileName) {
@@ -533,7 +531,7 @@ exports.generatePDF = async (req, res) => {
     ];
     drawSignature({ fillBox, box, vLine, hLine, txt, txtH, checkPage }, y, co.name || '', bankLines);
 
-    addFooters(doc, { companyName: co.name });
+    addFooters(doc, { companyName: co.name, runningTitle: docTitle + ' ' + (wo.woNumber || '') });
     doc.end();
 
     let finalBuffer = await pdfBufferPromise;

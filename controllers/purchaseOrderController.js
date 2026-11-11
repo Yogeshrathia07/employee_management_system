@@ -263,7 +263,7 @@ exports.generatePDF = async (req, res) => {
     ];
     drawSignature({ fillBox, box, vLine, hLine, txt, txtH, checkPage }, y, co.name || '', bankLines);
 
-    addFooters(doc, { companyName: co.name, infoText: 'This is a computer-generated Purchase Order.' });
+    addFooters(doc, { companyName: co.name, infoText: 'This is a computer-generated Purchase Order.', runningTitle: 'PURCHASE ORDER ' + (po.poNumber || '') });
     doc.end();
   } catch (err) {
     if (!res.headersSent) res.status(500).json({ message: err.message });

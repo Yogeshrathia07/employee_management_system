@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const { AppSetting } = require('../models');
+const { PHOTOS_DIR } = require('../config/uploads');
 
 const LOGIN_HERO_KEY = 'loginHeroImage';
 const LOGIN_HERO_FIT_KEY = 'loginHeroFit';
@@ -38,7 +39,7 @@ exports.getLoginHeroImage = async (req, res) => {
     if (setting.value.startsWith('http')) return res.redirect(setting.value);
     if (setting.value.startsWith('/')) return res.redirect(setting.value);
 
-    const filePath = path.join(__dirname, '..', 'uploads', 'photos', setting.value);
+    const filePath = path.join(PHOTOS_DIR, setting.value);
     if (!fs.existsSync(filePath)) return res.status(404).json({ message: 'File not found' });
     res.sendFile(filePath);
   } catch (err) {
@@ -59,7 +60,7 @@ exports.upsertLoginHero = async (req, res) => {
 
     let setting = await getSetting(LOGIN_HERO_KEY);
     if (req.file && setting && setting.value && !setting.value.startsWith('http')) {
-      const oldPath = path.join(__dirname, '..', 'uploads', 'photos', setting.value);
+      const oldPath = path.join(PHOTOS_DIR, setting.value);
       if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
     }
 

@@ -3,6 +3,7 @@ const PDFDocument = require('pdfkit');
 const { applySellerCompanySnapshot, getRequestCompany } = require('./accountsCompanyScope');
 const {
   buildTaxSummaryLabels, addFooters, drawSignature, drawTextSection, drawPagedTable, drawLineBlock, numWords, serialColumnWidth,
+  PAGE_TOP,
 } = require('./pdfHelper');
 
 function fmtINR(n) {
@@ -78,7 +79,7 @@ exports.generatePDF = async (req, res) => {
       doc.fontSize(size||8).font(bold?'Helvetica-Bold':'Helvetica');
       return doc.heightOfString(String(text||''),{width:w,lineGap:0.5});
     }
-    function checkPage(y,needed){ if(y+needed>PH-M-24){ doc.addPage(); return M; } return y; }
+    function checkPage(y,needed){ if(y+needed>PH-M-24){ doc.addPage(); return PAGE_TOP; } return y; }
 
     let y=M;
     const items=inv.items||[];
@@ -229,7 +230,7 @@ exports.generatePDF = async (req, res) => {
       String(inv.termsConditions || '').trim() ? 'Terms & Conditions: ' + String(inv.termsConditions).trim() : '',
     ].filter(Boolean);
     y = drawTextSection(sectionHelpers, 'Additional Information', footLines.join('\n'), y, { size: 7 });
-    addFooters(doc, { companyName: inv.sellerName, infoText: 'This is a computer-generated proforma invoice, not a tax invoice.' });
+    addFooters(doc, { companyName: inv.sellerName, infoText: 'This is a computer-generated proforma invoice, not a tax invoice.', runningTitle: 'PROFORMA INVOICE ' + (inv.proformaNumber || inv.id || '') });
 
     doc.end();
   } catch(err) {

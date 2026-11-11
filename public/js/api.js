@@ -375,20 +375,84 @@ document.addEventListener('keydown', (e) => {
   }
 });
 
-// ─── Mobile Sidebar Toggle ───
+// Keep the drawer state and native link navigation consistent on every page.
+var sidebarNavigationBound = false;
+var sidebarPreviousOverflow = null;
+var sidebarReturnFocus = null;
+function setSidebarOpen(open) {
+  const sidebar = document.getElementById('sidebar');
+  const overlay = document.getElementById('sidebarOverlay');
+  if (!sidebar) return;
+  const mobile = window.matchMedia('(max-width: 900px)').matches;
+  open = !!open && mobile;
+  const wasOpen = sidebar.classList.contains('open');
+  // Lock scrolling on the first open seen here. A menu opened by the stand-in in head.ejs
+  // before this script loaded is already "open" but has not locked scrolling yet.
+  if (open && sidebarPreviousOverflow === null) {
+    sidebarPreviousOverflow = document.body.style.overflow;
+    sidebarReturnFocus = document.activeElement;
+  }
+  sidebar.classList.toggle('open', open);
+  sidebar.setAttribute('aria-hidden', mobile && !open ? 'true' : 'false');
+  sidebar.inert = mobile && !open;
+  if (overlay) {
+    overlay.classList.toggle('show', open);
+    overlay.setAttribute('aria-hidden', open ? 'false' : 'true');
+  }
+  document.querySelectorAll('.mobile-menu-btn').forEach(button => {
+    button.setAttribute('aria-controls', 'sidebar');
+    button.setAttribute('aria-expanded', open ? 'true' : 'false');
+    if (!button.hasAttribute('aria-label')) button.setAttribute('aria-label', 'Open navigation menu');
+  });
+  if (open) document.body.style.overflow = 'hidden';
+  else if (sidebarPreviousOverflow !== null) {
+    document.body.style.overflow = sidebarPreviousOverflow;
+    sidebarPreviousOverflow = null;
+  }
+  if (!open && wasOpen && sidebar.contains(document.activeElement) && sidebarReturnFocus && sidebarReturnFocus.isConnected) sidebarReturnFocus.focus({ preventScroll: true });
+}
+function openSidebar() { setSidebarOpen(true); }
+function closeSidebar() { setSidebarOpen(false); }
 function toggleSidebar() {
   const sidebar = document.getElementById('sidebar');
-  const overlay = document.getElementById('sidebarOverlay');
-  if (sidebar) sidebar.classList.toggle('open');
-  if (overlay) overlay.classList.toggle('show');
+  setSidebarOpen(sidebar && !sidebar.classList.contains('open'));
 }
-
-function closeSidebar() {
+function initSidebarNavigation() {
   const sidebar = document.getElementById('sidebar');
-  const overlay = document.getElementById('sidebarOverlay');
-  if (sidebar) sidebar.classList.remove('open');
-  if (overlay) overlay.classList.remove('show');
-  document.body.style.overflow = '';
+  if (!sidebar) return;
+  const currentPath = window.location.pathname.replace(/\/+$/, '') || '/';
+  let activeLink = null;
+  let longestMatch = -1;
+  sidebar.querySelectorAll('.nav-link[href]').forEach(link => {
+    link.classList.remove('active');
+    link.removeAttribute('aria-current');
+    const target = new URL(link.getAttribute('href'), window.location.origin);
+    const pathname = target.pathname.replace(/\/+$/, '') || '/';
+    if (target.origin === window.location.origin &&
+        (currentPath === pathname || (pathname !== '/' && currentPath.startsWith(pathname + '/'))) &&
+        pathname.length > longestMatch) {
+      activeLink = link;
+      longestMatch = pathname.length;
+    }
+  });
+  if (activeLink) {
+    activeLink.classList.add('active');
+    activeLink.setAttribute('aria-current', 'page');
+  }
+  setSidebarOpen(sidebar.classList.contains('open'));
+  if (sidebarNavigationBound) return;
+  sidebarNavigationBound = true;
+  document.addEventListener('click', event => {
+    const link = event.target.closest && event.target.closest('#sidebar .nav-link[href]');
+    if (link && event.button === 0 && !event.ctrlKey && !event.metaKey && !event.shiftKey && !event.altKey && link.target !== '_blank') closeSidebar();
+  });
+  document.addEventListener('keydown', event => {
+    if (event.key === 'Escape' && document.getElementById('sidebar')?.classList.contains('open')) closeSidebar();
+  });
+  window.addEventListener('resize', () => {
+    const current = document.getElementById('sidebar');
+    if (current) setSidebarOpen(current.classList.contains('open'));
+  });
 }
 
 // ─── apiFetch (alias for fetch with auth) ───
@@ -478,16 +542,5 @@ syncStoredAuthCookie();
   // Logout button
   document.getElementById('logout-btn')?.addEventListener('click', logout);
 
-  // Mark active nav link + close sidebar on mobile when link clicked
-  document.querySelectorAll('.nav-link').forEach(link => {
-    const href = link.getAttribute('href');
-    if (href && window.location.pathname.startsWith(href) && href !== '/') {
-      link.classList.add('active');
-    } else if (href === window.location.pathname) {
-      link.classList.add('active');
-    }
-    link.addEventListener('click', () => {
-      if (window.innerWidth <= 900) closeSidebar();
-    });
-  });
 })();
+initSidebarNavigation();

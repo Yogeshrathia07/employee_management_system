@@ -13,6 +13,7 @@ const {
 } = require('./accountsCompanyScope');
 const {
   buildTaxSummaryLabels, roundMoney, addFooters, signatureLayout, drawSignature, splitTextToFit, numWords, drawLineBlock,
+  PAGE_TOP,
 } = require('./pdfHelper');
 const { prepareRaBill, refreshSeries, buildNextRaDraft } = require('./raBillService');
 
@@ -642,7 +643,7 @@ exports.downloadPDF = async (req, res) => {
     function checkPage(y, needed) {
       if (y + needed > PH - M - FOOTER_H) {
         doc.addPage();
-        return M;
+        return PAGE_TOP;
       }
       return y;
     }
@@ -1015,7 +1016,7 @@ exports.downloadPDF = async (req, res) => {
         let available = PH - M - FOOTER_H - y;
         if (available < minRowH) {
           doc.addPage();
-          y = drawItemsHeader(M, false);
+          y = drawItemsHeader(PAGE_TOP, false);
           available = PH - M - FOOTER_H - y;
         }
 
@@ -1024,7 +1025,7 @@ exports.downloadPDF = async (req, res) => {
 
         if (!segmentLineCount) {
           doc.addPage();
-          y = drawItemsHeader(M, false);
+          y = drawItemsHeader(PAGE_TOP, false);
           continue;
         }
 
@@ -1052,7 +1053,7 @@ exports.downloadPDF = async (req, res) => {
 
         if (lineIndex < descLines.length) {
           doc.addPage();
-          y = drawItemsHeader(M, false);
+          y = drawItemsHeader(PAGE_TOP, false);
         }
       }
     });
@@ -1195,7 +1196,11 @@ exports.downloadPDF = async (req, res) => {
       box(X, M, W, PH - (M * 2), LBD);
     }
 
-    addFooters(doc, { companyName: inv.sellerName, infoText: 'This is a computer-generated invoice.' });
+    addFooters(doc, {
+      companyName: inv.sellerName,
+      infoText: 'This is a computer-generated invoice.',
+      runningTitle: (isRA ? 'R.A. BILL NO. ' + (inv.raBillNo || 1) + ' · ' : '') + 'TAX INVOICE ' + (inv.invoiceNumber || ''),
+    });
 
     doc.end();
   } catch (err) {

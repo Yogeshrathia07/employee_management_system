@@ -1,0 +1,61 @@
+.admin-employees-page .employee-directory-shell { container-name:account-directory; container-type:inline-size; }
+.acc-module-nav { --account-tab-columns:7; display:flex; flex-wrap:wrap; justify-content:center; gap:6px; margin-bottom:24px; padding:6px; background:linear-gradient(135deg,#f8f9fb,#f1f3f5); border:1px solid #eceef1; border-radius:13px; }
+.acc-module-nav .acc-tab { display:inline-flex; align-items:center; justify-content:center; gap:4px; flex:0 0 calc((100% - (var(--account-tab-columns) - 1) * 6px) / var(--account-tab-columns)); min-width:0; min-height:40px; padding:9px 8px; transition:background .15s,color .15s,box-shadow .15s; }
+.acc-module-nav .acc-tab.active { color:#fff; background:#111; box-shadow:0 2px 4px #00000012; }
+.acc-module-nav .acc-tab.active .acc-tab-badge { color:#111; background:#fff; }
+.account-filter-bar { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:10px 16px; padding:14px; margin-bottom:16px; border:1px solid #e5e7eb; border-radius:13px; background:linear-gradient(120deg,#fafbfc,#fff); }
+.account-filter-controls { display:flex; flex-wrap:wrap; align-items:flex-end; gap:10px; min-width:0; }
+.account-filter-field { display:flex; flex:1 1 116px; min-width:0; flex-direction:column; gap:5px; margin:0; }
+.account-filter-field > span:first-child,.account-filter-label { font-size:10px; font-weight:700; letter-spacing:.035em; color:#667085; line-height:15px; }
+.account-filter-search { flex:1.6 1 185px; }
+.account-filter-company { flex:1.2 1 145px; }
+.account-filter-bar[data-account-filter="tds"] .account-filter-field:has(#tds-sort) { flex-basis:160px; }
+.account-filter-bar[data-account-filter="tds"] .account-filter-field:has(#tds-payee-filter) { flex-basis:148px; }
+.account-filter-bar[data-account-filter="tds"] .account-filter-company { flex-basis:165px; }
+.account-filter-bar .form-control,.account-search-input { width:100%; height:38px; min-height:38px; border:1px solid #dfe3e8; border-radius:9px; background:#fff; font-size:12px; color:#20252d; box-shadow:0 1px 2px #10182804; }
+.account-filter-bar select.form-control { padding:7px 24px 7px 10px; }
+.account-search-input { display:flex; align-items:center; gap:7px; padding:0 10px; }
+.account-search-input i { font-size:16px; color:#98a2b3; }
+.account-search-input input { width:100%; min-width:0; height:100%; border:0; outline:none; background:transparent; font:inherit; }
+.account-filter-bar .form-control:focus,.account-search-input:focus-within { outline:2px solid #1118271a; outline-offset:1px; border-color:#6b7280; }
+.account-filter-period { display:flex; flex:0 1 304px; flex-direction:column; gap:5px; min-width:280px; }
+.account-period-caption { font-size:10px; font-weight:400; letter-spacing:0; margin-left:5px; color:#98a2b3; }
+.account-period-controls { display:flex; align-items:center; gap:6px; }
+.account-period-controls input.form-control { width:80px; padding:7px 8px; }
+.account-period-controls select.form-control { width:93px; }
+.account-all-years { display:inline-flex; align-items:center; justify-content:center; gap:5px; height:38px; flex:1; min-width:98px; padding:0 10px; border:1px solid #dfe3e8; border-radius:9px; background:#fff; color:#374151; font:inherit; font-size:11px; font-weight:700; white-space:nowrap; cursor:pointer; transition:background .15s,color .15s; }
+.account-all-years.is-selected { color:#fff; background:#111; border-color:#111; }
+.account-all-years:focus-visible { outline:2px solid #9ca3af; outline-offset:2px; }
+.account-filter-create { align-self:start; margin-top:20px; height:38px; min-height:38px; padding:0 14px; font-size:12px; white-space:nowrap; }
+.account-filter-actions { display:flex; align-items:center; justify-content:flex-end; gap:8px; flex-wrap:wrap; margin:-4px 0 16px; }
+.account-filter-actions .btn { font-size:12px; }
+.account-filter-meta { grid-column:1 / -1; min-height:14px; color:#7a8493; font-size:11px; line-height:1.4; }
+.account-filter-meta.is-invalid { color:#b42318; }
+.account-filter-bar input[aria-invalid="true"] { border-color:#d92d20; }
+.acc-module > div:has(> table),#sub-invoices > div:has(> table) { overflow-x:auto !important; }
+.account-report-range { display:flex; flex-wrap:wrap; align-items:flex-end; gap:12px; margin-bottom:16px; }
+.account-report-range label { display:flex; flex-direction:column; gap:5px; font-size:11px; color:#667085; min-width:145px; }
+@container account-directory (max-width:1000px) {
+  .acc-module-nav { --account-tab-columns:5; }
+}
+@container account-directory (max-width:740px) {
+  .acc-module-nav { --account-tab-columns:4; }
+}
+@media (max-width:767px) {
+  .acc-module-nav { flex-wrap:nowrap; justify-content:flex-start; overflow-x:auto; scrollbar-width:thin; padding-bottom:8px; }
+  .acc-module-nav .acc-tab { flex-basis:140px; }
+  .account-filter-bar { grid-template-columns:minmax(0,1fr); gap:10px; padding:12px; }
+  .account-filter-controls { gap:10px 8px; }
+  .account-filter-field { flex:1 1 calc(50% - 8px); }
+  .account-filter-bar[data-account-filter="tds"] .account-filter-field:has(#tds-sort),
+  .account-filter-bar[data-account-filter="tds"] .account-filter-field:has(#tds-payee-filter) { flex-basis:calc(50% - 8px); }
+  .account-filter-bar[data-account-filter="tds"] .account-filter-company { flex-basis:100%; }
+  .account-filter-search { flex-basis:100%; }
+  .account-filter-period { flex:1 1 100%; min-width:0; }
+  .account-period-controls input.form-control { flex:1; width:0; min-width:70px; }
+  .account-period-controls select.form-control { flex:1; width:0; min-width:76px; }
+  .account-filter-create { margin-top:0; justify-self:stretch; justify-content:center; width:100%; }
+  .account-filter-meta { grid-row:auto; }
+  .account-report-range { gap:10px; }
+  .account-report-range label { flex:1 1 140px; min-width:0; }
+}

@@ -545,6 +545,7 @@ exports.generatePDF = async (req, res) => {
     addFooters(doc, {
       companyName: q.sellerName,
       infoText: 'This is a computer-generated quotation and remains subject to the terms stated above.',
+      runningTitle: 'QUOTATION ' + (q.quotationNumber || ''),
     });
     doc.end();
   } catch (err) {

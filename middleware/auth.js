@@ -151,6 +151,7 @@ const pageAuth = (...roles) => async (req, res, next) => {
       return res.redirect(getRoleHomePath(user));
     }
 
+    res.locals.sidebarRole = user.role;
     next();
   } catch (err) {
     clearAuthCookie(res, req);

@@ -1,6 +1,13 @@
 const { Op } = require('sequelize');
 const { Notification, NotificationRead, User } = require('../models');
 
+// A notification belongs to one company; employees and managers only reach active ones.
+function inScope(user, notif, requireActive) {
+  if (user.role === 'superadmin') return true;
+  if (!user.companyId || Number(notif.companyId) !== Number(user.companyId)) return false;
+  return !requireActive || user.role === 'admin' || notif.status === 'active';
+}
+
 // ── GET /notifications ────────────────────────────────────────────────────────
 exports.getNotifications = async (req, res) => {
   try {
@@ -41,9 +48,12 @@ exports.getUnreadCount = async (req, res) => {
       where.companyId = companyId;
     }
 
-    const total = await Notification.count({ where });
-    const read  = await NotificationRead.count({ where: { userId } });
-    res.json({ unread: Math.max(0, total - read) });
+    // Count reads only among the notifications this user can currently see, so reads of
+    // deactivated or deleted notifications do not hide new ones.
+    const visible = await Notification.findAll({ where, attributes: ['id'] });
+    const ids = visible.map(n => n.id);
+    const read = ids.length ? await NotificationRead.count({ where: { userId, notificationId: { [Op.in]: ids } } }) : 0;
+    res.json({ unread: Math.max(0, ids.length - read) });
   } catch (err) { res.status(500).json({ message: err.message }); }
 };
 
@@ -52,6 +62,8 @@ exports.markRead = async (req, res) => {
   try {
     const notifId = req.params.id;
     const userId  = req.user.id;
+    const notif = await Notification.findByPk(notifId, { attributes: ['id', 'companyId', 'status'] });
+    if (!notif || !inScope(req.user, notif, true)) return res.status(404).json({ message: 'Notification not found' });
     await NotificationRead.findOrCreate({ where: { notificationId: notifId, userId } });
     res.json({ message: 'Marked as read' });
   } catch (err) { res.status(500).json({ message: err.message }); }
@@ -105,7 +117,7 @@ exports.createNotification = async (req, res) => {
 exports.editNotification = async (req, res) => {
   try {
     const notif = await Notification.findByPk(req.params.id);
-    if (!notif) return res.status(404).json({ message: 'Notification not found' });
+    if (!notif || !inScope(req.user, notif)) return res.status(404).json({ message: 'Notification not found' });
 
     const { title, message, type } = req.body;
     if (title)   notif.title   = title;
@@ -120,7 +132,7 @@ exports.editNotification = async (req, res) => {
 exports.toggleNotification = async (req, res) => {
   try {
     const notif = await Notification.findByPk(req.params.id);
-    if (!notif) return res.status(404).json({ message: 'Notification not found' });
+    if (!notif || !inScope(req.user, notif)) return res.status(404).json({ message: 'Notification not found' });
     notif.status = notif.status === 'active' ? 'inactive' : 'active';
     await notif.save();
     res.json(notif);
@@ -131,7 +143,7 @@ exports.toggleNotification = async (req, res) => {
 exports.deleteNotification = async (req, res) => {
   try {
     const notif = await Notification.findByPk(req.params.id);
-    if (!notif) return res.status(404).json({ message: 'Notification not found' });
+    if (!notif || !inScope(req.user, notif)) return res.status(404).json({ message: 'Notification not found' });
     await notif.destroy();
     res.json({ message: 'Notification deleted' });
   } catch (err) { res.status(500).json({ message: err.message }); }
@@ -140,14 +152,16 @@ exports.deleteNotification = async (req, res) => {
 // ── GET /notifications/:id/download ──────────────────────────────────────────
 exports.downloadFile = async (req, res) => {
   try {
-    const path = require('path');
-    const fs   = require('fs');
     const notif = await Notification.findByPk(req.params.id);
-    if (!notif)            return res.status(404).json({ message: 'Notification not found' });
+    if (!notif || !inScope(req.user, notif, true)) return res.status(404).json({ message: 'Notification not found' });
     if (!notif.filePath)   return res.status(404).json({ message: 'No file attached' });
 
-    const filePath = path.join(__dirname, '..', 'uploads', 'documents', notif.filePath);
-    if (!fs.existsSync(filePath)) return res.status(404).json({ message: 'File not found on server' });
-    res.download(filePath, notif.fileName);
+    const { DOCUMENTS_DIR, findStoredFile } = require('../config/uploads');
+    const found = findStoredFile(DOCUMENTS_DIR, notif.filePath);
+    if (!found.path) {
+      console.warn(`[notifications] file missing for notification ${notif.id}: looked up ${found.lookedUp || '(invalid path)'}`);
+      return res.status(404).json({ message: 'File not found on server' });
+    }
+    res.download(found.path, notif.fileName);
   } catch (err) { res.status(500).json({ message: err.message }); }
 };

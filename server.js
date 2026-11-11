@@ -9,13 +9,19 @@ const { pageAuth, redirectAuthenticatedUser } = require('./middleware/auth');
 const { cleanupDuplicateIndexes } = require('./config/mysqlIndexCleanup');
 const { runPreSyncMigrations } = require('./config/schemaMigrations');
 const { getSuperadminCredentials } = require('./config/superadminCredentials');
+const { UPLOADS_ROOT, PHOTOS_DIR, ensureUploadDirs } = require('./config/uploads');
+
+// Create the upload folders on boot and log which one is in use, so a missing or
+// read-only folder shows up in the startup log instead of as 404s later.
+ensureUploadDirs();
+console.log(`Uploads folder: ${UPLOADS_ROOT}`);
 
 const app = express();
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, 'public')));
-app.use('/uploads/photos', express.static(path.join(__dirname, 'uploads', 'photos')));
+app.use('/uploads/photos', express.static(PHOTOS_DIR));
 
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));

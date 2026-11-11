@@ -52,7 +52,7 @@
         var myDocs = await getJson('/api/documents');
         return myDocs.filter(function(d){ return d.verificationStatus === 'pending' || d.verificationStatus === 'rejected'; }).map(function(d){ return 'document:' + d.id; });
       }
-      if (path === '/admin/recycle-bin' || path === '/superadmin/recycle-bin') {
+      if (path === '/superadmin/recycle-bin') {
         var recycleItems = await getJson('/api/recycle-bin');
         return recycleItems.map(function(i){ return 'bin:' + i.id; });
       }
@@ -70,7 +70,8 @@
       var currentPath = window.location.pathname;
       var alertPaths = [];
       if (role === 'admin' || role === 'superadmin') {
-        alertPaths = ['/admin/leaves', '/admin/timesheets', '/admin/documents', role === 'superadmin' ? '/superadmin/recycle-bin' : '/admin/recycle-bin'];
+        // The recycle bin is superadmin-only (its API refuses admins).
+        alertPaths = ['/admin/leaves', '/admin/timesheets', '/admin/documents'].concat(role === 'superadmin' ? ['/superadmin/recycle-bin'] : []);
       } else if (role === 'manager') {
         alertPaths = ['/manager/tasks', '/manager/leaves', '/manager/timesheets', '/manager/documents', '/manager/my-documents'];
       } else if (role === 'employee') {
@@ -292,8 +293,26 @@
       setTimeout(function(){ if (typeof initSidebarAlerts === 'function') initSidebarAlerts(); }, 120);
     });
     window.addEventListener('resize',checkTableScroll);
-    function openSidebar(){document.getElementById('sidebar').classList.add('open');document.getElementById('sidebarOverlay').classList.add('show');document.body.style.overflow='hidden'}
-    function closeSidebar(){document.getElementById('sidebar').classList.remove('open');document.getElementById('sidebarOverlay').classList.remove('show');document.body.style.overflow=''}
+  </script>
+  <script id="sidebar-early-controls">
+    // The ☰ button and the overlay call these from onclick. Their full versions live in
+    // /js/api.js, which loads at the end of each page, so until it has run a tap would be lost
+    // (seconds on a slow phone connection). These stand in until api.js replaces them, and
+    // api.js keeps a menu that was opened here.
+    function sidebarEarlySetOpen(open) {
+      var sidebar = document.getElementById('sidebar');
+      var overlay = document.getElementById('sidebarOverlay');
+      if (!sidebar) return;
+      open = !!open && window.matchMedia('(max-width: 900px)').matches;
+      sidebar.classList.toggle('open', open);
+      if (overlay) overlay.classList.toggle('show', open);
+    }
+    var openSidebar = typeof openSidebar === 'function' ? openSidebar : function () { sidebarEarlySetOpen(true); };
+    var closeSidebar = typeof closeSidebar === 'function' ? closeSidebar : function () { sidebarEarlySetOpen(false); };
+    var toggleSidebar = typeof toggleSidebar === 'function' ? toggleSidebar : function () {
+      var sidebar = document.getElementById('sidebar');
+      sidebarEarlySetOpen(!(sidebar && sidebar.classList.contains('open')));
+    };
   </script>
 </head>
 <body style="background:var(--bg-main);color:var(--text-primary);font-family:'DM Sans',sans-serif;">

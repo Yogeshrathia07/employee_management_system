@@ -416,6 +416,7 @@ select.form-control{cursor:pointer;}
 /* ─── SIDEBAR OVERLAY ─── */
 .sidebar-overlay{display:none;position:fixed;top:0;left:var(--sidebar-width);right:0;bottom:0;background:rgba(0,0,0,0.2);z-index:99;}
 .sidebar-overlay.show{display:block;}
+@media(min-width:901px){.sidebar-overlay.show{display:none;}}
 
 /* ═══════════════════════════════════════════════════════
    RESPONSIVE

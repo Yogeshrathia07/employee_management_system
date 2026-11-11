@@ -183,7 +183,7 @@ exports.generatePDF = async (req, res) => {
     ];
     drawSignature(h, y, co.name || '', bankLines);
 
-    addFooters(doc, { companyName: co.name });
+    addFooters(doc, { companyName: co.name, runningTitle: 'PROJECT ACCOUNT ' + (pa.projectCode || pa.id || '') });
     doc.end();
   } catch (err) {
     if (!res.headersSent) res.status(500).json({ message: err.message });

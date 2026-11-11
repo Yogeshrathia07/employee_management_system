@@ -14,7 +14,7 @@ const {
   M, PH, W, X, BLK, DRK, GRY, LGY, HBG, LBD, FOOTER_H,
   fmtDate, fmtINR, numWords, buildPdfFilename, buildTaxSummaryLabels, createDoc, addFooters,
   roundMoney, normalizeAccountItems, deriveItemTotals,
-  drawSectionLabel, drawSignature, drawTextSection, drawLineBlock,
+  drawSectionLabel, drawSignature, drawTextSection, drawLineBlock, PAGE_TOP,
 } = require('./pdfHelper');
 
 function genCode() { return Math.random().toString(36).substr(2,6).toUpperCase(); }
@@ -622,9 +622,9 @@ exports.generatePDF = async (req, res) => {
       while (lineIdx < descLns.length) {
         const minRowH = firstSeg ? firstRowMin : DATA_ROW_MIN;
         let avail = PH - M - FOOTER_H - y;
-        if (avail < minRowH) { doc.addPage(); y = drawProHeader(M, false); avail = PH - M - FOOTER_H - y; }
+        if (avail < minRowH) { doc.addPage(); y = drawProHeader(PAGE_TOP, false); avail = PH - M - FOOTER_H - y; }
         const segCount = Math.min(descLns.length - lineIdx, Math.max(1, Math.floor((avail - 6) / LINE_H)));
-        if (!segCount) { doc.addPage(); y = drawProHeader(M, false); continue; }
+        if (!segCount) { doc.addPage(); y = drawProHeader(PAGE_TOP, false); continue; }
         const rowH = Math.max(minRowH, segCount * LINE_H + 6);
 
         if ((idx + (firstSeg ? 0 : 1)) % 2 === 0) fillBox(X, y, W, rowH, '#fafafa');
@@ -648,7 +648,7 @@ exports.generatePDF = async (req, res) => {
         y += rowH;
         lineIdx += segCount;
         firstSeg = false;
-        if (lineIdx < descLns.length) { doc.addPage(); y = drawProHeader(M, false); }
+        if (lineIdx < descLns.length) { doc.addPage(); y = drawProHeader(PAGE_TOP, false); }
       }
     });
 
@@ -733,7 +733,7 @@ exports.generatePDF = async (req, res) => {
       doc.switchToPage(pageRange.start + pi);
       box(X, M, W, PH - (M * 2), LBD);
     }
-    addFooters(doc, { companyName: p.sellerName, infoText: 'This is a computer-generated proforma invoice, not a tax invoice.' });
+    addFooters(doc, { companyName: p.sellerName, infoText: 'This is a computer-generated proforma invoice, not a tax invoice.', runningTitle: 'PROFORMA INVOICE ' + (p.proformaNumber || '') });
 
     doc.end();
   } catch (err) {

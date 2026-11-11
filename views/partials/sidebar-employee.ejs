@@ -1,4 +1,7 @@
-<aside class="sidebar" id="sidebar">
+<% if ((typeof sidebarRole !== 'undefined' && sidebarRole === 'manager') || (typeof sidebarRole === 'undefined' && typeof pageRole !== 'undefined' && pageRole === 'manager')) { %>
+  <%- include('./sidebar-manager') %>
+<% } else { %>
+<aside class="sidebar" id="sidebar" data-sidebar-role="employee">
   <nav style="padding:10px;flex:1;overflow-y:auto;">
     <div style="padding:12px 12px 6px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1.2px;color:var(--text-muted);">Main</div>
     <a href="/employee/dashboard" class="nav-link"><span class="nav-icon"><i class="bx bxs-dashboard"></i></span> Dashboard</a>
@@ -15,3 +18,4 @@
     </a>
   </nav>
 </aside>
+<% } %>

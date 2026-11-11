@@ -60,6 +60,10 @@ const LGY      = '#888888';
 const HBG      = '#f2f2f2';
 const LBD      = 0.5;
 const FOOTER_H = 24;
+// Pages after the first carry a slim running header (company · document · continued);
+// content on those pages starts at PAGE_TOP, just below it.
+const RUN_H    = 18;
+const PAGE_TOP = M + RUN_H;
 
 function confidentialityText(companyName) {
   const owner = String(companyName || '').replace(/\s+/g, ' ').trim();
@@ -324,18 +328,33 @@ function createDoc() {
     return doc.heightOfString(String(text ?? ''), { width:w, lineGap:0.5 });
   }
   function checkPage(y, needed) {
-    if (y + needed > PH - M - FOOTER_H) { doc.addPage(); return M; }
+    if (y + needed > PH - M - FOOTER_H) { doc.addPage(); return PAGE_TOP; }
     return y;
   }
 
   return { doc, hLine, vLine, box, fillBox, txt, txtH, checkPage };
 }
 
+// One line of text shrunk to fit its width (used for the repeated running header).
+function fitLine(doc, text, x, y, width, font, size, color, align) {
+  if (!text) return;
+  let fitted = size;
+  doc.font(font);
+  while (fitted > 5 && doc.fontSize(fitted).widthOfString(text) > width) fitted -= 0.25;
+  doc.fontSize(fitted).fillColor(color)
+    .text(text, x, y, { width, align, height: doc.currentLineHeight(true), ellipsis: true });
+}
+
+// Footer on every page; on multi-page documents, pages after the first get a running
+// header ("Company · TITLE Ref (continued)") and every page but the last says where it
+// continues, so the pages read as one document. options.runningTitle names the document.
 function addFooters(doc, options) {
   options = options || {};
   const confidentialNote = confidentialityText(options.companyName);
   const infoText = String(options.infoText || '').trim();
   const infoOnAllPages = options.infoOnAllPages === true;
+  const company = String(options.companyName || '').replace(/\s+/g, ' ').trim();
+  const runningTitle = String(options.runningTitle || '').replace(/\s+/g, ' ').trim();
   const range = doc.bufferedPageRange();
   const total = range.count;
   if (!total) return;
@@ -346,7 +365,19 @@ function addFooters(doc, options) {
     const pageLabelW = 60;
     const sepX = X + pageW - pageLabelW - 8;
     const noteW = sepX - X - 6;
-    const showInfo = !!infoText && (infoOnAllPages || pageIndex === total - 1);
+    const isLast = pageIndex === total - 1;
+    const infoLine = [
+      infoOnAllPages || isLast ? infoText : '',
+      isLast ? '' : `Continued on page ${pageIndex + 2} of ${total}`,
+    ].filter(Boolean).join('  ·  ');
+    const showInfo = !!infoLine;
+
+    if (pageIndex > 0) {
+      const colW = pageW / 2 - 8;
+      fitLine(doc, company, X + 5, M + 5, colW, 'Helvetica-Bold', 7, '#374151', 'left');
+      fitLine(doc, (runningTitle ? runningTitle + ' ' : '') + '(continued)', X + pageW / 2 + 3, M + 5.5, colW, 'Helvetica', 6.5, '#6b7280', 'right');
+      doc.moveTo(X, M + RUN_H - 3).lineTo(X + pageW, M + RUN_H - 3).lineWidth(0.3).strokeColor('#d7dce5').stroke();
+    }
 
     doc.moveTo(X, footerY)
       .lineTo(X + pageW, footerY)
@@ -362,7 +393,7 @@ function addFooters(doc, options) {
 
     if (showInfo) {
       doc.fontSize(5.5).font('Helvetica-Bold').fillColor('#4b5563')
-        .text(infoText, X + 4, footerY + 1, {
+        .text(infoLine, X + 4, footerY + 1, {
           width: noteW,
           align: 'center',
           lineGap: 0,
@@ -492,8 +523,8 @@ function drawPagedTable(h, columns, rows, y, options = {}) {
     const sizes = remaining.map((value, i) => cellSize(value, columns[i]));
     do {
       const fullH = Math.max(minRowH, ...remaining.map((value, i) => textH(value, i, sizes[i]) + 6));
-      const needed = fullH <= pageBottom - M - headerH ? fullH : minRowH;
-      if (y + needed > pageBottom) { h.doc.addPage(); y = M; header(); }
+      const needed = fullH <= pageBottom - PAGE_TOP - headerH ? fullH : minRowH;
+      if (y + needed > pageBottom) { h.doc.addPage(); y = PAGE_TOP; header(); }
       const segments = remaining.map((value, i) => value
         ? splitTextToFit(h, value, columns[i].width - 6, pageBottom - y - 6, sizes[i], columns[i].bold)
         : ['', '']);
@@ -544,8 +575,8 @@ function drawLineBlock(h, lines, y, options = {}) {
       if (available < oneLine(item)) {
         closeBox();
         h.doc.addPage();
-        top = M;
-        ty = M + 4;
+        top = PAGE_TOP;
+        ty = PAGE_TOP + 4;
         continue;
       }
       const [part, rest] = splitTextToFit(h, remaining, textW, available, size, item.bold);
@@ -641,7 +672,7 @@ function drawSignature(h, y, companyName, bankLines, options = {}) {
 }
 
 module.exports = {
-  M, PW, PH, W, X, BLK, DRK, GRY, LGY, HBG, LBD, FOOTER_H,
+  M, PW, PH, W, X, BLK, DRK, GRY, LGY, HBG, LBD, FOOTER_H, PAGE_TOP,
   fmtDate, fmtINR, numWords, pdfSafePart, buildPdfFilename, buildTaxSummaryLabels, createDoc, addFooters,
   roundMoney, normalizeAccountItems, deriveItemTotals,
   drawHeader, drawSectionLabel, drawSignature, signatureLayout,

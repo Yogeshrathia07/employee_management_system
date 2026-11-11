@@ -3,14 +3,25 @@ const router  = express.Router();
 const path    = require('path');
 const multer  = require('multer');
 const { auth, requireRole } = require('../middleware/auth');
+const { DOCUMENTS_DIR, PHOTOS_DIR } = require('../config/uploads');
+
+// Busboy reads multipart file names as Latin-1, so a browser's UTF-8 name such as
+// "आधार.pdf" or "Résumé.pdf" arrives garbled. Re-decode it unless it is already
+// decoded (characters above U+00FF) or is not valid UTF-8.
+function utf8OriginalName(file) {
+  const name = String(file.originalname || '');
+  if (/[^\x00-\xff]/.test(name)) return;
+  const decoded = Buffer.from(name, 'latin1').toString('utf8');
+  if (!decoded.includes('�')) file.originalname = decoded;
+}
 
 // ─── Multer: documents (PDF only, 10MB) ───────────────────────────────────────
+// Only the generated file name is stored in the database; the folder comes from config/uploads.
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    const dir = path.join(__dirname, '..', 'uploads', 'documents');
     const fs = require('fs');
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-    cb(null, dir);
+    if (!fs.existsSync(DOCUMENTS_DIR)) fs.mkdirSync(DOCUMENTS_DIR, { recursive: true });
+    cb(null, DOCUMENTS_DIR);
   },
   filename: (req, file, cb) => {
     const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
@@ -21,6 +32,7 @@ const upload = multer({
   storage,
   limits: { fileSize: 10 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
+    utf8OriginalName(file);
     const ext = path.extname(file.originalname).toLowerCase();
     if (ext === '.pdf') cb(null, true);
     else cb(new Error('Only PDF files are allowed for document uploads'));
@@ -30,10 +42,9 @@ const upload = multer({
 // ─── Multer: photos (images, 5MB) ────────────────────────────────────────────
 const photoStorage = multer.diskStorage({
   destination: (req, file, cb) => {
-    const dir = path.join(__dirname, '..', 'uploads', 'photos');
     const fs = require('fs');
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-    cb(null, dir);
+    if (!fs.existsSync(PHOTOS_DIR)) fs.mkdirSync(PHOTOS_DIR, { recursive: true });
+    cb(null, PHOTOS_DIR);
   },
   filename: (req, file, cb) => {
     const owner = /^\d+$/.test(String(req.params.id || '')) ? req.params.id : req.user.id;
@@ -55,6 +66,7 @@ const notifUpload = multer({
   storage,
   limits: { fileSize: 10 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
+    utf8OriginalName(file);
     const allowed = ['.pdf', '.doc', '.docx', '.jpg', '.jpeg', '.png', '.xlsx', '.xls', '.csv', '.txt', '.pptx'];
     if (allowed.includes(path.extname(file.originalname).toLowerCase())) cb(null, true);
     else cb(new Error('File type not allowed'));

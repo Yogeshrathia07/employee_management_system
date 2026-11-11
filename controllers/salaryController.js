@@ -1,7 +1,7 @@
 const { Op } = require('sequelize');
 const { Salary, Timesheet, Leave, User, Company } = require('../models');
 const PayrollCalc = require('../public/js/payroll-calc');
-const { useUnicodeFonts } = require('./pdfHelper');
+const { useUnicodeFonts, splitTextToFit } = require('./pdfHelper');
 
 async function resolveActorCompanyId(req) {
   if (req.user.companyId) return req.user.companyId;
@@ -192,6 +192,9 @@ exports.getSalaryPreview = async (req, res) => {
 
     const user = await User.findByPk(userId);
     if (!user) return res.status(404).json({ message: 'Employee not found' });
+    if (req.user.role === 'admin' && Number(user.companyId) !== Number(await resolveActorCompanyId(req))) {
+      return res.status(403).json({ message: 'You can only preview payroll for your own company' });
+    }
 
     const [{ totalHours, loggedDays }, leaveBreakdown] = await Promise.all([
       getActualHours(Number(userId), Number(month), Number(year)),
@@ -582,7 +585,7 @@ exports.generatePayslip = async (req, res) => {
     const work = await getWorkSummary(salary.userId, salary.month, salary.year);
 
     const PDFDocument = require('pdfkit');
-    const doc = new PDFDocument({ size: 'A4', margin: 50 });
+    const doc = new PDFDocument({ size: 'A4', margin: 50, bufferPages: true });
     const chunks = [];
     doc.on('data', (chunk) => chunks.push(chunk));
 
@@ -615,74 +618,106 @@ exports.generatePayslip = async (req, res) => {
     const border = '#d9d9d9';
     const white = '#ffffff';
 
-    // Draws text in at most `maxLines` lines (PDFKit only applies the "…" ellipsis when a
-    // height is given) and returns the height used.
-    function boundedText(text, x, y, width, size, font, maxLines, align) {
+    // Nothing is cut short: text wraps in full and the slip continues on further pages.
+    // Each page has the same frame; continuation pages repeat a slim header.
+    const FRAME_TOP = 40;
+    const FRAME_BOTTOM = 792;
+    const CONTENT_BOTTOM = FRAME_BOTTOM - 12;
+    const CONT_TOP = 88;
+    const companyName = String(company.name || 'Company').trim() || 'Company';
+    let y = 0;
+
+    function measure(text, width, size, font, options) {
       doc.font(font).fontSize(size);
+      return doc.heightOfString(String(text), Object.assign({ width }, options));
+    }
+    function fitSize(text, width, size, minSize, font) {
+      doc.font(font);
+      while (size > minSize && doc.fontSize(size).widthOfString(text) > width) size -= 0.5;
+      return size;
+    }
+    function rule(atY, from, to, color, width) {
+      doc.moveTo(from === undefined ? mL : from, atY).lineTo(to === undefined ? pageR : to, atY)
+        .strokeColor(color || border).lineWidth(width || 1).stroke();
+    }
+    // The running header only repeats page-one details, so each part is shrunk to fit
+    // and kept to its own lines above the divider.
+    function headerText(text, x, atY, width, size, minSize, font, color, align, maxLines) {
+      const fitted = fitSize(text, width, size, minSize, font);
+      doc.font(font).fontSize(fitted).fillColor(color);
       const lineH = doc.currentLineHeight(true);
-      const height = Math.min(doc.heightOfString(text, { width }), lineH * maxLines);
-      doc.text(text, x, y, { width, height: height + 0.1, ellipsis: true, align: align || 'left' });
-      return height;
+      doc.text(text, x, atY, { width, align, height: lineH * maxLines + 0.1, ellipsis: true });
+      return Math.min(doc.heightOfString(text, { width }), lineH * maxLines);
+    }
+    function newPage() {
+      doc.addPage({ size: 'A4', margin: 50 });
+      const leftW = cW * 0.58;
+      const rightX = mL + cW * 0.58 + 12;
+      const rightW = cW * 0.42 - 24;
+      headerText(companyName, mL + 12, 52, leftW, 11, 7, fontBold, black, 'left', 2);
+      const lineH = headerText(`Salary Slip · ${monthLabel} (continued)`, rightX, 52, rightW, 8, 6.5, fontRegular, muted, 'right', 1);
+      headerText(String(user.name || ''), rightX, 52 + lineH + 1, rightW, 8, 6, fontBold, black, 'right', 1);
+      rule(76);
+      y = CONT_TOP;
+    }
+    // Starts a new page when the next block (of height h) would not fit on this one.
+    function ensure(h) {
+      if (y + h <= CONTENT_BOTTOM) return false;
+      newPage();
+      return true;
     }
 
-    // Returns the row height so long values push the next row down instead of overlapping it.
-    function rowText(y, leftLabel, leftValue, rightLabel, rightValue) {
+    function rowText(leftLabel, leftValue, rightLabel, rightValue) {
+      const left = String(leftValue || '-');
+      const right = String(rightValue || '-');
+      const rowH = Math.max(15, Math.max(measure(left, 162, 9, fontBold), measure(right, 135, 9, fontBold)) + 4.6);
+      ensure(rowH);
       doc.font(fontRegular).fontSize(8).fillColor(muted).text(leftLabel, mL + 8, y, { width: 88 });
-      doc.fillColor(black);
-      const leftH = boundedText(String(leftValue || '-'), mL + 98, y, 162, 9, fontBold, 2);
+      doc.font(fontBold).fontSize(9).fillColor(black).text(left, mL + 98, y, { width: 162 });
       doc.font(fontRegular).fontSize(8).fillColor(muted).text(rightLabel, 318, y, { width: 85 });
-      doc.fillColor(black);
-      const rightH = boundedText(String(rightValue || '-'), 405, y, 135, 9, fontBold, 2);
-      return Math.max(15, Math.max(leftH, rightH) + 4.6);
+      doc.font(fontBold).fontSize(9).fillColor(black).text(right, 405, y, { width: 135 });
+      y += rowH;
     }
 
-    function statText(x, y, label, value) {
-      doc.font(fontBold).fontSize(7.5).fillColor(black).text(label.toUpperCase(), x, y, { width: 95 });
-      doc.font(fontBold).fontSize(15).fillColor(black).text(String(value), x, y + 13, { width: 95 });
+    function statText(x, atY, label, value) {
+      doc.font(fontBold).fontSize(7.5).fillColor(black).text(label.toUpperCase(), x, atY, { width: 95 });
+      doc.font(fontBold).fontSize(15).fillColor(black).text(String(value), x, atY + 13, { width: 95 });
     }
 
     const ROW_H = 20;
-    function drawSplitRow(y, leftLabel, leftValue, rightLabel, rightValue) {
+    function drawSplitRow(atY, leftLabel, leftValue, rightLabel, rightValue) {
       const half = cW / 2;
-      doc.strokeColor(border).lineWidth(1).moveTo(mL, y + ROW_H).lineTo(pageR, y + ROW_H).stroke();
-      doc.strokeColor(border).lineWidth(1).moveTo(mL + half, y).lineTo(mL + half, y + ROW_H).stroke();
-      doc.font(fontRegular).fontSize(8).fillColor(black).text(leftLabel, mL + 12, y + 6, { width: half - 110 });
-      doc.font(fontBold).fontSize(8).fillColor(black).text(cur(leftValue), mL + half - 106, y + 6, { width: 94, align: 'right' });
+      rule(atY + ROW_H);
+      doc.moveTo(mL + half, atY).lineTo(mL + half, atY + ROW_H).strokeColor(border).lineWidth(1).stroke();
+      doc.font(fontRegular).fontSize(8).fillColor(black).text(leftLabel, mL + 12, atY + 6, { width: half - 110 });
+      doc.font(fontBold).fontSize(8).fillColor(black).text(cur(leftValue), mL + half - 106, atY + 6, { width: 94, align: 'right' });
       if (rightLabel) {
-        doc.font(fontRegular).fontSize(8).fillColor(black).text(rightLabel, mL + half + 12, y + 6, { width: half - 110 });
-        doc.font(fontBold).fontSize(8).fillColor(black).text(cur(rightValue), pageR - 94, y + 6, { width: 82, align: 'right' });
+        doc.font(fontRegular).fontSize(8).fillColor(black).text(rightLabel, mL + half + 12, atY + 6, { width: half - 110 });
+        doc.font(fontBold).fontSize(8).fillColor(black).text(cur(rightValue), pageR - 94, atY + 6, { width: 82, align: 'right' });
       }
     }
 
-    doc.rect(mL, 40, cW, 752).fillColor(white).strokeColor(border).lineWidth(1).fillAndStroke();
-
-    // Reserve header space so a multi-line company address cannot collide with the slip title.
+    // ── Header: company name, full address and contacts ──
     const companyInfoX = mL + 24;
     const companyInfoW = cW - 48;
-    const companyName = String(company.name || 'Company').trim() || 'Company';
     const companyAddress = String(company.address || '').replace(/\r/g, '').trim();
     const companyContacts = [company.phone, company.email].filter(Boolean).join(' | ');
     const companyNameY = 56;
-    // Long names shrink to fit one line, then wrap to at most two lines at the smallest size.
     const nameW = cW - 20;
-    let nameSize = 22;
-    doc.font(fontBold);
-    while (nameSize > 14 && doc.fontSize(nameSize).widthOfString(companyName) > nameW) nameSize -= 1;
-    doc.fillColor(black);
-    const nameH = boundedText(companyName, mL + 10, companyNameY, nameW, nameSize, fontBold, 2, 'center');
+    const nameSize = fitSize(companyName, nameW, 22, 14, fontBold);
+    const nameH = measure(companyName, nameW, nameSize, fontBold, { align: 'center' });
+    doc.font(fontBold).fontSize(nameSize).fillColor(black).text(companyName, mL + 10, companyNameY, { width: nameW, align: 'center' });
 
     let companyInfoY = companyNameY + Math.max(27, nameH + 2);
     if (companyAddress) {
-      doc.font(fontRegular).fontSize(9);
-      const addressH = Math.min(26, doc.heightOfString(companyAddress, { width: companyInfoW, align: 'center', lineGap: 1 }));
-      doc.fillColor(muted).text(companyAddress, companyInfoX, companyInfoY, {
-        width: companyInfoW, align: 'center', lineGap: 1, height: addressH, ellipsis: true,
-      });
+      const addressH = measure(companyAddress, companyInfoW, 9, fontRegular, { align: 'center', lineGap: 1 });
+      doc.font(fontRegular).fontSize(9).fillColor(muted).text(companyAddress, companyInfoX, companyInfoY, { width: companyInfoW, align: 'center', lineGap: 1 });
       companyInfoY += addressH + 2;
     }
     if (companyContacts) {
-      doc.fillColor(muted);
-      companyInfoY += boundedText(companyContacts, companyInfoX, companyInfoY, companyInfoW, 9, fontRegular, 2, 'center') + 1.65;
+      const contactsH = measure(companyContacts, companyInfoW, 9, fontRegular, { align: 'center' });
+      doc.font(fontRegular).fontSize(9).fillColor(muted).text(companyContacts, companyInfoX, companyInfoY, { width: companyInfoW, align: 'center' });
+      companyInfoY += contactsH + 1.65;
     }
 
     const slipTitleY = Math.max(118, companyInfoY + 8);
@@ -692,15 +727,18 @@ exports.generatePayslip = async (req, res) => {
     doc.font(fontRegular).fontSize(10).fillColor(red)
       .text(`For the month of ${monthLabel}`, mL, payMonthY, { width: cW, align: 'center' });
 
-    let rowY = payMonthY + 26;
-    rowY += rowText(rowY, 'Employee Name:', user.name, 'Employee ID:', employeeCode);
-    rowY += rowText(rowY, 'Department:', user.department, 'Designation:', designation);
-    rowY += rowText(rowY, 'Work Location:', user.workLocation, 'Joining Date:', joiningDate);
-    rowY += rowText(rowY, 'Email:', user.email, 'Phone:', user.phone);
-    rowY += rowText(rowY, 'Pay Period:', monthLabel, 'Monthly CTC:', cur(p.ctc));
+    // ── Employee details (values wrap in full) ──
+    y = payMonthY + 26;
+    rowText('Employee Name:', user.name, 'Employee ID:', employeeCode);
+    rowText('Department:', user.department, 'Designation:', designation);
+    rowText('Work Location:', user.workLocation, 'Joining Date:', joiningDate);
+    rowText('Email:', user.email, 'Phone:', user.phone);
+    rowText('Pay Period:', monthLabel, 'Monthly CTC:', cur(p.ctc));
 
-    const attendanceDividerY = rowY + 5;
-    doc.moveTo(mL, attendanceDividerY).lineTo(pageR, attendanceDividerY).strokeColor(border).lineWidth(1).stroke();
+    // ── Attendance (kept together) ──
+    ensure(57);
+    const attendanceDividerY = y + 5;
+    rule(attendanceDividerY);
     const statsY = attendanceDividerY + 10;
     statText(mL + 12, statsY, 'Total Days', days(p.totalDays));
     statText(mL + 108, statsY, 'Leave Taken', days(p.leaveTaken));
@@ -708,14 +746,16 @@ exports.generatePayslip = async (req, res) => {
     statText(mL + 300, statsY, 'Worked Days', days(p.workedDays));
     statText(mL + 396, statsY, 'Present Days', days(p.presentDays));
     const statsDividerY = statsY + 42;
-    doc.moveTo(mL, statsDividerY).lineTo(pageR, statsDividerY).strokeColor(border).lineWidth(1).stroke();
+    rule(statsDividerY);
+    y = statsDividerY + 10;
 
+    // ── Earnings and deductions (kept together) ──
     const half = cW / 2;
-    const earningsHeaderY = statsDividerY + 10;
-    doc.font(fontBold).fontSize(10).fillColor(black).text('Earnings', mL + 12, earningsHeaderY);
-    doc.font(fontBold).fontSize(10).fillColor(red).text('Deductions', mL + half + 12, earningsHeaderY);
-    const earningsTableY = earningsHeaderY + 16;
-    doc.moveTo(mL, earningsTableY).lineTo(pageR, earningsTableY).strokeColor(border).lineWidth(1).stroke();
+    if (ensure(16 + 8 * ROW_H + 24)) rule(y);
+    doc.font(fontBold).fontSize(10).fillColor(black).text('Earnings', mL + 12, y);
+    doc.font(fontBold).fontSize(10).fillColor(red).text('Deductions', mL + half + 12, y);
+    y += 16;
+    rule(y);
 
     const conveyanceLabel = p.conveyanceWorking !== p.conveyance ? `Conveyance (${days(p.workedDays)}/${days(p.totalDays)} days)` : 'Conveyance';
     const earnings = [
@@ -741,8 +781,6 @@ exports.generatePayslip = async (req, res) => {
       ['', 0],
       ['', 0],
     ];
-
-    let y = earningsTableY;
     for (let i = 0; i < earnings.length; i++) {
       drawSplitRow(y, earnings[i][0], earnings[i][1], deductions[i][0], deductions[i][1]);
       y += ROW_H;
@@ -756,64 +794,78 @@ exports.generatePayslip = async (req, res) => {
     doc.font(fontBold).fontSize(9).fillColor(black).text(cur(p.totalDeductions), pageR - 94, y + 8, { width: 82, align: 'right' });
     y += 24;
 
+    // ── Net pay with amount in words (kept together) ──
+    const wordsText = numberToWords(p.netSalary);
+    const leaveText = `Paid leave: ${days(p.paidLeave)} of ${days(p.allowedLeave)} allowed · LOP days: ${days(p.lopDays)} · Per-day rate for LOP: ${cur(p.perDayRate)} (CTC excl. conveyance ÷ ${days(p.totalDays)} days)`;
+    const wordsH = measure(wordsText, cW - 20, 8, fontRegular);
+    const leaveH = measure(leaveText, cW - 20, 7, fontRegular);
+    ensure(56 + Math.max(12, wordsH + 2.8) + leaveH + 2);
     doc.rect(mL + 10, y + 12, cW - 20, 38).fillColor(black).fill();
     doc.font(fontBold).fontSize(14).fillColor(white).text('NET PAY', mL + 26, y + 24);
     const netText = cur(p.netSalary);
-    let netSize = 20;
-    while (netSize > 12 && doc.fontSize(netSize).widthOfString(netText) > 172) netSize -= 0.5;
-    doc.fontSize(netSize).fillColor(white).text(netText, pageR - 200, y + 20 + (20 - netSize) * 0.55, { width: 172, align: 'right' });
+    const netSize = fitSize(netText, 172, 20, 12, fontBold);
+    doc.font(fontBold).fontSize(netSize).fillColor(white).text(netText, pageR - 200, y + 20 + (20 - netSize) * 0.55, { width: 172, align: 'right' });
     y += 56;
+    doc.font(fontRegular).fontSize(8).fillColor(muted).text(wordsText, mL + 10, y, { width: cW - 20 });
+    const leaveY = y + Math.max(12, wordsH + 2.8);
+    doc.font(fontRegular).fontSize(7).fillColor(muted).text(leaveText, mL + 10, leaveY, { width: cW - 20 });
+    y = Math.max(y + 30, leaveY + leaveH + 8);
 
-    doc.font(fontRegular).fontSize(8).fillColor(muted)
-      .text(numberToWords(p.netSalary), mL + 10, y, { width: cW - 20 });
-    doc.font(fontRegular).fontSize(7).fillColor(muted)
-      .text(`Paid leave: ${days(p.paidLeave)} of ${days(p.allowedLeave)} allowed · LOP days: ${days(p.lopDays)} · Per-day rate for LOP: ${cur(p.perDayRate)} (CTC excl. conveyance ÷ ${days(p.totalDays)} days)`,
-        mL + 10, y + 12, { width: cW - 20 });
-    y += 30;
-
-    // Project / work summary from approved timesheets
-    const footerY = 724;
-    const summaryRowsAvailable = Math.floor((footerY - y - 27) / 12);
-    if (work.rows.length && summaryRowsAvailable > 0) {
-      const maxRows = Math.max(1, summaryRowsAvailable);
-      let rows = work.rows.slice();
-      if (rows.length > maxRows) {
-        const kept = rows.slice(0, maxRows - 1);
-        const rest = rows.slice(maxRows - 1);
-        kept.push({
-          label: `Other work (${rest.length} item${rest.length === 1 ? '' : 's'})`,
-          hours: rest.reduce((s, r) => s + r.hours, 0),
-          billableHours: rest.reduce((s, r) => s + r.billableHours, 0),
-          days: rest.reduce((s, r) => s + r.days, 0),
-        });
-        rows = kept;
-      }
-      doc.font(fontBold).fontSize(9).fillColor(black)
-        .text('Project / Work Summary (approved timesheets)', mL + 10, y);
-      doc.font(fontRegular).fontSize(7.5).fillColor(muted)
-        .text(`${work.totalHours.toFixed(1)} hrs on ${work.totalDays} day(s)`, pageR - 160, y + 1, { width: 150, align: 'right' });
-      y += 14;
-      doc.rect(mL + 10, y, cW - 20, 13).fillColor('#f3f4f6').fill();
-      doc.font(fontBold).fontSize(7.5).fillColor(black)
-        .text('Project / Work', mL + 16, y + 3)
-        .text('Days', pageR - 190, y + 3, { width: 50, align: 'right' })
-        .text('Billable Hrs', pageR - 135, y + 3, { width: 60, align: 'right' })
-        .text('Hours', pageR - 70, y + 3, { width: 54, align: 'right' });
-      y += 13;
-      // One line per project; the height limit is what makes PDFKit add the "…".
-      const workLabelH = doc.font(fontRegular).fontSize(7.5).currentLineHeight(true) + 0.1;
-      rows.forEach(r => {
+    // ── Project / work summary: every project, full names, header repeated on new pages ──
+    if (work.rows.length) {
+      const labelW = cW - 230;
+      const rowHeight = r => Math.max(12, measure(r.label, labelW, 7.5, fontRegular) + 3.4);
+      const drawWorkHeader = (continued) => {
+        doc.font(fontBold).fontSize(9).fillColor(black)
+          .text('Project / Work Summary (approved timesheets)' + (continued ? ' (continued)' : ''), mL + 10, y);
+        if (!continued) {
+          doc.font(fontRegular).fontSize(7.5).fillColor(muted)
+            .text(`${work.totalHours.toFixed(1)} hrs on ${work.totalDays} day(s)`, pageR - 160, y + 1, { width: 150, align: 'right' });
+        }
+        y += 14;
+        doc.rect(mL + 10, y, cW - 20, 13).fillColor('#f3f4f6').fill();
+        doc.font(fontBold).fontSize(7.5).fillColor(black)
+          .text('Project / Work', mL + 16, y + 3)
+          .text('Days', pageR - 190, y + 3, { width: 50, align: 'right' })
+          .text('Billable Hrs', pageR - 135, y + 3, { width: 60, align: 'right' })
+          .text('Hours', pageR - 70, y + 3, { width: 54, align: 'right' });
+        y += 13;
+      };
+      ensure(27 + rowHeight(work.rows[0]));
+      drawWorkHeader(false);
+      work.rows.forEach(r => {
+        const rowH = rowHeight(r);
+        if (ensure(rowH)) drawWorkHeader(true);
         doc.font(fontRegular).fontSize(7.5).fillColor(black)
-          .text(r.label, mL + 16, y + 2, { width: cW - 230, height: workLabelH, ellipsis: true })
+          .text(r.label, mL + 16, y + 2, { width: labelW })
           .text(String(r.days), pageR - 190, y + 2, { width: 50, align: 'right' })
           .text(r.billableHours.toFixed(1), pageR - 135, y + 2, { width: 60, align: 'right' })
           .text(r.hours.toFixed(1), pageR - 70, y + 2, { width: 54, align: 'right' });
-        doc.moveTo(mL + 10, y + 12).lineTo(pageR - 10, y + 12).strokeColor('#eeeeee').lineWidth(0.6).stroke();
-        y += 12;
+        rule(y + rowH, mL + 10, pageR - 10, '#eeeeee', 0.6);
+        y += rowH;
       });
+      y += 6;
     }
 
-    doc.moveTo(mL + 10, footerY).lineTo(pageR - 10, footerY).strokeColor(border).lineWidth(1).stroke();
+    // ── Note (full text; continues on the next page when long) ──
+    if (salary.notes) {
+      const noteW = cW - 20;
+      const sizer = { txtH: (text, width, size, bold) => measure(text, width, size, bold ? fontBold : fontRegular) };
+      let remaining = `Note: ${salary.notes}`;
+      while (remaining) {
+        ensure(measure('Ag', noteW, 8, fontRegular) + 4);
+        const [part, rest] = splitTextToFit(sizer, remaining, noteW, CONTENT_BOTTOM - y, 8, false);
+        doc.font(fontRegular).fontSize(8).fillColor(muted).text(part, mL + 10, y, { width: noteW });
+        y += measure(part, noteW, 8, fontRegular) + 4;
+        remaining = rest;
+        if (remaining) newPage();
+      }
+    }
+
+    // ── Sign-off: at the foot of the last page ──
+    if (y + 10 + 40 > CONTENT_BOTTOM) newPage();
+    const footerY = Math.max(y + 10, 724);
+    rule(footerY, mL + 10, pageR - 10);
     doc.font(fontRegular).fontSize(8).fillColor('#9ca3af')
       .text(`Generated on ${generatedOn}`, mL + 10, footerY + 10)
       .text('This is a computer-generated document.', mL + 10, footerY + 22);
@@ -822,9 +874,17 @@ exports.generatePayslip = async (req, res) => {
     doc.font(fontBold).fontSize(10).fillColor(black)
       .text(company.authorizedSignatory || 'Admin', pageR - 150, footerY + 24, { width: 120, align: 'center' });
 
-    if (salary.notes) {
-      doc.font(fontRegular).fontSize(8).fillColor(muted)
-        .text(`Note: ${salary.notes}`, mL + 10, 766, { width: cW - 20, height: 20, ellipsis: true });
+    // Frame every page; number pages and point to the next one when the slip runs over.
+    const range = doc.bufferedPageRange();
+    for (let i = 0; i < range.count; i++) {
+      doc.switchToPage(range.start + i);
+      doc.page.margins.bottom = 0; // allow the page label below the frame without a page break
+      doc.rect(mL, FRAME_TOP, cW, FRAME_BOTTOM - FRAME_TOP).strokeColor(border).lineWidth(1).stroke();
+      if (range.count > 1) {
+        doc.font(fontRegular).fontSize(7.5).fillColor('#9ca3af');
+        if (i < range.count - 1) doc.text(`Continued on page ${i + 2}`, mL, FRAME_BOTTOM + 8, { width: cW / 2 });
+        doc.text(`Page ${i + 1} of ${range.count}`, mL + cW / 2, FRAME_BOTTOM + 8, { width: cW / 2, align: 'right' });
+      }
     }
 
     const pdfBuffer = await new Promise((resolve, reject) => {

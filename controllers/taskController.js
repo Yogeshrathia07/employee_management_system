@@ -5,6 +5,30 @@ const include = [
   { model: User, as: 'assigner', attributes: ['id', 'name'] },
 ];
 
+const sameId = (a, b) => a != null && b != null && Number(a) === Number(b);
+
+// Who may change a task: superadmin any; admin within their company; a manager the
+// tasks they assigned or that were assigned to them; an employee their own tasks.
+function canManageTask(actor, task) {
+  if (actor.role === 'superadmin') return true;
+  if (actor.role === 'admin') return !!actor.companyId && sameId(task.companyId, actor.companyId);
+  if (actor.role === 'manager') return sameId(task.assignedBy, actor.id) || sameId(task.assignedTo, actor.id);
+  return sameId(task.assignedTo, actor.id);
+}
+
+// Returns an error message when the actor may not assign work to this user.
+async function assigneeError(actor, assignedTo) {
+  const assignee = await User.findByPk(assignedTo, { attributes: ['id', 'role', 'companyId', 'managerId'] });
+  if (!assignee) return { status: 404, message: 'Assignee not found' };
+  if (actor.role === 'manager' && !sameId(assignee.managerId, actor.id)) {
+    return { status: 403, message: 'You can only assign tasks to your team members' };
+  }
+  if (actor.role === 'admin' && (!sameId(assignee.companyId, actor.companyId) || !['employee', 'manager'].includes(assignee.role))) {
+    return { status: 403, message: 'You can only assign tasks to employees and managers of your company' };
+  }
+  return { assignee };
+}
+
 // ── GET /tasks ────────────────────────────────────────────────────────────────
 exports.getTasks = async (req, res) => {
   try {
@@ -27,8 +51,8 @@ exports.getTasks = async (req, res) => {
         if (req.query.assignedTo) where = { assignedTo: req.query.assignedTo, assignedBy: id };
       }
     } else {
-      // admin / superadmin — prefer query param, then user's own companyId, then no filter (superadmin sees all)
-      const filterCompany = req.query.companyId || companyId;
+      // An admin is always limited to their own company; a superadmin may filter by ?companyId.
+      const filterCompany = role === 'superadmin' ? (req.query.companyId || companyId) : (companyId || -1);
       if (filterCompany) where.companyId = filterCompany;
       if (req.query.assignedTo) where.assignedTo = req.query.assignedTo;
       if (req.query.assignedBy) where.assignedBy = req.query.assignedBy;
@@ -44,10 +68,12 @@ exports.createTask = async (req, res) => {
   try {
     const { title, description, assignedTo, dueDate, priority, projectName } = req.body;
     if (!title || !assignedTo) return res.status(400).json({ message: 'Title and assignedTo are required' });
+    const checked = await assigneeError(req.user, assignedTo);
+    if (checked.message) return res.status(checked.status).json({ message: checked.message });
     const task = await Task.create({
       title, description: description || '', projectName: projectName || '',
       assignedTo, assignedBy: req.user.id,
-      companyId: req.user.companyId,
+      companyId: checked.assignee.companyId || req.user.companyId,
       dueDate: dueDate || null,
       priority: priority || 'medium',
       status: 'todo', approvalStatus: 'none',
@@ -62,7 +88,14 @@ exports.updateTask = async (req, res) => {
   try {
     const task = await Task.findByPk(req.params.id);
     if (!task) return res.status(404).json({ message: 'Task not found' });
+    if (!canManageTask(req.user, task) || (req.user.role === 'manager' && !sameId(task.assignedBy, req.user.id))) {
+      return res.status(403).json({ message: 'Access denied' });
+    }
     const { title, description, assignedTo, dueDate, priority, projectName } = req.body;
+    if (assignedTo && !sameId(assignedTo, task.assignedTo)) {
+      const checked = await assigneeError(req.user, assignedTo);
+      if (checked.message) return res.status(checked.status).json({ message: checked.message });
+    }
     if (title)                     task.title       = title;
     if (projectName !== undefined) task.projectName = projectName;
     if (description !== undefined) task.description = description;
@@ -80,8 +113,7 @@ exports.updateTaskStatus = async (req, res) => {
   try {
     const task = await Task.findByPk(req.params.id);
     if (!task) return res.status(404).json({ message: 'Task not found' });
-    if (req.user.role === 'employee' && task.assignedTo !== req.user.id)
-      return res.status(403).json({ message: 'Access denied' });
+    if (!canManageTask(req.user, task)) return res.status(403).json({ message: 'Access denied' });
     const { status } = req.body;
     if (!['todo', 'in_progress', 'done'].includes(status))
       return res.status(400).json({ message: 'Invalid status' });
@@ -114,9 +146,10 @@ exports.approveCompletion = async (req, res) => {
   try {
     const task = await Task.findByPk(req.params.id);
     if (!task) return res.status(404).json({ message: 'Task not found' });
-    // Manager must be the assigner
-    if (req.user.role === 'manager' && task.assignedBy !== req.user.id)
+    // A manager approves only work they assigned; an admin only within their company.
+    if (req.user.role === 'manager' && !sameId(task.assignedBy, req.user.id))
       return res.status(403).json({ message: 'Access denied' });
+    if (!canManageTask(req.user, task)) return res.status(403).json({ message: 'Access denied' });
     task.approvalStatus = 'approved';
     task.status         = 'done';
     task.completedAt    = new Date();
@@ -149,6 +182,9 @@ exports.deleteTask = async (req, res) => {
   try {
     const task = await Task.findByPk(req.params.id);
     if (!task) return res.status(404).json({ message: 'Task not found' });
+    if (!canManageTask(req.user, task) || (req.user.role === 'manager' && !sameId(task.assignedBy, req.user.id))) {
+      return res.status(403).json({ message: 'Access denied' });
+    }
     await task.destroy();
     res.json({ message: 'Task deleted' });
   } catch (err) { res.status(500).json({ message: err.message }); }

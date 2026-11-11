@@ -1,4 +1,5 @@
 const { Company, User } = require('../models');
+const { PHOTOS_DIR } = require('../config/uploads');
 
 exports.getCompanies = async (req, res) => {
   try {
@@ -99,7 +100,7 @@ exports.uploadLogo = async (req, res) => {
     if (company.logoUrl && !company.logoUrl.startsWith('http')) {
       const fs = require('fs');
       const path = require('path');
-      const oldPath = path.join(__dirname, '..', 'uploads', 'photos', company.logoUrl);
+      const oldPath = path.join(PHOTOS_DIR, company.logoUrl);
       if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
     }
 
@@ -122,7 +123,7 @@ exports.getLogo = async (req, res) => {
     // If it's a URL, redirect
     if (company.logoUrl.startsWith('http')) return res.redirect(company.logoUrl);
 
-    const filePath = path.join(__dirname, '..', 'uploads', 'photos', company.logoUrl);
+    const filePath = path.join(PHOTOS_DIR, company.logoUrl);
     if (!fs.existsSync(filePath)) return res.status(404).json({ message: 'File not found' });
     res.sendFile(filePath);
   } catch (err) {

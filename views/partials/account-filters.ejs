@@ -1,0 +1,58 @@
+<div class="account-filter-bar" data-account-filter="<%= filterKey %>">
+  <div class="account-filter-controls">
+    <label class="account-filter-field account-filter-search">
+      <span>Search</span>
+      <span class="account-search-input"><i class="bx bx-search" aria-hidden="true"></i><input type="search" id="<%= filterKey %>-search" placeholder="<%= searchPlaceholder %>" oninput="scheduleAccountFilterRender('<%= filterKey %>')"></span>
+    </label>
+    <% if (filterKey !== 'pay') { %>
+    <label class="account-filter-field"><span>Status</span><select id="<%= filterKey %>-status" class="form-control" onchange="changeAccountFilter('<%= filterKey %>')">
+      <option value="">All Status</option>
+      <% statuses.forEach(function(status) { %><option<%- filterKey === 'tds' && status === 'Active' ? ' selected' : '' %>><%= status %></option><% }); %>
+    </select></label>
+    <% } %>
+    <% if (filterKey === 'inv' || filterKey === 'pay') { %>
+    <label class="account-filter-field"><span>Type</span><select id="<%= filterKey %>-type" class="form-control" onchange="changeAccountFilter('<%= filterKey %>')">
+      <option value="">All Types</option>
+      <% if (filterKey === 'pay') { %>
+        <option value="bill">Against Invoice / R.A. Bill</option><option value="advance">Advance</option>
+      <% } else { %>
+        <option value="Tax Invoice:B2B">Tax Invoice (B2B)</option><option value="Tax Invoice:B2C">Tax Invoice (B2C)</option>
+        <option>Proforma Invoice</option><option>Quotation</option><option>Credit Note</option><option>Debit Note</option>
+      <% } %>
+    </select></label>
+    <% } %>
+    <% if (filterKey === 'tds') { %>
+    <label class="account-filter-field"><span>Section</span><select id="tds-section-filter" class="form-control" onchange="changeAccountFilter('tds')"><option value="">All Sections</option></select></label>
+    <label class="account-filter-field"><span>Payee Type</span><select id="tds-payee-filter" class="form-control" onchange="changeAccountFilter('tds')"><option value="">All Payee Types</option></select></label>
+    <% } %>
+    <label class="account-filter-field"><span>Sort By</span><select id="<%= filterKey %>-sort" class="form-control" onchange="changeAccountFilter('<%= filterKey %>')">
+      <% if (filterKey === 'tds') { %>
+      <option value="reference_asc">Code: A to Z</option><option value="reference_desc">Code: Z to A</option>
+      <option value="rate_asc">Rate: Low to high</option><option value="rate_desc">Rate: High to low</option>
+      <option value="date_desc">Applicability: Latest first</option><option value="date_asc">Applicability: Earliest first</option>
+      <option value="customer_asc">Nature: A to Z</option><option value="customer_desc">Nature: Z to A</option>
+      <% } else { %>
+      <option value="date_desc">Newest first</option><option value="date_asc">Oldest first</option>
+      <% if (filterKey !== 'clt' && filterKey !== 'ven') { %><option value="amount_desc">Amount: High to low</option><option value="amount_asc">Amount: Low to high</option><% } %>
+      <option value="customer_asc">Name: A to Z</option><option value="customer_desc">Name: Z to A</option>
+      <option value="reference_asc">Reference: A to Z</option><option value="reference_desc">Reference: Z to A</option>
+      <% } %>
+    </select></label>
+    <% if (pageRole === 'superadmin') { %>
+    <label class="account-filter-field account-filter-company"><span>Company</span><select id="<%= filterKey %>-company-filter" class="form-control" onchange="changeAccountFilter('<%= filterKey %>', 'company')"><option value="">All Companies</option></select></label>
+    <% } %>
+    <div class="account-filter-period">
+      <span class="account-filter-label">Financial Year <span class="account-period-caption">April - March</span></span>
+      <div class="account-period-controls">
+        <input type="number" id="<%= filterKey %>-fy-year" class="form-control" min="1000" max="9999" step="1" inputmode="numeric" placeholder="Year" aria-label="<%= filterKey %> financial-year calendar year" oninput="validateAccountFilterYear('<%= filterKey %>')" onchange="changeAccountFilter('<%= filterKey %>', 'period')">
+        <select id="<%= filterKey %>-fy-month" class="form-control" aria-label="<%= filterKey %> financial-year calendar month" onchange="changeAccountFilter('<%= filterKey %>', 'period')">
+          <option value="">Month</option>
+          <% ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'].forEach(function(month, index) { %><option value="<%= String(index + 1).padStart(2, '0') %>"><%= month %></option><% }); %>
+        </select>
+        <button type="button" id="<%= filterKey %>-fy-all" class="account-all-years is-selected" aria-pressed="true" onclick="clearAccountFinancialYear('<%= filterKey %>')"><i class="bx bx-check-circle" aria-hidden="true"></i><span>All Years</span></button>
+      </div>
+    </div>
+  </div>
+  <% if (createAction) { %><button type="button" class="btn btn-primary account-filter-create" onclick="<%= createAction %>"><i class="bx bx-plus-circle" aria-hidden="true"></i><%= createLabel %></button><% } %>
+  <div class="account-filter-meta" id="<%= filterKey %>-filter-meta" aria-live="polite">All financial years<% if (filterKey === 'clt' || filterKey === 'ven') { %> · Based on registration date<% } %></div>
+</div>

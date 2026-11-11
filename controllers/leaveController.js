@@ -4,6 +4,11 @@ const { Leave, User } = require('../models');
 const VALID_LEAVE_TYPES = ['earned', 'casual', 'sick', 'maternity', 'paternity', 'unpaid', 'other', 'holiday', 'festival', 'company_event'];
 const COMPANY_LEAVE_TYPES = ['holiday', 'festival', 'company_event'];
 
+// An admin may only act on leave belonging to their own company.
+function outsideAdminCompany(actor, owner) {
+  return actor.role === 'admin' && (!actor.companyId || !owner || Number(owner.companyId) !== Number(actor.companyId));
+}
+
 exports.getLeaves = async (req, res) => {
   try {
     const { role, id, companyId } = req.user;
@@ -55,6 +60,10 @@ exports.createLeave = async (req, res) => {
     if (!applicant) return res.status(404).json({ message: 'User not found' });
     if (!VALID_LEAVE_TYPES.includes(leaveType)) {
       return res.status(400).json({ message: 'Invalid leave type selected' });
+    }
+    // Company-wide holidays appear on everyone's calendar, so only HR can add them.
+    if (COMPANY_LEAVE_TYPES.includes(leaveType) && !['admin', 'superadmin'].includes(req.user.role)) {
+      return res.status(403).json({ message: 'Only HR / admin can add company holidays' });
     }
     if (leaveType === 'maternity' && applicant.gender !== 'female') {
       return res.status(400).json({ message: 'Maternity leave is only available for female employees' });
@@ -122,14 +131,16 @@ exports.createLeave = async (req, res) => {
 exports.actionLeave = async (req, res) => {
   try {
     const { action, rejectionReason } = req.body;
+    if (!['approve', 'reject'].includes(action)) return res.status(400).json({ message: 'Action must be approve or reject' });
     const leave = await Leave.findByPk(req.params.id, {
-      include: [{ model: User, as: 'user', attributes: ['id', 'role', 'managerId'] }],
+      include: [{ model: User, as: 'user', attributes: ['id', 'role', 'managerId', 'companyId'] }],
     });
     if (!leave) return res.status(404).json({ message: 'Leave not found' });
-    if (leave.status !== 'pending') return res.status(400).json({ message: 'Leave already processed' });
 
     const actor = req.user;
     const submitter = leave.user;
+    if (outsideAdminCompany(actor, submitter)) return res.status(403).json({ message: 'Access denied: this leave belongs to another company' });
+    if (leave.status !== 'pending') return res.status(400).json({ message: 'Leave already processed' });
 
     // Nobody can approve their own leave (except company-wide holidays added by admin)
     if (submitter.id === actor.id && !COMPANY_LEAVE_TYPES.includes(leave.type)) {
@@ -169,10 +180,13 @@ exports.actionLeave = async (req, res) => {
 
 exports.deleteLeave = async (req, res) => {
   try {
-    const leave = await Leave.findByPk(req.params.id, { include: [{ model: User, as: 'user', attributes: ['id','name'] }] });
+    const leave = await Leave.findByPk(req.params.id, { include: [{ model: User, as: 'user', attributes: ['id','name','companyId'] }] });
     if (!leave) return res.status(404).json({ message: 'Leave not found' });
     if (leave.userId !== req.user.id && req.user.role !== 'admin' && req.user.role !== 'superadmin') {
       return res.status(403).json({ message: 'Access denied' });
+    }
+    if (leave.userId !== req.user.id && outsideAdminCompany(req.user, leave.user)) {
+      return res.status(403).json({ message: 'Access denied: this leave belongs to another company' });
     }
     if (leave.status !== 'pending') return res.status(400).json({ message: 'Cannot delete processed leave' });
     const { moveToRecycleBin } = require('./recycleBinController');
