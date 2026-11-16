@@ -100,7 +100,7 @@ test('the ESIC columns are added when missing, even with DB_SYNC_ALTER=false', a
 
 test('company lists show the GST number so companies with the same name can be told apart', () => {
   const source = fs.readFileSync(path.join(root, 'public/js/api.js'), 'utf8');
-  const start = source.indexOf('// ─── Company dropdowns ───');
+  const start = source.indexOf('// ─── Safe HTML ───');
   const end = source.indexOf('\nfunction setAuthCookie', start);
   const context = vm.createContext({});
   vm.runInContext(source.slice(start, end), context);

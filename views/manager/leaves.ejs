@@ -319,9 +319,9 @@ function renderLeaves() {
     tbody.innerHTML = data.length ? data.map(function(l){
       var dept = l.user ? (l.user.department || l.user.role || 'Employee') : '—';
       return '<tr>' +
-        '<td><strong>' + (l.user ? l.user.name : '—') + '</strong></td>' +
-        '<td style="font-size:12px;color:var(--text-muted);">' + dept + '</td>' +
-        '<td>' + (leaveTypeLabels[l.type] || l.type) + '</td>' +
+        '<td><strong>' + escapeHtml(l.user ? l.user.name : '—') + '</strong></td>' +
+        '<td style="font-size:12px;color:var(--text-muted);">' + escapeHtml(dept) + '</td>' +
+        '<td>' + escapeHtml(leaveTypeLabels[l.type] || l.type) + '</td>' +
         '<td>' + fmtDate(l.startDate) + '</td>' +
         '<td>' + fmtDate(l.endDate) + '</td>' +
         '<td>' + l.days + '</td>' +
@@ -340,12 +340,12 @@ function renderLeaves() {
     thead.innerHTML = '<tr><th>Leave Type</th><th>From</th><th>To</th><th>Days</th><th>Status</th><th>Approved By</th><th>Applied On</th><th>Actions</th></tr>';
     tbody.innerHTML = data.length ? data.map(function(l){
       return '<tr>' +
-        '<td>' + (leaveTypeLabels[l.type] || l.type) + '</td>' +
+        '<td>' + escapeHtml(leaveTypeLabels[l.type] || l.type) + '</td>' +
         '<td>' + fmtDate(l.startDate) + '</td>' +
         '<td>' + fmtDate(l.endDate) + '</td>' +
         '<td>' + l.days + '</td>' +
         '<td>' + statusBadge(l.status) + '</td>' +
-        '<td style="font-size:12px;color:var(--text-muted);">' + (l.approver ? l.approver.name : '—') + '</td>' +
+        '<td style="font-size:12px;color:var(--text-muted);">' + escapeHtml(l.approver ? l.approver.name : '—') + '</td>' +
         '<td style="font-size:12px;color:var(--text-muted);">' + fmtDate(l.createdAt) + '</td>' +
         '<td>' +
           '<button class="btn btn-ghost btn-sm" onclick="viewLeaveDetail(' + l.id + ')" title="View"><i class="bx bx-show"></i></button>' +
@@ -409,20 +409,20 @@ function viewLeaveDetail(id) {
     '<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">' +
       (currentTab === 'team' ?
         '<div style="background:var(--bg-input);border-radius:12px;padding:12px;grid-column:1/-1;display:flex;align-items:center;gap:12px;">' +
-          '<div style="width:42px;height:42px;border-radius:50%;background:var(--accent-light);display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:700;color:var(--accent);">' + ((l.user?.name||'?').charAt(0)) + '</div>' +
-          '<div><div style="font-weight:700;">' + (l.user?.name||'Unknown') + '</div><div style="font-size:12px;color:var(--text-muted);">' + (l.user?.department || l.user?.role || 'Employee') + '</div></div>' +
+          '<div style="width:42px;height:42px;border-radius:50%;background:var(--accent-light);display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:700;color:var(--accent);">' + escapeHtml((l.user?.name||'?').charAt(0)) + '</div>' +
+          '<div><div style="font-weight:700;">' + escapeHtml(l.user?.name||'Unknown') + '</div><div style="font-size:12px;color:var(--text-muted);">' + escapeHtml(l.user?.department || l.user?.role || 'Employee') + '</div></div>' +
         '</div>'
       : '') +
-      '<div style="background:var(--bg-input);border-radius:12px;padding:12px;"><div class="detail-label">Leave Type</div><div class="detail-value">' + (leaveTypeLabels[l.type] || l.type) + '</div></div>' +
+      '<div style="background:var(--bg-input);border-radius:12px;padding:12px;"><div class="detail-label">Leave Type</div><div class="detail-value">' + escapeHtml(leaveTypeLabels[l.type] || l.type) + '</div></div>' +
       '<div style="background:var(--bg-input);border-radius:12px;padding:12px;"><div class="detail-label">Status</div><div class="detail-value">' + statusBadge(l.status) + '</div></div>' +
       '<div style="background:var(--bg-input);border-radius:12px;padding:12px;"><div class="detail-label">From</div><div class="detail-value">' + fmtDate(l.startDate) + '</div></div>' +
       '<div style="background:var(--bg-input);border-radius:12px;padding:12px;"><div class="detail-label">To</div><div class="detail-value">' + fmtDate(l.endDate) + '</div></div>' +
       '<div style="background:var(--bg-input);border-radius:12px;padding:12px;"><div class="detail-label">Days</div><div class="detail-value">' + l.days + '</div></div>' +
       '<div style="background:var(--bg-input);border-radius:12px;padding:12px;"><div class="detail-label">Applied On</div><div class="detail-value">' + fmtDate(l.createdAt) + '</div></div>' +
-      (l.approver ? '<div style="background:var(--bg-input);border-radius:12px;padding:12px;grid-column:1/-1;"><div class="detail-label">Approved / Reviewed By</div><div class="detail-value">' + l.approver.name + '</div></div>' : '') +
+      (l.approver ? '<div style="background:var(--bg-input);border-radius:12px;padding:12px;grid-column:1/-1;"><div class="detail-label">Approved / Reviewed By</div><div class="detail-value">' + escapeHtml(l.approver.name) + '</div></div>' : '') +
     '</div>' +
-    (l.reason ? '<div style="margin-top:14px;background:var(--bg-input);border-radius:12px;padding:12px;"><div class="detail-label">Reason</div><div class="detail-value">' + l.reason + '</div></div>' : '') +
-    (l.rejectionReason ? '<div style="margin-top:12px;background:var(--danger-light);border-radius:12px;padding:12px;"><div class="detail-label" style="color:var(--danger);">Rejection Reason</div><div class="detail-value">' + l.rejectionReason + '</div></div>' : '');
+    (l.reason ? '<div style="margin-top:14px;background:var(--bg-input);border-radius:12px;padding:12px;"><div class="detail-label">Reason</div><div class="detail-value" style="white-space:pre-wrap;">' + escapeHtml(l.reason) + '</div></div>' : '') +
+    (l.rejectionReason ? '<div style="margin-top:12px;background:var(--danger-light);border-radius:12px;padding:12px;"><div class="detail-label" style="color:var(--danger);">Rejection Reason</div><div class="detail-value">' + escapeHtml(l.rejectionReason) + '</div></div>' : '');
   openModal('detail-modal');
 }
 

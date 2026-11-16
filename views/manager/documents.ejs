@@ -121,7 +121,7 @@ async function loadUsers() {
     allUsers = await api('GET','/users');
     const opts = allUsers
       .filter(u => ['employee', 'manager'].includes(u.role))
-      .map(u => '<option value="'+u.id+'">'+u.name+' ('+u.role+')</option>')
+      .map(u => '<option value="'+Number(u.id)+'">'+esc(u.name)+' ('+esc(u.role)+')</option>')
       .join('');
     document.getElementById('f-user').innerHTML = '<option value="">All Employees</option>' + opts;
   } catch(e) {}
@@ -196,28 +196,27 @@ function openEmployeeDocsModal(userId) {
   document.getElementById('employee-docs-title').textContent = (user ? user.name : 'Employee') + ' Documents';
   document.getElementById('employee-docs-body').innerHTML = userDocs.length ? userDocs.map(function(d){
     var status = d.verificationStatus || 'pending';
-    var safeTitle = (d.title || '').replace(/'/g, "\\'");
     return '<div class="employee-doc-item" style="margin-bottom:10px;">'+
       '<div class="employee-doc-main">'+
         '<div class="employee-doc-title-row">'+
           '<div class="employee-doc-title">'+esc(d.title || 'Untitled document')+'</div>'+
-          '<span class="employee-doc-badge" style="background:'+(VBG[status] || '#fef3c7')+';color:'+(VCOLOR[status] || '#f59e0b')+';">'+status+'</span>'+
+          '<span class="employee-doc-badge" style="background:'+(VBG[status] || '#fef3c7')+';color:'+(VCOLOR[status] || '#f59e0b')+';">'+esc(status)+'</span>'+
         '</div>'+
         '<div class="employee-doc-meta">'+esc(TYPE_LABELS[d.type] || d.type || 'Other')+' • '+fileSize(d.fileSize || 0)+' • '+fmtDate(d.createdAt)+'</div>'+
       '</div>'+
       '<div class="employee-doc-actions">'+
-        '<button class="btn btn-ghost btn-sm" onclick="viewDoc('+d.id+',\''+safeTitle+'\')" title="View"><i class="bx bx-show"></i></button>'+
-        '<button class="btn btn-ghost btn-sm" onclick="openVerifyById('+d.id+')" title="Verify"><i class="bx bx-check-shield"></i></button>'+
-        '<button class="btn btn-ghost btn-sm" onclick="downloadDoc('+d.id+')" title="Download"><i class="bx bx-download"></i></button>'+
+        '<button class="btn btn-ghost btn-sm" onclick="viewDoc('+Number(d.id)+')" title="View"><i class="bx bx-show"></i></button>'+
+        '<button class="btn btn-ghost btn-sm" onclick="openVerifyById('+Number(d.id)+')" title="Verify"><i class="bx bx-check-shield"></i></button>'+
+        '<button class="btn btn-ghost btn-sm" onclick="downloadDoc('+Number(d.id)+')" title="Download"><i class="bx bx-download"></i></button>'+
       '</div>'+
     '</div>';
   }).join('') : '<div class="employee-doc-empty">No uploaded documents for this employee.</div>';
   openModal('employee-docs-modal');
 }
 
-function viewDoc(id, title) {
-  var w = window.open('', '_blank');
-  w.document.write('<html><head><title>' + (title||'Document') + '</title></head><body style="margin:0;background:#1e293b;"><iframe src="/api/documents/' + id + '/view?token=' + getToken() + '" style="width:100%;height:100vh;border:none;"></iframe></body></html>');
+// Opens the file itself in a new tab; nothing the uploader typed is written into a page.
+function viewDoc(id) {
+  window.open('/api/documents/' + Number(id) + '/view?token=' + encodeURIComponent(getToken()), '_blank');
 }
 
 function openVerifyById(id) {
@@ -227,9 +226,9 @@ function openVerifyById(id) {
   document.getElementById('verify-doc-id').value = d.id;
   document.getElementById('verify-modal-title').textContent = 'Verify: ' + d.title;
   document.getElementById('verify-doc-info').innerHTML =
-    'Employee: <strong>' + (d.user ? d.user.name : '-') + '</strong> &nbsp;|&nbsp; Type: ' +
-    (TYPE_LABELS[d.type] || d.type) + ' &nbsp;|&nbsp; Current: <strong style="color:' +
-    (VCOLOR[d.verificationStatus || 'pending'] || 'gray') + '">' + (d.verificationStatus || 'pending') + '</strong>';
+    'Employee: <strong>' + esc(d.user ? d.user.name : '-') + '</strong> &nbsp;|&nbsp; Type: ' +
+    esc(TYPE_LABELS[d.type] || d.type) + ' &nbsp;|&nbsp; Current: <strong style="color:' +
+    (VCOLOR[d.verificationStatus || 'pending'] || 'gray') + '">' + esc(d.verificationStatus || 'pending') + '</strong>';
   document.getElementById('verify-note').value = '';
   openModal('verify-modal');
 }

@@ -19,11 +19,13 @@ exports.getLeaves = async (req, res) => {
     if (role === 'employee') {
       where[Op.or] = [{ userId: id }, companyHolidayClause];
     } else if (role === 'manager') {
+      // The request lists (own / team) hold requests only; the calendar (no scope) also
+      // shows the company's holidays.
       if (req.query.scope === 'own') {
-        where[Op.or] = [{ userId: id }, companyHolidayClause];
+        where.userId = id;
       } else if (req.query.scope === 'team') {
         const teamMembers = await User.findAll({ where: { managerId: id }, attributes: ['id'] });
-        where[Op.or] = [{ userId: { [Op.in]: teamMembers.map(m => m.id) } }, companyHolidayClause];
+        where.userId = { [Op.in]: teamMembers.map(m => m.id) };
       } else {
         const teamMembers = await User.findAll({ where: { managerId: id }, attributes: ['id'] });
         where[Op.or] = [{ userId: { [Op.in]: [...teamMembers.map(m => m.id), id] } }, companyHolidayClause];
@@ -139,6 +141,7 @@ exports.actionLeave = async (req, res) => {
 
     const actor = req.user;
     const submitter = leave.user;
+    if (!submitter) return res.status(404).json({ message: 'The employee who applied for this leave no longer exists' });
     if (outsideAdminCompany(actor, submitter)) return res.status(403).json({ message: 'Access denied: this leave belongs to another company' });
     if (leave.status !== 'pending') return res.status(400).json({ message: 'Leave already processed' });
 

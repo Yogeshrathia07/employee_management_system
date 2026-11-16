@@ -96,12 +96,22 @@ exports.updateTask = async (req, res) => {
       const checked = await assigneeError(req.user, assignedTo);
       if (checked.message) return res.status(checked.status).json({ message: checked.message });
     }
+    const reassigned = assignedTo && !sameId(assignedTo, task.assignedTo);
     if (title)                     task.title       = title;
     if (projectName !== undefined) task.projectName = projectName;
     if (description !== undefined) task.description = description;
     if (assignedTo)                task.assignedTo  = assignedTo;
     if (dueDate !== undefined)     task.dueDate     = dueDate || null;
     if (priority)                  task.priority    = priority;
+    // A reassigned task, or a refused one the assigner has revised, goes out again as a
+    // fresh task; otherwise it would stay "refused" with no action left for anyone.
+    if (reassigned || task.approvalStatus === 'refused') {
+      task.status = 'todo';
+      task.approvalStatus = 'none';
+      task.refusalReason = null;
+      task.refusedAt = null;
+      task.completedAt = null;
+    }
     await task.save();
     const populated = await Task.findByPk(task.id, { include });
     res.json(populated);
@@ -117,8 +127,11 @@ exports.updateTaskStatus = async (req, res) => {
     const { status } = req.body;
     if (!['todo', 'in_progress', 'done'].includes(status))
       return res.status(400).json({ message: 'Invalid status' });
-    // Only allow employee to set in_progress (start). done requires approval.
-    if (req.user.role === 'employee' && status === 'done')
+    // Whoever works on a task (employee, or a manager given work by HR) starts it here,
+    // but "done" needs the assigner's approval through the completion request.
+    const workingOnIt = sameId(task.assignedTo, req.user.id) && !sameId(task.assignedBy, req.user.id)
+      && !['admin', 'superadmin'].includes(req.user.role);
+    if (workingOnIt && status === 'done')
       return res.status(400).json({ message: 'Use the completion request endpoint to mark done' });
     task.status      = status;
     task.completedAt = status === 'done' ? new Date() : null;

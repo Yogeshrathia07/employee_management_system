@@ -71,21 +71,27 @@ async function validateEmployeeCode(code, excludeUserId) {
   return { code: clean };
 }
 
+// Pay is visible only to HR (admin/superadmin) and to the person themselves.
+const PAY_FIELDS = ['baseSalary', 'basicSalary', 'da', 'hra', 'conveyance', 'medicalExpenses',
+  'specialAllowance', 'bonus', 'ta', 'pfApplicable', 'esicApplicable', 'currency'];
+
 exports.getUsers = async (req, res) => {
   try {
     const where = {};
+    const hidden = ['password'];
     if (req.user.role === 'admin') {
       where.companyId = req.user.companyId;
       where.role = { [Op.in]: ['employee', 'manager'] };
     } else if (req.user.role === 'manager') {
       where.managerId = req.user.id;
+      hidden.push(...PAY_FIELDS);
     } else if (req.user.role === 'superadmin') {
       if (req.query.companyId) where.companyId = req.query.companyId;
     }
 
     const users = await User.findAll({
       where,
-      attributes: { exclude: ['password'] },
+      attributes: { exclude: hidden },
       include: [
         { model: Company, as: 'company', attributes: ['id', 'name'] },
         { model: User, as: 'manager', attributes: ['id', 'name'] },

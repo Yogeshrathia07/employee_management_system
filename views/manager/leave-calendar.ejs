@@ -157,20 +157,20 @@ function leaveCard(l) {
   return `<div class="leave-detail-card">
     <div style="display:flex;align-items:center;gap:12px;">
       <div style="width:40px;height:40px;border-radius:50%;background:${avatarBg};display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;color:white;flex-shrink:0;">
-        ${isHoliday ? '<i class="bx bxs-calendar-star" style="font-size:17px;"></i>' : initials}
+        ${isHoliday ? '<i class="bx bxs-calendar-star" style="font-size:17px;"></i>' : escapeHtml(initials)}
       </div>
       <div style="flex:1;min-width:0;">
-        <div style="font-weight:700;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${name}</div>
-        <div style="font-size:11px;color:var(--text-muted);text-transform:capitalize;margin-top:2px;">${l.type.replace(/_/g,' ')}${!isHoliday?' · '+l.days+' day'+(l.days!==1?'s':''):''}</div>
+        <div style="font-weight:700;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(name)}</div>
+        <div style="font-size:11px;color:var(--text-muted);text-transform:capitalize;margin-top:2px;">${escapeHtml(l.type.replace(/_/g,' '))}${!isHoliday?' · '+l.days+' day'+(l.days!==1?'s':''):''}</div>
       </div>
-      <span style="font-size:11px;font-weight:700;background:${sb};color:${sc};border-radius:20px;padding:3px 10px;flex-shrink:0;text-transform:capitalize;">${l.status}</span>
+      <span style="font-size:11px;font-weight:700;background:${sb};color:${sc};border-radius:20px;padding:3px 10px;flex-shrink:0;text-transform:capitalize;">${escapeHtml(l.status)}</span>
     </div>
     <div class="leave-detail-grid">
       <div class="leave-detail-box"><div class="lbl">From</div><div class="val">${l.startDate.slice(0,10)}</div></div>
       <div class="leave-detail-box"><div class="lbl">To</div><div class="val">${l.endDate.slice(0,10)}</div></div>
-      ${!isHoliday ? `<div class="leave-detail-box"><div class="lbl">Employee</div><div class="val">${l.user?.name||'—'}</div></div>
+      ${!isHoliday ? `<div class="leave-detail-box"><div class="lbl">Employee</div><div class="val">${escapeHtml(l.user?.name||'—')}</div></div>
       <div class="leave-detail-box"><div class="lbl">Days</div><div class="val">${l.days}</div></div>` : ''}
-      ${l.reason ? `<div class="leave-detail-box" style="grid-column:1/-1;"><div class="lbl">${isHoliday?'Title / Note':'Reason'}</div><div class="val" style="font-weight:500;font-size:12px;">${l.reason}</div></div>` : ''}
+      ${l.reason ? `<div class="leave-detail-box" style="grid-column:1/-1;"><div class="lbl">${isHoliday?'Title / Note':'Reason'}</div><div class="val" style="font-weight:500;font-size:12px;white-space:pre-wrap;">${escapeHtml(l.reason)}</div></div>` : ''}
     </div>
   </div>`;
 }

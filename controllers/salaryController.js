@@ -251,6 +251,8 @@ exports.getSalaries = async (req, res) => {
 
     if (role === 'employee' || role === 'manager') {
       where.userId = id;
+      // A month becomes visible to the employee once HR freezes it (see the payroll sheet).
+      where.status = { [Op.in]: ['finalized', 'paid'] };
     } else if (role === 'admin') {
       const companyUsers = await User.findAll({ where: { companyId }, attributes: ['id'] });
       where.userId = { [Op.in]: companyUsers.map(u => u.id) };

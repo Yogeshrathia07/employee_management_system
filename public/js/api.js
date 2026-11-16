@@ -7,6 +7,15 @@ function getCookieValue(name) {
 const getToken = () => localStorage.getItem('ems_token') || getCookieValue('token');
 const getUser = () => JSON.parse(localStorage.getItem('ems_user') || 'null');
 
+// ─── Safe HTML ───
+// Anything a person typed (names, reasons, notes, titles) is shown as text, never run
+// as markup — an employee's leave reason must not execute in their manager's browser.
+function escapeHtml(value) {
+  return String(value == null ? '' : value).replace(/[&<>"']/g, function (ch) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch];
+  });
+}
+
 // ─── Company dropdowns ───
 // Company names can repeat (two companies may both be called "DHPE"), so every
 // company list shows the GST number next to the name to tell them apart.
@@ -16,12 +25,7 @@ function companyOptionLabel(company) {
   return company.gstNo ? name + ' | GST: ' + company.gstNo : name;
 }
 function companyOptionHtml(company) {
-  var esc = function (value) {
-    return String(value).replace(/[&<>"']/g, function (ch) {
-      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch];
-    });
-  };
-  return '<option value="' + esc(company.id) + '">' + esc(companyOptionLabel(company)) + '</option>';
+  return '<option value="' + escapeHtml(company.id) + '">' + escapeHtml(companyOptionLabel(company)) + '</option>';
 }
 
 function setAuthCookie(token) {
@@ -322,7 +326,7 @@ function userAvatar(user, size) {
   size = size || 36;
   var fs = size < 30 ? 11 : size < 44 ? 14 : size < 60 ? 18 : 24;
   var name = (user && user.name) ? user.name : 'U';
-  var initial = name.charAt(0).toUpperCase();
+  var initial = escapeHtml(name.charAt(0).toUpperCase());
   var initialsHtml = '<div style="width:'+size+'px;height:'+size+'px;border-radius:50%;background:linear-gradient(135deg,#1f2937,#334155);display:flex;align-items:center;justify-content:center;font-size:'+fs+'px;font-weight:700;color:white;flex-shrink:0;">'+initial+'</div>';
   
   // Only show img if profilePhoto is a non-empty string

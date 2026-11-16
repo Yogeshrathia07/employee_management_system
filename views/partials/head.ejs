@@ -24,12 +24,13 @@
         } catch (e) { return []; }
       }
 
+      // A manager's dots count only what they can act on: their team's requests.
       if (path === '/admin/leaves' || path === '/manager/leaves') {
-        var leaves = await getJson('/api/leaves');
+        var leaves = await getJson(path === '/manager/leaves' ? '/api/leaves?scope=team' : '/api/leaves');
         return leaves.filter(function(l){ return l.status === 'pending'; }).map(function(l){ return 'leave:' + l.id; });
       }
       if (path === '/admin/timesheets' || path === '/manager/timesheets') {
-        var timesheets = await getJson('/api/timesheets');
+        var timesheets = await getJson(path === '/manager/timesheets' ? '/api/timesheets?scope=team' : '/api/timesheets');
         return timesheets.filter(function(t){ return t.status === 'pending'; }).map(function(t){ return 'timesheet:' + t.id; });
       }
       if (path === '/admin/documents') {
@@ -41,8 +42,11 @@
         return teamDocs.filter(function(d){ return d.verificationStatus === 'pending'; }).map(function(d){ return 'document:' + d.id; });
       }
       if (path === '/manager/tasks') {
-        var tasks = await getJson('/api/tasks');
-        return tasks.filter(function(t){ return t.approvalStatus === 'pending_approval'; }).map(function(t){ return 'task:' + t.id; });
+        // Completion requests from the team, plus work given to the manager.
+        var review = await getJson('/api/tasks?scope=assigned_by_me');
+        var mine = await getJson('/api/tasks?scope=assigned_to_me');
+        return review.filter(function(t){ return t.approvalStatus === 'pending_approval'; }).map(function(t){ return 'task:' + t.id; })
+          .concat(mine.filter(function(t){ return t.status !== 'done' && t.approvalStatus !== 'approved' && t.approvalStatus !== 'refused'; }).map(function(t){ return 'task:' + t.id; }));
       }
       if (path === '/employee/tasks') {
         var myTasks = await getJson('/api/tasks');

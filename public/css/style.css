@@ -592,6 +592,8 @@ body.modal-open{overflow:hidden;}
 .employee-overview-icon.gray{background:#f3f4f6;color:#374151;}
 .employee-overview-label{font-size:13px;color:#6b7280;font-weight:600;margin-bottom:2px;}
 .employee-overview-value{font-size:30px;font-weight:600;color:#111111;line-height:1.1;display:none;}
+.employee-overview-pending{font-size:12px;font-weight:600;color:#6b7280;}
+.employee-overview-pending.has-items{color:#b45309;}
 .employee-overview-link{display:flex;align-items:center;justify-content:center;min-height:36px;padding:0 16px;border:1px solid #e5e7eb;border-radius:12px;background:#fafafa;color:#374151;font-size:13px;font-weight:700;text-align:center;}
 .employee-overview-link::before{content:'\2192';margin-right:8px;font-size:14px;line-height:1;}
 .employee-overview-link.emphasis{background:#fafafa;border-color:#e5e7eb;color:#374151;}

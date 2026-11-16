@@ -32,6 +32,7 @@
               <div class="employee-overview-icon blue"><i class="bx bxs-check-square"></i></div>
               <div>
                 <div class="employee-overview-label">Assign Tasks</div>
+                <div class="employee-overview-pending" data-pending-wrap="tasks"><span data-pending="tasks">–</span> waiting</div>
               </div>
             </div>
             <div class="employee-overview-link">Open Task Management</div>
@@ -42,6 +43,7 @@
               <div class="employee-overview-icon orange"><i class="bx bxs-calendar-check"></i></div>
               <div>
                 <div class="employee-overview-label">Leave Requests</div>
+                <div class="employee-overview-pending" data-pending-wrap="leaves"><span data-pending="leaves">–</span> waiting</div>
               </div>
             </div>
             <div class="employee-overview-link emphasis">Review Leave Requests</div>
@@ -52,6 +54,7 @@
               <div class="employee-overview-icon green"><i class="bx bxs-calendar"></i></div>
               <div>
                 <div class="employee-overview-label">Timesheets</div>
+                <div class="employee-overview-pending" data-pending-wrap="timesheets"><span data-pending="timesheets">–</span> waiting</div>
               </div>
             </div>
             <div class="employee-overview-link">Review Timesheets</div>
@@ -62,6 +65,7 @@
               <div class="employee-overview-icon purple"><i class="bx bxs-file-doc"></i></div>
               <div>
                 <div class="employee-overview-label">Team Documents</div>
+                <div class="employee-overview-pending" data-pending-wrap="documents"><span data-pending="documents">–</span> waiting</div>
               </div>
             </div>
             <div class="employee-overview-link">Open Team Documents</div>
@@ -106,21 +110,17 @@
 <script>
 async function loadDashboard() {
   try {
-    const [notifs] = await Promise.all([
-      api('GET', '/notifications'),
-      Promise.resolve([])
-    ]);
-
+    const notifs = await api('GET', '/notifications');
     const activeNotifs = (notifs || []).filter(function(n) { return n.status === 'active'; });
     if (activeNotifs.length) {
       document.getElementById('notif-area').innerHTML = activeNotifs.map(function(n) {
         return '<div class="notif-banner">' +
           '<div class="notif-banner-icon"><i class="bx bxs-megaphone"></i></div>' +
           '<div class="notif-banner-content">' +
-            '<div class="notif-banner-title">' + n.title + '</div>' +
-            '<div class="notif-banner-msg">' + (n.message || '') + '</div>' +
+            '<div class="notif-banner-title">' + escapeHtml(n.title) + '</div>' +
+            '<div class="notif-banner-msg">' + escapeHtml(n.message || '') + '</div>' +
           '</div>' +
-          (n.filePath ? '<div class="notif-banner-actions"><button class="notif-banner-btn" onclick="window.open(\'/api/notifications/' + n.id + '/download?token=\'+getToken(),\'_blank\')"><i class="bx bx-download"></i> Download</button></div>' : '') +
+          (n.filePath ? '<div class="notif-banner-actions"><button class="notif-banner-btn" onclick="window.open(\'/api/notifications/' + Number(n.id) + '/download?token=\'+encodeURIComponent(getToken()),\'_blank\')"><i class="bx bx-download"></i> Download</button></div>' : '') +
         '</div>';
       }).join('');
     }
@@ -129,6 +129,34 @@ async function loadDashboard() {
   }
 }
 
+// What is waiting for this manager: team requests to review and work given to them.
+async function loadPending() {
+  const get = url => api('GET', url).catch(() => null);
+  const [leaves, timesheets, documents, review, mine] = await Promise.all([
+    get('/leaves?scope=team'), get('/timesheets?scope=team'), get('/documents?scope=team'),
+    get('/tasks?scope=assigned_by_me'), get('/tasks?scope=assigned_to_me'),
+  ]);
+  const count = (list, test) => Array.isArray(list) ? list.filter(test).length : null;
+  const openForMe = t => t.status !== 'done' && !['approved', 'refused', 'pending_approval'].includes(t.approvalStatus);
+  const tasks = review && mine
+    ? count(review, t => t.approvalStatus === 'pending_approval') + count(mine, openForMe)
+    : null;
+  const pending = {
+    leaves: count(leaves, l => l.status === 'pending'),
+    timesheets: count(timesheets, t => t.status === 'pending'),
+    documents: count(documents, d => (d.verificationStatus || 'pending') === 'pending'),
+    tasks,
+  };
+  Object.keys(pending).forEach(function(key) {
+    const n = pending[key];
+    const wrap = document.querySelector('[data-pending-wrap="' + key + '"]');
+    if (!wrap) return;
+    wrap.querySelector('[data-pending]').textContent = n === null ? '–' : String(n);
+    wrap.classList.toggle('has-items', n > 0);
+  });
+}
+
 loadDashboard();
+loadPending();
 </script>
 </body></html>

@@ -158,6 +158,7 @@ exports.actionTimesheet = async (req, res) => {
 
     const actor = req.user;
     const submitter = ts.user;
+    if (!submitter) return res.status(404).json({ message: 'The employee who submitted this timesheet no longer exists' });
     if (outsideAdminCompany(actor, submitter)) return res.status(403).json({ message: 'Access denied: this timesheet belongs to another company' });
     if (ts.status !== 'pending') return res.status(400).json({ message: 'Timesheet already processed' });
 

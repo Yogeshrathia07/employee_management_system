@@ -30,9 +30,25 @@
         <button class="btn btn-ghost btn-sm" style="margin-left:auto;" onclick="filter('pending_approval')">View Pending</button>
       </div>
 
+      <!-- Work HR / admin assigned to this manager -->
+      <div class="card" id="my-tasks-card" style="padding:0;margin-bottom:20px;" hidden>
+        <div class="card-header">
+          <div>
+            <div class="card-title">My Tasks</div>
+            <div style="font-size:12px;color:var(--text-muted);">Assigned to you — start, then request completion when finished</div>
+          </div>
+        </div>
+        <div class="table-wrapper">
+          <table>
+            <thead><tr><th>Task</th><th>Assigned By</th><th>Priority</th><th>Due Date</th><th>Status</th><th>Actions</th></tr></thead>
+            <tbody id="my-tasks-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+
       <div class="card" style="padding:0;">
         <div class="card-header">
-          <div><div class="card-title">Assigned Tasks</div></div>
+          <div><div class="card-title">Team Tasks</div></div>
           <div class="toggle-group mb-0">
             <button class="toggle-btn active" id="f-all"              onclick="filter('all')">All</button>
             <button class="toggle-btn"        id="f-todo"             onclick="filter('todo')">To Do</button>
@@ -69,6 +85,24 @@
     <div class="modal-body" id="view-task-body"></div>
     <div class="modal-footer" id="view-task-footer">
       <button class="btn btn-ghost" onclick="closeModal('view-task-modal')">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- Refuse a task assigned to me -->
+<div class="modal-overlay" id="refuse-modal">
+  <div class="modal" style="max-width:460px">
+    <div class="modal-header"><span class="modal-title">Refuse Task</span><button class="modal-close" onclick="closeModal('refuse-modal')">×</button></div>
+    <div class="modal-body">
+      <input type="hidden" id="refuse-task-id">
+      <div class="form-group mb-0">
+        <label class="form-label" for="refuse-reason">Reason *</label>
+        <textarea id="refuse-reason" class="form-control" rows="3" placeholder="e.g. Resource conflict, unclear requirements..."></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('refuse-modal')">Cancel</button>
+      <button class="btn btn-danger" onclick="submitRefuse()">Refuse Task</button>
     </div>
   </div>
 </div>
@@ -119,9 +153,11 @@
 
 <script src="/js/api.js"></script>
 <script>
-let allTasks = [];
+let allTasks = [];   // tasks this manager assigned to the team
+let myTasks  = [];   // tasks HR / admin assigned to this manager
 let myTeam   = [];
 let currentFilter = 'all';
+const esc = escapeHtml;
 
 const PRIORITY_COLOR = { low:'#22c55e', medium:'#f59e0b', high:'#ef4444' };
 const STATUS_LABEL   = { todo:'To Do', in_progress:'In Progress', done:'Done' };
@@ -177,30 +213,28 @@ function render() {
       approvalCell = '<span style="color:#22c55e;font-weight:600;font-size:12px;"><i class="bx bxs-check-circle"></i> Approved</span>';
     } else if (t.approvalStatus === 'refused') {
       approvalCell = '<span style="color:#ef4444;font-weight:600;font-size:12px;"><i class="bx bx-x-circle"></i> Refused</span>' +
-        (t.refusalReason ? '<br><span style="font-size:11px;color:var(--text-muted);">' + t.refusalReason + '</span>' : '');
+        (t.refusalReason ? '<br><span style="font-size:11px;color:var(--text-muted);">' + esc(t.refusalReason) + '</span>' : '') +
+        '<br><span style="font-size:11px;color:var(--text-muted);">Edit or reassign to send it again</span>';
     } else {
       approvalCell = '<span style="font-size:12px;color:var(--text-muted);">—</span>';
     }
 
-    var safeT = JSON.stringify(t).replace(/"/g,'&quot;');
-    var safeView = JSON.stringify(t).replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/"/g,'&quot;');
-
     return '<tr>' +
-      '<td><div style="font-weight:600;">' + t.title + '</div>' +
-        (t.projectName ? '<div style="font-size:11px;font-weight:600;color:var(--accent);margin-top:1px;"><i class="bx bx-folder" style="font-size:10px;"></i> ' + t.projectName + '</div>' : '') +
-        (t.description ? '<div style="font-size:12px;color:var(--text-muted);">' + t.description.slice(0,60) + (t.description.length>60?'…':'') + '</div>' : '') +
+      '<td><div style="font-weight:600;">' + esc(t.title) + '</div>' +
+        (t.projectName ? '<div style="font-size:11px;font-weight:600;color:var(--accent);margin-top:1px;"><i class="bx bx-folder" style="font-size:10px;"></i> ' + esc(t.projectName) + '</div>' : '') +
+        (t.description ? '<div style="font-size:12px;color:var(--text-muted);">' + esc(t.description.slice(0,60)) + (t.description.length>60?'…':'') + '</div>' : '') +
       '</td>' +
-      '<td><div style="font-weight:500;">' + (t.assignee ? t.assignee.name : '—') + '</div>' +
-        '<div style="font-size:11px;color:var(--text-muted);">' + (t.assignee ? (t.assignee.employeeCode||'') + ' · ' + (t.assignee.department||'') : '') + '</div>' +
+      '<td><div style="font-weight:500;">' + esc(t.assignee ? t.assignee.name : '—') + '</div>' +
+        '<div style="font-size:11px;color:var(--text-muted);">' + esc(t.assignee ? (t.assignee.employeeCode||'') + ' · ' + (t.assignee.department||'') : '') + '</div>' +
       '</td>' +
-      '<td><span style="color:' + PRIORITY_COLOR[t.priority] + ';font-weight:600;text-transform:capitalize;">' + t.priority + '</span></td>' +
+      '<td><span style="color:' + (PRIORITY_COLOR[t.priority] || 'inherit') + ';font-weight:600;text-transform:capitalize;">' + esc(t.priority) + '</span></td>' +
       '<td>' + (t.dueDate ? new Date(t.dueDate).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'}) : '—') + '</td>' +
-      '<td><span class="badge badge-' + (t.status==='done'?'success':t.status==='in_progress'?'warning':'ghost') + '">' + STATUS_LABEL[t.status] + '</span></td>' +
+      '<td><span class="badge badge-' + (t.status==='done'?'success':t.status==='in_progress'?'warning':'ghost') + '">' + esc(STATUS_LABEL[t.status] || t.status) + '</span></td>' +
       '<td>' + approvalCell + '</td>' +
       '<td><div style="display:flex;gap:6px;">' +
-        '<button class="btn btn-ghost btn-sm" onclick="viewTask(' + t.id + ')" title="View"><i class="bx bx-show"></i></button>' +
-        '<button class="btn btn-ghost btn-sm" onclick="editTask(' + safeT + ')" title="Edit"><i class="bx bx-edit"></i></button>' +
-        '<button class="btn btn-danger btn-sm" onclick="deleteTask(' + t.id + ')" title="Delete"><i class="bx bx-trash"></i></button>' +
+        '<button class="btn btn-ghost btn-sm" onclick="viewTask(' + Number(t.id) + ')" title="View"><i class="bx bx-show"></i></button>' +
+        '<button class="btn btn-ghost btn-sm" onclick="editTask(' + Number(t.id) + ')" title="Edit"><i class="bx bx-edit"></i></button>' +
+        '<button class="btn btn-danger btn-sm" onclick="deleteTask(' + Number(t.id) + ')" title="Delete"><i class="bx bx-trash"></i></button>' +
       '</div></td>' +
     '</tr>';
   }).join('');
@@ -218,7 +252,9 @@ function openNewTask() {
   openModal('task-modal');
 }
 
-function editTask(t) {
+function editTask(id) {
+  var t = allTasks.find(function(x){ return x.id === id; });
+  if (!t) return;
   document.getElementById('task-id').value       = t.id;
   document.getElementById('task-title').value    = t.title;
   document.getElementById('task-project').value  = t.projectName || '';
@@ -271,7 +307,8 @@ async function deleteTask(id) {
 }
 
 function viewTask(id) {
-  var t = allTasks.find(function(x){ return x.id === id; });
+  var isTeamTask = allTasks.some(function(x){ return x.id === id; });
+  var t = allTasks.concat(myTasks).find(function(x){ return x.id === id; });
   if (!t) return;
   var PRIORITY_BG2 = { low:'rgba(34,197,94,0.1)', medium:'rgba(245,158,11,0.1)', high:'rgba(239,68,68,0.1)' };
   var isOverdue = t.dueDate && new Date(t.dueDate) < new Date() && t.status !== 'done';
@@ -279,32 +316,33 @@ function viewTask(id) {
 
   var approvalHtml = '';
   if (t.approvalStatus === 'pending_approval') {
-    approvalHtml = '<div style="background:#fef3c7;border:1px solid #fde68a;border-radius:10px;padding:10px 14px;font-size:13px;color:#92400e;margin-top:14px;"><i class="bx bxs-time"></i> Waiting for your approval</div>';
+    approvalHtml = '<div style="background:#fef3c7;border:1px solid #fde68a;border-radius:10px;padding:10px 14px;font-size:13px;color:#92400e;margin-top:14px;"><i class="bx bxs-time"></i> ' + (isTeamTask ? 'Waiting for your approval' : 'Waiting for approval') + '</div>';
   } else if (t.approvalStatus === 'approved') {
     approvalHtml = '<div style="background:#d1fae5;border:1px solid #a7f3d0;border-radius:10px;padding:10px 14px;font-size:13px;color:#065f46;margin-top:14px;"><i class="bx bxs-check-circle"></i> Approved</div>';
   } else if (t.approvalStatus === 'refused') {
-    approvalHtml = '<div style="background:#fee2e2;border:1px solid #fecaca;border-radius:10px;padding:10px 14px;font-size:13px;color:#991b1b;margin-top:14px;"><i class="bx bx-x-circle"></i> <strong>Refused:</strong> ' + (t.refusalReason||'—') + '</div>';
+    approvalHtml = '<div style="background:#fee2e2;border:1px solid #fecaca;border-radius:10px;padding:10px 14px;font-size:13px;color:#991b1b;margin-top:14px;"><i class="bx bx-x-circle"></i> <strong>Refused:</strong> ' + esc(t.refusalReason||'—') + '</div>';
   }
+  var person = isTeamTask ? t.assignee : t.assigner;
 
   document.getElementById('view-task-body').innerHTML =
     '<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">' +
       '<div style="background:var(--bg-input);border-radius:12px;padding:12px;grid-column:1/-1;">' +
         '<div class="detail-label">Title</div>' +
-        '<div style="font-weight:700;font-size:15px;color:var(--text-primary);margin-top:4px;">' + t.title + '</div>' +
-        (t.projectName ? '<div style="font-size:12px;color:var(--accent);font-weight:600;margin-top:4px;"><i class="bx bx-folder"></i> ' + t.projectName + '</div>' : '') +
+        '<div style="font-weight:700;font-size:15px;color:var(--text-primary);margin-top:4px;">' + esc(t.title) + '</div>' +
+        (t.projectName ? '<div style="font-size:12px;color:var(--accent);font-weight:600;margin-top:4px;"><i class="bx bx-folder"></i> ' + esc(t.projectName) + '</div>' : '') +
       '</div>' +
-      '<div style="background:var(--bg-input);border-radius:12px;padding:12px;"><div class="detail-label">Assigned To</div><div style="font-weight:600;margin-top:4px;">' + (t.assignee ? t.assignee.name : '—') + '</div>' + (t.assignee&&t.assignee.department?'<div style="font-size:11px;color:var(--text-muted);">' + t.assignee.department + '</div>':'') + '</div>' +
-      '<div style="background:var(--bg-input);border-radius:12px;padding:12px;"><div class="detail-label">Priority</div><div style="font-weight:600;color:' + PRIORITY_COLOR[t.priority] + ';text-transform:capitalize;margin-top:4px;">' + t.priority + '</div></div>' +
-      '<div style="background:var(--bg-input);border-radius:12px;padding:12px;"><div class="detail-label">Status</div><div style="margin-top:4px;">' + STATUS_LABEL[t.status] + '</div></div>' +
+      '<div style="background:var(--bg-input);border-radius:12px;padding:12px;"><div class="detail-label">' + (isTeamTask ? 'Assigned To' : 'Assigned By') + '</div><div style="font-weight:600;margin-top:4px;">' + esc(person ? person.name : '—') + '</div>' + (person&&person.department?'<div style="font-size:11px;color:var(--text-muted);">' + esc(person.department) + '</div>':'') + '</div>' +
+      '<div style="background:var(--bg-input);border-radius:12px;padding:12px;"><div class="detail-label">Priority</div><div style="font-weight:600;color:' + (PRIORITY_COLOR[t.priority] || 'inherit') + ';text-transform:capitalize;margin-top:4px;">' + esc(t.priority) + '</div></div>' +
+      '<div style="background:var(--bg-input);border-radius:12px;padding:12px;"><div class="detail-label">Status</div><div style="margin-top:4px;">' + esc(STATUS_LABEL[t.status] || t.status) + '</div></div>' +
       '<div style="background:var(--bg-input);border-radius:12px;padding:12px;"><div class="detail-label">Due Date</div><div style="margin-top:4px;' + (isOverdue?'color:#ef4444;font-weight:700;':'') + '">' + dueStr + (isOverdue?' (overdue)':'') + '</div></div>' +
     '</div>' +
-    (t.description ? '<div style="margin-top:14px;background:var(--bg-input);border-radius:12px;padding:12px;"><div class="detail-label">Description</div><div style="margin-top:4px;font-size:13px;color:var(--text-secondary);">' + t.description + '</div></div>' : '') +
+    (t.description ? '<div style="margin-top:14px;background:var(--bg-input);border-radius:12px;padding:12px;"><div class="detail-label">Description</div><div style="margin-top:4px;font-size:13px;color:var(--text-secondary);white-space:pre-wrap;">' + esc(t.description) + '</div></div>' : '') +
     approvalHtml;
 
   var footer = document.getElementById('view-task-footer');
   var footerHtml = '<button class="btn btn-ghost" onclick="closeModal(\'view-task-modal\')">Close</button>';
-  if (t.approvalStatus === 'pending_approval') {
-    footerHtml += '<button class="btn btn-primary" onclick="approveCompletion(' + t.id + ');closeModal(\'view-task-modal\');"><i class="bx bx-check-double"></i> Approve Completion</button>';
+  if (isTeamTask && t.approvalStatus === 'pending_approval') {
+    footerHtml += '<button class="btn btn-primary" onclick="approveCompletion(' + Number(t.id) + ');closeModal(\'view-task-modal\');"><i class="bx bx-check-double"></i> Approve Completion</button>';
   }
   footer.innerHTML = footerHtml;
   openModal('view-task-modal');
@@ -315,14 +353,83 @@ async function loadTeam() {
     myTeam = await api('GET', '/users');
     const sel = document.getElementById('task-assignee');
     sel.innerHTML = '<option value="">Select employee...</option>' +
-      myTeam.map(u => '<option value="' + u.id + '">' + u.name + ' (' + (u.employeeCode||u.email) + ')</option>').join('');
+      myTeam.map(u => '<option value="' + Number(u.id) + '">' + esc(u.name) + ' (' + esc(u.employeeCode||u.email) + ')</option>').join('');
   } catch(e) {}
 }
 
 async function loadTasks() {
   try {
-    allTasks = await api('GET', '/tasks');
+    const [team, mine] = await Promise.all([
+      api('GET', '/tasks?scope=assigned_by_me'),
+      api('GET', '/tasks?scope=assigned_to_me'),
+    ]);
+    allTasks = team || [];
+    myTasks = mine || [];
     render();
+    renderMyTasks();
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+// ── My Tasks (assigned to this manager) ──────────────────────────
+function myTaskState(t) {
+  if (t.approvalStatus === 'refused') return { label: 'You refused', badge: 'danger' };
+  if (t.approvalStatus === 'approved' || t.status === 'done') return { label: 'Completed', badge: 'success' };
+  if (t.approvalStatus === 'pending_approval') return { label: 'Waiting for approval', badge: 'warning' };
+  if (t.status === 'in_progress') return { label: 'In Progress', badge: 'warning' };
+  return { label: 'To Do', badge: 'ghost' };
+}
+
+function renderMyTasks() {
+  var card = document.getElementById('my-tasks-card');
+  card.hidden = !myTasks.length;
+  document.getElementById('my-tasks-tbody').innerHTML = myTasks.map(function(t) {
+    var state = myTaskState(t);
+    var actions = '<button class="btn btn-ghost btn-sm" onclick="viewTask(' + Number(t.id) + ')" title="View"><i class="bx bx-show"></i></button>';
+    var open = t.approvalStatus !== 'refused' && t.approvalStatus !== 'approved' && t.approvalStatus !== 'pending_approval' && t.status !== 'done';
+    if (open && t.status === 'todo') {
+      actions += '<button class="btn btn-primary btn-sm" onclick="startMyTask(' + Number(t.id) + ')"><i class="bx bx-play"></i> Start</button>' +
+        '<button class="btn btn-ghost btn-sm" style="color:#ef4444;" onclick="openRefuse(' + Number(t.id) + ')"><i class="bx bx-x"></i> Refuse</button>';
+    } else if (open && t.status === 'in_progress') {
+      actions += '<button class="btn btn-success btn-sm" onclick="requestMyCompletion(' + Number(t.id) + ')"><i class="bx bx-check"></i> Request completion</button>';
+    }
+    return '<tr>' +
+      '<td><div style="font-weight:600;">' + esc(t.title) + '</div>' +
+        (t.projectName ? '<div style="font-size:11px;font-weight:600;color:var(--accent);"><i class="bx bx-folder" style="font-size:10px;"></i> ' + esc(t.projectName) + '</div>' : '') + '</td>' +
+      '<td>' + esc(t.assigner ? t.assigner.name : '—') + '</td>' +
+      '<td><span style="color:' + (PRIORITY_COLOR[t.priority] || 'inherit') + ';font-weight:600;text-transform:capitalize;">' + esc(t.priority) + '</span></td>' +
+      '<td>' + (t.dueDate ? new Date(t.dueDate).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'}) : '—') + '</td>' +
+      '<td><span class="badge badge-' + state.badge + '">' + state.label + '</span></td>' +
+      '<td><div style="display:flex;gap:6px;flex-wrap:wrap;">' + actions + '</div></td>' +
+    '</tr>';
+  }).join('');
+}
+
+async function startMyTask(id) {
+  try { await api('PATCH', '/tasks/' + id + '/status', { status: 'in_progress' }); toast('Task started', 'success'); loadTasks(); }
+  catch(e) { toast(e.message, 'error'); }
+}
+
+async function requestMyCompletion(id) {
+  if (!confirm('Send this task for completion approval?')) return;
+  try { await api('PATCH', '/tasks/' + id + '/request-completion', {}); toast('Completion request sent', 'success'); loadTasks(); }
+  catch(e) { toast(e.message, 'error'); }
+}
+
+function openRefuse(id) {
+  document.getElementById('refuse-task-id').value = id;
+  document.getElementById('refuse-reason').value = '';
+  openModal('refuse-modal');
+}
+
+async function submitRefuse() {
+  var id = document.getElementById('refuse-task-id').value;
+  var reason = document.getElementById('refuse-reason').value.trim();
+  if (!reason) return toast('Please give a reason', 'error');
+  try {
+    await api('PATCH', '/tasks/' + id + '/refuse', { reason });
+    toast('Task refused', 'info');
+    closeModal('refuse-modal');
+    loadTasks();
   } catch(e) { toast(e.message, 'error'); }
 }
 

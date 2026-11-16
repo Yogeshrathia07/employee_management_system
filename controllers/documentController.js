@@ -274,6 +274,9 @@ exports.verifyDocument = async (req, res) => {
     if (req.user.role === 'manager' && sameId(req.user.id, targetUser.id)) {
       return res.status(403).json({ message: 'Managers cannot verify their own documents' });
     }
+    if (doc.issuedByCompany && !isAdminActor(req.user)) {
+      return res.status(403).json({ message: 'Documents issued by the company are managed by HR / admin' });
+    }
 
     const { status, note } = req.body;
     if (!['verified', 'rejected'].includes(status)) {
