@@ -114,8 +114,12 @@
     <div class="modal-body">
       <input type="hidden" id="task-id">
       <div class="form-group">
-        <label class="form-label">Assign To *</label>
+        <label class="form-label" for="task-assignee">Assign To *</label>
         <select id="task-assignee" class="form-control"></select>
+        <div id="task-team-hint" hidden style="margin-top:8px;padding:10px 12px;border-radius:10px;background:#fef3c7;color:#92400e;font-size:12px;line-height:1.5;">
+          No employees are linked to you yet. Ask your admin to open each team member under
+          <strong>Employees → Edit</strong> and set <strong>Reporting Manager</strong> to you.
+        </div>
       </div>
       <div class="form-group">
         <label class="form-label">Task Title *</label>
@@ -348,13 +352,22 @@ function viewTask(id) {
   openModal('view-task-modal');
 }
 
+// The team is everyone whose Reporting Manager is this manager (set by HR in Employees).
 async function loadTeam() {
+  const sel = document.getElementById('task-assignee');
+  const hint = document.getElementById('task-team-hint');
   try {
     myTeam = await api('GET', '/users');
-    const sel = document.getElementById('task-assignee');
-    sel.innerHTML = '<option value="">Select employee...</option>' +
-      myTeam.map(u => '<option value="' + Number(u.id) + '">' + esc(u.name) + ' (' + esc(u.employeeCode||u.email) + ')</option>').join('');
-  } catch(e) {}
+    sel.innerHTML = myTeam.length
+      ? '<option value="">Select employee...</option>' +
+        myTeam.map(u => '<option value="' + Number(u.id) + '">' + esc(u.name) + ' (' + esc(u.employeeCode||u.email) + ')</option>').join('')
+      : '<option value="">No employees report to you yet</option>';
+    hint.hidden = myTeam.length > 0;
+  } catch(e) {
+    sel.innerHTML = '<option value="">Could not load your team</option>';
+    hint.hidden = true;
+    toast('Could not load your team: ' + e.message, 'error');
+  }
 }
 
 async function loadTasks() {

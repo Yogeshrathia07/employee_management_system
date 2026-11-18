@@ -51,6 +51,11 @@
         </div>
         <div class="form-group"><label class="form-label">Company</label><select id="u-company" class="form-control"><option value="">Select company...</option></select></div>
       </div>
+      <div class="form-group" id="u-manager-group">
+        <label class="form-label" for="u-manager">Reporting Manager</label>
+        <select id="u-manager" class="form-control" aria-describedby="u-manager-help"><option value="">— No Manager —</option></select>
+        <small id="u-manager-help" style="color:var(--text-muted);font-size:11px;">The manager who assigns this employee's tasks and approves their leave and timesheets. Only managers of the selected company are listed.</small>
+      </div>
       <div class="form-row">
         <div class="form-group"><label class="form-label">Department</label><input type="text" id="u-dept" class="form-control"></div>
         <div class="form-group"><label class="form-label">Phone</label><input type="text" id="u-phone" class="form-control"></div>
@@ -198,6 +203,9 @@ function renderUsers() {
           <div class="employee-showcase-item"><i class="bx bx-envelope"></i><span>${esc(u.email)}</span></div>
           <div class="employee-showcase-item"><i class="bx bx-buildings"></i><span>${esc(u.company?.name || 'No company')}</span></div>
           <div class="employee-showcase-item"><i class="bx bx-briefcase"></i><span>${esc(u.department || 'Not assigned')}</span></div>
+          ${u.role === 'employee' ? (u.manager
+            ? `<div class="employee-showcase-item"><i class="bx bx-user-check"></i><span>Reports to ${esc(u.manager.name)}</span></div>`
+            : `<div class="employee-showcase-item" style="color:#b45309;"><i class="bx bx-error-circle"></i><span>No reporting manager</span></div>`) : ''}
         </div>
         <div class="employee-showcase-actions">
           <button class="btn btn-ghost btn-sm" onclick="viewUser(${u.id})"><i class="bx bx-show"></i> View</button>
@@ -210,6 +218,23 @@ function renderUsers() {
   `).join('');
 }
 
+// An employee's reporting manager must be a manager of the same company. Without one, no
+// manager sees the employee (Assign Tasks, leave and timesheet approval stay empty).
+function fillManagerOptions(selectedId) {
+  var role = document.getElementById('u-role').value;
+  var companyId = document.getElementById('u-company').value;
+  var select = document.getElementById('u-manager');
+  document.getElementById('u-manager-group').style.display = role === 'employee' ? '' : 'none';
+  var managers = allUsers.filter(function(u) {
+    return u.role === 'manager' && companyId && String(u.companyId || (u.company && u.company.id)) === String(companyId) && u.id != editId;
+  });
+  select.innerHTML = '<option value="">' + (companyId ? '— No Manager —' : '— Select a company first —') + '</option>' +
+    managers.map(function(m) { return '<option value="' + Number(m.id) + '">' + esc(m.name) + (m.department ? ' (' + esc(m.department) + ')' : '') + '</option>'; }).join('');
+  select.value = managers.some(function(m) { return String(m.id) === String(selectedId); }) ? String(selectedId) : '';
+}
+document.getElementById('u-role').addEventListener('change', function() { fillManagerOptions(document.getElementById('u-manager').value); });
+document.getElementById('u-company').addEventListener('change', function() { fillManagerOptions(document.getElementById('u-manager').value); });
+
 function openCreate() {
   editId = null;
   document.getElementById('u-modal-title').textContent = 'Add User';
@@ -221,6 +246,7 @@ function openCreate() {
   document.getElementById('u-company').value = '';
   document.getElementById('u-status').value = 'active';
   document.getElementById('u-status').disabled = false;
+  fillManagerOptions('');
   openModal('user-modal');
 }
 
@@ -243,6 +269,7 @@ function editUser(id) {
   document.getElementById('u-status').disabled = u.role === 'superadmin';
   document.getElementById('u-pass').value = '';
   document.getElementById('u-pass-confirm').value = '';
+  fillManagerOptions(u.managerId || (u.manager && u.manager.id) || '');
   openModal('user-modal');
 }
 
@@ -258,6 +285,8 @@ async function saveUser() {
     gender: document.getElementById('u-gender').value,
     status: currentUser && currentUser.role === 'superadmin' ? 'active' : document.getElementById('u-status').value
   };
+  // Only employees report to a manager; any other role clears the link.
+  body.managerId = body.role === 'employee' ? (document.getElementById('u-manager').value || null) : null;
   Object.keys(PROFILE_FIELD_IDS).forEach(function(k) {
     body[k] = document.getElementById(PROFILE_FIELD_IDS[k]).value.trim();
   });
